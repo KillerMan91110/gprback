@@ -1,0 +1,17 @@
+# Dependencias
+node_modules/
+
+# Variables de entorno (credenciales)
+.env
+
+# Entornos Python
+.venv/
+.venv-1/
+
+# Archivos de Claude
+.claude/
+
+# Archivos temporales
+*.log
+{
+UsersmerocAppData*
