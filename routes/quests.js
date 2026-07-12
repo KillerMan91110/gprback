@@ -10,7 +10,8 @@ async function fetchQuestDetail(idOrCode, byCode = false) {
             q.chain_position, q.chain_total, q.is_boss_quest, q.requires_quest_id,
             q.min_level, q.max_level, q.difficulty_stars, q.min_rank_code,
             q.npc_name, q.location_name, q.is_repeatable, q.repeat_cooldown_hours,
-            q.reputation_reward, q.gold_reward, q.xp_reward, q.hidden_unlock_text, q.description
+            q.reputation_reward, q.gold_reward, q.xp_reward, q.hidden_unlock_text, q.description,
+            q.required_class_id
      FROM quests q
      LEFT JOIN monster_zones mz ON mz.id = q.zone_id
      WHERE ${column} = $1`,

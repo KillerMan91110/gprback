@@ -1562,6 +1562,9 @@ router.post('/sessions/:id/action', async (req, res, next) => {
 
       const result = combat.resolveAttack(actor, target, attackElementalMods, attackBonusPercent);
       await persistParticipant(target);
+      if (actor.player_id === req.playerId) {
+        await questProgress.registerAction(req.playerId, { baseAction: 'ATTACK', killCount: target.hp <= 0 ? 1 : 0 });
+      }
       logEntry = {
         actorId: actor.id,
         action,
@@ -1908,6 +1911,14 @@ router.post('/sessions/:id/action', async (req, res, next) => {
         }
 
         for (const r of results) await persistParticipant(r.target);
+        if (actor.player_id === req.playerId) {
+          await questProgress.registerAction(req.playerId, {
+            skillId: skill.id,
+            damageSchool: skill.damage_school,
+            isElemental: !!skill.element_id,
+            killCount: results.filter((r) => r.target.hp <= 0).length,
+          });
+        }
 
         const verb = skill.skill_type === 'CURACION' ? 'cura' : 'daña';
         const summary = results
@@ -1930,6 +1941,9 @@ router.post('/sessions/:id/action', async (req, res, next) => {
       }
     } else if (action === 'DEFEND') {
       actor.is_defending = true;
+      if (actor.player_id === req.playerId) {
+        await questProgress.registerAction(req.playerId, { baseAction: 'DEFEND', killCount: 0 });
+      }
       logEntry = { actorId: actor.id, action, description: `${actor.name} se pone en guardia.`, mana_after: actor.mana };
     } else if (action === 'ESCAPE') {
       if (!actor.player_id) {

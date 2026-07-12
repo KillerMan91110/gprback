@@ -377,16 +377,21 @@ CREATE TABLE IF NOT EXISTS quests (
   required_class_id INT REFERENCES classes(id)
 );
 
--- Objetivos de cada quest (0 a N). KILL_ANY_IN_ZONE = cualquier monstruo comun de la zona
--- (no uno especifico); el resto apuntan a un monstruo o item concreto.
+-- Objetivos de cada quest (0 a N). USE_ACTION = acción de combate (atacar/defender/skill);
+-- el resto apuntan a monstruos o items concretos.
 CREATE TABLE IF NOT EXISTS quest_objectives (
   id SERIAL PRIMARY KEY,
   quest_id INT NOT NULL REFERENCES quests(id) ON DELETE CASCADE,
-  objective_type TEXT NOT NULL CHECK (objective_type IN ('KILL_MONSTER', 'KILL_ANY_IN_ZONE', 'DEFEAT_BOSS', 'COLLECT_ITEM')),
+  objective_type TEXT NOT NULL CHECK (objective_type IN ('KILL_MONSTER', 'KILL_ANY_IN_ZONE', 'DEFEAT_BOSS', 'COLLECT_ITEM', 'USE_ACTION')),
   monster_id INT REFERENCES monsters(id),
   item_id INT REFERENCES items(id),
   target_count INT NOT NULL DEFAULT 1,
-  description TEXT
+  description TEXT,
+  required_skill_id INT REFERENCES skills(id),
+  required_damage_school TEXT,
+  required_elemental BOOLEAN,
+  required_base_action TEXT,
+  requires_kill BOOLEAN NOT NULL DEFAULT TRUE
 );
 
 CREATE TABLE IF NOT EXISTS quest_item_rewards (
@@ -592,7 +597,8 @@ CREATE TABLE IF NOT EXISTS crafting_recipe_ingredients (
   id SERIAL PRIMARY KEY,
   recipe_id INT NOT NULL REFERENCES crafting_recipes(id) ON DELETE CASCADE,
   item_id INT NOT NULL REFERENCES items(id),
-  quantity INT NOT NULL
+  quantity INT NOT NULL,
+  CONSTRAINT crafting_recipe_ingredients_recipe_item_unique UNIQUE (recipe_id, item_id)
 );
 
 -- Gremios de jugadores

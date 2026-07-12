@@ -10556,6 +10556,7 @@ CREATE TABLE IF NOT EXISTS player_incubator (
   hatch_ready_at TIMESTAMP NOT NULL
 );
 ALTER TABLE combat_participants ADD COLUMN IF NOT EXISTS pet_revive_used BOOLEAN NOT NULL DEFAULT FALSE;
+ALTER TABLE crafting_recipe_ingredients ADD CONSTRAINT IF NOT EXISTS crafting_recipe_ingredients_recipe_item_unique UNIQUE (recipe_id, item_id);
 ALTER TABLE combat_participants ADD COLUMN IF NOT EXISTS damage_reduction NUMERIC NOT NULL DEFAULT 0;
 
 -- Huevos (items 837-841)
@@ -10629,3 +10630,133 @@ JOIN (VALUES
   ('DRAGON_PRIMORDIAL','PHYSICAL_DAMAGE_PERCENT', 25,  8),
   ('DRAGON_PRIMORDIAL','MAGICAL_DAMAGE_PERCENT',  25,  8)
 ) AS b(code, stat_code, base_amount, per_level_amount) ON p.code = b.code;
+
+-- =============================================
+-- Sistema de skills QUEST-locked (10 misiones de desbloqueo)
+-- =============================================
+
+ALTER TABLE quest_objectives ADD COLUMN IF NOT EXISTS required_skill_id INT REFERENCES skills(id);
+ALTER TABLE quest_objectives ADD COLUMN IF NOT EXISTS required_damage_school TEXT;
+ALTER TABLE quest_objectives ADD COLUMN IF NOT EXISTS required_elemental BOOLEAN;
+ALTER TABLE quest_objectives ADD COLUMN IF NOT EXISTS required_base_action TEXT;
+ALTER TABLE quest_objectives ADD COLUMN IF NOT EXISTS requires_kill BOOLEAN NOT NULL DEFAULT TRUE;
+
+ALTER TABLE quest_objectives DROP CONSTRAINT IF EXISTS quest_objectives_objective_type_check;
+ALTER TABLE quest_objectives ADD CONSTRAINT quest_objectives_objective_type_check
+  CHECK (objective_type = ANY (ARRAY['KILL_MONSTER','KILL_ANY_IN_ZONE','DEFEAT_BOSS','COLLECT_ITEM','USE_ACTION']));
+
+INSERT INTO quests(code, name, quest_type, zone_id, required_class_id, difficulty_stars,
+                   npc_name, min_level, xp_reward, gold_reward, reputation_reward,
+                   description, is_repeatable)
+VALUES
+  ('GUERRERO_ENTRENAMIENTO_DEFENSA', 'Defensa del Campamento', 'PRINCIPAL', 1, 1, 2,
+   'Comandante Aldric', 20, 200, 300, 20,
+   'La clase Guerrero exige una defensa impenetrable. Mantente firme bajo presión defensiva en el campo de batalla.',
+   FALSE),
+  ('GUERRERO_DUELO_CAMPEON', 'Duelo del Campeón', 'PRINCIPAL', 1, 1, 3,
+   'Comandante Aldric', 35, 300, 400, 30,
+   'Un verdadero Guerrero domina su golpe más letal. Elimina 30 enemigos usando Golpe Mortal.',
+   FALSE),
+  ('MAGO_MAESTRO_OSCURO', 'Los Ocultos', 'PRINCIPAL', 1, 2, 3,
+   'Archimago Valdemar', 30, 250, 350, 25,
+   'Las artes mágicas ofensivas son tu dominio. Derrota 30 enemigos con tus poderes mágicos.',
+   FALSE),
+  ('MAGO_DOMINIO_ELEMENTAL', 'Poder de los Elementos', 'PRINCIPAL', 1, 2, 4,
+   'Archimago Valdemar', 45, 350, 450, 35,
+   'Controla los elementos para liberar devastación. Elimina 35 enemigos con daño elemental.',
+   FALSE),
+  ('ARQUERO_CAZADOR', 'Cazador de Bestias', 'PRINCIPAL', 1, 3, 2,
+   'Maestro Sylvan', 20, 200, 300, 20,
+   'Un Arquero verdadero no cesa de disparar. Realiza 40 ataques básicos en combate.',
+   FALSE),
+  ('ARQUERO_TIRADOR_PERFECTO', 'El Tirador Perfecto', 'PRINCIPAL', 1, 3, 3,
+   'Maestro Sylvan', 35, 280, 380, 28,
+   'La puntería perfecta se logra con práctica constante. Elimina 35 enemigos con Disparo Preciso.',
+   FALSE),
+  ('PICARO_ASESINO_SILENCIOSO', 'El Asesino Silencioso', 'PRINCIPAL', 1, 4, 3,
+   'Sombra Kira', 30, 250, 350, 25,
+   'El silencio es tu mayor arma. Elimina 30 enemigos con Golpe Letal.',
+   FALSE),
+  ('PICARO_CONTRATO', 'Contrato Asesino', 'PRINCIPAL', 1, 4, 4,
+   'Sombra Kira', 40, 320, 420, 32,
+   'Los mejores asesinos encadenan sus golpes a la perfección. Elimina 25 enemigos con Ataque Silencioso.',
+   FALSE),
+  ('SACERDOTE_PURGA', 'La Purga Divina', 'PRINCIPAL', 1, 5, 2,
+   'Gran Sacerdote Elrond', 20, 200, 300, 20,
+   'La luz divina también puede ser un arma. Ataca 30 veces en combate para demostrar tu determinación.',
+   FALSE),
+  ('SACERDOTE_PODER_DIVINO', 'Poder Divino', 'PRINCIPAL', 1, 5, 4,
+   'Gran Sacerdote Elrond', 45, 350, 450, 35,
+   'El Sacerdote que domina la curación puede invocar la resurrección. Usa Curación 40 veces en combate.',
+   FALSE)
+ON CONFLICT (code) DO NOTHING;
+
+-- Objetivos USE_ACTION: DELETE + INSERT para que sea idempotente al recrear la BD
+DELETE FROM quest_objectives
+WHERE quest_id IN (
+  SELECT id FROM quests WHERE code IN (
+    'GUERRERO_ENTRENAMIENTO_DEFENSA','GUERRERO_DUELO_CAMPEON','MAGO_MAESTRO_OSCURO',
+    'MAGO_DOMINIO_ELEMENTAL','ARQUERO_CAZADOR','ARQUERO_TIRADOR_PERFECTO',
+    'PICARO_ASESINO_SILENCIOSO','PICARO_CONTRATO','SACERDOTE_PURGA','SACERDOTE_PODER_DIVINO'
+  )
+) AND objective_type = 'USE_ACTION';
+
+INSERT INTO quest_objectives(quest_id, objective_type, target_count, description,
+  required_base_action, required_skill_id, required_damage_school, required_elemental, requires_kill)
+SELECT q.id, 'USE_ACTION', 50, 'Usa la acción Defender 50 veces en combate',
+  'DEFEND', NULL, NULL, NULL, FALSE
+FROM quests q WHERE q.code = 'GUERRERO_ENTRENAMIENTO_DEFENSA';
+
+INSERT INTO quest_objectives(quest_id, objective_type, target_count, description,
+  required_base_action, required_skill_id, required_damage_school, required_elemental, requires_kill)
+SELECT q.id, 'USE_ACTION', 30, 'Elimina 30 enemigos con Golpe Mortal',
+  NULL, (SELECT id FROM skills WHERE code = 'GUERRERO_GOLPE_MORTAL'), NULL, NULL, TRUE
+FROM quests q WHERE q.code = 'GUERRERO_DUELO_CAMPEON';
+
+INSERT INTO quest_objectives(quest_id, objective_type, target_count, description,
+  required_base_action, required_skill_id, required_damage_school, required_elemental, requires_kill)
+SELECT q.id, 'USE_ACTION', 30, 'Elimina 30 enemigos usando skills de daño mágico',
+  NULL, NULL, 'MAGICO', NULL, TRUE
+FROM quests q WHERE q.code = 'MAGO_MAESTRO_OSCURO';
+
+INSERT INTO quest_objectives(quest_id, objective_type, target_count, description,
+  required_base_action, required_skill_id, required_damage_school, required_elemental, requires_kill)
+SELECT q.id, 'USE_ACTION', 35, 'Elimina 35 enemigos con daño elemental',
+  NULL, NULL, NULL, TRUE, TRUE
+FROM quests q WHERE q.code = 'MAGO_DOMINIO_ELEMENTAL';
+
+INSERT INTO quest_objectives(quest_id, objective_type, target_count, description,
+  required_base_action, required_skill_id, required_damage_school, required_elemental, requires_kill)
+SELECT q.id, 'USE_ACTION', 40, 'Usa la acción Atacar 40 veces en combate',
+  'ATTACK', NULL, NULL, NULL, FALSE
+FROM quests q WHERE q.code = 'ARQUERO_CAZADOR';
+
+INSERT INTO quest_objectives(quest_id, objective_type, target_count, description,
+  required_base_action, required_skill_id, required_damage_school, required_elemental, requires_kill)
+SELECT q.id, 'USE_ACTION', 35, 'Elimina 35 enemigos con Disparo Preciso',
+  NULL, (SELECT id FROM skills WHERE code = 'ARQUERO_DISPARO_PRECISO'), NULL, NULL, TRUE
+FROM quests q WHERE q.code = 'ARQUERO_TIRADOR_PERFECTO';
+
+INSERT INTO quest_objectives(quest_id, objective_type, target_count, description,
+  required_base_action, required_skill_id, required_damage_school, required_elemental, requires_kill)
+SELECT q.id, 'USE_ACTION', 30, 'Elimina 30 enemigos con Golpe Letal',
+  NULL, (SELECT id FROM skills WHERE code = 'PICARO_GOLPE_LETAL'), NULL, NULL, TRUE
+FROM quests q WHERE q.code = 'PICARO_ASESINO_SILENCIOSO';
+
+INSERT INTO quest_objectives(quest_id, objective_type, target_count, description,
+  required_base_action, required_skill_id, required_damage_school, required_elemental, requires_kill)
+SELECT q.id, 'USE_ACTION', 25, 'Elimina 25 enemigos con Ataque Silencioso',
+  NULL, (SELECT id FROM skills WHERE code = 'PICARO_ATAQUE_SILENCIOSO'), NULL, NULL, TRUE
+FROM quests q WHERE q.code = 'PICARO_CONTRATO';
+
+INSERT INTO quest_objectives(quest_id, objective_type, target_count, description,
+  required_base_action, required_skill_id, required_damage_school, required_elemental, requires_kill)
+SELECT q.id, 'USE_ACTION', 30, 'Usa la acción Atacar 30 veces en combate',
+  'ATTACK', NULL, NULL, NULL, FALSE
+FROM quests q WHERE q.code = 'SACERDOTE_PURGA';
+
+INSERT INTO quest_objectives(quest_id, objective_type, target_count, description,
+  required_base_action, required_skill_id, required_damage_school, required_elemental, requires_kill)
+SELECT q.id, 'USE_ACTION', 40, 'Usa Curación 40 veces en combate',
+  NULL, (SELECT id FROM skills WHERE code = 'SACERDOTE_CURACION'), NULL, NULL, FALSE
+FROM quests q WHERE q.code = 'SACERDOTE_PODER_DIVINO';

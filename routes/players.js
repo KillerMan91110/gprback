@@ -423,7 +423,11 @@ router.get('/:playerId/guild/skills', async (req, res, next) => {
     const skillsResult = await db.query(
       `SELECT s.id, s.code, s.name, s.learn_method, s.learn_gold_cost, s.learn_requirement_text, s.description,
               ps.player_id IS NOT NULL AS learned,
-              EXISTS (SELECT 1 FROM quests q WHERE q.name = s.learn_requirement_text) AS quest_exists
+              EXISTS (
+                SELECT 1 FROM quests q
+                JOIN player_quest_completions pqc ON pqc.quest_id = q.id AND pqc.player_id = $1
+                WHERE q.name = s.learn_requirement_text
+              ) AS quest_completed
        FROM skills s
        LEFT JOIN player_skills ps ON ps.skill_id = s.id AND ps.player_id = $1
        WHERE s.class_id = $2 AND s.learn_method IN ('GOLD', 'QUEST')
@@ -440,10 +444,7 @@ router.get('/:playerId/guild/skills', async (req, res, next) => {
       goldCost: s.learn_gold_cost,
       requirementText: s.learn_requirement_text,
       learned: s.learned,
-      // Las QUEST todavia no tienen su misión real cargada (ver quests.name): se muestran
-      // bloqueadas hasta que exista esa quest. Si el maestro no es de tu clase, todo queda
-      // bloqueado para aprender (solo se puede mirar).
-      locked: !isOwnClass || (s.learn_method === 'QUEST' && !s.quest_exists),
+      locked: !isOwnClass || (s.learn_method === 'QUEST' && !s.quest_completed),
       affordable: isOwnClass && s.learn_method === 'GOLD' ? Number(player.gold) >= s.learn_gold_cost : null,
     }));
 
@@ -454,8 +455,6 @@ router.get('/:playerId/guild/skills', async (req, res, next) => {
 });
 
 // POST /api/players/:playerId/guild/learn-skill { skillId }
-// Solo soporta GOLD por ahora: las skills QUEST quedan bloqueadas hasta que existan las
-// misiones reales (ver comentario arriba). Mismo patron de costo/descuento que guild/heal.
 router.post('/:playerId/guild/learn-skill', async (req, res, next) => {
   const { playerId } = req.params;
   const { skillId } = req.body;
@@ -476,13 +475,27 @@ router.post('/:playerId/guild/learn-skill', async (req, res, next) => {
     if (skill.class_id !== player.current_class_id) {
       return res.status(400).json({ error: 'Esa skill no es de tu clase' });
     }
-    if (skill.learn_method !== 'GOLD') {
-      return res.status(400).json({ error: 'Esa skill no se puede comprar con oro en el gremio todavía' });
+    if (!['GOLD', 'QUEST'].includes(skill.learn_method)) {
+      return res.status(400).json({ error: 'Esa skill no se puede aprender en el gremio' });
     }
 
     const already = await db.query('SELECT 1 FROM player_skills WHERE player_id = $1 AND skill_id = $2', [playerId, skillId]);
     if (already.rows.length) {
       return res.status(400).json({ error: 'Ya aprendiste esa skill' });
+    }
+
+    if (skill.learn_method === 'QUEST') {
+      const questCompleted = await db.query(
+        `SELECT 1 FROM quests q
+         JOIN player_quest_completions pqc ON pqc.quest_id = q.id AND pqc.player_id = $1
+         WHERE q.name = $2`,
+        [playerId, skill.learn_requirement_text]
+      );
+      if (!questCompleted.rows.length) {
+        return res.status(400).json({ error: `Primero debes completar la misión: ${skill.learn_requirement_text}` });
+      }
+      await db.query('INSERT INTO player_skills(player_id, skill_id) VALUES ($1, $2)', [playerId, skillId]);
+      return res.json({ learnedSkillId: skill.id, name: skill.name, cost: 0, newGold: Number(player.gold) });
     }
 
     const cost = skill.learn_gold_cost;
@@ -982,7 +995,7 @@ router.post('/:playerId/quests/:questId/accept', async (req, res, next) => {
   const { playerId, questId } = req.params;
 
   try {
-    const playerResult = await db.query('SELECT level, rank FROM players WHERE id = $1', [playerId]);
+    const playerResult = await db.query('SELECT level, rank, current_class_id FROM players WHERE id = $1', [playerId]);
     if (!playerResult.rows.length) {
       return res.status(404).json({ error: 'Jugador no encontrado' });
     }
@@ -991,6 +1004,9 @@ router.post('/:playerId/quests/:questId/accept', async (req, res, next) => {
     const quest = await fetchQuestDetail(questId);
     if (!quest) return res.status(404).json({ error: 'Quest no encontrada' });
 
+    if (quest.required_class_id && quest.required_class_id !== player.current_class_id) {
+      return res.status(403).json({ error: 'Esta misión es solo para tu clase' });
+    }
     if (quest.min_level && player.level < quest.min_level) {
       return res.status(400).json({ error: `Requiere nivel ${quest.min_level}` });
     }
@@ -1076,7 +1092,7 @@ router.post('/:playerId/quests/:questId/complete', async (req, res, next) => {
   const { playerId, questId } = req.params;
 
   try {
-    const playerResult = await db.query('SELECT level, rank, xp, gold, reputation FROM players WHERE id = $1', [playerId]);
+    const playerResult = await db.query('SELECT level, rank, xp, gold, reputation, current_class_id FROM players WHERE id = $1', [playerId]);
     if (!playerResult.rows.length) {
       return res.status(404).json({ error: 'Jugador no encontrado' });
     }
@@ -1085,6 +1101,9 @@ router.post('/:playerId/quests/:questId/complete', async (req, res, next) => {
     const quest = await fetchQuestDetail(questId);
     if (!quest) return res.status(404).json({ error: 'Quest no encontrada' });
 
+    if (quest.required_class_id && quest.required_class_id !== player.current_class_id) {
+      return res.status(403).json({ error: 'Esta misión es solo para tu clase' });
+    }
     if (quest.min_level && player.level < quest.min_level) {
       return res.status(400).json({ error: `Requiere nivel ${quest.min_level}` });
     }
