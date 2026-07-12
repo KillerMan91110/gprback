@@ -18,6 +18,8 @@ const guildsRouter = require('./routes/guilds');
 const socialRouter = require('./routes/social');
 const coopRouter = require('./routes/coop');
 const marketRouter = require('./routes/market');
+const petsRouter = require('./routes/pets');
+const { getActivePetBonuses } = require('./lib/pets');
 
 const app = express();
 
@@ -38,6 +40,7 @@ app.use('/api/player/:playerId/friends', socialRouter);
 app.use('/api/player/:playerId', socialRouter);
 app.use('/api/player/:playerId/coop', coopRouter);
 app.use('/api/player/:playerId/market', marketRouter);
+app.use('/api/player/:playerId/pets', petsRouter);
 
 // ========== RUTAS DE PRUEBA ==========
 
@@ -99,7 +102,7 @@ app.get('/api/player/:playerId/stats', requireAuth, requireSelf, async (req, res
     // ver lib/equipment.js applyHpBonusDelta), a diferencia de atk/def/mag/etc que si se
     // recalculan al vuelo aca porque nunca se persisten.
     const effectiveClassId = player.evolution_class_id || player.current_class_id;
-    const [bonus, passives, baseCritDamage, resistancesResult, bonusesResult] = await Promise.all([
+    const [bonus, passives, baseCritDamage, resistancesResult, bonusesResult, petB] = await Promise.all([
       getEquipmentBonuses(player.id),
       getClassPassiveBonuses(effectiveClassId, player.level),
       getClassBaseCritDamage(effectiveClassId),
@@ -119,6 +122,7 @@ app.get('/api/player/:playerId/stats', requireAuth, requireSelf, async (req, res
          ORDER BY e.id`,
         [effectiveClassId]
       ),
+      getActivePetBonuses(player.id),
     ]);
 
     const xpRate = Number(player.xp_rate || 1);
@@ -151,18 +155,18 @@ app.get('/api/player/:playerId/stats', requireAuth, requireSelf, async (req, res
         id: player.evolution_class_id,
         name: player.evolution_class_name
       },
-      hp: Math.min(player.hp, Math.round(player.max_hp * (1 + passives.hp / 100))),
-      maxHp: Math.round(player.max_hp * (1 + passives.hp / 100)),
-      mana: player.mana,
-      maxMana: player.max_mana,
-      atk: Math.round(player.atk * (1 + passives.atk / 100)) + (bonus.atk || 0),
-      def: Math.round(player.def * (1 + passives.def / 100)) + (bonus.def || 0),
-      int: Math.round(player.mag * (1 + passives.mag / 100)) + (bonus.mag || 0),
-      magicDef: player.magic_def + (bonus.magic_def || 0),
-      spd: Math.round(player.spd * (1 + passives.spd / 100)) + (bonus.spd || 0),
-      crit: (Number(player.crit) + passives.crit_chance + (bonus.crit_chance || 0)).toFixed(2),
-      evasion: Number(player.base_evasion) + passives.evasion + (bonus.evasion || 0),
-      critDamage: baseCritDamage + passives.crit_damage + (bonus.crit_damage || 0),
+      hp: Math.min(player.hp, Math.round(player.max_hp * (1 + passives.hp / 100)) + petB.hp),
+      maxHp: Math.round(player.max_hp * (1 + passives.hp / 100)) + petB.hp,
+      mana: Math.min(player.mana, player.max_mana + petB.mana),
+      maxMana: player.max_mana + petB.mana,
+      atk: Math.round(player.atk * (1 + passives.atk / 100)) + (bonus.atk || 0) + petB.atk,
+      def: Math.round(player.def * (1 + passives.def / 100)) + (bonus.def || 0) + petB.def,
+      int: Math.round(player.mag * (1 + passives.mag / 100)) + (bonus.mag || 0) + petB.mag,
+      magicDef: player.magic_def + (bonus.magic_def || 0) + petB.magic_def,
+      spd: Math.round(player.spd * (1 + passives.spd / 100)) + (bonus.spd || 0) + petB.spd,
+      crit: (Number(player.crit) + passives.crit_chance + (bonus.crit_chance || 0) + petB.crit_chance).toFixed(2),
+      evasion: Number(player.base_evasion) + passives.evasion + (bonus.evasion || 0) + petB.evasion,
+      critDamage: baseCritDamage + passives.crit_damage + (bonus.crit_damage || 0) + petB.crit_damage,
       magicDamageBonus: passives.magic_damage_bonus,
       uniqueSkill: passives.uniqueSkill,
       resistances: resistancesResult.rows.map((r) => ({

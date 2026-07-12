@@ -11,6 +11,7 @@ const questProgress = require('../lib/questProgress');
 const achievements = require('../lib/achievements');
 const { requireAuth } = require('../lib/auth');
 const { applyGuildXp } = require('../lib/guilds');
+const pets = require('../lib/pets');
 
 const router = express.Router();
 router.use(requireAuth);
@@ -43,13 +44,15 @@ async function hydratePlayers(playerIds) {
   return Promise.all(result.rows.map(async (p) => {
     // p.hp/max_hp ya incluyen el bono de equipo (ver lib/equipment.js applyHpBonusDelta);
     // sumarlo de nuevo aca lo duplicaba en cada pelea.
-    const [bonus, passives, baseCritDamage] = await Promise.all([
+    const [bonus, passives, baseCritDamage, petB] = await Promise.all([
       getEquipmentBonuses(p.id),
       getClassPassiveBonuses(p.class_id, p.level),
       leveling.getClassBaseCritDamage(p.class_id),
+      pets.getActivePetBonuses(p.id),
     ]);
 
-    const playerMaxHp = Math.round(p.max_hp * (1 + passives.hp / 100));
+    const playerMaxHp = Math.round(p.max_hp * (1 + passives.hp / 100)) + petB.hp;
+    const luck = Number(p.luck || 0) + (passives.luck || 0) + (bonus.luck || 0) + petB.luck;
     return {
       side: 'PLAYER',
       player_id: p.id,
@@ -57,22 +60,23 @@ async function hydratePlayers(playerIds) {
       name: p.nickname,
       hp: Math.min(p.hp, playerMaxHp),
       max_hp: playerMaxHp,
-      mana: p.mana,
-      max_mana: p.max_mana,
-      atk: Math.round(p.atk * (1 + passives.atk / 100)) + (bonus.atk || 0),
-      mag: Math.round(p.mag * (1 + passives.mag / 100)) + (bonus.mag || 0),
-      def: Math.round(p.def * (1 + passives.def / 100)) + (bonus.def || 0),
-      magic_def: Math.round(p.magic_def * (1 + passives.magic_def / 100)) + (bonus.magic_def || 0),
-      spd: Math.round(p.spd * (1 + passives.spd / 100)) + (bonus.spd || 0),
-      luck: Number(p.luck || 0) + (passives.luck || 0) + (bonus.luck || 0),
-      crit_chance: Number(p.crit) + passives.crit_chance + (bonus.crit_chance || 0) + (Number(p.luck || 0) + (passives.luck || 0) + (bonus.luck || 0)) * 0.5,
-      crit_damage: baseCritDamage + passives.crit_damage + (bonus.crit_damage || 0),
-      evasion: DEFAULT_PLAYER_EVASION + passives.evasion + (bonus.evasion || 0),
+      mana: Math.min(p.mana, p.max_mana + petB.mana),
+      max_mana: p.max_mana + petB.mana,
+      atk: Math.round(p.atk * (1 + passives.atk / 100)) + (bonus.atk || 0) + petB.atk,
+      mag: Math.round(p.mag * (1 + passives.mag / 100)) + (bonus.mag || 0) + petB.mag,
+      def: Math.round(p.def * (1 + passives.def / 100)) + (bonus.def || 0) + petB.def,
+      magic_def: Math.round(p.magic_def * (1 + passives.magic_def / 100)) + (bonus.magic_def || 0) + petB.magic_def,
+      spd: Math.round(p.spd * (1 + passives.spd / 100)) + (bonus.spd || 0) + petB.spd,
+      luck,
+      crit_chance: Number(p.crit) + passives.crit_chance + (bonus.crit_chance || 0) + luck * 0.5 + petB.crit_chance,
+      crit_damage: baseCritDamage + passives.crit_damage + (bonus.crit_damage || 0) + petB.crit_damage,
+      evasion: DEFAULT_PLAYER_EVASION + passives.evasion + (bonus.evasion || 0) + petB.evasion,
       magic_damage_bonus: passives.magic_damage_bonus + passives.magical_damage,
-      hot_hp_percent: passives.hot_hp_percent,
+      hot_hp_percent: passives.hot_hp_percent + petB.hot_hp_percent,
       physical_damage_bonus: passives.physical_damage,
       elemental_damage_bonus: passives.elemental_damage,
-      heal_bonus: passives.heal_bonus,
+      heal_bonus: passives.heal_bonus + petB.heal_bonus,
+      damage_reduction: petB.damage_reduction,
       npc_id: null,
       class_id: p.class_id,
       xp_reward: 0,
@@ -209,8 +213,8 @@ async function insertParticipants(sessionId, combatants) {
          session_id, side, player_id, npc_id, class_id, monster_code, name, hp, max_hp, mana, max_mana,
          atk, mag, def, magic_def, spd, crit_chance, crit_damage, evasion,
          magic_damage_bonus, hot_hp_percent, xp_reward, gold_reward,
-         physical_damage_bonus, elemental_damage_bonus, heal_bonus, luck, owner_player_id
-       ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27,$28)
+         physical_damage_bonus, elemental_damage_bonus, heal_bonus, luck, owner_player_id, damage_reduction
+       ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27,$28,$29)
        RETURNING *`,
       [
         sessionId, c.side, c.player_id ?? null, c.npc_id ?? null, c.class_id ?? null,
@@ -218,7 +222,7 @@ async function insertParticipants(sessionId, combatants) {
         c.atk, c.mag, c.def, c.magic_def, c.spd, c.crit_chance, c.crit_damage, c.evasion,
         c.magic_damage_bonus ?? 0, c.hot_hp_percent ?? 0, c.xp_reward, c.gold_reward,
         c.physical_damage_bonus ?? 0, c.elemental_damage_bonus ?? 0, c.heal_bonus ?? 0, c.luck ?? 0,
-        c.owner_player_id ?? null,
+        c.owner_player_id ?? null, c.damage_reduction ?? 0,
       ]
     );
     inserted.push(result.rows[0]);
@@ -704,7 +708,10 @@ async function finalizeSession(sessionId, status, participants) {
 
       const rankResult = await db.query('SELECT rank FROM players WHERE id = $1', [heroP.player_id]);
       const { xpBonusPercent, rewardBonusPercent } = await getRankBonuses(rankResult.rows[0].rank);
-      const combatAchBonuses = await achievements.getPlayerBonuses(heroP.player_id);
+      const [combatAchBonuses, heroPetBonuses] = await Promise.all([
+        achievements.getPlayerBonuses(heroP.player_id),
+        pets.getActivePetBonuses(heroP.player_id),
+      ]);
 
       const heroClassRes = await db.query(
         'SELECT COALESCE(evolution_class_id, current_class_id) AS class_id, level FROM players WHERE id = $1',
@@ -712,11 +719,11 @@ async function finalizeSession(sessionId, status, participants) {
       );
       const heroPassives = await getClassPassiveBonuses(heroClassRes.rows[0]?.class_id, heroClassRes.rows[0]?.level);
 
-      rewards.gold = applyPercentBonus(applyPercentBonus(applyPercentBonus(rewards.gold, rewardBonusPercent), combatAchBonuses.goldEarned), heroPassives.gold_bonus);
-      rewards.xp   = applyPercentBonus(applyPercentBonus(applyPercentBonus(rewards.xp,   xpBonusPercent),     combatAchBonuses.xpEarned),   heroPassives.xp_bonus);
+      rewards.gold = applyPercentBonus(applyPercentBonus(applyPercentBonus(applyPercentBonus(rewards.gold, rewardBonusPercent), combatAchBonuses.goldEarned), heroPassives.gold_bonus), heroPetBonuses.gold_percent);
+      rewards.xp   = applyPercentBonus(applyPercentBonus(applyPercentBonus(applyPercentBonus(rewards.xp,   xpBonusPercent),     combatAchBonuses.xpEarned),   heroPassives.xp_bonus),   heroPetBonuses.xp_percent);
       const heroLuckRow = await db.query('SELECT luck FROM players WHERE id = $1', [heroP.player_id]);
       const heroLuck = Number(heroLuckRow.rows[0]?.luck || 0);
-      rewards.itemsDropped = await rollMonsterDrops(participants.enemy, heroPassives.drop_rate_bonus + heroLuck);
+      rewards.itemsDropped = await rollMonsterDrops(participants.enemy, heroPassives.drop_rate_bonus + heroLuck + heroPetBonuses.drop_rate_percent);
 
       // Co-op: oro dividido en partes iguales entre todos los héroes (1 a 3).
       const goldPerHero = Math.floor(rewards.gold / heroPs.length);
@@ -779,7 +786,8 @@ async function finalizeSession(sessionId, status, participants) {
           const rarityRes = await db.query(`SELECT code, rarity FROM monsters WHERE code = ANY($1::text[])`, [codes]);
           const rarityByCode = new Map(rarityRes.rows.map((r) => [r.code, r.rarity]));
           const GUILD_XP_BY_RARITY = { COMMON: 5, RARE: 15, MINIBOSS: 50, LEGENDARY: 120 };
-          const guildXpGained = participants.enemy.reduce((sum, e) => sum + (GUILD_XP_BY_RARITY[rarityByCode.get(e.monster_code)] || 0), 0);
+          const baseGuildXp = participants.enemy.reduce((sum, e) => sum + (GUILD_XP_BY_RARITY[rarityByCode.get(e.monster_code)] || 0), 0);
+          const guildXpGained = Math.round(applyPercentBonus(baseGuildXp, heroPetBonuses.guild_xp_percent));
           if (guildXpGained > 0) await applyGuildXp(guildMemberRes.rows[0].guild_id, guildXpGained);
         }
       }
@@ -824,8 +832,28 @@ async function advanceEnemyTurns(sessionId) {
     const participants = await loadParticipants(sessionId);
 
     if (combat.isWiped(participants.player)) {
-      await finalizeSession(sessionId, 'ENEMY_WON', participants);
-      return { ended: true, status: 'ENEMY_WON' };
+      // Revivir pasiva de mascota: si un héroe tiene mascota con PASSIVE_REVIVE y no la usó aún
+      let revived = false;
+      for (const p of participants.player) {
+        if (!p.player_id || p.is_summon) continue;
+        const reviveRes = await db.query(
+          'SELECT pet_revive_used FROM combat_participants WHERE id = $1', [p.id]
+        );
+        if (reviveRes.rows[0]?.pet_revive_used) continue;
+        const petB = await pets.getActivePetBonuses(p.player_id);
+        if (!petB.passive_revive) continue;
+        p.hp = Math.max(1, Math.round(Number(p.max_hp) * 0.30));
+        await db.query(
+          'UPDATE combat_participants SET hp = $1, pet_revive_used = TRUE WHERE id = $2',
+          [p.hp, p.id]
+        );
+        revived = true;
+        break;
+      }
+      if (!revived) {
+        await finalizeSession(sessionId, 'ENEMY_WON', participants);
+        return { ended: true, status: 'ENEMY_WON' };
+      }
     }
     if (combat.isWiped(participants.enemy)) {
       await finalizeSession(sessionId, 'PLAYER_WON', participants);
@@ -1461,6 +1489,10 @@ router.post('/sessions/:id/action', async (req, res, next) => {
       return res.status(403).json({ error: 'Ese NPC pertenece a tu compañero' });
     }
 
+    const actorPetBonuses = actor.player_id === req.playerId
+      ? await pets.getActivePetBonuses(req.playerId)
+      : null;
+
     let logEntry;
 
     if (action === 'ATTACK') {
@@ -1517,6 +1549,10 @@ router.post('/sessions/:id/action', async (req, res, next) => {
         if (target.monster_code) {
           const catRes = await db.query('SELECT category FROM monsters WHERE code = $1', [target.monster_code]);
           attackBonusPercent += playerBonuses.categoryDamage[catRes.rows[0]?.category] || 0;
+        }
+        if (actorPetBonuses) {
+          attackBonusPercent += isMagicAttack ? actorPetBonuses.magical_damage : actorPetBonuses.physical_damage;
+          if (attackImbueElemCode) attackBonusPercent += actorPetBonuses.elemental_damage;
         }
       }
       // Bonuses de pasivas de clase (aplican a cualquier actor PLAYER, incluyendo NPCs)
@@ -1651,7 +1687,9 @@ router.post('/sessions/:id/action', async (req, res, next) => {
       }
       if (!targets.length) return res.status(400).json({ error: 'Objetivo inválido' });
 
-      actor.mana -= skill.mana_cost;
+      const manaCostReduction = actorPetBonuses ? actorPetBonuses.mana_cost_reduction : 0;
+      const effectiveManaCost = Math.max(0, Math.ceil(skill.mana_cost * (1 - manaCostReduction / 100)));
+      actor.mana -= effectiveManaCost;
 
       // Bono elemental del atacante (por clase) y resistencia de cada objetivo. Para objetivos
       // NPC (player_id = null) se usa class_id guardado en combat_participants.
@@ -1838,6 +1876,11 @@ router.post('/sessions/:id/action', async (req, res, next) => {
               baseSkillBonus += playerBonuses.elementalDamage;
               baseSkillBonus += playerBonuses.elementDamage[skillElemCode] || 0;
             }
+            if (actorPetBonuses) {
+              if (skill.damage_school === 'FISICO') baseSkillBonus += actorPetBonuses.physical_damage;
+              else if (skill.damage_school === 'MAGICO') baseSkillBonus += actorPetBonuses.magical_damage;
+              if (skillElemCode) baseSkillBonus += actorPetBonuses.elemental_damage;
+            }
             for (const t of targets) {
               let targetBonus = baseSkillBonus;
               if (t.monster_code) {
@@ -1892,7 +1935,8 @@ router.post('/sessions/:id/action', async (req, res, next) => {
       if (!actor.player_id) {
         return res.status(400).json({ error: 'Solo el héroe puede intentar escapar' });
       }
-      const chance = combat.escapeChance(actor, participants.enemy);
+      const petEscapeBonus = actorPetBonuses ? actorPetBonuses.escape_bonus : 0;
+      const chance = Math.min(90, combat.escapeChance(actor, participants.enemy) + petEscapeBonus);
       const success = Math.random() * 100 < chance;
 
       if (success) {

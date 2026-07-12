@@ -10067,7 +10067,7 @@ INSERT INTO items(id, code, name, item_type, slot, rarity, class_id, required_le
 (836,'RELICARIO_LICH','Relicario del Lich','EQUIPMENT','ACCESSORY','LEGENDARIO',NULL,80,TRUE,'CRAFT','Relicario sagrado del Lich Ancestral.')
 ON CONFLICT (id) DO NOTHING;
 
-SELECT setval('items_id_seq', 836);
+SELECT setval('items_id_seq', 841);
 
 -- PARTE 3: Stats de accesorios
 -- Brazalete (Guerrero): ATK + HP
@@ -10517,3 +10517,115 @@ CROSS JOIN (VALUES
 ) AS s(monster_code, item_id, chance)
 WHERE m.code = s.monster_code
 ON CONFLICT (monster_id, item_id) DO NOTHING;
+
+-- ============================================================
+-- SISTEMA DE MASCOTAS
+-- ============================================================
+
+-- Tablas del sistema
+CREATE TABLE IF NOT EXISTS pets (
+  id SERIAL PRIMARY KEY,
+  code TEXT UNIQUE NOT NULL,
+  name TEXT NOT NULL,
+  rarity TEXT NOT NULL CHECK (rarity IN ('COMUN','POCO_COMUN','RARO','EPICO','LEGENDARIO')),
+  element_id INT REFERENCES elements(id),
+  description TEXT
+);
+CREATE TABLE IF NOT EXISTS pet_bonuses (
+  id SERIAL PRIMARY KEY,
+  pet_id INT NOT NULL REFERENCES pets(id) ON DELETE CASCADE,
+  stat_code TEXT NOT NULL,
+  base_amount NUMERIC NOT NULL,
+  per_level_amount NUMERIC NOT NULL DEFAULT 0
+);
+CREATE TABLE IF NOT EXISTS player_pets (
+  id SERIAL PRIMARY KEY,
+  player_id INT NOT NULL REFERENCES players(id) ON DELETE CASCADE,
+  pet_id INT NOT NULL REFERENCES pets(id),
+  level INT NOT NULL DEFAULT 1,
+  bond_points INT NOT NULL DEFAULT 0,
+  is_active BOOLEAN NOT NULL DEFAULT FALSE,
+  hatched_at TIMESTAMP NOT NULL DEFAULT now()
+);
+CREATE UNIQUE INDEX IF NOT EXISTS one_active_pet_per_player ON player_pets(player_id) WHERE is_active;
+CREATE TABLE IF NOT EXISTS player_incubator (
+  player_id INT PRIMARY KEY REFERENCES players(id) ON DELETE CASCADE,
+  egg_item_id INT NOT NULL REFERENCES items(id),
+  egg_rarity TEXT NOT NULL,
+  started_at TIMESTAMP NOT NULL DEFAULT now(),
+  hatch_ready_at TIMESTAMP NOT NULL
+);
+ALTER TABLE combat_participants ADD COLUMN IF NOT EXISTS pet_revive_used BOOLEAN NOT NULL DEFAULT FALSE;
+ALTER TABLE combat_participants ADD COLUMN IF NOT EXISTS damage_reduction NUMERIC NOT NULL DEFAULT 0;
+
+-- Huevos (items 837-841)
+INSERT INTO items(id, code, name, item_type, description, rarity, obtain_method) VALUES
+(837, 'HUEVO_COMUN',      'Huevo Común',      'MATERIAL', 'Un huevo ordinario. Incúbalo para obtener una mascota común.',       'COMUN',      'DROP'),
+(838, 'HUEVO_POCO_COMUN', 'Huevo Poco Común', 'MATERIAL', 'Un huevo algo especial. Puede dar una mascota poco común.',          'POCO_COMUN', 'DROP'),
+(839, 'HUEVO_RARO',       'Huevo Raro',        'MATERIAL', 'Un huevo con brillo extraño. Podría eclosionar una mascota rara.',  'RARO',       'DROP'),
+(840, 'HUEVO_EPICO',      'Huevo Épico',       'MATERIAL', 'Un huevo de gran poder. Una mascota épica podría nacer de él.',     'EPICO',      'DROP'),
+(841, 'HUEVO_LEGENDARIO', 'Huevo Legendario',  'MATERIAL', 'Un huevo de poder mítico. Solo jefes legendarios lo guardan.',     'LEGENDARIO', 'DROP')
+ON CONFLICT (id) DO NOTHING;
+
+-- Drops de huevos
+INSERT INTO monster_drops(monster_id, item_id, drop_chance_percent)
+SELECT m.id, s.item_id, s.chance FROM monsters m
+JOIN (VALUES
+  ('ARANA_VENENOSA',   837, 3.0),('BANDIDO_CORRUPTO',   837, 3.0),
+  ('GOBLIN_SAQUEADOR', 837, 3.0),('DEMONIO_LAVA',       837, 3.0),
+  ('MARINERO_MALDITO', 837, 3.0),('CENTINELA_INFERNAL', 837, 3.0),
+  ('CHAMAN_OSCURO',    838, 5.0),('MAESTRO_LAVA',       838, 5.0),
+  ('CAPITAN_LOBOS',    839, 5.0),('SENOR_CALDERA',      839, 5.0),
+  ('SENOR_ACANTILADO', 839, 5.0),('CENTINELA_MUERTE',   839, 5.0),
+  ('CENTINELA_COSMICO',839, 5.0),
+  ('TITAN_FUEGO',      840, 8.0),('TITAN_PRADERA',      840, 8.0),
+  ('LICH_ANCESTRAL',   840, 8.0),('GRAN_ESQUELETO_ABISMO', 840, 8.0),
+  ('REY_MONTANA',      840, 8.0),
+  ('TITAN_FUEGO',      841, 2.0),('LICH_ANCESTRAL',     841, 2.0),
+  ('REY_MONTANA',      841, 2.0)
+) AS s(monster_code, item_id, chance) ON m.code = s.monster_code
+ON CONFLICT (monster_id, item_id) DO NOTHING;
+
+-- Catálogo de mascotas
+DELETE FROM pet_bonuses WHERE TRUE;
+DELETE FROM pets WHERE TRUE;
+
+INSERT INTO pets(code, name, rarity, element_id, description) VALUES
+('LOBO_CACHORRO',    'Lobo Cachorro',       'COMUN',      NULL,                                  'Un lobo joven lleno de energía. Aumenta el ATK del portador.'),
+('RATON_AGIL',       'Ratón Ágil',          'COMUN',      NULL,                                  'Un ratón veloz que mejora la velocidad en combate.'),
+('ZORRO_ASTUTO',     'Zorro Astuto',        'POCO_COMUN', NULL,                                  'Un zorro ladino que ayuda a encontrar más oro.'),
+('ARANA_CRISTAL',    'Araña de Cristal',    'POCO_COMUN', NULL,                                  'Una araña translúcida que enseña a esquivar golpes.'),
+('TORTUGA_ESCUDO',   'Tortuga Escudo',      'POCO_COMUN', NULL,                                  'Una tortuga robusta que fortalece la defensa.'),
+('SALAMANDRA_FUEGO', 'Salamandra de Fuego', 'RARO',       (SELECT id FROM elements WHERE code='FIRE'),  'Una salamandra ígnea que potencia el daño elemental.'),
+('IMP_OSCURO',       'Imp Oscuro',          'RARO',       (SELECT id FROM elements WHERE code='DARK'),  'Un imp travieso que ayuda a ganar más experiencia.'),
+('GOLEM_TIERRA',     'Gólem de Tierra',     'RARO',       (SELECT id FROM elements WHERE code='EARTH'), 'Un gólem rocoso que reduce el daño recibido.'),
+('DRAGON_MENOR',     'Dragón Menor',        'EPICO',      NULL,                                  'Un dragón joven que amplifica el daño físico.'),
+('FAMILIAR_ARCANO',  'Familiar Arcano',     'EPICO',      (SELECT id FROM elements WHERE code='LIGHT'), 'Un ser de luz que potencia la magia y el maná.'),
+('LOBO_COSMICO',     'Lobo Cósmico',        'EPICO',      (SELECT id FROM elements WHERE code='COSMIC'),'Un lobo estelar que mejora la suerte y el botín.'),
+('FENIX',            'Fénix',               'LEGENDARIO', (SELECT id FROM elements WHERE code='FIRE'),  'Ave mítica de fuego. Revive al portador una vez por combate.'),
+('DRAGON_PRIMORDIAL','Dragón Primordial',   'LEGENDARIO', NULL,                                  'El más poderoso de los dragones. Amplifica todo daño masivamente.')
+ON CONFLICT (code) DO NOTHING;
+
+-- Bonuses por mascota
+INSERT INTO pet_bonuses(pet_id, stat_code, base_amount, per_level_amount)
+SELECT p.id, b.stat_code, b.base_amount, b.per_level_amount
+FROM pets p
+JOIN (VALUES
+  ('LOBO_CACHORRO',    'ATK_FLAT',                 5::numeric, 2::numeric),
+  ('RATON_AGIL',       'SPD_FLAT',                 8,  3),
+  ('ZORRO_ASTUTO',     'GOLD_PERCENT',             5,  2),
+  ('ARANA_CRISTAL',    'EVASION_FLAT',             3,  1),
+  ('TORTUGA_ESCUDO',   'DEF_FLAT',                 8,  3),
+  ('SALAMANDRA_FUEGO', 'ELEMENTAL_DAMAGE_PERCENT', 8,  3),
+  ('IMP_OSCURO',       'XP_PERCENT',              10,  3),
+  ('GOLEM_TIERRA',     'DAMAGE_REDUCTION_PERCENT', 5,  2),
+  ('DRAGON_MENOR',     'PHYSICAL_DAMAGE_PERCENT', 12,  4),
+  ('FAMILIAR_ARCANO',  'MAGICAL_DAMAGE_PERCENT',  12,  4),
+  ('FAMILIAR_ARCANO',  'MANA_FLAT',               30, 10),
+  ('LOBO_COSMICO',     'DROP_RATE_PERCENT',        12,  4),
+  ('LOBO_COSMICO',     'LUCK_FLAT',                3,  1),
+  ('FENIX',            'PASSIVE_REVIVE',           1,  0),
+  ('FENIX',            'HP_FLAT',                 60, 20),
+  ('DRAGON_PRIMORDIAL','PHYSICAL_DAMAGE_PERCENT', 25,  8),
+  ('DRAGON_PRIMORDIAL','MAGICAL_DAMAGE_PERCENT',  25,  8)
+) AS b(code, stat_code, base_amount, per_level_amount) ON p.code = b.code;

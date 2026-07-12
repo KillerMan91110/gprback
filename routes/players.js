@@ -10,6 +10,7 @@ const { getClassPassiveBonuses } = require('../lib/passives');
 const evolution = require('../lib/evolution');
 const { fetchQuestDetail } = require('./quests');
 const { requireAuth, requireSelf } = require('../lib/auth');
+const { getActivePetBonuses } = require('../lib/pets');
 
 const router = express.Router();
 
@@ -156,12 +157,14 @@ router.post('/:playerId/guild/heal', async (req, res, next) => {
   }
 
   try {
-    const playerResult = await db.query(
-      'SELECT hp, max_hp, mana, max_mana, gold FROM players WHERE id = $1',
-      [playerId]
-    );
+    const [playerResult, petB] = await Promise.all([
+      db.query('SELECT hp, max_hp, mana, max_mana, gold FROM players WHERE id = $1', [playerId]),
+      getActivePetBonuses(Number(playerId)),
+    ]);
     if (!playerResult.rows.length) return res.status(404).json({ error: 'Jugador no encontrado' });
     const player = playerResult.rows[0];
+    const effectiveMaxHp = player.max_hp + petB.hp;
+    const effectiveMaxMana = player.max_mana + petB.mana;
     let gold = Number(player.gold);
 
     if (npcId) {
@@ -186,7 +189,7 @@ router.post('/:playerId/guild/heal', async (req, res, next) => {
 
     if (heroOnly) {
       // --- Curar solo al héroe ---
-      const { healHp, healMana, cost } = calcHeal(player.max_hp - player.hp, player.max_mana - player.mana, gold);
+      const { healHp, healMana, cost } = calcHeal(effectiveMaxHp - player.hp, effectiveMaxMana - player.mana, gold);
       if (healHp + healMana === 0) {
         return res.status(400).json({ error: gold < GUILD_HEAL_GOLD_PER_HP ? 'No tenés oro suficiente' : 'Ya estás al máximo' });
       }
@@ -206,7 +209,7 @@ router.post('/:playerId/guild/heal', async (req, res, next) => {
     );
     const npcs = npcRes.rows;
 
-    const totalMissing = (player.max_hp - player.hp) + (player.max_mana - player.mana)
+    const totalMissing = (effectiveMaxHp - player.hp) + (effectiveMaxMana - player.mana)
       + npcs.reduce((s, n) => s + (n.max_hp - n.hp) + (n.max_mana - n.mana), 0);
     if (totalMissing === 0) return res.status(400).json({ error: 'El héroe y todos los NPCs del grupo ya están al máximo' });
     if (gold < GUILD_HEAL_GOLD_PER_HP) return res.status(400).json({ error: 'No tenés oro suficiente para curar ni 1 punto' });
@@ -216,7 +219,7 @@ router.post('/:playerId/guild/heal', async (req, res, next) => {
     const npcsHealed = [];
 
     // Héroe
-    const heroHeal = calcHeal(player.max_hp - player.hp, player.max_mana - player.mana, gold);
+    const heroHeal = calcHeal(effectiveMaxHp - player.hp, effectiveMaxMana - player.mana, gold);
     if (heroHeal.healHp + heroHeal.healMana > 0) {
       await db.query('UPDATE players SET hp = hp + $1, mana = mana + $2, updated_at = now() WHERE id = $3', [heroHeal.healHp, heroHeal.healMana, playerId]);
       gold -= heroHeal.cost;
