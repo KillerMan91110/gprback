@@ -79,6 +79,7 @@ async function hydratePlayers(playerIds) {
       damage_reduction: petB.damage_reduction,
       npc_id: null,
       class_id: p.class_id,
+      level: p.level,
       xp_reward: 0,
       gold_reward: 0,
       owner_player_id: p.id,
@@ -199,6 +200,7 @@ async function hydrateMonsters(monsterSpecs) {
       // XP y oro escalan linealmente desde min_spawn_level (+0%) hasta max_spawn_level (+50%).
       xp_reward: Math.round(monster.xp_reward * (1 + (levelRange > 0 ? (level - monster.min_spawn_level) / levelRange : 0) * 0.5)),
       gold_reward: Math.round(monster.gold_reward * (1 + (levelRange > 0 ? (level - monster.min_spawn_level) / levelRange : 0) * 0.5)),
+      level,
     });
   }
 
@@ -213,8 +215,8 @@ async function insertParticipants(sessionId, combatants) {
          session_id, side, player_id, npc_id, class_id, monster_code, name, hp, max_hp, mana, max_mana,
          atk, mag, def, magic_def, spd, crit_chance, crit_damage, evasion,
          magic_damage_bonus, hot_hp_percent, xp_reward, gold_reward,
-         physical_damage_bonus, elemental_damage_bonus, heal_bonus, luck, owner_player_id, damage_reduction
-       ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27,$28,$29)
+         physical_damage_bonus, elemental_damage_bonus, heal_bonus, luck, owner_player_id, damage_reduction, level
+       ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27,$28,$29,$30)
        RETURNING *`,
       [
         sessionId, c.side, c.player_id ?? null, c.npc_id ?? null, c.class_id ?? null,
@@ -222,7 +224,7 @@ async function insertParticipants(sessionId, combatants) {
         c.atk, c.mag, c.def, c.magic_def, c.spd, c.crit_chance, c.crit_damage, c.evasion,
         c.magic_damage_bonus ?? 0, c.hot_hp_percent ?? 0, c.xp_reward, c.gold_reward,
         c.physical_damage_bonus ?? 0, c.elemental_damage_bonus ?? 0, c.heal_bonus ?? 0, c.luck ?? 0,
-        c.owner_player_id ?? null, c.damage_reduction ?? 0,
+        c.owner_player_id ?? null, c.damage_reduction ?? 0, c.level ?? null,
       ]
     );
     inserted.push(result.rows[0]);
@@ -356,8 +358,9 @@ async function execSummonBonusAttack(sessionId, actorParticipantId, round, parti
   let elemModsByTarget = {};
   if (summon.element_id) {
     const elemCode  = await elements.getElementCodeById(summon.element_id);
+    const lapBonus = await getTowerLapBonus(sessionId);
     const baseResist = target.monster_code
-      ? await elements.getMonsterElementResistance(target.monster_code, summon.element_id)
+      ? await elements.getMonsterElementResistance(target.monster_code, summon.element_id, lapBonus)
       : target.player_id
         ? await elements.getPlayerElementResistance(target.player_id, summon.element_id)
         : await elements.getClassElementResistance(target.class_id, summon.element_id);
@@ -676,6 +679,144 @@ async function rollMonsterDrops(enemies, dropRateBonusPct = 0) {
   return dropped;
 }
 
+// ---------- Torre infinita: motor de corridas (Fase 2) ----------
+const TOWER_DIFFICULTY_STAT_MULT = { 1: 1.0, 2: 1.3, 3: 1.6 };
+
+function towerFloorLevel(floorNumber) {
+  return 29 + floorNumber;
+}
+
+// ---------- Torre infinita: escalado post-piso 150 (Fase 4) ----------
+function resolveInfiniteFloor(floorNumber) {
+  if (floorNumber <= 150) return { queryFloor: floorNumber, lap: 0 };
+  const offset = floorNumber - 151;
+  const lap = Math.floor(offset / 60) + 1;
+  const queryFloor = 91 + (offset % 60);
+  return { queryFloor, lap };
+}
+
+function infiniteStatMult(lap) {
+  return lap > 0 ? 1 + 0.15 * Math.pow(lap, 1.3) : 1;
+}
+
+async function getTowerLapBonus(sessionId) {
+  const res = await db.query(
+    `SELECT current_floor FROM player_tower_runs WHERE current_session_id = $1 AND status = 'IN_PROGRESS'`,
+    [sessionId]
+  );
+  if (!res.rows.length) return 0;
+  return resolveInfiniteFloor(res.rows[0].current_floor).lap;
+}
+
+async function buildTowerMonsterSpecs(floorRow, participantCount) {
+  const level = towerFloorLevel(floorRow.floor_number);
+
+  if (floorRow.is_boss_floor) {
+    const specs = [{ code: floorRow.boss_monster_code, level }];
+    for (const code of floorRow.escort_monster_codes || []) specs.push({ code, level });
+    return specs;
+  }
+
+  const eligible = await db.query(
+    `SELECT code FROM monsters
+     WHERE zone_id = $1 AND rarity IN ('COMMON','RARE')
+       AND min_spawn_level <= $2 AND max_spawn_level >= $2`,
+    [floorRow.tower_zone_id, level]
+  );
+  if (!eligible.rows.length) {
+    throw Object.assign(new Error(`No hay monstruos configurados para el piso ${floorRow.floor_number}`), { status: 500 });
+  }
+
+  const count = participantCount <= 1 ? (Math.random() < 0.5 ? 1 : 2) : Math.floor(Math.random() * 3) + 1;
+  const specs = [];
+  for (let i = 0; i < count; i += 1) {
+    const m = eligible.rows[Math.floor(Math.random() * eligible.rows.length)];
+    specs.push({ code: m.code, level });
+  }
+  return specs;
+}
+
+async function buildTowerRoom(run, floorNumber, roomNumber) {
+  const { queryFloor, lap } = resolveInfiniteFloor(floorNumber);
+  const floorResult = await db.query('SELECT * FROM tower_floors WHERE floor_number = $1', [queryFloor]);
+  const floorRow = floorResult.rows[0];
+  if (!floorRow) throw Object.assign(new Error(`Piso ${floorNumber} no configurado`), { status: 500 });
+
+  const allPlayerIds = [run.player_id, run.guest_player_id, run.guest_player_id_2].filter(Boolean);
+  const [allCombatants, ...npcLists] = await Promise.all([
+    hydratePlayers(allPlayerIds),
+    ...allPlayerIds.map((id) => hydratePartyNpcs(id, id, 1)),
+  ]);
+  const aliveCombatants = allCombatants.filter((p) => p.hp > 0);
+  const aliveNpcs = npcLists.flat().filter((n) => n.hp > 0);
+  if (!aliveCombatants.length && !aliveNpcs.length) {
+    throw Object.assign(new Error('Toda la formación está derrotada.'), { status: 400 });
+  }
+
+  const participantCount = aliveCombatants.length + aliveNpcs.length;
+  const monsterSpecs = await buildTowerMonsterSpecs(floorRow, participantCount);
+  const enemyCombatants = await hydrateMonsters(monsterSpecs);
+
+  const statMult = (TOWER_DIFFICULTY_STAT_MULT[run.difficulty] || 1) * infiniteStatMult(lap);
+  for (const e of enemyCombatants) {
+    e.hp = Math.round(e.hp * statMult);
+    e.max_hp = e.hp;
+    e.atk = Math.round(e.atk * statMult);
+    e.def = Math.round(e.def * statMult);
+    e.mag = Math.round(e.mag * statMult);
+    e.magic_def = Math.round(e.magic_def * statMult);
+    e.spd = Math.round(e.spd * statMult);
+  }
+
+  const sessionResult = await db.query(
+    'INSERT INTO combat_sessions(guest_player_id, guest_player_id_2) VALUES($1,$2) RETURNING *',
+    [run.guest_player_id, run.guest_player_id_2]
+  );
+  const sessionId = sessionResult.rows[0].id;
+
+  for (const abandonedId of run.abandoned_player_ids || []) {
+    await db.query(
+      `INSERT INTO combat_abandoned_players(session_id, player_id, penalized) VALUES ($1, $2, TRUE) ON CONFLICT DO NOTHING`,
+      [sessionId, abandonedId]
+    );
+  }
+
+  await insertParticipants(sessionId, [...aliveCombatants, ...aliveNpcs, ...enemyCombatants]);
+  await advanceEnemyTurns(sessionId);
+
+  await db.query(
+    'UPDATE player_tower_runs SET current_floor=$1, current_room=$2, current_session_id=$3 WHERE id=$4',
+    [floorNumber, roomNumber, sessionId, run.id]
+  );
+
+  return sessionId;
+}
+
+async function handleTowerSessionEnd(sessionId, status) {
+  const runRes = await db.query(
+    `SELECT * FROM player_tower_runs WHERE current_session_id = $1 AND status = 'IN_PROGRESS'`,
+    [sessionId]
+  );
+  const run = runRes.rows[0];
+  if (!run) return;
+
+  if (status !== 'PLAYER_WON') {
+    await db.query(
+      `UPDATE player_tower_runs SET status='WIPED', current_session_id=NULL, ended_at=now() WHERE id=$1`,
+      [run.id]
+    );
+    return;
+  }
+
+  const floorRes = await db.query('SELECT * FROM tower_floors WHERE floor_number = $1', [run.current_floor]);
+  const floorRow = floorRes.rows[0];
+  if (run.current_room < floorRow.room_count) {
+    await buildTowerRoom(run, run.current_floor, run.current_room + 1);
+  } else {
+    await db.query(`UPDATE player_tower_runs SET current_session_id=NULL WHERE id=$1`, [run.id]);
+  }
+}
+
 async function finalizeSession(sessionId, status, participants) {
   await db.query('UPDATE combat_sessions SET status = $1, updated_at = now() WHERE id = $2', [status, sessionId]);
   await db.query('DELETE FROM combat_participant_buffs WHERE session_id = $1', [sessionId]);
@@ -804,6 +945,8 @@ async function finalizeSession(sessionId, status, participants) {
   for (const npc of npcPs) {
     await db.query('UPDATE player_npcs SET hp = $1, mana = $2 WHERE id = $3', [npc.hp, npc.mana, npc.npc_id]);
   }
+
+  await handleTowerSessionEnd(sessionId, status);
 
   return rewards;
 }
@@ -1527,8 +1670,9 @@ router.post('/sessions/:id/action', async (req, res, next) => {
           ? await elements.getClassElementalDamageBonus(actorClassId, actor.imbued_element_id)
           : 0;
         const damageBonusPercent = classElemBonus + Number(actor.imbued_damage_bonus || 0);
+        const lapBonus = await getTowerLapBonus(sessionId);
         const baseResistance = target.monster_code
-          ? await elements.getMonsterElementResistance(target.monster_code, actor.imbued_element_id)
+          ? await elements.getMonsterElementResistance(target.monster_code, actor.imbued_element_id, lapBonus)
           : target.player_id
             ? await elements.getPlayerElementResistance(target.player_id, actor.imbued_element_id)
             : await elements.getClassElementResistance(target.class_id, actor.imbued_element_id);
@@ -1702,9 +1846,10 @@ router.post('/sessions/:id/action', async (req, res, next) => {
         const damageBonusPercent = (await elements.getClassElementalDamageBonus(actorClassId, skill.element_id))
           + Number(actor.elemental_damage_bonus || 0);
         skillElemCode = await elements.getElementCodeById(skill.element_id);
+        const lapBonus = await getTowerLapBonus(sessionId);
         for (const t of targets) {
           const baseResist = t.monster_code
-            ? await elements.getMonsterElementResistance(t.monster_code, skill.element_id)
+            ? await elements.getMonsterElementResistance(t.monster_code, skill.element_id, lapBonus)
             : t.player_id
               ? await elements.getPlayerElementResistance(t.player_id, skill.element_id)
               : await elements.getClassElementResistance(t.class_id, skill.element_id);
@@ -2095,3 +2240,12 @@ router.post('/sessions/:id/action', async (req, res, next) => {
 });
 
 module.exports = router;
+module.exports.hydratePlayers = hydratePlayers;
+module.exports.hydratePartyNpcs = hydratePartyNpcs;
+module.exports.hydrateMonsters = hydrateMonsters;
+module.exports.insertParticipants = insertParticipants;
+module.exports.advanceEnemyTurns = advanceEnemyTurns;
+module.exports.fetchSessionState = fetchSessionState;
+module.exports.hasAbandonedActiveSession = hasAbandonedActiveSession;
+module.exports.buildTowerRoom = buildTowerRoom;
+module.exports.resolveInfiniteFloor = resolveInfiniteFloor;

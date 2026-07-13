@@ -219,6 +219,12 @@ router.delete('/party', async (req, res, next) => {
            VALUES ($1, $2, TRUE) ON CONFLICT DO NOTHING`,
           [sessionId, playerId]
         );
+        await db.query(
+          `UPDATE player_tower_runs SET abandoned_player_ids = array_append(abandoned_player_ids, $1)
+           WHERE status = 'IN_PROGRESS' AND (player_id = $1 OR guest_player_id = $1 OR guest_player_id_2 = $1)
+             AND NOT ($1 = ANY(abandoned_player_ids))`,
+          [playerId]
+        );
       }
       await db.query('DELETE FROM player_coop_group_members WHERE group_id=$1 AND player_id=$2', [group.id, playerId]);
       const remaining = await getGroupMemberIds(group.id);
@@ -394,6 +400,12 @@ router.delete('/party/members/:targetId', async (req, res, next) => {
         `INSERT INTO combat_abandoned_players(session_id, player_id, penalized)
          VALUES ($1, $2, FALSE) ON CONFLICT DO NOTHING`,
         [sessionId, targetId]
+      );
+      await db.query(
+        `UPDATE player_tower_runs SET abandoned_player_ids = array_append(abandoned_player_ids, $1)
+         WHERE status = 'IN_PROGRESS' AND (player_id = $1 OR guest_player_id = $1 OR guest_player_id_2 = $1)
+           AND NOT ($1 = ANY(abandoned_player_ids))`,
+        [targetId]
       );
     }
 

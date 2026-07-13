@@ -11,7 +11,9 @@ node_modules/
 # Archivos de Claude
 .claude/
 
-# Archivos temporales
+# Archivos temporales y backups
 *.log
+*.bak
+*.bak*
 {
 UsersmerocAppData*

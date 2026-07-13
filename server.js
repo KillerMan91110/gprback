@@ -19,6 +19,7 @@ const socialRouter = require('./routes/social');
 const coopRouter = require('./routes/coop');
 const marketRouter = require('./routes/market');
 const petsRouter = require('./routes/pets');
+const towerRouter = require('./routes/tower');
 const { getActivePetBonuses } = require('./lib/pets');
 
 const app = express();
@@ -41,6 +42,7 @@ app.use('/api/player/:playerId', socialRouter);
 app.use('/api/player/:playerId/coop', coopRouter);
 app.use('/api/player/:playerId/market', marketRouter);
 app.use('/api/player/:playerId/pets', petsRouter);
+app.use('/api/player/:playerId/tower', towerRouter);
 
 // ========== RUTAS DE PRUEBA ==========
 

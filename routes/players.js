@@ -29,6 +29,17 @@ const FAILURE_LOSS_PERCENT = {
   LEGENDARIO: 90,
 };
 
+// Probabilístico por unidad: cada unidad tiene lossPercent% de chance individual de perderse.
+// Evita que Math.ceil convierta porcentajes parciales en 100% de pérdida en cantidades chicas
+// (ej. 1 scroll al 70% = siempre perdido con ceil, pero con esto = 70% de chance).
+function calcFailLoss(quantity, lossPercent) {
+  let lost = 0;
+  for (let i = 0; i < quantity; i++) {
+    if (Math.random() * 100 < lossPercent) lost++;
+  }
+  return lost;
+}
+
 // Costo de curarse en el gremio: oro por punto de HP recuperado.
 const GUILD_HEAL_GOLD_PER_HP = 1;
 
@@ -972,14 +983,13 @@ router.get('/:playerId/quests/available', async (req, res, next) => {
       // Quests de zona sólo visibles si esa zona está desbloqueada
       if (q.zone_id && !unlockedZoneIds.has(q.zone_id)) return false;
       if (q.required_class_id && q.required_class_id !== player.current_class_id) return false;
-      if (q.min_level && player.level < q.min_level) return false;
       if (q.min_rank_code && !rankAtLeast(player.rank, q.min_rank_code)) return false;
       if (q.times_completed && q.is_repeatable && q.repeat_cooldown_hours) {
         const cooldownMs = q.repeat_cooldown_hours * 60 * 60 * 1000;
         if (Date.now() - new Date(q.last_completed_at).getTime() < cooldownMs) return false;
       }
       return true;
-    });
+    }).map((q) => ({ ...q, meets_level: !q.min_level || player.level >= q.min_level }));
 
     res.json(await questProgress.attachObjectives(playerId, available));
   } catch (error) {
@@ -1515,7 +1525,7 @@ router.post('/:playerId/craft', async (req, res, next) => {
     // Ingredientes: los exitosos consumen cantidad completa, los fallidos consumen % según rareza.
     for (const ingredient of ingredients.rows) {
       const successCost = ingredient.quantity * successCount;
-      const failCost = Math.ceil(ingredient.quantity * failCount * (FAILURE_LOSS_PERCENT[recipe.rarity] ?? 0) / 100);
+      const failCost = calcFailLoss(ingredient.quantity * failCount, FAILURE_LOSS_PERCENT[recipe.rarity] ?? 0);
       if (successCost + failCost > 0) await inventory.removeItem(playerId, ingredient.item_id, successCost + failCost);
     }
 
@@ -2600,12 +2610,12 @@ const ENCHANT_COSTS = [
   { stone: 'PIEDRA_ENCANT_MENOR',     qty: 1, gold:    200, rate: 95 }, // → +1
   { stone: 'PIEDRA_ENCANT_MENOR',     qty: 2, gold:    400, rate: 90 }, // → +2
   { stone: 'PIEDRA_ENCANT_MENOR',     qty: 3, gold:    600, rate: 85 }, // → +3
-  { stone: 'PIEDRA_ENCANT_MAYOR',     qty: 1, gold:   1500, rate: 75 }, // → +4
-  { stone: 'PIEDRA_ENCANT_MAYOR',     qty: 2, gold:   3000, rate: 65 }, // → +5
-  { stone: 'PIEDRA_ENCANT_MAYOR',     qty: 3, gold:   5000, rate: 55 }, // → +6
-  { stone: 'PIEDRA_ENCANT_SUPREMA',   qty: 1, gold:  10000, rate: 45 }, // → +7
-  { stone: 'PIEDRA_ENCANT_SUPREMA',   qty: 2, gold:  18000, rate: 35 }, // → +8
-  { stone: 'PIEDRA_ENCANT_SUPREMA',   qty: 3, gold:  30000, rate: 25 }, // → +9
+  { stone: 'PIEDRA_ENCANT_MENOR',     qty: 4, gold:   1500, rate: 75 }, // → +4
+  { stone: 'PIEDRA_ENCANT_MAYOR',     qty: 1, gold:   3000, rate: 65 }, // → +5
+  { stone: 'PIEDRA_ENCANT_MAYOR',     qty: 2, gold:   5000, rate: 55 }, // → +6
+  { stone: 'PIEDRA_ENCANT_MAYOR',     qty: 3, gold:  10000, rate: 45 }, // → +7
+  { stone: 'PIEDRA_ENCANT_SUPREMA',   qty: 1, gold:  18000, rate: 35 }, // → +8
+  { stone: 'PIEDRA_ENCANT_SUPREMA',   qty: 2, gold:  30000, rate: 25 }, // → +9
   { stone: 'PIEDRA_ENCANT_LEGENDARIA',qty: 1, gold:  80000, rate: 15 }, // → +10
 ];
 
