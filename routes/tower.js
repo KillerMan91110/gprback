@@ -34,6 +34,19 @@ async function getFloor(floorNumber) {
   return { ...res.rows[0], floor_number: floorNumber, lap };
 }
 
+// El líder de la corrida (quien la inició, run.player_id) controla Seguir/Extraer mientras
+// esté vivo. Si murió en la sala/piso, cualquier otro participante vivo puede decidir en su
+// lugar — esto NO cambia el liderazgo real del grupo co-op, solo el control de estos botones.
+async function canControlRun(run, callerId) {
+  const participantIds = [run.player_id, run.guest_player_id, run.guest_player_id_2].filter(Boolean);
+  const hpRes = await db.query('SELECT id, hp FROM players WHERE id = ANY($1::int[])', [participantIds]);
+  const hpById = Object.fromEntries(hpRes.rows.map((r) => [r.id, r.hp]));
+
+  const leaderAlive = (hpById[run.player_id] ?? 0) > 0;
+  if (leaderAlive) return callerId === run.player_id;
+  return (hpById[callerId] ?? 0) > 0;
+}
+
 const READY_TTL_MS = 15000;
 
 async function getMyGroupId(playerId) {
@@ -124,7 +137,7 @@ router.post('/start', async (req, res, next) => {
     }
 
     const allIds = [req.playerId, ...coopPartnerIds];
-    const levelRes = await db.query('SELECT id, nickname, level FROM players WHERE id = ANY($1::int[])', [allIds]);
+    const levelRes = await db.query('SELECT id, nickname, level, hp, max_hp FROM players WHERE id = ANY($1::int[])', [allIds]);
     if (levelRes.rows.length !== allIds.length) {
       return res.status(404).json({ error: 'Algún jugador no fue encontrado' });
     }
@@ -132,6 +145,21 @@ router.post('/start', async (req, res, next) => {
     if (belowLevel.length) {
       return res.status(400).json({
         error: `${belowLevel.map((r) => r.nickname).join(', ')} no tiene el nivel ${MIN_LEVEL} necesario para entrar a la torre — nadie del grupo puede entrar.`,
+      });
+    }
+
+    const notFullHp = levelRes.rows.filter((r) => r.hp < r.max_hp).map((r) => r.nickname);
+    const npcHpRes = await db.query(
+      `SELECT pn.name, pn.hp, pn.max_hp
+       FROM player_party pp
+       JOIN player_npcs pn ON pn.id = pp.npc_id
+       WHERE pp.player_id = ANY($1::int[])`,
+      [allIds]
+    );
+    const npcNotFull = npcHpRes.rows.filter((r) => r.hp < r.max_hp).map((r) => r.name);
+    if (notFullHp.length || npcNotFull.length) {
+      return res.status(400).json({
+        error: `Recordá que todos deben estar con la vida al máximo antes de entrar a la Torre. (${[...notFullHp, ...npcNotFull].join(', ')} no está${notFullHp.length + npcNotFull.length > 1 ? 'n' : ''} al máximo)`,
       });
     }
 
@@ -187,7 +215,8 @@ router.get('/run', async (req, res, next) => {
 
     const floorRow = await getFloor(run.current_floor);
     const session = run.current_session_id ? await combatEngine.fetchSessionState(run.current_session_id) : null;
-    res.json({ run, floor: floorRow, session });
+    const canControl = await canControlRun(run, req.playerId);
+    res.json({ run, floor: floorRow, session, canControl });
   } catch (err) {
     next(err);
   }
@@ -198,6 +227,9 @@ router.post('/advance', async (req, res, next) => {
   try {
     const run = await getActiveRun(req.playerId);
     if (!run) return res.status(400).json({ error: 'No tenés una corrida de torre activa' });
+    if (!(await canControlRun(run, req.playerId))) {
+      return res.status(403).json({ error: 'Solo quien tiene el control de la corrida (el líder, o alguien vivo si el líder murió) puede decidir esto.' });
+    }
     if (run.current_session_id) {
       return res.status(400).json({ error: 'Todavía hay una sala en curso' });
     }
@@ -207,11 +239,7 @@ router.post('/advance', async (req, res, next) => {
       return res.status(500).json({ error: `Piso ${nextFloor} no configurado` });
     }
 
-    const coinsGained = Math.round(1 * DIFFICULTIES[run.difficulty].coinMult);
-    await db.query('UPDATE player_tower_runs SET coins_earned = coins_earned + $1 WHERE id = $2', [coinsGained, run.id]);
-    const refreshedRun = (await db.query('SELECT * FROM player_tower_runs WHERE id = $1', [run.id])).rows[0];
-
-    await combatEngine.buildTowerRoom(refreshedRun, nextFloor, 1);
+    await combatEngine.buildTowerRoom(run, nextFloor, 1);
 
     const updatedRun = (await db.query('SELECT * FROM player_tower_runs WHERE id = $1', [run.id])).rows[0];
     const session = await combatEngine.fetchSessionState(updatedRun.current_session_id);
@@ -226,6 +254,9 @@ router.post('/extract', async (req, res, next) => {
   try {
     const run = await getActiveRun(req.playerId);
     if (!run) return res.status(400).json({ error: 'No tenés una corrida de torre activa' });
+    if (!(await canControlRun(run, req.playerId))) {
+      return res.status(403).json({ error: 'Solo quien tiene el control de la corrida (el líder, o alguien vivo si el líder murió) puede decidir esto.' });
+    }
     if (run.current_session_id) {
       return res.status(400).json({ error: 'Todavía hay una sala en curso' });
     }

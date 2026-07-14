@@ -681,6 +681,7 @@ async function rollMonsterDrops(enemies, dropRateBonusPct = 0) {
 
 // ---------- Torre infinita: motor de corridas (Fase 2) ----------
 const TOWER_DIFFICULTY_STAT_MULT = { 1: 1.0, 2: 1.3, 3: 1.6 };
+const TOWER_DIFFICULTY_COIN_MULT = { 1: 1, 2: 1.5, 3: 2 };
 
 function towerFloorLevel(floorNumber) {
   return 29 + floorNumber;
@@ -813,7 +814,13 @@ async function handleTowerSessionEnd(sessionId, status) {
   if (run.current_room < floorRow.room_count) {
     await buildTowerRoom(run, run.current_floor, run.current_room + 1);
   } else {
-    await db.query(`UPDATE player_tower_runs SET current_session_id=NULL WHERE id=$1`, [run.id]);
+    // Piso completo: banca la moneda de ESTE piso ya mismo (no en /advance), así que si
+    // extraés apenas terminás el piso (sin apretar Seguir) igual la cuenta.
+    const coinsGained = Math.round(1 * (TOWER_DIFFICULTY_COIN_MULT[run.difficulty] || 1));
+    await db.query(
+      `UPDATE player_tower_runs SET current_session_id=NULL, coins_earned = coins_earned + $2 WHERE id=$1`,
+      [run.id, coinsGained]
+    );
   }
 }
 

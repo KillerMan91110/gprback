@@ -4,7 +4,7 @@ require('dotenv').config();
 const db = require('./db/db');
 const { getEquipmentBonuses } = require('./lib/equipment');
 const { requireAuth, requireSelf } = require('./lib/auth');
-const { xpThreshold, getClassBaseCritDamage } = require('./lib/leveling');
+const { xpThreshold, getClassBaseCritDamage, syncPlayerLevel } = require('./lib/leveling');
 const { getRankProgress } = require('./lib/ranks');
 const { getClassPassiveBonuses } = require('./lib/passives');
 const authRouter = require('./routes/auth');
@@ -382,48 +382,58 @@ app.get('/api/leaderboard', async (req, res, next) => {
   }
 });
 
+// GET /api/leaderboard/tower — ranking de la Torre Infinita, separado por modo. Solo cuenta
+// una corrida si status='EXTRACTED' (si el grupo murió, no entra aunque hayan llegado lejos).
+// El modo sale de cuántos guest_player_id tiene la corrida: 0=solo, 1=dúo, 2=trío.
+app.get('/api/leaderboard/tower', async (req, res, next) => {
+  try {
+    async function fetchMode(whereExtra) {
+      // participants_key agrupa por el mismo conjunto exacto de jugadores sin importar el
+      // orden ni quién inició la corrida, así el mismo jugador/equipo no aparece 2 veces:
+      // DISTINCT ON se queda con su mejor piso (el resto ya ordenado por piso desc primero).
+      const result = await db.query(
+        `SELECT current_floor, difficulty, ended_at, player_nickname, guest_nickname, guest2_nickname
+         FROM (
+           SELECT DISTINCT ON (pkey.participants_key)
+                  ptr.current_floor, ptr.difficulty, ptr.ended_at,
+                  p1.nickname AS player_nickname, p2.nickname AS guest_nickname, p3.nickname AS guest2_nickname
+           FROM player_tower_runs ptr
+           JOIN players p1 ON p1.id = ptr.player_id
+           LEFT JOIN players p2 ON p2.id = ptr.guest_player_id
+           LEFT JOIN players p3 ON p3.id = ptr.guest_player_id_2
+           JOIN LATERAL (
+             SELECT string_agg(x::text, ',' ORDER BY x) AS participants_key
+             FROM unnest(ARRAY[ptr.player_id, ptr.guest_player_id, ptr.guest_player_id_2]) AS x
+             WHERE x IS NOT NULL
+           ) pkey ON true
+           WHERE ptr.status = 'EXTRACTED' AND ${whereExtra}
+           ORDER BY pkey.participants_key, ptr.current_floor DESC, ptr.ended_at ASC
+         ) best
+         ORDER BY current_floor DESC, ended_at ASC
+         LIMIT 30`
+      );
+      return result.rows.map((r, i) => ({
+        position: i + 1,
+        floor: r.current_floor,
+        difficulty: r.difficulty,
+        members: [r.player_nickname, r.guest_nickname, r.guest2_nickname].filter(Boolean),
+      }));
+    }
+
+    const [solo, duo, trio] = await Promise.all([
+      fetchMode('ptr.guest_player_id IS NULL AND ptr.guest_player_id_2 IS NULL'),
+      fetchMode('ptr.guest_player_id IS NOT NULL AND ptr.guest_player_id_2 IS NULL'),
+      fetchMode('ptr.guest_player_id_2 IS NOT NULL'),
+    ]);
+
+    res.json({ solo, duo, trio });
+  } catch (error) {
+    next(error);
+  }
+});
+
 // 4. Quests reales -> ver routes/quests.js (montado en /api/quests)
 // 5. Inventario real -> ver routes/players.js (montado en /api/player/:playerId/inventory)
-
-// 6. Ruta de evoluciones disponibles
-app.get('/api/player/:playerId/evolutions', requireAuth, requireSelf, (req, res) => {
-  const playerId = req.params.playerId;
-  
-  const evolutions = {
-    current: {
-      name: 'Guerrero',
-      level: 1
-    },
-    available: [
-      {
-        name: 'Paladín (Rama Protector)',
-        requiredLevel: 25,
-        requiredRank: 'C',
-        requiredKills: 50,
-        currentProgress: 45,
-        stats: {
-          atkBonus: '+10%',
-          defBonus: '+20%',
-          hpBonus: '+15%'
-        }
-      },
-      {
-        name: 'Berserker (Rama Agresor)',
-        requiredLevel: 25,
-        requiredRank: 'C',
-        requiredKills: 50,
-        currentProgress: 32,
-        stats: {
-          atkBonus: '+25%',
-          defBonus: '-10%',
-          hpBonus: '+10%'
-        }
-      }
-    ]
-  };
-  
-  res.json(evolutions);
-});
 
 // 7. Ruta de zones
 app.get('/api/zones', async (req, res, next) => {
@@ -808,6 +818,33 @@ app.get('/api/player/:playerId/profile', requireAuth, async (req, res, next) => 
 });
 
 // 9. Rutas de gremios -> ver routes/guilds.js (montado en /api/guilds)
+
+// POST /api/player/:playerId/admin/sync-level
+// Recalcula las stats del jugador según su nivel actual en la DB (útil tras subir de nivel por SQL).
+app.post('/api/player/:playerId/admin/sync-level', requireAuth, requireSelf, async (req, res, next) => {
+  try {
+    const playerId = Number(req.params.playerId);
+    const result = await syncPlayerLevel(playerId);
+    if (!result) return res.status(404).json({ error: 'Jugador no encontrado' });
+    res.json({
+      synced: true,
+      level: result.level,
+      newXp: result.newXp,
+      stats: {
+        maxHp: result.newMaxHp,
+        mana: result.stats.mana,
+        atk: result.stats.atk,
+        def: result.stats.def,
+        mag: result.stats.mag,
+        magicDef: result.stats.magicDef,
+        spd: result.stats.spd,
+        crit: result.stats.crit,
+      },
+    });
+  } catch (err) {
+    next(err);
+  }
+});
 
 // ========== MANEJO DE ERRORES ==========
 

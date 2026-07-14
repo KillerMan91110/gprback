@@ -325,7 +325,7 @@ CREATE TABLE IF NOT EXISTS quests (
 CREATE TABLE IF NOT EXISTS quest_objectives (
   id SERIAL PRIMARY KEY,
   quest_id INT NOT NULL REFERENCES quests(id) ON DELETE CASCADE,
-  objective_type TEXT NOT NULL CHECK (objective_type IN ('KILL_MONSTER', 'KILL_ANY_IN_ZONE', 'DEFEAT_BOSS', 'COLLECT_ITEM')),
+  objective_type TEXT NOT NULL CHECK (objective_type IN ('KILL_MONSTER', 'KILL_ANY_IN_ZONE', 'DEFEAT_BOSS', 'COLLECT_ITEM', 'USE_ACTION')),
   monster_id INT REFERENCES monsters(id),
   item_id INT REFERENCES items(id),
   target_count INT NOT NULL DEFAULT 1,

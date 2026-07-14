@@ -120,11 +120,11 @@ VALUES
   (101, 'VIDENTE', 'Vidente', 'Visión del futuro', 'Sacerdote capaz de predecir el futuro en combate.', 1.10, 69, 9, 15, 20, 20, 11, 10, 10, 10, 113);
 INSERT INTO class_growths(class_id, stage, level_from, level_to, hp_per_level, atk_per_level, def_per_level, mag_per_level, magic_def_per_level, spd_per_level, mana_per_level, bonus_description)
 VALUES
-  (1, 'Base', 1, 100, 15.0, 8.0, 6.0, 5.0, 4.5, 6.0, 15.0, 'Guerrero base: ATK+8, DEF+6, HP+10, MAG+5, MAGIC_DEF+4, SPD+2, mana+2 por nivel. Crítico fijo 10%, solo sube con items/habilidades.'),
-  (2, 'Base', 1, 100, 7.0, 4.0, 5.0, 8.0, 7.0, 5.0, 30.0, 'Mago base: MAG+10, MAGIC_DEF+7.5, ATK+7, DEF+5.5, HP+7, mana+4 por nivel. Crítico fijo 8%, solo sube con items/habilidades.'),
-  (3, 'Base', 1, 100, 7.0, 7.0, 5.0, 5.0, 3.0, 8.0, 15.0, 'Arquero base: ATK+7, DEF+5, HP+8, SPD+6, MAG+4, MAGIC_DEF+3, mana+2.5 por nivel. Crítico fijo 15%, solo sube con items/habilidades.'),
-  (4, 'Base', 1, 100, 7.0, 8.0, 6.0, 5.0, 4.0, 9.0, 15.0, 'Pícaro base: ATK+8, DEF+6, HP+7, SPD+10 (máximo del juego), MAG+5, MAGIC_DEF+4, mana+2 por nivel. Crítico fijo 20%, solo sube con items/habilidades.'),
-  (5, 'Base', 1, 100, 8.0, 4.0, 4.0, 7.0, 5.0, 5.0, 30.0, 'Sacerdote base: MAG+7, MAGIC_DEF+5, HP+9, ATK+4, DEF+3, mana+3.5 por nivel. Crítico fijo 5%, solo sube con items/habilidades.'),
+  (1, 'Base', 1, 100, 15.0, 8.0, 6.0, 5.0, 5.2, 6.0, 15.0, 'Guerrero base: ATK+8, DEF+6, HP+10, MAG+5, MAGIC_DEF+4, SPD+2, mana+2 por nivel. Crítico fijo 10%, solo sube con items/habilidades.'),
+  (2, 'Base', 1, 100, 7.0, 5.2, 5.0, 8.0, 6.0, 5.0, 30.0, 'Mago base: MAG+10, MAGIC_DEF+7.5, ATK+7, DEF+5.5, HP+7, mana+4 por nivel. Crítico fijo 8%, solo sube con items/habilidades.'),
+  (3, 'Base', 1, 100, 7.0, 7.3, 5.0, 5.0, 4.5, 8.0, 15.0, 'Arquero base: ATK+7, DEF+5, HP+8, SPD+6, MAG+4, MAGIC_DEF+3, mana+2.5 por nivel. Crítico fijo 15%, solo sube con items/habilidades.'),
+  (4, 'Base', 1, 100, 7.0, 7.5, 6.0, 5.0, 4.5, 9.0, 15.0, 'Pícaro base: ATK+8, DEF+6, HP+7, SPD+10 (máximo del juego), MAG+5, MAGIC_DEF+4, mana+2 por nivel. Crítico fijo 20%, solo sube con items/habilidades.'),
+  (5, 'Base', 1, 100, 8.0, 5.4, 5.4, 7.0, 6.7, 5.0, 30.0, 'Sacerdote base: MAG+7, MAGIC_DEF+5, HP+9, ATK+4, DEF+3, mana+3.5 por nivel. Crítico fijo 5%, solo sube con items/habilidades.'),
   (6, 'Rama 1', 1, 100, 18.45, 9.2, 7.38, 5.75, 5.18, 6.9, 17.25, 'Monje aumenta defensa y control en la primera rama.'),
   (7, 'Rama 1', 1, 100, 17.25, 9.84, 6.9, 5.75, 5.18, 7.38, 17.25, 'Espadachín sube daño y velocidad.'),
   (8, 'Rama 1', 1, 100, 18.45, 9.2, 7.38, 5.75, 5.18, 6.9, 17.25, 'Caballero gana más DEF y HP.'),
@@ -6818,7 +6818,8 @@ VALUES
   ((SELECT id FROM crafting_recipes WHERE code='RECIPE_SACERDOTE_ACCESSORY_TUNDRA'),(SELECT id FROM items WHERE code='ESENCIA_CONGELADA'),1),
   ((SELECT id FROM crafting_recipes WHERE code='RECIPE_SACERDOTE_ACCESSORY_TUNDRA'),(SELECT id FROM items WHERE code='PIEL_LOBO_HIELO'),2),
   ((SELECT id FROM crafting_recipes WHERE code='RECIPE_SACERDOTE_ACCESSORY_VOLCAN'),(SELECT id FROM items WHERE code='ESCAMA_DE_FUEGO'),2),
-  ((SELECT id FROM crafting_recipes WHERE code='RECIPE_SACERDOTE_ACCESSORY_VOLCAN'),(SELECT id FROM items WHERE code='ESENCIA_DE_FUEGO'),1);
+  ((SELECT id FROM crafting_recipes WHERE code='RECIPE_SACERDOTE_ACCESSORY_VOLCAN'),(SELECT id FROM items WHERE code='ESENCIA_DE_FUEGO'),1)
+ON CONFLICT (recipe_id, item_id) DO NOTHING;
 
 INSERT INTO dismantle_recipes(item_id, result_item_id, result_quantity)
 VALUES
@@ -6902,22 +6903,22 @@ VALUES
 -- Misiones de las zonas 6-7 (Catacumbas del Abismo, Ruinas Ancestrales).
   ('CATACUMBAS_Q1_CAZADOR_MUERTOS', 'Cazador de Muertos', 'PRINCIPAL', (SELECT id FROM monster_zones WHERE name = 'Catacumbas del Abismo'), 1, 4, FALSE, 76, 85, 3, NULL, 'Guardián de las Catacumbas', 'Entrada al Abismo', FALSE, NULL, 350, 1400, 1000, NULL, 'Esqueletos Guerreros vagan por las catacumbas. Derrota a 5 de ellos.'),
   ('CATACUMBAS_Q2_CENTINELA_MUERTE', 'El Centinela de la Muerte', 'PRINCIPAL', (SELECT id FROM monster_zones WHERE name = 'Catacumbas del Abismo'), 2, 4, FALSE, 82, 85, 4, NULL, 'Guardián de las Catacumbas', 'Cámara de Huesos', FALSE, NULL, 430, 1900, 1400, NULL, 'El Centinela de la Muerte custodia las profundidades. Derrótalo.'),
-  ('CATACUMBAS_Q3_LICH_ANCESTRAL', 'Lich Ancestral', 'PRINCIPAL', (SELECT id FROM monster_zones WHERE name = 'Catacumbas del Abismo'), 3, 4, TRUE, 84, 85, 5, NULL, 'Guardián de las Catacumbas', 'Trono de Huesos', FALSE, NULL, 550, 3200, 2300, NULL, 'El Lich Ancestral domina las catacumbas desde hace siglos. Derrótalo.'),
+  ('CATACUMBAS_Q3_LICH_ANCESTRAL', 'Lich Ancestral', 'PRINCIPAL', (SELECT id FROM monster_zones WHERE name = 'Catacumbas del Abismo'), 3, 4, TRUE, 84, 85, 5, NULL, 'Guardián de las Catacumbas', 'Trono de Huesos', FALSE, NULL, 550, 3200, 1800, NULL, 'El Lich Ancestral domina las catacumbas desde hace siglos. Derrótalo.'),
   -- Quest "puente" de rango: el contenido visible de las 7 zonas solo llegaba a rango B sin
   -- esto, y las OCULTA que piden A/S nunca se desbloqueaban (candado circular). Usa los 2
   -- monstruos RARE de la zona que no tenia ninguna quest todavia.
-  ('CATACUMBAS_Q4_PACTO_ABISMAL', 'El Pacto de los Abismales', 'PRINCIPAL', (SELECT id FROM monster_zones WHERE name = 'Catacumbas del Abismo'), 4, 4, FALSE, 80, 85, 5, NULL, 'Guardián de las Catacumbas', 'Santuario Profanado', FALSE, NULL, 2600, 11700, 8300, NULL, 'Un archimago corrupto y el guardián que sirve al abismo selló un pacto prohibido. Derrota a ambos para romperlo.'),
-  ('CATACUMBAS_DAILY_PURIFICACION_ALMAS', 'Purificación de Almas', 'DIARIA', (SELECT id FROM monster_zones WHERE name = 'Catacumbas del Abismo'), NULL, NULL, FALSE, 80, 85, 1, NULL, 'Guardián de las Catacumbas', 'Entrada al Abismo', TRUE, 24, 70, 500, 400, NULL, 'Elimina 12 enemigos comunes de las Catacumbas del Abismo.'),
-  ('CATACUMBAS_DAILY_PLAGA_ALMAS', 'Plaga de Almas en Pena', 'DIARIA', (SELECT id FROM monster_zones WHERE name = 'Catacumbas del Abismo'), NULL, NULL, FALSE, 80, 85, 2, NULL, 'Guardián de las Catacumbas', 'Cámara de Huesos', TRUE, 24, 160, 800, 560, NULL, 'Elimina enemigos de la zona: Sacerdotes Malditos, Fantasmas Encadenados, Zombies Ancianos, Cadáveres Reanimados.'),
+  ('CATACUMBAS_Q4_PACTO_ABISMAL', 'El Pacto de los Abismales', 'PRINCIPAL', (SELECT id FROM monster_zones WHERE name = 'Catacumbas del Abismo'), 4, 4, FALSE, 80, 85, 5, NULL, 'Guardián de las Catacumbas', 'Santuario Profanado', FALSE, NULL, 2600, 11700, 2000, NULL, 'Un archimago corrupto y el guardián que sirve al abismo selló un pacto prohibido. Derrota a ambos para romperlo.'),
+  ('CATACUMBAS_DAILY_PURIFICACION_ALMAS', 'Purificación de Almas', 'DIARIA', (SELECT id FROM monster_zones WHERE name = 'Catacumbas del Abismo'), NULL, NULL, FALSE, 80, 85, 1, NULL, 'Guardián de las Catacumbas', 'Entrada al Abismo', TRUE, 24, 70, 500, 550, NULL, 'Elimina 12 enemigos comunes de las Catacumbas del Abismo.'),
+  ('CATACUMBAS_DAILY_PLAGA_ALMAS', 'Plaga de Almas en Pena', 'DIARIA', (SELECT id FROM monster_zones WHERE name = 'Catacumbas del Abismo'), NULL, NULL, FALSE, 80, 85, 2, NULL, 'Guardián de las Catacumbas', 'Cámara de Huesos', TRUE, 24, 160, 800, 700, NULL, 'Elimina enemigos de la zona: Sacerdotes Malditos, Fantasmas Encadenados, Zombies Ancianos, Cadáveres Reanimados.'),
   ('CATACUMBAS_HIDDEN_RITUAL_OSCURO', 'El Ritual Oscuro', 'OCULTA', (SELECT id FROM monster_zones WHERE name = 'Catacumbas del Abismo'), NULL, NULL, FALSE, 80, 85, 5, 'A', 'Guardián de las Catacumbas', 'Altar Profano', FALSE, NULL, 450, 2100, 1500, 'Derrota al Archimago Corrupto, recolecta 3 Grimorios Corruptos y sé de Rango A+.', 'Un ritual oscuro amenaza con corromper toda la zona. Detenlo antes de que sea tarde.'),
 
   ('RUINAS_Q1_GUARDIANES_TEMPLO', 'Guardianes del Templo', 'PRINCIPAL', (SELECT id FROM monster_zones WHERE name = 'Ruinas Ancestrales'), 1, 4, FALSE, 86, 100, 3, NULL, 'Última Sacerdotisa', 'Templo Sagrado', FALSE, NULL, 400, 1800, 1300, NULL, 'Los Guardianes Ancestrales protegen el templo. Derrota a uno de cada tipo elemental.'),
   ('RUINAS_Q2_CENTINELA_COSMICO', 'El Centinela Cósmico', 'PRINCIPAL', (SELECT id FROM monster_zones WHERE name = 'Ruinas Ancestrales'), 2, 4, FALSE, 95, 100, 4, NULL, 'Última Sacerdotisa', 'Observatorio Roto', FALSE, NULL, 500, 2400, 1800, NULL, 'El Centinela Cósmico vigila las estrellas caídas. Derrótalo.'),
-  ('RUINAS_Q3_GRAN_ESQUELETO_ABISMO', 'Gran Esqueleto del Abismo', 'PRINCIPAL', (SELECT id FROM monster_zones WHERE name = 'Ruinas Ancestrales'), 3, 4, TRUE, 99, 100, 5, NULL, 'Última Sacerdotisa', 'Fosa del Abismo', FALSE, NULL, 700, 5000, 3500, NULL, 'La entidad final de las Ruinas Ancestrales despierta. Derrótala y decide el destino del mundo. Otorga el título "Vencedor del Abismo".'),
+  ('RUINAS_Q3_GRAN_ESQUELETO_ABISMO', 'Gran Esqueleto del Abismo', 'PRINCIPAL', (SELECT id FROM monster_zones WHERE name = 'Ruinas Ancestrales'), 3, 4, TRUE, 99, 100, 5, NULL, 'Última Sacerdotisa', 'Fosa del Abismo', FALSE, NULL, 700, 5000, 2500, NULL, 'La entidad final de las Ruinas Ancestrales despierta. Derrótala y decide el destino del mundo. Otorga el título "Vencedor del Abismo".'),
   -- Misma quest "puente" que en Catacumbas, usando los 2 monstruos RARE de esta zona que
   -- todavia no tenian ninguna quest. Cierra el camino F->S sin depender de las OCULTA.
-  ('RUINAS_Q4_HERALDOS_OLVIDADOS', 'Los Heraldos Olvidados', 'PRINCIPAL', (SELECT id FROM monster_zones WHERE name = 'Ruinas Ancestrales'), 4, 4, FALSE, 93, 100, 5, NULL, 'Última Sacerdotisa', 'Cripta de los Heraldos', FALSE, NULL, 4800, 21600, 15300, NULL, 'Dos heraldos olvidados por el tiempo despiertan en las ruinas. Derrótalos y sella su legado para siempre.'),
-  ('RUINAS_DAILY_GUARDIAN_ETERNO', 'Guardián Eterno', 'DIARIA', (SELECT id FROM monster_zones WHERE name = 'Ruinas Ancestrales'), NULL, NULL, FALSE, 93, 100, 2, NULL, 'Última Sacerdotisa', 'Templo Sagrado', TRUE, 24, 80, 600, 450, NULL, 'Protege el templo contra 15 enemigos comunes de las Ruinas Ancestrales.'),
+  ('RUINAS_Q4_HERALDOS_OLVIDADOS', 'Los Heraldos Olvidados', 'PRINCIPAL', (SELECT id FROM monster_zones WHERE name = 'Ruinas Ancestrales'), 4, 4, FALSE, 93, 100, 5, NULL, 'Última Sacerdotisa', 'Cripta de los Heraldos', FALSE, NULL, 4800, 21600, 3000, NULL, 'Dos heraldos olvidados por el tiempo despiertan en las ruinas. Derrótalos y sella su legado para siempre.'),
+  ('RUINAS_DAILY_GUARDIAN_ETERNO', 'Guardián Eterno', 'DIARIA', (SELECT id FROM monster_zones WHERE name = 'Ruinas Ancestrales'), NULL, NULL, FALSE, 93, 100, 2, NULL, 'Última Sacerdotisa', 'Templo Sagrado', TRUE, 24, 80, 600, 700, NULL, 'Protege el templo contra 15 enemigos comunes de las Ruinas Ancestrales.'),
   ('RUINAS_HIDDEN_PODER_COSMICO', 'El Poder Cósmico', 'OCULTA', (SELECT id FROM monster_zones WHERE name = 'Ruinas Ancestrales'), NULL, NULL, FALSE, 93, 100, 5, 'A', 'Última Sacerdotisa', 'Observatorio Roto', FALSE, NULL, 500, 2200, 1600, 'Recolecta 15 Polvos de Estrellas y sé de Rango A+.', 'El polvo de estrellas guarda el secreto del poder cósmico. Reúnelo para desbloquear evoluciones cósmicas.'),
   ('RUINAS_HIDDEN_ASCENSION_DIOS', 'Ascensión a Dios', 'OCULTA', (SELECT id FROM monster_zones WHERE name = 'Ruinas Ancestrales'), NULL, NULL, FALSE, 93, 100, 5, 'S', 'Última Sacerdotisa', 'Templo Sagrado', FALSE, NULL, 600, 10000, 8000, 'Sé de Rango S y derrota de nuevo a los 7 jefes legendarios de todas las zonas.', 'Solo quien ha demostrado ser una leyenda en cada rincón del mundo puede intentar la ascensión final.'),
 
@@ -6978,20 +6979,25 @@ VALUES
   ('TUNDRA_LEG_REY_H',          'El Rey Eterno del Hielo',      'DIARIA', (SELECT id FROM monster_zones WHERE name='Tundra Eterna'), NULL,NULL,TRUE,  74,75,5,NULL,'Anciana del Hielo','Trono Helado',     TRUE,168,860,3900,2800,NULL,'El Rey del Hielo gobierna para siempre. Derrótalo una vez más.'),
 
 -- ---- CATACUMBAS DEL ABISMO ----
-  ('CATA_COMUN_SACERDOTE',      'La Maldición del Sacerdote',   'DIARIA', (SELECT id FROM monster_zones WHERE name='Catacumbas del Abismo'), NULL,NULL,FALSE, 76,85,1,NULL,'Guardián de las Catacumbas','Entrada al Abismo', TRUE,  0,110,760,540,NULL,'Los sacerdotes malditos invocan horrores oscuros. Elimina 5.'),
-  ('CATA_COMUN_FANTASMA',       'Las Cadenas Espectrales',      'DIARIA', (SELECT id FROM monster_zones WHERE name='Catacumbas del Abismo'), NULL,NULL,FALSE, 76,85,1,NULL,'Guardián de las Catacumbas','Entrada al Abismo', TRUE,  0,110,760,540,NULL,'Los fantasmas encadenados atormentan las criptas. Elimina 5.'),
-  ('CATA_COMUN_ZOMBIE',         'Los Ancestros Reanimados',     'DIARIA', (SELECT id FROM monster_zones WHERE name='Catacumbas del Abismo'), NULL,NULL,FALSE, 76,85,1,NULL,'Guardián de las Catacumbas','Cámara de Huesos', TRUE,  0,110,760,540,NULL,'Los zombies ancianos vagan sin rumbo. Elimina 5.'),
-  ('CATA_COMUN_CADAVER',        'La Fuerza del Cadáver',        'DIARIA', (SELECT id FROM monster_zones WHERE name='Catacumbas del Abismo'), NULL,NULL,FALSE, 76,85,1,NULL,'Guardián de las Catacumbas','Cámara de Huesos', TRUE,  0,110,760,540,NULL,'Los cadáveres reanimados atacan con fuerza bruta. Elimina 5.'),
-  ('CATA_CAZA_ARCHIMAGO',       'El Archimago de la Oscuridad', 'DIARIA', (SELECT id FROM monster_zones WHERE name='Catacumbas del Abismo'), NULL,NULL,FALSE, 80,85,3,NULL,'Guardián de las Catacumbas','Santuario Profanado',TRUE, 48,300,1550,1130,NULL,'El archimago corrupto domina energía oscura. Derrota 3.'),
-  ('CATA_CAZA_GUARDIAN_ABISMO', 'El Centinela del Abismo',      'DIARIA', (SELECT id FROM monster_zones WHERE name='Catacumbas del Abismo'), NULL,NULL,FALSE, 80,85,3,NULL,'Guardián de las Catacumbas','Santuario Profanado',TRUE, 48,300,1550,1130,NULL,'El guardián del abismo protege las profundidades. Derrota 3.'),
-  ('CATA_BOSS_CENTINELA',       'El Centinela de la Muerte Vuelve','DIARIA',(SELECT id FROM monster_zones WHERE name='Catacumbas del Abismo'),NULL,NULL,TRUE, 82,85,4,NULL,'Guardián de las Catacumbas','Trono de Huesos',  TRUE, 72,520,2400,1750,NULL,'El Centinela de la Muerte regresa a guardar las catacumbas.'),
-  ('CATA_LEG_LICH',             'El Lich Inmortal',             'DIARIA', (SELECT id FROM monster_zones WHERE name='Catacumbas del Abismo'), NULL,NULL,TRUE,  84,85,5,NULL,'Guardián de las Catacumbas','Trono de Huesos',  TRUE,168,1000,4800,3400,NULL,'El Lich Ancestral no puede morir para siempre. Derrótalo de nuevo.'),
+  ('CATA_COMUN_SACERDOTE',      'La Maldición del Sacerdote',   'DIARIA', (SELECT id FROM monster_zones WHERE name='Catacumbas del Abismo'), NULL,NULL,FALSE, 76,85,1,NULL,'Guardián de las Catacumbas','Entrada al Abismo', TRUE,  0,110,760,600,NULL,'Los sacerdotes malditos invocan horrores oscuros. Elimina 5.'),
+  ('CATA_COMUN_FANTASMA',       'Las Cadenas Espectrales',      'DIARIA', (SELECT id FROM monster_zones WHERE name='Catacumbas del Abismo'), NULL,NULL,FALSE, 76,85,1,NULL,'Guardián de las Catacumbas','Entrada al Abismo', TRUE,  0,110,760,600,NULL,'Los fantasmas encadenados atormentan las criptas. Elimina 5.'),
+  ('CATA_COMUN_ZOMBIE',         'Los Ancestros Reanimados',     'DIARIA', (SELECT id FROM monster_zones WHERE name='Catacumbas del Abismo'), NULL,NULL,FALSE, 76,85,1,NULL,'Guardián de las Catacumbas','Cámara de Huesos', TRUE,  0,110,760,600,NULL,'Los zombies ancianos vagan sin rumbo. Elimina 5.'),
+  ('CATA_COMUN_CADAVER',        'La Fuerza del Cadáver',        'DIARIA', (SELECT id FROM monster_zones WHERE name='Catacumbas del Abismo'), NULL,NULL,FALSE, 76,85,1,NULL,'Guardián de las Catacumbas','Cámara de Huesos', TRUE,  0,110,760,600,NULL,'Los cadáveres reanimados atacan con fuerza bruta. Elimina 5.'),
+  ('CATA_CAZA_ARCHIMAGO',       'El Archimago de la Oscuridad', 'DIARIA', (SELECT id FROM monster_zones WHERE name='Catacumbas del Abismo'), NULL,NULL,FALSE, 80,85,3,NULL,'Guardián de las Catacumbas','Santuario Profanado',TRUE, 48,300,1550,800,NULL,'El archimago corrupto domina energía oscura. Derrota 3.'),
+  ('CATA_CAZA_GUARDIAN_ABISMO', 'El Centinela del Abismo',      'DIARIA', (SELECT id FROM monster_zones WHERE name='Catacumbas del Abismo'), NULL,NULL,FALSE, 80,85,3,NULL,'Guardián de las Catacumbas','Santuario Profanado',TRUE, 48,300,1550,800,NULL,'El guardián del abismo protege las profundidades. Derrota 3.'),
+  ('CATA_BOSS_CENTINELA',       'El Centinela de la Muerte Vuelve','DIARIA',(SELECT id FROM monster_zones WHERE name='Catacumbas del Abismo'),NULL,NULL,TRUE, 82,85,4,NULL,'Guardián de las Catacumbas','Trono de Huesos',  TRUE, 72,520,2400,900,NULL,'El Centinela de la Muerte regresa a guardar las catacumbas.'),
+  ('CATA_LEG_LICH',             'El Lich Inmortal',             'DIARIA', (SELECT id FROM monster_zones WHERE name='Catacumbas del Abismo'), NULL,NULL,TRUE,  84,85,5,NULL,'Guardián de las Catacumbas','Trono de Huesos',  TRUE,168,1000,4800,1000,NULL,'El Lich Ancestral no puede morir para siempre. Derrótalo de nuevo.'),
 
 -- ---- RUINAS ANCESTRALES ----
-  ('RUINAS_CAZA_GUARDIAN_ANC',  'El Guardián Primordial',       'DIARIA', (SELECT id FROM monster_zones WHERE name='Ruinas Ancestrales'), NULL,NULL,FALSE, 93,100,3,NULL,'Última Sacerdotisa','Cripta de los Heraldos', TRUE, 48,380,1950,1430,NULL,'El guardián ancestral protege los secretos del templo. Derrota 3.'),
-  ('RUINAS_CAZA_ENTIDAD',       'La Entidad Corrupta',          'DIARIA', (SELECT id FROM monster_zones WHERE name='Ruinas Ancestrales'), NULL,NULL,FALSE, 93,100,3,NULL,'Última Sacerdotisa','Cripta de los Heraldos', TRUE, 48,380,1950,1430,NULL,'La entidad corrupta profana los pasillos del templo. Derrota 3.'),
-  ('RUINAS_BOSS_COSMICO',       'El Centinela Cósmico Eterno',  'DIARIA', (SELECT id FROM monster_zones WHERE name='Ruinas Ancestrales'), NULL,NULL,TRUE,  95,100,4,NULL,'Última Sacerdotisa','Observatorio Roto',      TRUE, 72,640,3050,2230,NULL,'El Centinela Cósmico vela por las ruinas eternamente. Derrótalo.'),
-  ('RUINAS_LEG_GRAN_ESQUELETO', 'El Horror Ancestral Sin Fin',  'DIARIA', (SELECT id FROM monster_zones WHERE name='Ruinas Ancestrales'), NULL,NULL,TRUE,  99,100,5,NULL,'Última Sacerdotisa','Fosa del Abismo',         TRUE,168,1200,7000,5000,NULL,'El Gran Esqueleto del Abismo regresa desde el vacío. Derrótalo.');
+  ('RUINAS_CAZA_GUARDIAN_ANC',  'El Guardián Primordial',       'DIARIA', (SELECT id FROM monster_zones WHERE name='Ruinas Ancestrales'), NULL,NULL,FALSE, 93,100,3,NULL,'Última Sacerdotisa','Cripta de los Heraldos', TRUE, 48,380,1950,1000,NULL,'El guardián ancestral protege los secretos del templo. Derrota 3.'),
+  ('RUINAS_CAZA_ENTIDAD',       'La Entidad Corrupta',          'DIARIA', (SELECT id FROM monster_zones WHERE name='Ruinas Ancestrales'), NULL,NULL,FALSE, 93,100,3,NULL,'Última Sacerdotisa','Cripta de los Heraldos', TRUE, 48,380,1950,1000,NULL,'La entidad corrupta profana los pasillos del templo. Derrota 3.'),
+  ('RUINAS_BOSS_COSMICO',       'El Centinela Cósmico Eterno',  'DIARIA', (SELECT id FROM monster_zones WHERE name='Ruinas Ancestrales'), NULL,NULL,TRUE,  95,100,4,NULL,'Última Sacerdotisa','Observatorio Roto',      TRUE, 72,640,3050,1300,NULL,'El Centinela Cósmico vela por las ruinas eternamente. Derrótalo.'),
+  ('RUINAS_LEG_GRAN_ESQUELETO', 'El Horror Ancestral Sin Fin',  'DIARIA', (SELECT id FROM monster_zones WHERE name='Ruinas Ancestrales'), NULL,NULL,TRUE,  99,100,5,NULL,'Última Sacerdotisa','Fosa del Abismo',         TRUE,168,1200,7000,1500,NULL,'El Gran Esqueleto del Abismo regresa desde el vacío. Derrótalo.'),
+  ('RUINAS_DIARIA_CENTINELAS',       'Patrulla de Centinelas',         'DIARIA', (SELECT id FROM monster_zones WHERE name='Ruinas Ancestrales'), NULL,NULL,FALSE, 86,NULL,1,NULL,NULL,NULL, TRUE,NULL, 0,600, 850,NULL,'Elimina 8 Centinelas Antiguos que rondan las ruinas.'),
+  ('RUINAS_DIARIA_ELEMENTALES',      'Los Guardianes Elementales',     'DIARIA', (SELECT id FROM monster_zones WHERE name='Ruinas Ancestrales'), NULL,NULL,FALSE, 86,NULL,1,NULL,NULL,NULL, TRUE,NULL, 0,700, 950,NULL,'Derrota 6 Guardianes Elementales de cualquier tipo.'),
+  ('RUINAS_DIARIA_GUARDIA_PIEDRA',   'La Guardia de Piedra',           'DIARIA', (SELECT id FROM monster_zones WHERE name='Ruinas Ancestrales'), NULL,NULL,FALSE, 86,NULL,1,NULL,NULL,NULL, TRUE,NULL, 0,600, 800,NULL,'Elimina 5 Guardianes de Ruinas que custodian el templo.'),
+  ('RUINAS_DIARIA_PURGAR_CORRUPCION','Purgar la Corrupcion',           'DIARIA', (SELECT id FROM monster_zones WHERE name='Ruinas Ancestrales'), NULL,NULL,FALSE, 90,NULL,1,NULL,NULL,NULL, TRUE,NULL, 0,800,1100,NULL,'Derrota 3 Entidades Corruptas del Templo.'),
+  ('RUINAS_DIARIA_GUARDIAN_PRIMORD', 'El Guardian Primordial Regresa', 'DIARIA', (SELECT id FROM monster_zones WHERE name='Ruinas Ancestrales'), NULL,NULL,FALSE, 93,NULL,1,NULL,NULL,NULL, TRUE,NULL, 0,900,1200,NULL,'Elimina al Guardian Ancestral Primordial que protege el sanctum.');
 
 -- Encadenado de las 3 quests PRINCIPAL de cada zona (no se puede hacer dentro del INSERT
 -- porque una fila no puede ver a sus hermanas todavia no insertadas).
@@ -7011,6 +7017,35 @@ UPDATE quests SET requires_quest_id = (SELECT id FROM quests WHERE code = 'CATAC
 UPDATE quests SET requires_quest_id = (SELECT id FROM quests WHERE code = 'RUINAS_Q1_GUARDIANES_TEMPLO') WHERE code = 'RUINAS_Q2_CENTINELA_COSMICO';
 UPDATE quests SET requires_quest_id = (SELECT id FROM quests WHERE code = 'RUINAS_Q2_CENTINELA_COSMICO') WHERE code = 'RUINAS_Q3_GRAN_ESQUELETO_ABISMO';
 UPDATE quests SET requires_quest_id = (SELECT id FROM quests WHERE code = 'RUINAS_Q3_GRAN_ESQUELETO_ABISMO') WHERE code = 'RUINAS_Q4_HERALDOS_OLVIDADOS';
+
+-- Cooldowns de quests repetibles comprimidos por tier
+UPDATE quests SET repeat_cooldown_hours = 6 WHERE code IN (
+  'PRADERA_DAILY_EXTERMINIO','PRADERA_DAILY_PLAGA_ROEDORES',
+  'MONTANAS_DAILY_RECOLECCION','MONTANAS_DAILY_INVASION_MINA',
+  'VOLCAN_DAILY_RECOLECCION_LAVA','VOLCAN_DAILY_PLAGA_CALDERA',
+  'COSTAS_DAILY_PESCA_TESOROS','COSTAS_DAILY_PLAGA_COSTAS',
+  'TUNDRA_DAILY_EXCAVACION_HIELO','TUNDRA_DAILY_PLAGA_TUNDRA',
+  'CATACUMBAS_DAILY_PURIFICACION_ALMAS','CATACUMBAS_DAILY_PLAGA_ALMAS',
+  'RUINAS_DAILY_GUARDIAN_ETERNO'
+);
+UPDATE quests SET repeat_cooldown_hours = 10 WHERE code IN (
+  'PRADERA_DAILY_CACERIA_MANADA','MONTANAS_DAILY_CACERIA_GIGANTES',
+  'VOLCAN_DAILY_CACERIA_LAVA','COSTAS_DAILY_CACERIA_PROFUNDIDADES',
+  'TUNDRA_DAILY_CACERIA_FRIO','PRADERA_CAZA_LOBO_FEROZ','PRADERA_CAZA_CHAMAN',
+  'MONTANAS_CAZA_GIGANTE','MONTANAS_CAZA_BRUJO','VOLCAN_CAZA_MAESTRO','VOLCAN_CAZA_DRAGON',
+  'COSTAS_CAZA_LEVIATAN','COSTAS_CAZA_CAPITAN_PIRATA','TUNDRA_CAZA_BRUJA','TUNDRA_CAZA_PRINCIPE',
+  'CATA_CAZA_ARCHIMAGO','CATA_CAZA_GUARDIAN_ABISMO','RUINAS_CAZA_GUARDIAN_ANC','RUINAS_CAZA_ENTIDAD',
+  'RUINAS_DIARIA_PURGAR_CORRUPCION','RUINAS_DIARIA_GUARDIAN_PRIMORD'
+);
+UPDATE quests SET repeat_cooldown_hours = 16 WHERE code IN (
+  'PRADERA_BOSS_CAPITAN','MONTANAS_BOSS_ACANTILADO','VOLCAN_BOSS_CALDERA',
+  'COSTAS_BOSS_OCEANO','TUNDRA_BOSS_GUARDIAN_H','CATA_BOSS_CENTINELA','RUINAS_BOSS_COSMICO'
+);
+UPDATE quests SET repeat_cooldown_hours = 24 WHERE code IN (
+  'PRADERA_LEG_TITAN','MONTANAS_LEG_REY','VOLCAN_LEG_TITAN_FUEGO',
+  'COSTAS_LEG_BESTIA','TUNDRA_LEG_REY_H','CATA_LEG_LICH','RUINAS_LEG_GRAN_ESQUELETO'
+);
+
 -- Objetivos de las quests PRINCIPAL/DIARIA de zonas 1-4 (las OCULTA no llevan objective,
 -- su condicion vive en quest_hidden_requirements).
 INSERT INTO quest_objectives(quest_id, objective_type, monster_id, item_id, target_count, description)
@@ -7148,7 +7183,12 @@ VALUES
   ((SELECT id FROM quests WHERE code='RUINAS_CAZA_GUARDIAN_ANC'),  'KILL_MONSTER',(SELECT id FROM monsters WHERE code='GUARDIAN_ANCESTRAL'),NULL,3,'Derrota 3 Guardianes Ancestrales Primordiales.'),
   ((SELECT id FROM quests WHERE code='RUINAS_CAZA_ENTIDAD'),       'KILL_MONSTER',(SELECT id FROM monsters WHERE code='ENTIDAD_CORRUPTA_TEMPLO'),NULL,3,'Derrota 3 Entidades Corruptas del Templo.'),
   ((SELECT id FROM quests WHERE code='RUINAS_BOSS_COSMICO'),       'DEFEAT_BOSS', (SELECT id FROM monsters WHERE code='CENTINELA_COSMICO'),NULL,1,'Derrota al Centinela Cósmico.'),
-  ((SELECT id FROM quests WHERE code='RUINAS_LEG_GRAN_ESQUELETO'), 'DEFEAT_BOSS', (SELECT id FROM monsters WHERE code='GRAN_ESQUELETO_ABISMO'),NULL,1,'Derrota al Gran Esqueleto del Abismo.');
+  ((SELECT id FROM quests WHERE code='RUINAS_LEG_GRAN_ESQUELETO'), 'DEFEAT_BOSS', (SELECT id FROM monsters WHERE code='GRAN_ESQUELETO_ABISMO'),NULL,1,'Derrota al Gran Esqueleto del Abismo.'),
+  ((SELECT id FROM quests WHERE code='RUINAS_DIARIA_CENTINELAS'),       'KILL_MONSTER',   (SELECT id FROM monsters WHERE code='CENTINELA_ANTIGUO'),      NULL,8,NULL),
+  ((SELECT id FROM quests WHERE code='RUINAS_DIARIA_ELEMENTALES'),      'KILL_ANY_IN_ZONE',NULL,                                                          NULL,6,NULL),
+  ((SELECT id FROM quests WHERE code='RUINAS_DIARIA_GUARDIA_PIEDRA'),   'KILL_MONSTER',   (SELECT id FROM monsters WHERE code='GUARDIAN_RUINAS'),         NULL,5,NULL),
+  ((SELECT id FROM quests WHERE code='RUINAS_DIARIA_PURGAR_CORRUPCION'),'KILL_MONSTER',   (SELECT id FROM monsters WHERE code='ENTIDAD_CORRUPTA_TEMPLO'), NULL,3,NULL),
+  ((SELECT id FROM quests WHERE code='RUINAS_DIARIA_GUARDIAN_PRIMORD'), 'KILL_MONSTER',   (SELECT id FROM monsters WHERE code='GUARDIAN_ANCESTRAL'),      NULL,1,NULL);
 
 -- Recompensas en items de cada quest (ademas de oro/xp/reputacion). Casi todos los items son
 -- los materiales de drop de monstruo o de crafteo ya sembrados antes en este archivo.
