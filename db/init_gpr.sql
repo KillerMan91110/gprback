@@ -2708,4 +2708,5 @@ CROSS JOIN (VALUES
   -- Lich Ancestral (LEGENDARY)
   ('LICH_ANCESTRAL', 782, 25.00),('LICH_ANCESTRAL', 783, 25.00),('LICH_ANCESTRAL', 784, 25.00),('LICH_ANCESTRAL', 785, 25.00),('LICH_ANCESTRAL', 786, 25.00)
 ) AS s(monster_code, item_id, chance)
-WHERE m.code = s.monster_code;
+WHERE m.code = s.monster_code
+ON CONFLICT (monster_id, item_id) DO NOTHING;

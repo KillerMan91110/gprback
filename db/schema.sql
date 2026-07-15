@@ -966,4 +966,4 @@ ALTER TABLE monster_zones ADD COLUMN IF NOT EXISTS is_tower_zone BOOLEAN NOT NUL
 ALTER TABLE players ADD COLUMN IF NOT EXISTS dungeon_coins INT NOT NULL DEFAULT 0;
 
 ALTER TABLE crafting_recipe_ingredients
-  ADD CONSTRAINT IF NOT EXISTS crafting_recipe_ingredients_recipe_item_unique UNIQUE (recipe_id, item_id);
+  ADD CONSTRAINT crafting_recipe_ingredients_recipe_item_unique UNIQUE (recipe_id, item_id);
