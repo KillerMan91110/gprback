@@ -1417,7 +1417,7 @@ router.post('/zones/:zoneId/explore', async (req, res, next) => {
     for (const pid of [req.playerId, ...coopPartnerIds]) {
       if (await hasAbandonedActiveSession(pid)) {
         return res.status(400).json({
-          error: 'Todavía tenés (o tu compañero tiene) un combate anterior en curso que la IA está resolviendo. Esperen a que termine.',
+          error: 'Todavía tienes (o tu compañero tiene) un combate anterior en curso que la IA está resolviendo. Esperen a que termine.',
         });
       }
     }
@@ -1498,7 +1498,7 @@ router.post('/sessions', async (req, res, next) => {
 
   try {
     if (await hasAbandonedActiveSession(req.playerId)) {
-      return res.status(400).json({ error: 'Todavía tenés un combate anterior en curso que la IA está resolviendo. Esperá a que termine.' });
+      return res.status(400).json({ error: 'Todavía tienes un combate anterior en curso que la IA está resolviendo. Espera a que termine.' });
     }
 
     const [playerCombatants, npcCombatants, enemyCombatants] = await Promise.all([
@@ -1632,7 +1632,7 @@ router.post('/sessions/:id/action', async (req, res, next) => {
       return res.status(400).json({ error: 'No es el turno de ese personaje' });
     }
     if (actor.player_id !== null && actor.player_id !== req.playerId) {
-      return res.status(403).json({ error: 'No podés actuar por un personaje que no es tuyo' });
+      return res.status(403).json({ error: 'No puedes actuar por un personaje que no es tuyo' });
     }
     // Co-op: en sesiones con dos jugadores, el NPC pertenece a uno solo.
     if (actor.player_id === null && actor.owner_player_id !== null && actor.owner_player_id !== req.playerId) {
@@ -1789,7 +1789,7 @@ router.post('/sessions/:id/action', async (req, res, next) => {
       }
 
       if (actor.mana < skill.mana_cost) {
-        return res.status(400).json({ error: `No te alcanza el maná (necesitás ${skill.mana_cost})` });
+        return res.status(400).json({ error: `No te alcanza el maná (necesitas ${skill.mana_cost})` });
       }
 
       // Efectos de skills ESPECIAL necesarios antes de seleccionar objetivo (REVIVE apunta a muertos)

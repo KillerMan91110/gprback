@@ -159,20 +159,20 @@ router.post('/start', async (req, res, next) => {
     const npcNotFull = npcHpRes.rows.filter((r) => r.hp < r.max_hp).map((r) => r.name);
     if (notFullHp.length || npcNotFull.length) {
       return res.status(400).json({
-        error: `Recordá que todos deben estar con la vida al máximo antes de entrar a la Torre. (${[...notFullHp, ...npcNotFull].join(', ')} no está${notFullHp.length + npcNotFull.length > 1 ? 'n' : ''} al máximo)`,
+        error: `Recuerda que todos deben estar con la vida al máximo antes de entrar a la Torre. (${[...notFullHp, ...npcNotFull].join(', ')} no está${notFullHp.length + npcNotFull.length > 1 ? 'n' : ''} al máximo)`,
       });
     }
 
     if (await getActiveRun(req.playerId)) {
-      return res.status(400).json({ error: 'Ya tenés una corrida de torre en curso' });
+      return res.status(400).json({ error: 'Ya tienes una corrida de torre en curso' });
     }
 
     for (const pid of [req.playerId, ...coopPartnerIds]) {
       if (await combatEngine.hasAbandonedActiveSession(pid)) {
-        return res.status(400).json({ error: 'Vos o algún compañero tiene un combate anterior sin resolver. Esperen a que termine.' });
+        return res.status(400).json({ error: 'Tú o algún compañero tiene un combate anterior sin resolver. Esperen a que termine.' });
       }
       if (await getActiveRun(pid)) {
-        return res.status(400).json({ error: 'Vos o algún compañero ya tiene una corrida de torre en curso' });
+        return res.status(400).json({ error: 'Tú o algún compañero ya tiene una corrida de torre en curso' });
       }
     }
 
@@ -226,7 +226,7 @@ router.get('/run', async (req, res, next) => {
 router.post('/advance', async (req, res, next) => {
   try {
     const run = await getActiveRun(req.playerId);
-    if (!run) return res.status(400).json({ error: 'No tenés una corrida de torre activa' });
+    if (!run) return res.status(400).json({ error: 'No tienes una corrida de torre activa' });
     if (!(await canControlRun(run, req.playerId))) {
       return res.status(403).json({ error: 'Solo quien tiene el control de la corrida (el líder, o alguien vivo si el líder murió) puede decidir esto.' });
     }
@@ -253,7 +253,7 @@ router.post('/advance', async (req, res, next) => {
 router.post('/extract', async (req, res, next) => {
   try {
     const run = await getActiveRun(req.playerId);
-    if (!run) return res.status(400).json({ error: 'No tenés una corrida de torre activa' });
+    if (!run) return res.status(400).json({ error: 'No tienes una corrida de torre activa' });
     if (!(await canControlRun(run, req.playerId))) {
       return res.status(403).json({ error: 'Solo quien tiene el control de la corrida (el líder, o alguien vivo si el líder murió) puede decidir esto.' });
     }
@@ -322,7 +322,7 @@ router.post('/vendor/buy', async (req, res, next) => {
     const playerRes = await db.query('SELECT dungeon_coins FROM players WHERE id = $1', [req.playerId]);
     if (!playerRes.rows.length) return res.status(404).json({ error: 'Jugador no encontrado' });
     if (playerRes.rows[0].dungeon_coins < totalCost) {
-      return res.status(400).json({ error: `Monedas insuficientes (necesitás ${totalCost}, tenés ${playerRes.rows[0].dungeon_coins})` });
+      return res.status(400).json({ error: `Monedas insuficientes (necesitas ${totalCost}, tienes ${playerRes.rows[0].dungeon_coins})` });
     }
 
     await db.query('UPDATE players SET dungeon_coins = dungeon_coins - $1 WHERE id = $2', [totalCost, req.playerId]);

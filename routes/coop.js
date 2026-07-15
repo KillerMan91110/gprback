@@ -46,7 +46,7 @@ router.post('/invite', async (req, res, next) => {
   const { playerId } = req.params;
   const { friendId } = req.body;
   if (!friendId) return res.status(400).json({ error: 'Falta friendId' });
-  if (Number(friendId) === Number(playerId)) return res.status(400).json({ error: 'No podés invitarte a vos mismo' });
+  if (Number(friendId) === Number(playerId)) return res.status(400).json({ error: 'No puedes invitarte a ti mismo' });
   try {
     const friendship = await db.query(
       `SELECT id FROM player_friends
@@ -54,7 +54,7 @@ router.post('/invite', async (req, res, next) => {
          AND status='ACCEPTED'`,
       [playerId, friendId]
     );
-    if (!friendship.rows.length) return res.status(403).json({ error: 'Solo podés invitar a un amigo' });
+    if (!friendship.rows.length) return res.status(403).json({ error: 'Solo puedes invitar a un amigo' });
 
     const guestInGroup = await db.query('SELECT 1 FROM player_coop_group_members WHERE player_id=$1', [friendId]);
     if (guestInGroup.rows.length) return res.status(400).json({ error: 'Ese jugador ya está en un grupo co-op' });
@@ -385,7 +385,7 @@ router.delete('/party/members/:targetId', async (req, res, next) => {
       return res.status(403).json({ error: 'Solo el líder puede expulsar miembros' });
     }
     if (Number(targetId) === Number(playerId)) {
-      return res.status(400).json({ error: 'No podés expulsarte a vos mismo, usá "Salir del grupo"' });
+      return res.status(400).json({ error: 'No puedes expulsarte a ti mismo, usa "Salir del grupo"' });
     }
     const removed = await db.query(
       'DELETE FROM player_coop_group_members WHERE group_id=$1 AND player_id=$2 RETURNING player_id',

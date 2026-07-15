@@ -87,14 +87,14 @@ router.post('/listings', async (req, res, next) => {
     const { name, item_type } = itemRow.rows[0];
 
     const have = await inventory.getQuantity(playerId, itemId, enchantLevel, qualityTier);
-    if (have < quantity) return res.status(400).json({ error: `Solo tenés ${have}x ${name} de esa calidad` });
+    if (have < quantity) return res.status(400).json({ error: `Solo tienes ${have}x ${name} de esa calidad` });
 
     if (item_type === 'EQUIPMENT') {
       const equipped = await db.query(
         'SELECT slot FROM player_equipment WHERE player_id = $1 AND item_id = $2 AND enchant_level = $3 AND quality_tier = $4',
         [playerId, itemId, enchantLevel, qualityTier]
       );
-      if (equipped.rows.length) return res.status(400).json({ error: `No podés publicar ${name} mientras está equipado` });
+      if (equipped.rows.length) return res.status(400).json({ error: `No puedes publicar ${name} mientras está equipado` });
     }
 
     const client = await db.pool.connect();
@@ -173,14 +173,14 @@ router.post('/listings/:id/buy', async (req, res, next) => {
     }
     if (listing.seller_id === buyerId) {
       await client.query('ROLLBACK');
-      return res.status(400).json({ error: 'No podés comprar tu propia publicación' });
+      return res.status(400).json({ error: 'No puedes comprar tu propia publicación' });
     }
 
     const total = Number(listing.price_per_unit) * listing.quantity;
     const buyerRow = await client.query('SELECT gold FROM players WHERE id = $1 FOR UPDATE', [buyerId]);
     if (Number(buyerRow.rows[0].gold) < total) {
       await client.query('ROLLBACK');
-      return res.status(400).json({ error: `Necesitás ${total} de oro. Tenés ${buyerRow.rows[0].gold}.` });
+      return res.status(400).json({ error: `Necesitas ${total} de oro. Tienes ${buyerRow.rows[0].gold}.` });
     }
 
     const fee = Math.floor(total * MARKET_FEE_PERCENT / 100);

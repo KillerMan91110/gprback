@@ -79,7 +79,7 @@ router.get('/requests', async (req, res, next) => {
 router.get('/search', async (req, res, next) => {
   const { playerId } = req.params;
   const { q } = req.query;
-  if (!q || q.trim().length < 2) return res.status(400).json({ error: 'Ingresá al menos 2 caracteres' });
+  if (!q || q.trim().length < 2) return res.status(400).json({ error: 'Ingresa al menos 2 caracteres' });
   try {
     const result = await db.query(
       `SELECT p.id, p.nickname, p.level,
@@ -109,7 +109,7 @@ router.post('/', async (req, res, next) => {
   const { playerId } = req.params;
   const { targetId } = req.body;
   if (!targetId) return res.status(400).json({ error: 'Falta targetId' });
-  if (Number(targetId) === Number(playerId)) return res.status(400).json({ error: 'No podés agregarte a vos mismo' });
+  if (Number(targetId) === Number(playerId)) return res.status(400).json({ error: 'No puedes agregarte a ti mismo' });
   try {
     const targetRes = await playerPublicInfo(targetId);
     if (!targetRes.rows.length) return res.status(404).json({ error: 'Jugador no encontrado' });
@@ -118,7 +118,7 @@ router.post('/', async (req, res, next) => {
     if (existing.rows.length) {
       const f = existing.rows[0];
       if (f.status === 'ACCEPTED') return res.status(400).json({ error: 'Ya son amigos' });
-      if (f.status === 'BLOCKED') return res.status(400).json({ error: 'No podés enviar solicitud a este jugador' });
+      if (f.status === 'BLOCKED') return res.status(400).json({ error: 'No puedes enviar solicitud a este jugador' });
       if (f.status === 'PENDING') {
         // Si el otro me había mandado solicitud, la acepto directamente
         if (f.addressee_id === Number(playerId)) {
@@ -305,7 +305,7 @@ router.post('/messages', async (req, res, next) => {
   const { playerId } = req.params;
   const { receiverId, subject = '', body = '', goldAmount = 0, items = [] } = req.body;
   if (!receiverId) return res.status(400).json({ error: 'Falta receiverId' });
-  if (Number(receiverId) === Number(playerId)) return res.status(400).json({ error: 'No podés enviarte mensajes a vos mismo' });
+  if (Number(receiverId) === Number(playerId)) return res.status(400).json({ error: 'No puedes enviarte mensajes a ti mismo' });
   if (!subject.trim() && !body.trim() && goldAmount <= 0 && items.length === 0) {
     return res.status(400).json({ error: 'El mensaje no puede estar vacío' });
   }
@@ -313,7 +313,7 @@ router.post('/messages', async (req, res, next) => {
     // Verificar amistad
     const friendship = await friendshipRow(playerId, receiverId);
     if (!friendship.rows.length || friendship.rows[0].status !== 'ACCEPTED') {
-      return res.status(403).json({ error: 'Solo podés enviar mensajes a tus amigos' });
+      return res.status(403).json({ error: 'Solo puedes enviar mensajes a tus amigos' });
     }
 
     // Verificar y descontar oro
@@ -321,7 +321,7 @@ router.post('/messages', async (req, res, next) => {
     if (gold < 0) return res.status(400).json({ error: 'El oro no puede ser negativo' });
     if (gold > 0) {
       const playerRes = await db.query('SELECT gold FROM players WHERE id = $1', [playerId]);
-      if (playerRes.rows[0].gold < gold) return res.status(400).json({ error: 'No tenés suficiente oro' });
+      if (playerRes.rows[0].gold < gold) return res.status(400).json({ error: 'No tienes suficiente oro' });
     }
 
     // Verificar items adjuntos
@@ -329,7 +329,7 @@ router.post('/messages', async (req, res, next) => {
       const qty = await inventory.getQuantity(playerId, it.itemId, it.enchantLevel || 0, it.qualityTier ?? null);
       if (qty < (it.quantity || 1)) {
         const itemRes = await db.query('SELECT name FROM items WHERE id = $1', [it.itemId]);
-        return res.status(400).json({ error: `No tenés suficientes ${itemRes.rows[0]?.name || 'items'}` });
+        return res.status(400).json({ error: `No tienes suficientes ${itemRes.rows[0]?.name || 'items'}` });
       }
     }
 

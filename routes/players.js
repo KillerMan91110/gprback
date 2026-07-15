@@ -191,7 +191,7 @@ router.post('/:playerId/guild/heal', async (req, res, next) => {
 
       const { healHp, healMana, cost } = calcHeal(npc.max_hp - npc.hp, npc.max_mana - npc.mana, gold);
       if (healHp + healMana === 0) {
-        return res.status(400).json({ error: gold < GUILD_HEAL_GOLD_PER_HP ? 'No tenés oro suficiente' : `${npc.name} ya está al máximo` });
+        return res.status(400).json({ error: gold < GUILD_HEAL_GOLD_PER_HP ? 'No tienes oro suficiente' : `${npc.name} ya está al máximo` });
       }
       await db.query('UPDATE player_npcs SET hp = hp + $1, mana = mana + $2 WHERE id = $3', [healHp, healMana, npc.id]);
       await db.query('UPDATE players SET gold = gold - $1, updated_at = now() WHERE id = $2', [cost, playerId]);
@@ -202,7 +202,7 @@ router.post('/:playerId/guild/heal', async (req, res, next) => {
       // --- Curar solo al héroe ---
       const { healHp, healMana, cost } = calcHeal(effectiveMaxHp - player.hp, effectiveMaxMana - player.mana, gold);
       if (healHp + healMana === 0) {
-        return res.status(400).json({ error: gold < GUILD_HEAL_GOLD_PER_HP ? 'No tenés oro suficiente' : 'Ya estás al máximo' });
+        return res.status(400).json({ error: gold < GUILD_HEAL_GOLD_PER_HP ? 'No tienes oro suficiente' : 'Ya estás al máximo' });
       }
       await db.query(
         'UPDATE players SET hp = hp + $1, mana = mana + $2, gold = gold - $3, updated_at = now() WHERE id = $4',
@@ -223,7 +223,7 @@ router.post('/:playerId/guild/heal', async (req, res, next) => {
     const totalMissing = (effectiveMaxHp - player.hp) + (effectiveMaxMana - player.mana)
       + npcs.reduce((s, n) => s + (n.max_hp - n.hp) + (n.max_mana - n.mana), 0);
     if (totalMissing === 0) return res.status(400).json({ error: 'El héroe y todos los NPCs del grupo ya están al máximo' });
-    if (gold < GUILD_HEAL_GOLD_PER_HP) return res.status(400).json({ error: 'No tenés oro suficiente para curar ni 1 punto' });
+    if (gold < GUILD_HEAL_GOLD_PER_HP) return res.status(400).json({ error: 'No tienes oro suficiente para curar ni 1 punto' });
 
     let totalCost = 0;
     let heroHealed = null;
@@ -511,7 +511,7 @@ router.post('/:playerId/guild/learn-skill', async (req, res, next) => {
 
     const cost = skill.learn_gold_cost;
     if (Number(player.gold) < cost) {
-      return res.status(400).json({ error: `No tenés suficiente oro (necesitás ${cost})`, cost, gold: Number(player.gold) });
+      return res.status(400).json({ error: `No tienes suficiente oro (necesitas ${cost})`, cost, gold: Number(player.gold) });
     }
 
     const newGold = Number(player.gold) - cost;
@@ -604,7 +604,7 @@ router.post('/:playerId/guild/shop/buy', async (req, res, next) => {
 
     const cost = item.buy_price;
     if (Number(player.gold) < cost) {
-      return res.status(400).json({ error: `No tenés suficiente oro (necesitás ${cost})`, cost, gold: Number(player.gold) });
+      return res.status(400).json({ error: `No tienes suficiente oro (necesitas ${cost})`, cost, gold: Number(player.gold) });
     }
 
     const newGold = Number(player.gold) - cost;
@@ -619,7 +619,7 @@ router.post('/:playerId/guild/shop/buy', async (req, res, next) => {
 
 // POST /api/players/:playerId/guild/shop/sell { itemId, quantity, enchantLevel? }
 // Solo opera contra player_inventory (lo no equipado): un item equipado nunca aparece ahi,
-// asi que no hace falta validacion extra para evitar vender lo que tenés puesto.
+// asi que no hace falta validacion extra para evitar vender lo que tienes puesto.
 router.post('/:playerId/guild/shop/sell', async (req, res, next) => {
   const { playerId } = req.params;
   const { itemId, quantity, enchantLevel = 0 } = req.body;
@@ -634,7 +634,7 @@ router.post('/:playerId/guild/shop/sell', async (req, res, next) => {
 
     const owned = await inventory.getQuantity(playerId, itemId, enchantLevel);
     if (owned < qty) {
-      return res.status(400).json({ error: 'No tenés esa cantidad en tu inventario' });
+      return res.status(400).json({ error: 'No tienes esa cantidad en tu inventario' });
     }
 
     // La venta siempre es la mitad del precio de compra (buy_price) cuando el item se vende
@@ -741,7 +741,7 @@ router.post('/:playerId/inventory/use/:itemId', async (req, res, next) => {
   const { playerId, itemId } = req.params;
   try {
     const owned = await inventory.getQuantity(playerId, itemId);
-    if (owned < 1) return res.status(400).json({ error: 'No tenés ese item en tu inventario' });
+    if (owned < 1) return res.status(400).json({ error: 'No tienes ese item en tu inventario' });
 
     const recipeRes = await db.query(
       `SELECT cr.id AS recipe_id, res.name AS result_name
@@ -843,7 +843,7 @@ router.post('/:playerId/equip', async (req, res, next) => {
 
     const owned = await inventory.getQuantity(playerId, itemId, enchantLevel);
     if (owned < 1) {
-      return res.status(400).json({ error: 'No tenés ese item en tu inventario' });
+      return res.status(400).json({ error: 'No tienes ese item en tu inventario' });
     }
 
     const playerResult = await db.query(
@@ -859,7 +859,7 @@ router.post('/:playerId/equip', async (req, res, next) => {
       return res.status(400).json({ error: 'Ese item no es de tu clase' });
     }
     if (item.required_level && player.level < item.required_level) {
-      return res.status(400).json({ error: `Necesitás nivel ${item.required_level} para equipar esto` });
+      return res.status(400).json({ error: `Necesitas nivel ${item.required_level} para equipar esto` });
     }
 
     if (item.slot === 'OFFHAND') {
@@ -899,7 +899,7 @@ router.post('/:playerId/equip', async (req, res, next) => {
 
     const equipQualityTier = Number(requestedTier);
     const hasIt = await inventory.getQuantity(playerId, itemId, enchantLevel, equipQualityTier);
-    if (hasIt < 1) return res.status(400).json({ error: 'No tenés ese item con esa rareza en tu inventario' });
+    if (hasIt < 1) return res.status(400).json({ error: 'No tienes ese item con esa rareza en tu inventario' });
 
     await inventory.removeItem(playerId, itemId, 1, enchantLevel, equipQualityTier);
     await db.query(
@@ -932,7 +932,7 @@ router.post('/:playerId/unequip', async (req, res, next) => {
       [playerId, slot]
     );
     if (!removed.rows.length) {
-      return res.status(400).json({ error: 'No tenés nada equipado en ese slot' });
+      return res.status(400).json({ error: 'No tienes nada equipado en ese slot' });
     }
     await inventory.addItem(playerId, removed.rows[0].item_id, 1, removed.rows[0].enchant_level, removed.rows[0].quality_tier || 0);
 
@@ -1236,7 +1236,7 @@ router.delete('/:playerId/quests/:questId/abandon', async (req, res, next) => {
       [playerId, questId]
     );
     if (!activeResult.rows.length) {
-      return res.status(400).json({ error: 'No tenés esa quest activa' });
+      return res.status(400).json({ error: 'No tienes esa quest activa' });
     }
 
     const questResult = await db.query(
@@ -1247,7 +1247,7 @@ router.delete('/:playerId/quests/:questId/abandon', async (req, res, next) => {
     const quest = questResult.rows[0];
 
     if (quest.is_boss_quest && quest.quest_type === 'PRINCIPAL') {
-      return res.status(400).json({ error: 'No podés abandonar la quest de jefe principal — es necesaria para desbloquear la siguiente zona' });
+      return res.status(400).json({ error: 'No puedes abandonar la quest de jefe principal — es necesaria para desbloquear la siguiente zona' });
     }
 
     await db.query('DELETE FROM player_active_quests WHERE player_id = $1 AND quest_id = $2', [playerId, questId]);
@@ -1471,7 +1471,7 @@ router.post('/:playerId/craft', async (req, res, next) => {
       const have = await inventory.getQuantity(playerId, ingredient.item_id);
       if (have < ingredient.quantity * qty) {
         return res.status(400).json({
-          error: `Materiales insuficientes: necesitás ${ingredient.quantity * qty} x ${ingredient.item_name} (tenés ${have})`,
+          error: `Materiales insuficientes: necesitas ${ingredient.quantity * qty} x ${ingredient.item_name} (tienes ${have})`,
           missingItemId: ingredient.item_id,
         });
       }
@@ -1580,7 +1580,7 @@ router.post('/:playerId/use-item', async (req, res, next) => {
 
     const bestTier = await inventory.getBestQualityTier(playerId, itemId);
     const have = await inventory.getQuantity(playerId, itemId, 0, bestTier);
-    if (have < 1) return res.status(400).json({ error: 'No tenés ese item' });
+    if (have < 1) return res.status(400).json({ error: 'No tienes ese item' });
 
     const bonuses = await db.query(
       'SELECT stat_code, amount, is_percent FROM item_stat_bonuses WHERE item_id = $1',
@@ -1716,7 +1716,7 @@ router.post('/:playerId/dismantle', async (req, res, next) => {
     const have = await inventory.getQuantity(playerId, itemId);
     if (have < qty) {
       return res.status(400).json({
-        error: `No tenés suficientes unidades (tenés ${have}, necesitás ${qty})`,
+        error: `No tienes suficientes unidades (tienes ${have}, necesitas ${qty})`,
       });
     }
 
@@ -1725,7 +1725,7 @@ router.post('/:playerId/dismantle', async (req, res, next) => {
       [playerId, itemId]
     );
     if (equippedCheck.rows.length) {
-      return res.status(400).json({ error: 'No podés desmantelar un ítem equipado. Desequípalo primero.' });
+      return res.status(400).json({ error: 'No puedes desmantelar un ítem equipado. Desequípalo primero.' });
     }
 
     await inventory.removeItem(playerId, itemId, qty);
@@ -2023,7 +2023,7 @@ router.post('/:playerId/party/pool/refresh', async (req, res, next) => {
     if (!playerRes.rows.length) return res.status(404).json({ error: 'Jugador no encontrado' });
     const player = playerRes.rows[0];
     if (Number(player.gold) < NPC_REFRESH_COST) {
-      return res.status(400).json({ error: `Necesitás ${NPC_REFRESH_COST} oro para buscar nuevos aventureros` });
+      return res.status(400).json({ error: `Necesitas ${NPC_REFRESH_COST} oro para buscar nuevos aventureros` });
     }
 
     const poolData = await buildNpcPool(player.level);
@@ -2093,7 +2093,7 @@ router.post('/:playerId/party/hire/:poolNpcId', async (req, res, next) => {
 
     const npc = npcRes.rows[0];
     if (Number(playerRes.rows[0].gold) < npc.hire_cost) {
-      return res.status(400).json({ error: `Necesitás ${npc.hire_cost} oro para contratar a ${npc.name}` });
+      return res.status(400).json({ error: `Necesitas ${npc.hire_cost} oro para contratar a ${npc.name}` });
     }
 
     const takenSlots = partyRes.rows.map((r) => r.slot);
@@ -2102,7 +2102,7 @@ router.post('/:playerId/party/hire/:poolNpcId', async (req, res, next) => {
 
     if (goToBench && benchRes.rows[0].cnt >= BENCH_CAP) {
       return res.status(400).json({
-        error: `El banco está lleno (máximo ${BENCH_CAP}). Despedí a alguien antes de contratar más.`,
+        error: `El banco está lleno (máximo ${BENCH_CAP}). Despide a alguien antes de contratar más.`,
       });
     }
 
@@ -2197,7 +2197,7 @@ router.post('/:playerId/party/swap', async (req, res, next) => {
   const { playerId } = req.params;
   const { slotA, slotB } = req.body;
   if (!slotA || !slotB || slotA === slotB) {
-    return res.status(400).json({ error: 'Proporcioná dos slots distintos (2 y 3)' });
+    return res.status(400).json({ error: 'Proporciona dos slots distintos (2 y 3)' });
   }
   if (![2, 3].includes(Number(slotA)) || ![2, 3].includes(Number(slotB))) {
     return res.status(400).json({ error: 'Solo se pueden intercambiar los slots 2 y 3 (el slot 1 es el héroe)' });
@@ -2464,7 +2464,7 @@ router.post('/:playerId/npcs/:npcId/equip', async (req, res, next) => {
     }
     const owned = await inventory.getQuantity(playerId, itemId, enchantLevel);
     if (owned < 1) {
-      return res.status(400).json({ error: 'No tenés ese item en tu inventario' });
+      return res.status(400).json({ error: 'No tienes ese item en tu inventario' });
     }
     if (item.class_id && item.class_id !== npc.class_id) {
       return res.status(400).json({ error: 'Ese item no es de la clase de este NPC' });
@@ -2505,7 +2505,7 @@ router.post('/:playerId/npcs/:npcId/equip', async (req, res, next) => {
 
     const npcEquipQualityTier = Number(requestedTier);
     const hasIt = await inventory.getQuantity(playerId, itemId, enchantLevel, npcEquipQualityTier);
-    if (hasIt < 1) return res.status(400).json({ error: 'No tenés ese item con esa rareza en tu inventario' });
+    if (hasIt < 1) return res.status(400).json({ error: 'No tienes ese item con esa rareza en tu inventario' });
 
     await inventory.removeItem(playerId, itemId, 1, enchantLevel, npcEquipQualityTier);
     await db.query(

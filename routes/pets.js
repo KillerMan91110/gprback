@@ -100,7 +100,7 @@ router.post('/:playerPetId/feed', async (req, res, next) => {
       [playerId, itemId]
     );
     if (!invRes.rows.length || invRes.rows[0].quantity < quantity) {
-      return res.status(400).json({ error: 'No tenés suficiente cantidad de ese item' });
+      return res.status(400).json({ error: 'No tienes suficiente cantidad de ese item' });
     }
 
     await db.query(
@@ -166,7 +166,7 @@ router.post('/incubator', async (req, res, next) => {
       [playerId, itemId]
     );
     if (!invRes.rows.length || invRes.rows[0].quantity < 1) {
-      return res.status(400).json({ error: 'No tenés ese huevo' });
+      return res.status(400).json({ error: 'No tienes ese huevo' });
     }
 
     const eggRarity = EGG_CODE_TO_RARITY[invRes.rows[0].code];
