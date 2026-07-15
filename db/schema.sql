@@ -607,3 +607,138 @@ CREATE TABLE IF NOT EXISTS chat_messages (
 );
 CREATE INDEX IF NOT EXISTS idx_chat_messages_channel ON chat_messages(channel, id) WHERE channel != 'GUILD';
 CREATE INDEX IF NOT EXISTS idx_chat_messages_guild   ON chat_messages(guild_id, id) WHERE channel = 'GUILD';
+
+CREATE TABLE IF NOT EXISTS player_zone_unlocks (
+  player_id   INT NOT NULL REFERENCES players(id) ON DELETE CASCADE,
+  zone_id     INT NOT NULL REFERENCES monster_zones(id),
+  unlocked_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  PRIMARY KEY (player_id, zone_id)
+);
+CREATE INDEX IF NOT EXISTS idx_player_zone_unlocks_player_id ON player_zone_unlocks(player_id);
+
+CREATE TABLE IF NOT EXISTS monster_skills (
+  id                 SERIAL PRIMARY KEY,
+  monster_id         INT NOT NULL REFERENCES monsters(id) ON DELETE CASCADE,
+  skill_id           INT NOT NULL REFERENCES skills(id),
+  use_chance_percent NUMERIC(5,2) NOT NULL DEFAULT 30,
+  UNIQUE (monster_id, skill_id)
+);
+CREATE INDEX IF NOT EXISTS idx_monster_skills_monster_id ON monster_skills(monster_id);
+
+CREATE TABLE IF NOT EXISTS combat_participant_buffs (
+  id               SERIAL PRIMARY KEY,
+  session_id       INT NOT NULL REFERENCES combat_sessions(id) ON DELETE CASCADE,
+  participant_id   INT NOT NULL REFERENCES combat_participants(id) ON DELETE CASCADE,
+  stat_code        TEXT NOT NULL,
+  applied_flat     INT NOT NULL DEFAULT 0,
+  rounds_remaining INT NOT NULL,
+  is_debuff        BOOLEAN NOT NULL DEFAULT FALSE,
+  skill_id         INT REFERENCES skills(id)
+);
+CREATE INDEX IF NOT EXISTS idx_combat_participant_buffs_session_id ON combat_participant_buffs(session_id);
+
+CREATE TABLE IF NOT EXISTS artisans (
+  id          SERIAL PRIMARY KEY,
+  code        TEXT NOT NULL UNIQUE,
+  name        TEXT NOT NULL,
+  specialty   TEXT NOT NULL CHECK (specialty IN ('HERRERO','PELETERO','SASTRE','JOYERO','ALQUIMISTA','COCINERO','FUEGO','MARINO','OSCURO','SUPREMO')),
+  zone_id     INT REFERENCES monster_zones(id),
+  description TEXT
+);
+
+CREATE TABLE IF NOT EXISTS artisan_shop (
+  id           SERIAL PRIMARY KEY,
+  artisan_code TEXT NOT NULL REFERENCES artisans(code) ON DELETE CASCADE,
+  item_id      INT NOT NULL REFERENCES items(id),
+  price        INT NOT NULL,
+  UNIQUE (artisan_code, item_id)
+);
+CREATE INDEX IF NOT EXISTS idx_artisan_shop_code ON artisan_shop(artisan_code);
+
+CREATE TABLE IF NOT EXISTS dismantle_recipes (
+  id              SERIAL PRIMARY KEY,
+  item_id         INT NOT NULL REFERENCES items(id) ON DELETE CASCADE,
+  result_item_id  INT NOT NULL REFERENCES items(id),
+  result_quantity INT NOT NULL DEFAULT 1,
+  UNIQUE (item_id, result_item_id)
+);
+CREATE INDEX IF NOT EXISTS idx_dismantle_recipes_item_id ON dismantle_recipes(item_id);
+
+CREATE TABLE IF NOT EXISTS player_learned_recipes (
+  player_id  INT NOT NULL REFERENCES players(id) ON DELETE CASCADE,
+  recipe_id  INT NOT NULL REFERENCES crafting_recipes(id) ON DELETE CASCADE,
+  learned_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  PRIMARY KEY (player_id, recipe_id)
+);
+CREATE INDEX IF NOT EXISTS idx_player_learned_recipes_player_id ON player_learned_recipes(player_id);
+
+CREATE TABLE IF NOT EXISTS player_npcs (
+  id         SERIAL PRIMARY KEY,
+  player_id  INT NOT NULL REFERENCES players(id) ON DELETE CASCADE,
+  name       TEXT NOT NULL,
+  class_id   INT NOT NULL REFERENCES classes(id),
+  class_name TEXT NOT NULL,
+  level      INT NOT NULL DEFAULT 1,
+  xp         INT NOT NULL DEFAULT 0,
+  hp         INT NOT NULL,
+  max_hp     INT NOT NULL,
+  mana       INT NOT NULL,
+  max_mana   INT NOT NULL,
+  atk        INT NOT NULL,
+  def        INT NOT NULL,
+  mag        INT NOT NULL,
+  magic_def  INT NOT NULL,
+  spd        INT NOT NULL,
+  crit       NUMERIC(5,2) NOT NULL,
+  hired_at   TIMESTAMPTZ DEFAULT now()
+);
+
+CREATE TABLE IF NOT EXISTS npc_equipment (
+  id            SERIAL PRIMARY KEY,
+  npc_id        INT NOT NULL REFERENCES player_npcs(id) ON DELETE CASCADE,
+  slot          TEXT NOT NULL CHECK (slot IN ('WEAPON','OFFHAND','HELMET','ARMOR','GLOVES','BOOTS','ACCESSORY')),
+  item_id       INT NOT NULL REFERENCES items(id),
+  quality_tier  SMALLINT NOT NULL DEFAULT 0,
+  enchant_level INT NOT NULL DEFAULT 0,
+  UNIQUE (npc_id, slot)
+);
+
+CREATE TABLE IF NOT EXISTS npc_skills (
+  npc_id   INT NOT NULL,
+  skill_id INT NOT NULL REFERENCES skills(id) ON DELETE CASCADE,
+  PRIMARY KEY (npc_id, skill_id)
+);
+
+CREATE TABLE IF NOT EXISTS player_npc_pool (
+  id         SERIAL PRIMARY KEY,
+  player_id  INT NOT NULL REFERENCES players(id) ON DELETE CASCADE,
+  name       TEXT NOT NULL,
+  class_id   INT NOT NULL REFERENCES classes(id),
+  class_name TEXT NOT NULL,
+  level      INT NOT NULL,
+  hp         INT NOT NULL,
+  mana       INT NOT NULL,
+  atk        INT NOT NULL,
+  def        INT NOT NULL,
+  mag        INT NOT NULL,
+  magic_def  INT NOT NULL,
+  spd        INT NOT NULL,
+  crit       INT NOT NULL,
+  hire_cost  INT NOT NULL,
+  created_at TIMESTAMPTZ DEFAULT now()
+);
+
+CREATE TABLE IF NOT EXISTS player_party (
+  id        SERIAL PRIMARY KEY,
+  player_id INT NOT NULL REFERENCES players(id) ON DELETE CASCADE,
+  npc_id    INT NOT NULL REFERENCES player_npcs(id) ON DELETE CASCADE,
+  slot      INT NOT NULL CHECK (slot IN (2, 3)),
+  UNIQUE (player_id, slot)
+);
+
+CREATE TABLE IF NOT EXISTS player_bench (
+  id        SERIAL PRIMARY KEY,
+  player_id INT NOT NULL REFERENCES players(id) ON DELETE CASCADE,
+  npc_id    INT NOT NULL REFERENCES player_npcs(id) ON DELETE CASCADE,
+  UNIQUE (player_id, npc_id)
+);
