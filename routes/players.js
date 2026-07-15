@@ -50,7 +50,7 @@ const EQUIPMENT_SLOTS = ['WEAPON', 'OFFHAND', 'HELMET', 'ARMOR', 'GLOVES', 'BOOT
 // zona anterior fue derrotado O el jugador ya alcanzó el nivel mínimo de esa zona.
 async function getUnlockedZoneIds(playerId, playerLevel) {
   const zonesResult = await db.query(
-    'SELECT id, min_level FROM monster_zones ORDER BY min_level'
+    'SELECT id, min_level FROM monster_zones WHERE is_tower_zone = FALSE ORDER BY min_level'
   );
   const bossQuestsResult = await db.query(
     "SELECT id, zone_id FROM quests WHERE is_boss_quest = TRUE AND quest_type = 'PRINCIPAL'"
@@ -94,7 +94,7 @@ router.get('/:playerId/zones', async (req, res, next) => {
     const playerLevel = playerResult.rows[0].level;
 
     const zonesResult = await db.query(
-      'SELECT id, name, min_level, max_level, description FROM monster_zones ORDER BY min_level'
+      'SELECT id, name, min_level, max_level, description FROM monster_zones WHERE is_tower_zone = FALSE ORDER BY min_level'
     );
 
     const bossQuestsResult = await db.query(
