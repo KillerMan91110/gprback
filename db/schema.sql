@@ -118,7 +118,7 @@ CREATE TABLE IF NOT EXISTS skills (
 CREATE TABLE IF NOT EXISTS skill_effects (
   id SERIAL PRIMARY KEY,
   skill_id INT NOT NULL REFERENCES skills(id) ON DELETE CASCADE,
-  effect_type TEXT NOT NULL CHECK (effect_type IN ('STAT_MOD', 'DOT', 'HOT', 'REVIVE', 'CLEANSE', 'NO_DAMAGE_WINDOW', 'GUARANTEED_CRIT', 'CONDITIONAL_DAMAGE')),
+  effect_type TEXT NOT NULL CHECK (effect_type IN ('STAT_MOD', 'DOT', 'HOT', 'REVIVE', 'CLEANSE', 'NO_DAMAGE_WINDOW', 'GUARANTEED_CRIT', 'CONDITIONAL_DAMAGE', 'SUMMON')),
   stat_code TEXT,
   percent_amount NUMERIC(5,2),
   flat_amount NUMERIC(6,2),
@@ -143,6 +143,7 @@ CREATE TABLE IF NOT EXISTS items (
   required_level INT,
   is_craftable BOOLEAN NOT NULL DEFAULT FALSE,
   obtain_method TEXT,
+  buy_price INT,
   description TEXT
 );
 
@@ -316,6 +317,7 @@ CREATE TABLE IF NOT EXISTS quests (
   reputation_reward INT NOT NULL DEFAULT 0,
   gold_reward INT NOT NULL DEFAULT 0,
   xp_reward INT NOT NULL DEFAULT 0,
+  required_class_id INT REFERENCES classes(id),
   hidden_unlock_text TEXT,
   description TEXT
 );
@@ -967,3 +969,12 @@ ALTER TABLE players ADD COLUMN IF NOT EXISTS dungeon_coins INT NOT NULL DEFAULT 
 
 ALTER TABLE crafting_recipe_ingredients
   ADD CONSTRAINT crafting_recipe_ingredients_recipe_item_unique UNIQUE (recipe_id, item_id);
+
+ALTER TABLE items ADD COLUMN IF NOT EXISTS buy_price INT;
+ALTER TABLE quests ADD COLUMN IF NOT EXISTS required_class_id INT REFERENCES classes(id);
+
+DO $$ BEGIN
+  ALTER TABLE skill_effects DROP CONSTRAINT IF EXISTS skill_effects_effect_type_check;
+  ALTER TABLE skill_effects ADD CONSTRAINT skill_effects_effect_type_check
+    CHECK (effect_type IN ('STAT_MOD','DOT','HOT','REVIVE','CLEANSE','NO_DAMAGE_WINDOW','GUARANTEED_CRIT','CONDITIONAL_DAMAGE','SUMMON'));
+END $$;

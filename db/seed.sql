@@ -10567,7 +10567,11 @@ CREATE TABLE IF NOT EXISTS player_incubator (
   hatch_ready_at TIMESTAMP NOT NULL
 );
 ALTER TABLE combat_participants ADD COLUMN IF NOT EXISTS pet_revive_used BOOLEAN NOT NULL DEFAULT FALSE;
-ALTER TABLE crafting_recipe_ingredients ADD CONSTRAINT IF NOT EXISTS crafting_recipe_ingredients_recipe_item_unique UNIQUE (recipe_id, item_id);
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'crafting_recipe_ingredients_recipe_item_unique') THEN
+    ALTER TABLE crafting_recipe_ingredients ADD CONSTRAINT crafting_recipe_ingredients_recipe_item_unique UNIQUE (recipe_id, item_id);
+  END IF;
+END $$;
 ALTER TABLE combat_participants ADD COLUMN IF NOT EXISTS damage_reduction NUMERIC NOT NULL DEFAULT 0;
 ALTER TABLE combat_participants ADD COLUMN IF NOT EXISTS level INT;
 
