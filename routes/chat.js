@@ -28,27 +28,53 @@ router.get('/:channel', async (req, res) => {
     if (channel === 'GUILD') {
       const guildId = await resolveGuildId(req.playerId);
       if (!guildId) return res.json({ messages: [] });
-      const result = await db.query(
-        `SELECT cm.id, cm.body, cm.created_at, p.nickname, p.level
-         FROM chat_messages cm
-         JOIN players p ON p.id = cm.sender_id
-         WHERE cm.channel = 'GUILD' AND cm.guild_id = $1 AND cm.id > $2
-         ORDER BY cm.id ASC
-         LIMIT 50`,
-        [guildId, afterId]
-      );
-      rows = result.rows;
+      if (afterId === 0) {
+        const result = await db.query(
+          `SELECT * FROM (
+             SELECT cm.id, cm.body, cm.created_at, p.nickname, p.level
+             FROM chat_messages cm
+             JOIN players p ON p.id = cm.sender_id
+             WHERE cm.channel = 'GUILD' AND cm.guild_id = $1
+             ORDER BY cm.id DESC LIMIT 20
+           ) sub ORDER BY id ASC`,
+          [guildId]
+        );
+        rows = result.rows;
+      } else {
+        const result = await db.query(
+          `SELECT cm.id, cm.body, cm.created_at, p.nickname, p.level
+           FROM chat_messages cm
+           JOIN players p ON p.id = cm.sender_id
+           WHERE cm.channel = 'GUILD' AND cm.guild_id = $1 AND cm.id > $2
+           ORDER BY cm.id ASC LIMIT 50`,
+          [guildId, afterId]
+        );
+        rows = result.rows;
+      }
     } else {
-      const result = await db.query(
-        `SELECT cm.id, cm.body, cm.created_at, p.nickname, p.level
-         FROM chat_messages cm
-         JOIN players p ON p.id = cm.sender_id
-         WHERE cm.channel = $1 AND cm.id > $2
-         ORDER BY cm.id ASC
-         LIMIT 50`,
-        [channel, afterId]
-      );
-      rows = result.rows;
+      if (afterId === 0) {
+        const result = await db.query(
+          `SELECT * FROM (
+             SELECT cm.id, cm.body, cm.created_at, p.nickname, p.level
+             FROM chat_messages cm
+             JOIN players p ON p.id = cm.sender_id
+             WHERE cm.channel = $1
+             ORDER BY cm.id DESC LIMIT 20
+           ) sub ORDER BY id ASC`,
+          [channel]
+        );
+        rows = result.rows;
+      } else {
+        const result = await db.query(
+          `SELECT cm.id, cm.body, cm.created_at, p.nickname, p.level
+           FROM chat_messages cm
+           JOIN players p ON p.id = cm.sender_id
+           WHERE cm.channel = $1 AND cm.id > $2
+           ORDER BY cm.id ASC LIMIT 50`,
+          [channel, afterId]
+        );
+        rows = result.rows;
+      }
     }
 
     res.json({ messages: rows });
