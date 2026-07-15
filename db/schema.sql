@@ -560,3 +560,50 @@ CREATE INDEX IF NOT EXISTS idx_monster_drops_monster_id ON monster_drops(monster
 
 
 CREATE INDEX IF NOT EXISTS idx_crafting_recipe_ingredients_recipe_id ON crafting_recipe_ingredients(recipe_id);
+
+CREATE TABLE IF NOT EXISTS guilds (
+  id          SERIAL PRIMARY KEY,
+  name        VARCHAR(50) NOT NULL UNIQUE,
+  description TEXT,
+  leader_id   INT NOT NULL REFERENCES players(id),
+  level       INT NOT NULL DEFAULT 1,
+  xp          INT NOT NULL DEFAULT 0,
+  type        VARCHAR(6) NOT NULL DEFAULT 'OPEN' CHECK (type IN ('OPEN','CLOSED')),
+  created_at  TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE TABLE IF NOT EXISTS guild_members (
+  guild_id   INT NOT NULL REFERENCES guilds(id) ON DELETE CASCADE,
+  player_id  INT NOT NULL REFERENCES players(id) ON DELETE CASCADE,
+  role       VARCHAR(7) NOT NULL DEFAULT 'MEMBER' CHECK (role IN ('LEADER','OFFICER','MEMBER')),
+  joined_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
+  PRIMARY KEY (guild_id, player_id),
+  UNIQUE (player_id)
+);
+CREATE INDEX IF NOT EXISTS idx_guild_members_guild_id  ON guild_members(guild_id);
+CREATE INDEX IF NOT EXISTS idx_guild_members_player_id ON guild_members(player_id);
+
+CREATE TABLE IF NOT EXISTS guild_join_requests (
+  id          SERIAL PRIMARY KEY,
+  guild_id    INT NOT NULL REFERENCES guilds(id) ON DELETE CASCADE,
+  player_id   INT NOT NULL REFERENCES players(id) ON DELETE CASCADE,
+  status      VARCHAR(8) NOT NULL DEFAULT 'PENDING' CHECK (status IN ('PENDING','ACCEPTED','REJECTED')),
+  created_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
+  resolved_at TIMESTAMPTZ,
+  UNIQUE (guild_id, player_id)
+);
+CREATE INDEX IF NOT EXISTS idx_guild_join_requests_guild_id ON guild_join_requests(guild_id);
+
+CREATE TABLE IF NOT EXISTS chat_messages (
+  id         SERIAL PRIMARY KEY,
+  channel    TEXT NOT NULL CHECK (channel IN ('GENERAL','TRADE','GUILD')),
+  guild_id   INT REFERENCES guilds(id) ON DELETE CASCADE,
+  sender_id  INT NOT NULL REFERENCES players(id) ON DELETE CASCADE,
+  body       TEXT NOT NULL,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  CONSTRAINT chat_guild_channel_consistency CHECK (
+    (channel = 'GUILD' AND guild_id IS NOT NULL) OR (channel != 'GUILD' AND guild_id IS NULL)
+  )
+);
+CREATE INDEX IF NOT EXISTS idx_chat_messages_channel ON chat_messages(channel, id) WHERE channel != 'GUILD';
+CREATE INDEX IF NOT EXISTS idx_chat_messages_guild   ON chat_messages(guild_id, id) WHERE channel = 'GUILD';
