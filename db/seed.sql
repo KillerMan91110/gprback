@@ -10981,6 +10981,12 @@ UPDATE monsters SET category='ACUATICO' WHERE code IN ('SERPIENTE_MARINA','TRITO
 UPDATE monsters SET name='Esqueleto Soldado' WHERE code='ESQUELETO_GUERRERO_TORRE';
 
 
+-- Caps globales de stats de monstruos
+UPDATE monsters SET
+  base_crit_damage = 50,
+  base_evasion     = LEAST(10,  base_evasion),
+  base_crit_chance = LEAST(25,  base_crit_chance);
+
 -- Escalado de niveles
 INSERT INTO monster_level_scalings(monster_id,level,hp,atk,def,magic_atk,magic_def,spd,evasion,crit_chance,crit_damage,elemental_damage)
 SELECT m.id,v.level,v.hp,v.atk,v.def,v.magic_atk,v.magic_def,v.spd,v.evasion,v.crit_chance,v.crit_damage,v.elemental_damage
@@ -12838,13 +12844,29 @@ CREATE TABLE IF NOT EXISTS tower_vendor_shop (
 INSERT INTO tower_vendor_shop(item_id, price) VALUES
   ((SELECT id FROM items WHERE code='PIEDRA_ENCANT_MAYOR'), 15),
   ((SELECT id FROM items WHERE code='PIEDRA_ENCANT_SUPREMA'), 40),
-  ((SELECT id FROM items WHERE code='PIEDRA_ENCANT_LEGENDARIA'), 120),
-  ((SELECT id FROM items WHERE code='HUEVO_LEGENDARIO'), 200)
+  ((SELECT id FROM items WHERE code='HUEVO_COMUN'), 12),
+  ((SELECT id FROM items WHERE code='HUEVO_RARO'), 30),
+  ((SELECT id FROM items WHERE code='HUEVO_EPICO'), 60)
 ON CONFLICT (item_id) DO NOTHING;
 
 CREATE TABLE IF NOT EXISTS player_tower_ready (
   player_id INT PRIMARY KEY REFERENCES players(id) ON DELETE CASCADE,
   ready_at  TIMESTAMPTZ NOT NULL DEFAULT now()
 );
+
+-- Chat global (General / Comercio / Gremio; el de Grupo usa player_coop_group_messages)
+CREATE TABLE IF NOT EXISTS chat_messages (
+  id         SERIAL PRIMARY KEY,
+  channel    TEXT NOT NULL CHECK (channel IN ('GENERAL','TRADE','GUILD')),
+  guild_id   INT REFERENCES guilds(id) ON DELETE CASCADE,
+  sender_id  INT NOT NULL REFERENCES players(id) ON DELETE CASCADE,
+  body       TEXT NOT NULL,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  CONSTRAINT chat_guild_channel_consistency CHECK (
+    (channel = 'GUILD' AND guild_id IS NOT NULL) OR (channel != 'GUILD' AND guild_id IS NULL)
+  )
+);
+CREATE INDEX IF NOT EXISTS idx_chat_messages_channel ON chat_messages(channel, id) WHERE channel != 'GUILD';
+CREATE INDEX IF NOT EXISTS idx_chat_messages_guild   ON chat_messages(guild_id, id) WHERE channel = 'GUILD';
 
 

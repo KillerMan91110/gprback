@@ -557,4 +557,6 @@ CREATE TABLE IF NOT EXISTS crafting_recipe_ingredients (
 );
 
 CREATE INDEX IF NOT EXISTS idx_monster_drops_monster_id ON monster_drops(monster_id);
+
+
 CREATE INDEX IF NOT EXISTS idx_crafting_recipe_ingredients_recipe_id ON crafting_recipe_ingredients(recipe_id);
