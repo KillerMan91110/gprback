@@ -742,3 +742,228 @@ CREATE TABLE IF NOT EXISTS player_bench (
   npc_id    INT NOT NULL REFERENCES player_npcs(id) ON DELETE CASCADE,
   UNIQUE (player_id, npc_id)
 );
+
+CREATE TABLE IF NOT EXISTS player_friends (
+  id           SERIAL PRIMARY KEY,
+  requester_id INT NOT NULL REFERENCES players(id) ON DELETE CASCADE,
+  addressee_id INT NOT NULL REFERENCES players(id) ON DELETE CASCADE,
+  status       TEXT NOT NULL DEFAULT 'PENDING' CHECK (status IN ('PENDING','ACCEPTED','BLOCKED')),
+  created_at   TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at   TIMESTAMPTZ NOT NULL DEFAULT now(),
+  CONSTRAINT no_self_friend CHECK (requester_id != addressee_id)
+);
+CREATE UNIQUE INDEX IF NOT EXISTS unique_friendship ON player_friends (LEAST(requester_id, addressee_id), GREATEST(requester_id, addressee_id));
+CREATE INDEX IF NOT EXISTS idx_friends_addressee ON player_friends(addressee_id);
+CREATE INDEX IF NOT EXISTS idx_friends_requester ON player_friends(requester_id);
+
+CREATE TABLE IF NOT EXISTS player_messages (
+  id                 SERIAL PRIMARY KEY,
+  sender_id          INT REFERENCES players(id) ON DELETE SET NULL,
+  receiver_id        INT NOT NULL REFERENCES players(id) ON DELETE CASCADE,
+  subject            TEXT NOT NULL DEFAULT '',
+  body               TEXT NOT NULL DEFAULT '',
+  gold_amount        INT NOT NULL DEFAULT 0,
+  gold_claimed       BOOLEAN NOT NULL DEFAULT FALSE,
+  read               BOOLEAN NOT NULL DEFAULT FALSE,
+  deleted_by_sender  BOOLEAN NOT NULL DEFAULT FALSE,
+  deleted_by_receiver BOOLEAN NOT NULL DEFAULT FALSE,
+  created_at         TIMESTAMPTZ NOT NULL DEFAULT now(),
+  expires_at         TIMESTAMPTZ NOT NULL DEFAULT now() + INTERVAL '10 days'
+);
+CREATE INDEX IF NOT EXISTS idx_messages_receiver ON player_messages(receiver_id);
+CREATE INDEX IF NOT EXISTS idx_messages_sender   ON player_messages(sender_id);
+CREATE INDEX IF NOT EXISTS idx_messages_expires  ON player_messages(expires_at);
+
+CREATE TABLE IF NOT EXISTS player_message_items (
+  id            SERIAL PRIMARY KEY,
+  message_id    INT NOT NULL REFERENCES player_messages(id) ON DELETE CASCADE,
+  item_id       INT NOT NULL REFERENCES items(id),
+  quantity      INT NOT NULL DEFAULT 1,
+  enchant_level INT NOT NULL DEFAULT 0,
+  quality_tier  SMALLINT NOT NULL DEFAULT 0,
+  claimed       BOOLEAN NOT NULL DEFAULT FALSE
+);
+
+CREATE TABLE IF NOT EXISTS achievements (
+  id             SERIAL PRIMARY KEY,
+  code           TEXT UNIQUE NOT NULL,
+  name           TEXT NOT NULL,
+  description    TEXT,
+  condition_type TEXT NOT NULL DEFAULT 'QUEST_COMPLETIONS',
+  quest_id       INT REFERENCES quests(id) ON DELETE SET NULL,
+  threshold      INT NOT NULL DEFAULT 100,
+  bonus_type     TEXT,
+  bonus_category TEXT,
+  bonus_stat     TEXT,
+  bonus_percent  INT NOT NULL DEFAULT 0
+);
+
+CREATE TABLE IF NOT EXISTS player_achievements (
+  id             SERIAL PRIMARY KEY,
+  player_id      INT NOT NULL REFERENCES players(id) ON DELETE CASCADE,
+  achievement_id INT NOT NULL REFERENCES achievements(id),
+  unlocked_at    TIMESTAMP NOT NULL DEFAULT now(),
+  UNIQUE (player_id, achievement_id)
+);
+CREATE INDEX IF NOT EXISTS idx_player_achievements_player ON player_achievements(player_id);
+
+CREATE TABLE IF NOT EXISTS player_coop_groups (
+  id         SERIAL PRIMARY KEY,
+  leader_id  INT NOT NULL REFERENCES players(id) ON DELETE CASCADE,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE TABLE IF NOT EXISTS player_coop_group_members (
+  group_id  INT NOT NULL REFERENCES player_coop_groups(id) ON DELETE CASCADE,
+  player_id INT NOT NULL UNIQUE REFERENCES players(id) ON DELETE CASCADE,
+  joined_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  PRIMARY KEY (group_id, player_id)
+);
+
+CREATE TABLE IF NOT EXISTS player_coop_invites (
+  id         SERIAL PRIMARY KEY,
+  leader_id  INT NOT NULL REFERENCES players(id) ON DELETE CASCADE,
+  guest_id   INT NOT NULL REFERENCES players(id) ON DELETE CASCADE,
+  status     TEXT NOT NULL DEFAULT 'PENDING' CHECK (status IN ('PENDING','ACCEPTED','DECLINED')),
+  expires_at TIMESTAMPTZ NOT NULL,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS idx_coop_invites_guest ON player_coop_invites(guest_id);
+
+CREATE TABLE IF NOT EXISTS player_coop_party (
+  id         SERIAL PRIMARY KEY,
+  leader_id  INT NOT NULL REFERENCES players(id) ON DELETE CASCADE,
+  guest_id   INT NOT NULL REFERENCES players(id) ON DELETE CASCADE,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  CONSTRAINT unique_coop_leader UNIQUE (leader_id),
+  CONSTRAINT unique_coop_guest  UNIQUE (guest_id)
+);
+
+CREATE TABLE IF NOT EXISTS player_coop_ready (
+  player_id INT PRIMARY KEY REFERENCES players(id) ON DELETE CASCADE,
+  zone_id   INT NOT NULL,
+  ready_at  TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE TABLE IF NOT EXISTS player_coop_group_messages (
+  id         SERIAL PRIMARY KEY,
+  group_id   INT NOT NULL REFERENCES player_coop_groups(id) ON DELETE CASCADE,
+  sender_id  INT NOT NULL REFERENCES players(id) ON DELETE CASCADE,
+  body       TEXT NOT NULL,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS idx_coop_group_messages_group ON player_coop_group_messages(group_id, id);
+
+CREATE TABLE IF NOT EXISTS player_market_listings (
+  id             SERIAL PRIMARY KEY,
+  seller_id      INT NOT NULL REFERENCES players(id) ON DELETE CASCADE,
+  item_id        INT NOT NULL REFERENCES items(id),
+  enchant_level  INT NOT NULL DEFAULT 0,
+  quality_tier   SMALLINT NOT NULL DEFAULT 0,
+  quantity       INT NOT NULL CHECK (quantity > 0),
+  price_per_unit BIGINT NOT NULL CHECK (price_per_unit > 0),
+  status         TEXT NOT NULL DEFAULT 'ACTIVE' CHECK (status IN ('ACTIVE','SOLD','CANCELLED')),
+  buyer_id       INT REFERENCES players(id),
+  created_at     TIMESTAMPTZ NOT NULL DEFAULT now(),
+  sold_at        TIMESTAMPTZ
+);
+CREATE INDEX IF NOT EXISTS idx_market_listings_active ON player_market_listings(item_id) WHERE status = 'ACTIVE';
+CREATE INDEX IF NOT EXISTS idx_market_listings_seller ON player_market_listings(seller_id);
+
+CREATE TABLE IF NOT EXISTS combat_abandoned_players (
+  session_id   INT NOT NULL REFERENCES combat_sessions(id) ON DELETE CASCADE,
+  player_id    INT NOT NULL REFERENCES players(id) ON DELETE CASCADE,
+  penalized    BOOLEAN NOT NULL DEFAULT FALSE,
+  abandoned_at TIMESTAMP NOT NULL DEFAULT now(),
+  PRIMARY KEY (session_id, player_id)
+);
+
+CREATE TABLE IF NOT EXISTS pets (
+  id          SERIAL PRIMARY KEY,
+  code        TEXT UNIQUE NOT NULL,
+  name        TEXT NOT NULL,
+  rarity      TEXT NOT NULL CHECK (rarity IN ('COMUN','POCO_COMUN','RARO','EPICO','LEGENDARIO')),
+  element_id  INT REFERENCES elements(id),
+  description TEXT
+);
+
+CREATE TABLE IF NOT EXISTS pet_bonuses (
+  id               SERIAL PRIMARY KEY,
+  pet_id           INT NOT NULL REFERENCES pets(id) ON DELETE CASCADE,
+  stat_code        TEXT NOT NULL,
+  base_amount      NUMERIC NOT NULL,
+  per_level_amount NUMERIC NOT NULL DEFAULT 0
+);
+
+CREATE TABLE IF NOT EXISTS player_pets (
+  id          SERIAL PRIMARY KEY,
+  player_id   INT NOT NULL REFERENCES players(id) ON DELETE CASCADE,
+  pet_id      INT NOT NULL REFERENCES pets(id),
+  level       INT NOT NULL DEFAULT 1,
+  bond_points INT NOT NULL DEFAULT 0,
+  is_active   BOOLEAN NOT NULL DEFAULT FALSE,
+  hatched_at  TIMESTAMP NOT NULL DEFAULT now()
+);
+CREATE UNIQUE INDEX IF NOT EXISTS one_active_pet_per_player ON player_pets(player_id) WHERE is_active;
+
+CREATE TABLE IF NOT EXISTS player_incubator (
+  player_id     INT PRIMARY KEY REFERENCES players(id) ON DELETE CASCADE,
+  egg_item_id   INT NOT NULL REFERENCES items(id),
+  egg_rarity    TEXT NOT NULL,
+  started_at    TIMESTAMP NOT NULL DEFAULT now(),
+  hatch_ready_at TIMESTAMP NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS tower_floors (
+  floor_number         INT PRIMARY KEY,
+  tower_zone_id        INT NOT NULL REFERENCES monster_zones(id),
+  is_boss_floor        BOOLEAN NOT NULL DEFAULT FALSE,
+  room_count           INT NOT NULL DEFAULT 3,
+  boss_monster_code    TEXT REFERENCES monsters(code),
+  escort_monster_codes TEXT[]
+);
+
+CREATE TABLE IF NOT EXISTS player_tower_runs (
+  id                  SERIAL PRIMARY KEY,
+  player_id           INT NOT NULL REFERENCES players(id),
+  guest_player_id     INT REFERENCES players(id) ON DELETE SET NULL,
+  guest_player_id_2   INT REFERENCES players(id) ON DELETE SET NULL,
+  current_session_id  INT REFERENCES combat_sessions(id) ON DELETE SET NULL,
+  difficulty          INT NOT NULL DEFAULT 1,
+  current_floor       INT NOT NULL DEFAULT 1,
+  current_room        INT NOT NULL DEFAULT 1,
+  coins_earned        INT NOT NULL DEFAULT 0,
+  status              TEXT NOT NULL DEFAULT 'IN_PROGRESS' CHECK (status IN ('IN_PROGRESS','EXTRACTED','WIPED')),
+  abandoned_player_ids INT[] NOT NULL DEFAULT '{}',
+  started_at          TIMESTAMP DEFAULT now(),
+  ended_at            TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS tower_vendor_shop (
+  id      SERIAL PRIMARY KEY,
+  item_id INT NOT NULL REFERENCES items(id),
+  price   INT NOT NULL,
+  UNIQUE (item_id)
+);
+
+CREATE TABLE IF NOT EXISTS player_tower_ready (
+  player_id INT PRIMARY KEY REFERENCES players(id) ON DELETE CASCADE,
+  ready_at  TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+-- ─── Columnas y constraints añadidas tras el schema inicial ──────────────────
+ALTER TABLE combat_log ADD COLUMN IF NOT EXISTS mana_after INT;
+
+ALTER TABLE monsters ADD COLUMN IF NOT EXISTS category TEXT NOT NULL DEFAULT 'BESTIA';
+
+ALTER TABLE combat_participants ADD COLUMN IF NOT EXISTS owner_player_id INT REFERENCES players(id) ON DELETE SET NULL;
+ALTER TABLE combat_participants ADD COLUMN IF NOT EXISTS pet_revive_used BOOLEAN NOT NULL DEFAULT FALSE;
+ALTER TABLE combat_participants ADD COLUMN IF NOT EXISTS damage_reduction NUMERIC NOT NULL DEFAULT 0;
+ALTER TABLE combat_participants ADD COLUMN IF NOT EXISTS level INT;
+
+ALTER TABLE monster_zones ADD COLUMN IF NOT EXISTS is_tower_zone BOOLEAN NOT NULL DEFAULT FALSE;
+
+ALTER TABLE players ADD COLUMN IF NOT EXISTS dungeon_coins INT NOT NULL DEFAULT 0;
+
+ALTER TABLE crafting_recipe_ingredients
+  ADD CONSTRAINT IF NOT EXISTS crafting_recipe_ingredients_recipe_item_unique UNIQUE (recipe_id, item_id);
