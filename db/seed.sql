@@ -7018,6 +7018,16 @@ UPDATE quests SET requires_quest_id = (SELECT id FROM quests WHERE code = 'RUINA
 UPDATE quests SET requires_quest_id = (SELECT id FROM quests WHERE code = 'RUINAS_Q2_CENTINELA_COSMICO') WHERE code = 'RUINAS_Q3_GRAN_ESQUELETO_ABISMO';
 UPDATE quests SET requires_quest_id = (SELECT id FROM quests WHERE code = 'RUINAS_Q3_GRAN_ESQUELETO_ABISMO') WHERE code = 'RUINAS_Q4_HERALDOS_OLVIDADOS';
 
+-- Las DIARIA "Renace/Eterno" del jefe LEGENDARY de cada zona requieren haber completado
+-- antes la quest PRINCIPAL de 1 sola vez de ese mismo jefe (misma logica de encadenado).
+UPDATE quests SET requires_quest_id = (SELECT id FROM quests WHERE code = 'PRADERA_Q3_TITAN_PRADERA') WHERE code = 'PRADERA_LEG_TITAN';
+UPDATE quests SET requires_quest_id = (SELECT id FROM quests WHERE code = 'MONTANAS_Q3_REY_MONTANA') WHERE code = 'MONTANAS_LEG_REY';
+UPDATE quests SET requires_quest_id = (SELECT id FROM quests WHERE code = 'VOLCAN_Q3_TITAN_FUEGO') WHERE code = 'VOLCAN_LEG_TITAN_FUEGO';
+UPDATE quests SET requires_quest_id = (SELECT id FROM quests WHERE code = 'COSTAS_Q3_BESTIA_PROFUNDIDADES') WHERE code = 'COSTAS_LEG_BESTIA';
+UPDATE quests SET requires_quest_id = (SELECT id FROM quests WHERE code = 'TUNDRA_Q3_REY_HIELO') WHERE code = 'TUNDRA_LEG_REY_H';
+UPDATE quests SET requires_quest_id = (SELECT id FROM quests WHERE code = 'CATACUMBAS_Q3_LICH_ANCESTRAL') WHERE code = 'CATA_LEG_LICH';
+UPDATE quests SET requires_quest_id = (SELECT id FROM quests WHERE code = 'RUINAS_Q3_GRAN_ESQUELETO_ABISMO') WHERE code = 'RUINAS_LEG_GRAN_ESQUELETO';
+
 -- Cooldowns de quests repetibles comprimidos por tier
 UPDATE quests SET repeat_cooldown_hours = 6 WHERE code IN (
   'PRADERA_DAILY_EXTERMINIO','PRADERA_DAILY_PLAGA_ROEDORES',

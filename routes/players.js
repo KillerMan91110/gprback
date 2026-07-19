@@ -981,13 +981,15 @@ router.get('/:playerId/quests/available', async (req, res, next) => {
         `SELECT q.id, q.code, q.name, q.quest_type, q.zone_id, mz.name AS zone_name,
                 q.min_level, q.max_level, q.min_rank_code, q.is_repeatable, q.repeat_cooldown_hours,
                 q.difficulty_stars, q.description, q.npc_name, q.location_name, q.required_class_id,
-                q.reputation_reward, q.gold_reward, q.xp_reward,
+                q.reputation_reward, q.gold_reward, q.xp_reward, q.requires_quest_id,
                 pqc.times_completed, pqc.last_completed_at,
-                paq.id IS NOT NULL AS accepted
+                paq.id IS NOT NULL AS accepted,
+                (q.requires_quest_id IS NULL OR prereq.quest_id IS NOT NULL) AS prerequisite_met
          FROM quests q
          LEFT JOIN monster_zones mz ON mz.id = q.zone_id
          LEFT JOIN player_quest_completions pqc ON pqc.quest_id = q.id AND pqc.player_id = $1
          LEFT JOIN player_active_quests paq ON paq.quest_id = q.id AND paq.player_id = $1
+         LEFT JOIN player_quest_completions prereq ON prereq.quest_id = q.requires_quest_id AND prereq.player_id = $1
          WHERE q.quest_type != 'OCULTA'
          ORDER BY q.difficulty_stars DESC, q.zone_id, q.chain_position`,
         [playerId]
@@ -1000,6 +1002,7 @@ router.get('/:playerId/quests/available', async (req, res, next) => {
       if (q.zone_id && !unlockedZoneIds.has(q.zone_id)) return false;
       if (q.required_class_id && q.required_class_id !== player.current_class_id) return false;
       if (q.min_rank_code && !rankAtLeast(player.rank, q.min_rank_code)) return false;
+      if (!q.prerequisite_met) return false;
       if (q.times_completed && q.is_repeatable && q.repeat_cooldown_hours) {
         const cooldownMs = q.repeat_cooldown_hours * 60 * 60 * 1000;
         if (Date.now() - new Date(q.last_completed_at).getTime() < cooldownMs) return false;
@@ -1038,6 +1041,15 @@ router.post('/:playerId/quests/:questId/accept', async (req, res, next) => {
     }
     if (quest.min_rank_code && !rankAtLeast(player.rank, quest.min_rank_code)) {
       return res.status(400).json({ error: `Requiere rango ${quest.min_rank_code} o superior` });
+    }
+    if (quest.requires_quest_id) {
+      const prereq = await db.query(
+        'SELECT 1 FROM player_quest_completions WHERE player_id = $1 AND quest_id = $2',
+        [playerId, quest.requires_quest_id]
+      );
+      if (!prereq.rows.length) {
+        return res.status(400).json({ error: 'Todavía no completaste la misión previa requerida' });
+      }
     }
 
     const completionResult = await db.query(
@@ -1135,6 +1147,15 @@ router.post('/:playerId/quests/:questId/complete', async (req, res, next) => {
     }
     if (quest.min_rank_code && !rankAtLeast(player.rank, quest.min_rank_code)) {
       return res.status(400).json({ error: `Requiere rango ${quest.min_rank_code} o superior` });
+    }
+    if (quest.requires_quest_id) {
+      const prereq = await db.query(
+        'SELECT 1 FROM player_quest_completions WHERE player_id = $1 AND quest_id = $2',
+        [playerId, quest.requires_quest_id]
+      );
+      if (!prereq.rows.length) {
+        return res.status(400).json({ error: 'Todavía no completaste la misión previa requerida' });
+      }
     }
 
     const completionResult = await db.query(
