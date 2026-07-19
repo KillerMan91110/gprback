@@ -221,12 +221,12 @@ async function hydrateMonsters(monsterSpecs) {
   return combatants;
 }
 
-// Marca en player_monster_encounters los monstruos que estos jugadores acaban de enfrentar,
-// para que el front sepa a cuales ya no debe ocultarles el nombre (bestiario).
 function emitCombatUpdate(req, sessionId, state) {
   req.app.get('io')?.to(`combat:${sessionId}`).emit('combat:update', state);
 }
 
+// Marca en player_monster_encounters los monstruos que estos jugadores acaban de enfrentar,
+// para que el front sepa a cuales ya no debe ocultarles el nombre (bestiario).
 async function recordMonsterEncounters(playerIds, enemyCombatants) {
   const ids = [...new Set(playerIds)].filter(Boolean);
   const codes = [...new Set(enemyCombatants.map((e) => e.monster_code))];
@@ -237,6 +237,39 @@ async function recordMonsterEncounters(playerIds, enemyCombatants) {
      ON CONFLICT DO NOTHING`,
     [ids, codes]
   );
+}
+
+// Crea la sesion de combate y reclama player_active_combat_session para cada jugador humano
+// en la misma transaccion: player_id es PK ahi, asi que si alguno ya tiene una sesion activa
+// el INSERT choca contra la constraint, se hace ROLLBACK completo (ninguna sesion duplicada
+// llega a persistir) y se tira un error marcado con .isActiveCombatConflict para que la ruta
+// responda 400 en vez de dejarlo caer en el 500 generico.
+async function createCombatSessionWithClaim(insertSessionFn, playerIds) {
+  const client = await db.pool.connect();
+  try {
+    await client.query('BEGIN');
+    const sessionResult = await insertSessionFn(client);
+    const sessionId = sessionResult.rows[0].id;
+    for (const playerId of new Set(playerIds.filter(Boolean))) {
+      await client.query(
+        'INSERT INTO player_active_combat_session(player_id, session_id) VALUES ($1, $2)',
+        [playerId, sessionId]
+      );
+    }
+    await client.query('COMMIT');
+    return sessionResult;
+  } catch (err) {
+    await client.query('ROLLBACK');
+    if (err.code === '23505') {
+      throw Object.assign(
+        new Error('Ya tienes (o tu compañero tiene) un combate sin terminar. Termínalo antes de iniciar otro.'),
+        { isActiveCombatConflict: true }
+      );
+    }
+    throw err;
+  } finally {
+    client.release();
+  }
 }
 
 async function insertParticipants(sessionId, combatants) {
@@ -802,9 +835,12 @@ async function buildTowerRoom(run, floorNumber, roomNumber) {
     e.spd = Math.round(e.spd * statMult);
   }
 
-  const sessionResult = await db.query(
-    'INSERT INTO combat_sessions(guest_player_id, guest_player_id_2) VALUES($1,$2) RETURNING *',
-    [run.guest_player_id, run.guest_player_id_2]
+  const sessionResult = await createCombatSessionWithClaim(
+    (client) => client.query(
+      'INSERT INTO combat_sessions(guest_player_id, guest_player_id_2) VALUES($1,$2) RETURNING *',
+      [run.guest_player_id, run.guest_player_id_2]
+    ),
+    allPlayerIds
   );
   const sessionId = sessionResult.rows[0].id;
 
@@ -984,6 +1020,13 @@ async function finalizeSession(sessionId, status, participants) {
 
   for (const npc of npcPs) {
     await db.query('UPDATE player_npcs SET hp = $1, mana = $2 WHERE id = $3', [npc.hp, npc.mana, npc.npc_id]);
+  }
+
+  // Libera a todos los jugadores humanos de esta sesion (incluidos los que la abandonaron)
+  // de player_active_combat_session, para que puedan iniciar otro combate.
+  const sessionPlayerIds = participants.player.filter((p) => p.player_id).map((p) => p.player_id);
+  if (sessionPlayerIds.length) {
+    await db.query('DELETE FROM player_active_combat_session WHERE player_id = ANY($1::int[])', [sessionPlayerIds]);
   }
 
   await handleTowerSessionEnd(sessionId, status);
@@ -1487,9 +1530,12 @@ router.post('/zones/:zoneId/explore', async (req, res, next) => {
         return res.status(400).json({ error: 'Toda la formación está derrotada.' });
       }
 
-      const sessionResult = await db.query(
-        'INSERT INTO combat_sessions(guest_player_id, guest_player_id_2) VALUES($1,$2) RETURNING *',
-        [coopPartnerIds[0] ?? null, coopPartnerIds[1] ?? null]
+      const sessionResult = await createCombatSessionWithClaim(
+        (client) => client.query(
+          'INSERT INTO combat_sessions(guest_player_id, guest_player_id_2) VALUES($1,$2) RETURNING *',
+          [coopPartnerIds[0] ?? null, coopPartnerIds[1] ?? null]
+        ),
+        allPlayerIds
       );
       const sessionId = sessionResult.rows[0].id;
 
@@ -1514,7 +1560,10 @@ router.post('/zones/:zoneId/explore', async (req, res, next) => {
       return res.status(400).json({ error: 'Toda tu formación está derrotada. Ve al gremio a curarte.' });
     }
 
-    const sessionResult = await db.query("INSERT INTO combat_sessions DEFAULT VALUES RETURNING *");
+    const sessionResult = await createCombatSessionWithClaim(
+      (client) => client.query("INSERT INTO combat_sessions DEFAULT VALUES RETURNING *"),
+      [req.playerId]
+    );
     const sessionId = sessionResult.rows[0].id;
 
     await insertParticipants(sessionId, [...aliveHero, ...aliveNpcs, ...enemyCombatants]);
@@ -1525,6 +1574,7 @@ router.post('/zones/:zoneId/explore', async (req, res, next) => {
     emitCombatUpdate(req, sessionId, state);
     res.status(201).json(state);
   } catch (err) {
+    if (err.isActiveCombatConflict) return res.status(400).json({ error: err.message });
     next(err);
   }
 });
@@ -1565,7 +1615,10 @@ router.post('/sessions', async (req, res, next) => {
       return res.status(400).json({ error: 'Toda tu formación está derrotada. Ve al gremio a curarte.' });
     }
 
-    const sessionResult = await db.query("INSERT INTO combat_sessions DEFAULT VALUES RETURNING *");
+    const sessionResult = await createCombatSessionWithClaim(
+      (client) => client.query("INSERT INTO combat_sessions DEFAULT VALUES RETURNING *"),
+      [req.playerId]
+    );
     const sessionId = sessionResult.rows[0].id;
 
     await insertParticipants(sessionId, [...aliveHero, ...aliveNpcs, ...enemyCombatants]);
@@ -1576,6 +1629,7 @@ router.post('/sessions', async (req, res, next) => {
     emitCombatUpdate(req, sessionId, state);
     res.status(201).json(state);
   } catch (error) {
+    if (error.isActiveCombatConflict) return res.status(400).json({ error: error.message });
     next(error);
   }
 });
@@ -1587,6 +1641,7 @@ router.get('/sessions/active', async (req, res, next) => {
       `SELECT cs.id FROM combat_sessions cs
        JOIN combat_participants cp ON cp.session_id = cs.id
        WHERE cs.status = 'IN_PROGRESS' AND cp.player_id = $1
+       ORDER BY cs.id DESC
        LIMIT 1`,
       [req.playerId]
     );

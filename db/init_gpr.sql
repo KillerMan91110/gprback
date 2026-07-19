@@ -460,6 +460,15 @@ CREATE TABLE IF NOT EXISTS combat_sessions (
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT now()
 );
 
+-- Puntero 1-a-1: en que sesion IN_PROGRESS esta cada jugador. player_id es PK, asi que
+-- crear una segunda fila para el mismo jugador choca contra la constraint (evita sesiones
+-- de combate duplicadas por una race condition entre el chequeo y el INSERT). Se borra la
+-- fila cuando la sesion termina (finalizeSession).
+CREATE TABLE IF NOT EXISTS player_active_combat_session (
+  player_id INT PRIMARY KEY REFERENCES players(id) ON DELETE CASCADE,
+  session_id INT NOT NULL REFERENCES combat_sessions(id) ON DELETE CASCADE
+);
+
 -- 1 fila por combatiente (jugador o monstruo) de la sesion. has_acted_this_round se resetea
 -- al empezar cada ronda nueva; is_defending se consume en el siguiente golpe que recibe.
 CREATE TABLE IF NOT EXISTS combat_participants (
