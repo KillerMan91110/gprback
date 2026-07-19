@@ -171,6 +171,9 @@ router.post('/start', async (req, res, next) => {
       if (await combatEngine.hasAbandonedActiveSession(pid)) {
         return res.status(400).json({ error: 'Tú o algún compañero tiene un combate anterior sin resolver. Esperen a que termine.' });
       }
+      if (await combatEngine.hasActiveCombatSession(pid)) {
+        return res.status(400).json({ error: 'Tú o algún compañero tiene un combate sin terminar. Termínenlo antes de entrar a la Torre.' });
+      }
       if (await getActiveRun(pid)) {
         return res.status(400).json({ error: 'Tú o algún compañero ya tiene una corrida de torre en curso' });
       }

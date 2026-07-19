@@ -34,6 +34,20 @@ async function hasAbandonedActiveSession(playerId) {
   return res.rows.length > 0;
 }
 
+// A diferencia de hasAbandonedActiveSession (que solo mira si LA IA tiene que resolver un
+// combate que el jugador abandonó), esto detecta que el jugador sigue como combatiente activo
+// en una sesion sin terminar, sin haberla abandonado (ej. inicio otra pelea sin cerrar esta).
+async function hasActiveCombatSession(playerId) {
+  const res = await db.query(
+    `SELECT 1 FROM combat_participants cp
+     JOIN combat_sessions cs ON cs.id = cp.session_id
+     WHERE cp.player_id = $1 AND cs.status = 'IN_PROGRESS'
+     LIMIT 1`,
+    [playerId]
+  );
+  return res.rows.length > 0;
+}
+
 async function hydratePlayers(playerIds) {
   const result = await db.query(
     `SELECT id, nickname, hp, max_hp, mana, max_mana, atk, def, mag, magic_def, spd, crit, luck,
@@ -1439,6 +1453,11 @@ router.post('/zones/:zoneId/explore', async (req, res, next) => {
           error: 'Todavía tienes (o tu compañero tiene) un combate anterior en curso que la IA está resolviendo. Esperen a que termine.',
         });
       }
+      if (await hasActiveCombatSession(pid)) {
+        return res.status(400).json({
+          error: 'Todavía tienes (o tu compañero tiene) un combate sin terminar. Termínalo antes de iniciar otro.',
+        });
+      }
     }
 
     if (coopPartnerIds.length) {
@@ -1522,6 +1541,9 @@ router.post('/sessions', async (req, res, next) => {
   try {
     if (await hasAbandonedActiveSession(req.playerId)) {
       return res.status(400).json({ error: 'Todavía tienes un combate anterior en curso que la IA está resolviendo. Espera a que termine.' });
+    }
+    if (await hasActiveCombatSession(req.playerId)) {
+      return res.status(400).json({ error: 'Todavía tienes un combate sin terminar. Termínalo antes de iniciar otro.' });
     }
 
     const [playerCombatants, npcCombatants, enemyCombatants] = await Promise.all([
@@ -2283,5 +2305,6 @@ module.exports.insertParticipants = insertParticipants;
 module.exports.advanceEnemyTurns = advanceEnemyTurns;
 module.exports.fetchSessionState = fetchSessionState;
 module.exports.hasAbandonedActiveSession = hasAbandonedActiveSession;
+module.exports.hasActiveCombatSession = hasActiveCombatSession;
 module.exports.buildTowerRoom = buildTowerRoom;
 module.exports.resolveInfiniteFloor = resolveInfiniteFloor;
