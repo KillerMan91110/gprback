@@ -93,7 +93,7 @@ CREATE TABLE IF NOT EXISTS class_elemental_damage_bonus (
 -- damage_school indica qué resistencia elemental/física aplica el combate; element_id solo se usa en ataques elementales.
 CREATE TABLE IF NOT EXISTS skills (
   id SERIAL PRIMARY KEY,
-  class_id INT NOT NULL REFERENCES classes(id),
+  class_id INT REFERENCES classes(id),
   code TEXT UNIQUE NOT NULL,
   name TEXT NOT NULL,
   skill_type TEXT NOT NULL CHECK (skill_type IN ('ATAQUE', 'CURACION', 'BUFF', 'DEBUFF', 'ESTADO_ALTERADO', 'ESPECIAL', 'PASIVA')),
@@ -155,7 +155,8 @@ CREATE TABLE IF NOT EXISTS item_stat_bonuses (
   stat_code TEXT NOT NULL,
   amount NUMERIC(6,2) NOT NULL,
   is_percent BOOLEAN NOT NULL DEFAULT FALSE,
-  description TEXT
+  description TEXT,
+  duration_turns INT
 );
 
 -- Habilidad que se desbloquea/otorga al equipar un item (ej. Excalibur -> "Corte Divino").
@@ -331,7 +332,12 @@ CREATE TABLE IF NOT EXISTS quest_objectives (
   monster_id INT REFERENCES monsters(id),
   item_id INT REFERENCES items(id),
   target_count INT NOT NULL DEFAULT 1,
-  description TEXT
+  description TEXT,
+  required_skill_id INT REFERENCES skills(id),
+  required_damage_school TEXT,
+  required_elemental BOOLEAN,
+  required_base_action TEXT,
+  requires_kill BOOLEAN NOT NULL DEFAULT TRUE
 );
 
 CREATE TABLE IF NOT EXISTS quest_item_rewards (
@@ -400,7 +406,9 @@ CREATE TABLE IF NOT EXISTS player_inventory (
   player_id INT NOT NULL REFERENCES players(id) ON DELETE CASCADE,
   item_id INT NOT NULL REFERENCES items(id),
   quantity INT NOT NULL DEFAULT 1 CHECK (quantity >= 0),
-  UNIQUE(player_id, item_id)
+  enchant_level INT NOT NULL DEFAULT 0,
+  quality_tier SMALLINT NOT NULL DEFAULT 0,
+  UNIQUE(player_id, item_id, enchant_level, quality_tier)
 );
 
 CREATE INDEX IF NOT EXISTS idx_player_inventory_player_id ON player_inventory(player_id);
@@ -412,6 +420,8 @@ CREATE TABLE IF NOT EXISTS player_equipment (
   player_id INT NOT NULL REFERENCES players(id) ON DELETE CASCADE,
   slot TEXT NOT NULL CHECK (slot IN ('WEAPON', 'OFFHAND', 'HELMET', 'ARMOR', 'GLOVES', 'BOOTS', 'ACCESSORY')),
   item_id INT NOT NULL REFERENCES items(id),
+  enchant_level INT NOT NULL DEFAULT 0,
+  quality_tier SMALLINT NOT NULL DEFAULT 0,
   UNIQUE(player_id, slot)
 );
 
@@ -438,7 +448,9 @@ CREATE TABLE IF NOT EXISTS combat_sessions (
   status TEXT NOT NULL DEFAULT 'IN_PROGRESS' CHECK (status IN ('IN_PROGRESS', 'PLAYER_WON', 'ENEMY_WON', 'ESCAPED')),
   current_round INT NOT NULL DEFAULT 1,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT now(),
-  updated_at TIMESTAMP WITH TIME ZONE DEFAULT now()
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT now(),
+  guest_player_id INT REFERENCES players(id) ON DELETE SET NULL,
+  guest_player_id_2 INT REFERENCES players(id) ON DELETE SET NULL
 );
 
 -- Puntero 1-a-1: en que sesion IN_PROGRESS esta cada jugador. player_id es PK, asi que
@@ -557,7 +569,8 @@ CREATE TABLE IF NOT EXISTS crafting_recipes (
   craft_time_minutes INT NOT NULL DEFAULT 1,
   artisan_name TEXT,
   zone_id INT REFERENCES monster_zones(id),
-  description TEXT
+  description TEXT,
+  scroll_item_id INT REFERENCES items(id)
 );
 
 CREATE TABLE IF NOT EXISTS crafting_recipe_ingredients (
@@ -971,6 +984,8 @@ CREATE TABLE IF NOT EXISTS player_tower_ready (
 );
 
 -- ─── Columnas y constraints añadidas tras el schema inicial ──────────────────
+ALTER TABLE combat_log ADD COLUMN IF NOT EXISTS heal INT;
+ALTER TABLE combat_log ADD COLUMN IF NOT EXISTS hp_after INT;
 ALTER TABLE combat_log ADD COLUMN IF NOT EXISTS mana_after INT;
 
 ALTER TABLE monsters ADD COLUMN IF NOT EXISTS category TEXT NOT NULL DEFAULT 'BESTIA';
@@ -979,10 +994,14 @@ ALTER TABLE combat_participants ADD COLUMN IF NOT EXISTS owner_player_id INT REF
 ALTER TABLE combat_participants ADD COLUMN IF NOT EXISTS pet_revive_used BOOLEAN NOT NULL DEFAULT FALSE;
 ALTER TABLE combat_participants ADD COLUMN IF NOT EXISTS damage_reduction NUMERIC NOT NULL DEFAULT 0;
 ALTER TABLE combat_participants ADD COLUMN IF NOT EXISTS level INT;
+ALTER TABLE combat_participants ADD COLUMN IF NOT EXISTS luck NUMERIC(5,2) NOT NULL DEFAULT 0;
 
 ALTER TABLE monster_zones ADD COLUMN IF NOT EXISTS is_tower_zone BOOLEAN NOT NULL DEFAULT FALSE;
 
 ALTER TABLE players ADD COLUMN IF NOT EXISTS dungeon_coins INT NOT NULL DEFAULT 0;
+ALTER TABLE players ADD COLUMN IF NOT EXISTS luck NUMERIC(5,2) NOT NULL DEFAULT 1.0;
+ALTER TABLE players ADD COLUMN IF NOT EXISTS pool_last_generated_at TIMESTAMP WITH TIME ZONE;
+ALTER TABLE players ADD COLUMN IF NOT EXISTS last_seen_at TIMESTAMP WITH TIME ZONE DEFAULT now();
 
 ALTER TABLE crafting_recipe_ingredients
   ADD CONSTRAINT crafting_recipe_ingredients_recipe_item_unique UNIQUE (recipe_id, item_id);
