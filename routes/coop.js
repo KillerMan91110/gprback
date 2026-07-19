@@ -351,7 +351,11 @@ router.post('/messages', async (req, res, next) => {
     );
     const row = inserted.rows[0];
     const senderRes = await db.query('SELECT nickname FROM players WHERE id=$1', [playerId]);
-    res.status(201).json({ ...row, senderNickname: senderRes.rows[0]?.nickname });
+    const message = { ...row, senderNickname: senderRes.rows[0]?.nickname, channel: 'PARTY' };
+
+    req.app.get('io')?.to(`chat:COOP:${group.id}`).emit('chat:message', message);
+
+    res.status(201).json(message);
   } catch (error) { next(error); }
 });
 

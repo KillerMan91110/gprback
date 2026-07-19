@@ -1,6 +1,9 @@
 const express = require('express');
 const cors = require('cors');
 require('dotenv').config();
+const http = require('http');
+const jwt = require('jsonwebtoken');
+const { Server } = require('socket.io');
 const db = require('./db/db');
 const { getEquipmentBonuses } = require('./lib/equipment');
 const { requireAuth, requireSelf } = require('./lib/auth');
@@ -24,6 +27,56 @@ const chatRouter = require('./routes/chat');
 const { getActivePetBonuses } = require('./lib/pets');
 
 const app = express();
+const httpServer = http.createServer(app);
+const io = new Server(httpServer, { cors: { origin: '*' } });
+
+// Autentica el socket con el mismo JWT que usa requireAuth (lib/auth.js).
+io.use((socket, next) => {
+  try {
+    const token = socket.handshake.auth?.token;
+    if (!token) return next(new Error('Falta el token de autenticación'));
+    const payload = jwt.verify(token, process.env.JWT_SECRET);
+    socket.playerId = payload.playerId;
+    next();
+  } catch {
+    next(new Error('Token inválido o expirado'));
+  }
+});
+
+io.on('connection', (socket) => {
+  socket.on('combat:join', (sessionId) => {
+    if (sessionId) socket.join(`combat:${sessionId}`);
+  });
+
+  // channel: 'GENERAL' | 'TRADE' | 'GUILD:<guildId>' | 'COOP:<groupId>'
+  socket.on('chat:join', async (channel) => {
+    if (typeof channel !== 'string') return;
+    try {
+      if (channel.startsWith('GUILD:')) {
+        const guildId = channel.slice('GUILD:'.length);
+        const result = await db.query(
+          'SELECT 1 FROM guild_members WHERE guild_id = $1 AND player_id = $2',
+          [guildId, socket.playerId]
+        );
+        if (!result.rows.length) return;
+      } else if (channel.startsWith('COOP:')) {
+        const groupId = channel.slice('COOP:'.length);
+        const result = await db.query(
+          'SELECT 1 FROM player_coop_group_members WHERE group_id = $1 AND player_id = $2',
+          [groupId, socket.playerId]
+        );
+        if (!result.rows.length) return;
+      } else if (!['GENERAL', 'TRADE'].includes(channel)) {
+        return;
+      }
+      socket.join(`chat:${channel}`);
+    } catch (err) {
+      console.error('chat:join error', err);
+    }
+  });
+});
+
+app.set('io', io);
 
 // Middleware
 app.use(cors());
@@ -870,7 +923,7 @@ app.use((err, req, res, next) => {
 
 const PORT = process.env.PORT || 5000;
 
-app.listen(PORT, () => {
+httpServer.listen(PORT, () => {
   console.log(`
 ╔════════════════════════════════════════╗
 ║   🎮 RPG DISGAEA - Backend Activo 🎮   ║

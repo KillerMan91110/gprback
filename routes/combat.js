@@ -209,6 +209,10 @@ async function hydrateMonsters(monsterSpecs) {
 
 // Marca en player_monster_encounters los monstruos que estos jugadores acaban de enfrentar,
 // para que el front sepa a cuales ya no debe ocultarles el nombre (bestiario).
+function emitCombatUpdate(req, sessionId, state) {
+  req.app.get('io')?.to(`combat:${sessionId}`).emit('combat:update', state);
+}
+
 async function recordMonsterEncounters(playerIds, enemyCombatants) {
   const ids = [...new Set(playerIds)].filter(Boolean);
   const codes = [...new Set(enemyCombatants.map((e) => e.monster_code))];
@@ -1474,6 +1478,7 @@ router.post('/zones/:zoneId/explore', async (req, res, next) => {
       await recordMonsterEncounters(allPlayerIds, enemyCombatants);
       await advanceEnemyTurns(sessionId);
       const state = await fetchSessionState(sessionId);
+      emitCombatUpdate(req, sessionId, state);
       return res.status(201).json({ ...state, coopPartnerIds });
     }
 
@@ -1498,6 +1503,7 @@ router.post('/zones/:zoneId/explore', async (req, res, next) => {
     await advanceEnemyTurns(sessionId);
 
     const state = await fetchSessionState(sessionId);
+    emitCombatUpdate(req, sessionId, state);
     res.status(201).json(state);
   } catch (err) {
     next(err);
@@ -1545,6 +1551,7 @@ router.post('/sessions', async (req, res, next) => {
     await advanceEnemyTurns(sessionId);
 
     const state = await fetchSessionState(sessionId);
+    emitCombatUpdate(req, sessionId, state);
     res.status(201).json(state);
   } catch (error) {
     next(error);
@@ -2134,6 +2141,7 @@ router.post('/sessions/:id/action', async (req, res, next) => {
         });
         const rewards = await finalizeSession(sessionId, 'ESCAPED', participants);
         const state = await fetchSessionState(sessionId);
+        emitCombatUpdate(req, sessionId, state);
         return res.json({ ...state, rewards });
       }
 
@@ -2248,16 +2256,19 @@ router.post('/sessions/:id/action', async (req, res, next) => {
     if (combat.isWiped(refreshed.enemy)) {
       const rewards = await finalizeSession(sessionId, 'PLAYER_WON', refreshed);
       const state = await fetchSessionState(sessionId);
+      emitCombatUpdate(req, sessionId, state);
       return res.json({ ...state, rewards });
     }
     if (combat.isWiped(refreshed.player)) {
       await finalizeSession(sessionId, 'ENEMY_WON', refreshed);
       const state = await fetchSessionState(sessionId);
+      emitCombatUpdate(req, sessionId, state);
       return res.json({ ...state, rewards: null });
     }
 
     await advanceEnemyTurns(sessionId);
     const state = await fetchSessionState(sessionId);
+    emitCombatUpdate(req, sessionId, state);
     res.json(state);
   } catch (error) {
     next(error);

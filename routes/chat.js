@@ -111,8 +111,12 @@ router.post('/:channel', async (req, res) => {
     const msg = insert.rows[0];
     const player = await db.query('SELECT nickname, level FROM players WHERE id = $1', [req.playerId]);
     const { nickname, level } = player.rows[0];
+    const message = { ...msg, nickname, level, channel };
 
-    res.status(201).json({ message: { ...msg, nickname, level } });
+    const room = channel === 'GUILD' ? `chat:GUILD:${guildId}` : `chat:${channel}`;
+    req.app.get('io')?.to(room).emit('chat:message', message);
+
+    res.status(201).json({ message });
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: 'Error al enviar mensaje' });
