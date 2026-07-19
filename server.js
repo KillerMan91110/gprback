@@ -437,6 +437,28 @@ app.get('/api/leaderboard', async (req, res, next) => {
   }
 });
 
+// GET /api/leaderboard/wealth — Top 30 jugadores por oro. Público, sin auth.
+app.get('/api/leaderboard/wealth', async (req, res, next) => {
+  try {
+    const result = await db.query(
+      `SELECT p.nickname, p.level, p.gold, c.name AS class_name
+       FROM players p
+       JOIN classes c ON c.id = p.current_class_id
+       ORDER BY p.gold DESC
+       LIMIT 30`
+    );
+    res.json(result.rows.map((r, i) => ({
+      position: i + 1,
+      nickname: r.nickname,
+      level: r.level,
+      gold: r.gold,
+      className: r.class_name,
+    })));
+  } catch (error) {
+    next(error);
+  }
+});
+
 // GET /api/leaderboard/tower — ranking de la Torre Infinita, separado por modo. Solo cuenta
 // una corrida si status='EXTRACTED' (si el grupo murió, no entra aunque hayan llegado lejos).
 // El modo sale de cuántos guest_player_id tiene la corrida: 0=solo, 1=dúo, 2=trío.
