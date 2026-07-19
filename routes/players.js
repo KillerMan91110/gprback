@@ -1003,9 +1003,14 @@ router.get('/:playerId/quests/available', async (req, res, next) => {
       if (q.required_class_id && q.required_class_id !== player.current_class_id) return false;
       if (q.min_rank_code && !rankAtLeast(player.rank, q.min_rank_code)) return false;
       if (!q.prerequisite_met) return false;
-      if (q.times_completed && q.is_repeatable && q.repeat_cooldown_hours) {
-        const cooldownMs = q.repeat_cooldown_hours * 60 * 60 * 1000;
-        if (Date.now() - new Date(q.last_completed_at).getTime() < cooldownMs) return false;
+      // Ya completada: si NO es repetible, no vuelve a aparecer nunca mas (es de 1 sola vez).
+      // Si es repetible, se oculta solo mientras dure el cooldown desde la ultima entrega.
+      if (q.times_completed) {
+        if (!q.is_repeatable) return false;
+        if (q.repeat_cooldown_hours) {
+          const cooldownMs = q.repeat_cooldown_hours * 60 * 60 * 1000;
+          if (Date.now() - new Date(q.last_completed_at).getTime() < cooldownMs) return false;
+        }
       }
       return true;
     }).map((q) => ({ ...q, meets_level: !q.min_level || player.level >= q.min_level }));
@@ -1056,10 +1061,15 @@ router.post('/:playerId/quests/:questId/accept', async (req, res, next) => {
       'SELECT times_completed, last_completed_at FROM player_quest_completions WHERE player_id = $1 AND quest_id = $2',
       [playerId, questId]
     );
-    if (completionResult.rows.length && quest.repeat_cooldown_hours) {
-      const cooldownMs = quest.repeat_cooldown_hours * 60 * 60 * 1000;
-      if (Date.now() - new Date(completionResult.rows[0].last_completed_at).getTime() < cooldownMs) {
-        return res.status(400).json({ error: 'Esta quest diaria todavía está en cooldown' });
+    if (completionResult.rows.length) {
+      if (!quest.is_repeatable) {
+        return res.status(400).json({ error: 'Ya completaste esta misión (es de una sola vez)' });
+      }
+      if (quest.repeat_cooldown_hours) {
+        const cooldownMs = quest.repeat_cooldown_hours * 60 * 60 * 1000;
+        if (Date.now() - new Date(completionResult.rows[0].last_completed_at).getTime() < cooldownMs) {
+          return res.status(400).json({ error: 'Esta quest diaria todavía está en cooldown' });
+        }
       }
     }
 
@@ -1163,10 +1173,15 @@ router.post('/:playerId/quests/:questId/complete', async (req, res, next) => {
       [playerId, questId]
     );
 
-    if (completionResult.rows.length && quest.repeat_cooldown_hours) {
-      const cooldownMs = quest.repeat_cooldown_hours * 60 * 60 * 1000;
-      if (Date.now() - new Date(completionResult.rows[0].last_completed_at).getTime() < cooldownMs) {
-        return res.status(400).json({ error: 'Esta quest diaria todavía está en cooldown' });
+    if (completionResult.rows.length) {
+      if (!quest.is_repeatable) {
+        return res.status(400).json({ error: 'Ya completaste esta misión (es de una sola vez)' });
+      }
+      if (quest.repeat_cooldown_hours) {
+        const cooldownMs = quest.repeat_cooldown_hours * 60 * 60 * 1000;
+        if (Date.now() - new Date(completionResult.rows[0].last_completed_at).getTime() < cooldownMs) {
+          return res.status(400).json({ error: 'Esta quest diaria todavía está en cooldown' });
+        }
       }
     }
 
