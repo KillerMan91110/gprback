@@ -77,6 +77,22 @@ async function getUnlockedZoneIds(playerId, playerLevel) {
   return unlockedIds;
 }
 
+// GET /api/players/:playerId/bestiary
+// IDs de monstruos que el jugador ya enfrentó al menos una vez (para no ocultarles el nombre en el front).
+router.get('/:playerId/bestiary', async (req, res, next) => {
+  const { playerId } = req.params;
+
+  try {
+    const result = await db.query(
+      'SELECT monster_id FROM player_monster_encounters WHERE player_id = $1',
+      [playerId]
+    );
+    res.json(result.rows.map((r) => r.monster_id));
+  } catch (error) {
+    next(error);
+  }
+});
+
 // GET /api/players/:playerId/zones
 // Una zona (salvo la primera) se desbloquea si el jugador ya derroto al jefe PRINCIPAL
 // (is_boss_quest) de la zona anterior, o si ya alcanzo el nivel minimo de esta zona

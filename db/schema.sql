@@ -618,6 +618,14 @@ CREATE TABLE IF NOT EXISTS player_zone_unlocks (
 );
 CREATE INDEX IF NOT EXISTS idx_player_zone_unlocks_player_id ON player_zone_unlocks(player_id);
 
+CREATE TABLE IF NOT EXISTS player_monster_encounters (
+  player_id     INT NOT NULL REFERENCES players(id) ON DELETE CASCADE,
+  monster_id    INT NOT NULL REFERENCES monsters(id) ON DELETE CASCADE,
+  first_seen_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  PRIMARY KEY (player_id, monster_id)
+);
+CREATE INDEX IF NOT EXISTS idx_player_monster_encounters_player_id ON player_monster_encounters(player_id);
+
 CREATE TABLE IF NOT EXISTS monster_skills (
   id                 SERIAL PRIMARY KEY,
   monster_id         INT NOT NULL REFERENCES monsters(id) ON DELETE CASCADE,

@@ -758,6 +758,14 @@ CREATE TABLE IF NOT EXISTS player_zone_unlocks (
   PRIMARY KEY (player_id, zone_id)
 );
 
+-- Monstruos que el jugador ya enfrentó al menos una vez (bestiario: oculta el nombre hasta el primer combate).
+CREATE TABLE IF NOT EXISTS player_monster_encounters (
+  player_id INT NOT NULL REFERENCES players(id) ON DELETE CASCADE,
+  monster_id INT NOT NULL REFERENCES monsters(id) ON DELETE CASCADE,
+  first_seen_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  PRIMARY KEY (player_id, monster_id)
+);
+
 -- Recetas que el jugador aprendió al obtener el drop de un MINIBOSS/LEGENDARY.
 CREATE TABLE IF NOT EXISTS player_learned_recipes (
   player_id INT NOT NULL REFERENCES players(id) ON DELETE CASCADE,
@@ -771,6 +779,7 @@ ALTER TABLE crafting_recipes ADD COLUMN IF NOT EXISTS scroll_item_id INT REFEREN
 
 CREATE INDEX IF NOT EXISTS idx_player_zone_unlocks_player_id ON player_zone_unlocks(player_id);
 CREATE INDEX IF NOT EXISTS idx_player_learned_recipes_player_id ON player_learned_recipes(player_id);
+CREATE INDEX IF NOT EXISTS idx_player_monster_encounters_player_id ON player_monster_encounters(player_id);
 
 -- Materiales que devuelve desmantelar un ítem (un ítem puede dar varios materiales distintos).
 CREATE TABLE IF NOT EXISTS dismantle_recipes (

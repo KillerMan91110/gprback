@@ -207,6 +207,20 @@ async function hydrateMonsters(monsterSpecs) {
   return combatants;
 }
 
+// Marca en player_monster_encounters los monstruos que estos jugadores acaban de enfrentar,
+// para que el front sepa a cuales ya no debe ocultarles el nombre (bestiario).
+async function recordMonsterEncounters(playerIds, enemyCombatants) {
+  const ids = [...new Set(playerIds)].filter(Boolean);
+  const codes = [...new Set(enemyCombatants.map((e) => e.monster_code))];
+  if (!ids.length || !codes.length) return;
+  await db.query(
+    `INSERT INTO player_monster_encounters (player_id, monster_id)
+     SELECT p, m.id FROM unnest($1::int[]) AS p, monsters m WHERE m.code = ANY($2::text[])
+     ON CONFLICT DO NOTHING`,
+    [ids, codes]
+  );
+}
+
 async function insertParticipants(sessionId, combatants) {
   const inserted = [];
   for (const c of combatants) {
@@ -757,6 +771,7 @@ async function buildTowerRoom(run, floorNumber, roomNumber) {
   const participantCount = aliveCombatants.length + aliveNpcs.length;
   const monsterSpecs = await buildTowerMonsterSpecs(floorRow, participantCount);
   const enemyCombatants = await hydrateMonsters(monsterSpecs);
+  await recordMonsterEncounters(allPlayerIds, enemyCombatants);
 
   const statMult = (TOWER_DIFFICULTY_STAT_MULT[run.difficulty] || 1) * infiniteStatMult(lap);
   for (const e of enemyCombatants) {
@@ -1456,6 +1471,7 @@ router.post('/zones/:zoneId/explore', async (req, res, next) => {
       const sessionId = sessionResult.rows[0].id;
 
       await insertParticipants(sessionId, [...aliveCombatants, ...aliveNpcs, ...enemyCombatants]);
+      await recordMonsterEncounters(allPlayerIds, enemyCombatants);
       await advanceEnemyTurns(sessionId);
       const state = await fetchSessionState(sessionId);
       return res.status(201).json({ ...state, coopPartnerIds });
@@ -1478,6 +1494,7 @@ router.post('/zones/:zoneId/explore', async (req, res, next) => {
     const sessionId = sessionResult.rows[0].id;
 
     await insertParticipants(sessionId, [...aliveHero, ...aliveNpcs, ...enemyCombatants]);
+    await recordMonsterEncounters([req.playerId], enemyCombatants);
     await advanceEnemyTurns(sessionId);
 
     const state = await fetchSessionState(sessionId);
@@ -1524,6 +1541,7 @@ router.post('/sessions', async (req, res, next) => {
     const sessionId = sessionResult.rows[0].id;
 
     await insertParticipants(sessionId, [...aliveHero, ...aliveNpcs, ...enemyCombatants]);
+    await recordMonsterEncounters([req.playerId], enemyCombatants);
     await advanceEnemyTurns(sessionId);
 
     const state = await fetchSessionState(sessionId);
