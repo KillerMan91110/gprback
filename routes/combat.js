@@ -1418,6 +1418,11 @@ router.post('/zones/:zoneId/explore', async (req, res, next) => {
     }
     const zone = zoneResult.rows[0];
 
+    // ─── Co-op: cargar combatientes de hasta 2 compañeros si vienen coopPartnerIds ───
+    const coopPartnerIds = Array.isArray(req.body?.coopPartnerIds)
+      ? [...new Set(req.body.coopPartnerIds.map(Number))].filter((id) => id !== req.playerId)
+      : [];
+
     const formationResult = await db.query(
       `SELECT p.level AS hero_level,
               COUNT(pn.id) AS npc_count,
@@ -1436,9 +1441,32 @@ router.post('/zones/:zoneId/explore', async (req, res, next) => {
     const minMonsterLevel = zone.min_level;
     const maxMonsterLevel = Math.min(maxFormationLevel + 1, zone.max_level);
 
+    // Si vos o algún compañero de grupo tiene una quest de jefe de esta zona aceptada y
+    // todavía no la entregó, ESE jefe aparece garantizado (no depende del roll de rareza).
+    // Estar en player_active_quests ya implica "no entregada todavia": completar SIEMPRE
+    // borra esa fila (ver DELETE en players.js), tanto para quests de una sola vez como
+    // para las DIARIA repetibles (cada vez que se retoma el "X ha vuelto a aparecer" vuelve
+    // a estar garantizado hasta entregarla, sin importar cuantas veces se completo antes).
+    // Se lee la rareza real del monstruo objetivo (no se asume LEGENDARY): la zona tiene
+    // quests de jefe separadas para el MINIBOSS y el LEGENDARY, cada una con su propio
+    // monstruo en quest_objectives. Si ambas estan activas a la vez, prioriza LEGENDARY.
+    const partyIds = [req.playerId, ...coopPartnerIds];
+    const forcedBoss = await db.query(
+      `SELECT m.rarity FROM quests q
+       JOIN player_active_quests paq ON paq.quest_id = q.id AND paq.player_id = ANY($2::int[])
+       JOIN quest_objectives qo ON qo.quest_id = q.id AND qo.objective_type = 'DEFEAT_BOSS'
+       JOIN monsters m ON m.id = qo.monster_id
+       WHERE q.zone_id = $1 AND q.is_boss_quest = TRUE
+       ORDER BY (m.rarity = 'LEGENDARY') DESC
+       LIMIT 1`,
+      [zone.id, partyIds]
+    );
+
     // Decide rareza del encuentro: LEGENDARY 5%, MINIBOSS 10%, RARE 25%, COMMON 60%
     const roll = Math.random() * 100;
-    let targetRarity = roll < 5 ? 'LEGENDARY' : roll < 15 ? 'MINIBOSS' : roll < 40 ? 'RARE' : 'COMMON';
+    let targetRarity = forcedBoss.rows.length
+      ? forcedBoss.rows[0].rarity
+      : roll < 5 ? 'LEGENDARY' : roll < 15 ? 'MINIBOSS' : roll < 40 ? 'RARE' : 'COMMON';
 
     let eligible = await db.query(
       `SELECT code, min_spawn_level, max_spawn_level, rarity
@@ -1484,11 +1512,6 @@ router.post('/zones/:zoneId/explore', async (req, res, next) => {
       const level = lo + Math.floor(Math.random() * (hi - lo + 1));
       monsterSpecs.push({ code: m.code, level });
     }
-
-    // ─── Co-op: cargar combatientes de hasta 2 compañeros si vienen coopPartnerIds ───
-    const coopPartnerIds = Array.isArray(req.body?.coopPartnerIds)
-      ? [...new Set(req.body.coopPartnerIds.map(Number))].filter((id) => id !== req.playerId)
-      : [];
 
     for (const pid of [req.playerId, ...coopPartnerIds]) {
       if (await hasAbandonedActiveSession(pid)) {
