@@ -10598,18 +10598,18 @@ ON CONFLICT (id) DO NOTHING;
 INSERT INTO monster_drops(monster_id, item_id, drop_chance_percent)
 SELECT m.id, s.item_id, s.chance FROM monsters m
 JOIN (VALUES
-  ('ARANA_VENENOSA',   837, 3.0),('BANDIDO_CORRUPTO',   837, 3.0),
-  ('GOBLIN_SAQUEADOR', 837, 3.0),('DEMONIO_LAVA',       837, 3.0),
-  ('MARINERO_MALDITO', 837, 3.0),('CENTINELA_INFERNAL', 837, 3.0),
-  ('CHAMAN_OSCURO',    838, 5.0),('MAESTRO_LAVA',       838, 5.0),
-  ('CAPITAN_LOBOS',    839, 5.0),('SENOR_CALDERA',      839, 5.0),
-  ('SENOR_ACANTILADO', 839, 5.0),('CENTINELA_MUERTE',   839, 5.0),
-  ('CENTINELA_COSMICO',839, 5.0),
-  ('TITAN_FUEGO',      840, 8.0),('TITAN_PRADERA',      840, 8.0),
-  ('LICH_ANCESTRAL',   840, 8.0),('GRAN_ESQUELETO_ABISMO', 840, 8.0),
-  ('REY_MONTANA',      840, 8.0),
-  ('TITAN_FUEGO',      841, 2.0),('LICH_ANCESTRAL',     841, 2.0),
-  ('REY_MONTANA',      841, 2.0)
+  ('ARANA_VENENOSA',   837, 0.5),('BANDIDO_CORRUPTO',   837, 0.5),
+  ('GOBLIN_SAQUEADOR', 837, 0.5),('DEMONIO_LAVA',       837, 0.5),
+  ('MARINERO_MALDITO', 837, 0.5),('CENTINELA_INFERNAL', 837, 0.5),
+  ('CHAMAN_OSCURO',    838, 0.5),('MAESTRO_LAVA',       838, 0.5),
+  ('CAPITAN_LOBOS',    839, 0.5),('SENOR_CALDERA',      839, 0.5),
+  ('SENOR_ACANTILADO', 839, 0.5),('CENTINELA_MUERTE',   839, 0.5),
+  ('CENTINELA_COSMICO',839, 0.5),
+  ('TITAN_FUEGO',      840, 0.5),('TITAN_PRADERA',      840, 0.5),
+  ('LICH_ANCESTRAL',   840, 0.5),('GRAN_ESQUELETO_ABISMO', 840, 0.5),
+  ('REY_MONTANA',      840, 0.5),
+  ('TITAN_FUEGO',      841, 0.5),('LICH_ANCESTRAL',     841, 0.5),
+  ('REY_MONTANA',      841, 0.5)
 ) AS s(monster_code, item_id, chance) ON m.code = s.monster_code
 ON CONFLICT (monster_id, item_id) DO NOTHING;
 
@@ -10993,6 +10993,15 @@ UPDATE monsters SET category='DRACOIDE' WHERE code IN ('WYVERN','HIDRA','DRAGON_
 UPDATE monsters SET category='INSECTOIDE' WHERE code IN ('ESCORPION_GIGANTE','GUSANO_DE_PIEDRA');
 UPDATE monsters SET category='ACUATICO' WHERE code IN ('SERPIENTE_MARINA','TRITON_GUERRERO','SIRENA_MALDITA','KRAKEN_MENOR');
 UPDATE monsters SET name='Esqueleto Soldado' WHERE code='ESQUELETO_GUERRERO_TORRE';
+
+-- Rebalanceo de XP en pisos 1-90 de la Torre (zonas 8/9/10, niveles 30-99): daban entre 3x y
+-- 9x el XP de la zona normal equivalente al mismo nivel, sin ser proporcionalmente mas dificil
+-- (el multiplicador de dificultad de la torre es solo 1.0x-1.6x). Volvia inutil farmear las
+-- zonas normales apenas se desbloqueaba la torre en nivel 30. Se deja en ~1.3x-1.7x de la zona
+-- normal equivalente (premio justo por el riesgo de la torre, sin ser un atajo obligatorio).
+-- No se toca la torre a partir de zona 11 (nivel 100+): ahi no hay zona normal equivalente,
+-- es el unico contenido de ese rango.
+UPDATE monsters SET xp_reward = ROUND(xp_reward * 0.35 / 5) * 5 WHERE zone_id IN (8, 9, 10);
 
 
 -- Caps globales de stats de monstruos

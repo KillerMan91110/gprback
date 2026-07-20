@@ -8,7 +8,7 @@ router.use(requireAuth);
 router.use(requireSelf);
 
 const HATCH_HOURS = {
-  COMUN: 1, POCO_COMUN: 4, RARO: 12, EPICO: 24, LEGENDARIO: 72,
+  COMUN: 0.25, POCO_COMUN: 0.75, RARO: 1.5, EPICO: 2, LEGENDARIO: 4,
 };
 
 const EGG_CODE_TO_RARITY = {
