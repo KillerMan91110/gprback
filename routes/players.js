@@ -2354,6 +2354,39 @@ router.delete('/:playerId/party/:partyRowId', async (req, res, next) => {
   } catch (error) { next(error); }
 });
 
+// POST /api/player/:playerId/party/bench { partyRowId }
+// Manda un NPC del grupo activo directo al banco, sin necesitar intercambiarlo por otro.
+router.post('/:playerId/party/bench', async (req, res, next) => {
+  const { playerId } = req.params;
+  const { partyRowId } = req.body;
+  if (!partyRowId) return res.status(400).json({ error: 'partyRowId es requerido' });
+  try {
+    const [partyRes, benchCountRes] = await Promise.all([
+      db.query(
+        `SELECT pp.id, pp.slot, pp.npc_id, pn.name FROM player_party pp
+         JOIN player_npcs pn ON pn.id = pp.npc_id
+         WHERE pp.id = $1 AND pp.player_id = $2`,
+        [partyRowId, playerId]
+      ),
+      db.query('SELECT COUNT(*)::int AS cnt FROM player_bench WHERE player_id = $1', [playerId]),
+    ]);
+    if (!partyRes.rows.length) return res.status(404).json({ error: 'NPC no encontrado en tu grupo' });
+    if (benchCountRes.rows[0].cnt >= BENCH_CAP) {
+      return res.status(400).json({ error: `El banco está lleno (máximo ${BENCH_CAP}). Despide a alguien antes.` });
+    }
+    const party = partyRes.rows[0];
+    const client = await db.pool.connect();
+    try {
+      await client.query('BEGIN');
+      await client.query('INSERT INTO player_bench(player_id, npc_id) VALUES($1,$2)', [playerId, party.npc_id]);
+      await client.query('DELETE FROM player_party WHERE id = $1', [partyRowId]);
+      await client.query('COMMIT');
+    } catch (e) { await client.query('ROLLBACK'); throw e; }
+    finally { client.release(); }
+    res.json({ message: `${party.name} pasó al banco (slot ${party.slot} liberado)`, slot: party.slot });
+  } catch (error) { next(error); }
+});
+
 // POST /api/player/:playerId/party/add-from-bench { benchRowId }
 // Mueve un NPC del banco a un slot vacío del grupo activo.
 router.post('/:playerId/party/add-from-bench', async (req, res, next) => {
