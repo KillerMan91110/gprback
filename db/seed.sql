@@ -11003,6 +11003,25 @@ UPDATE monsters SET name='Esqueleto Soldado' WHERE code='ESQUELETO_GUERRERO_TORR
 -- es el unico contenido de ese rango.
 UPDATE monsters SET xp_reward = ROUND(xp_reward * 0.35 / 5) * 5 WHERE zone_id IN (8, 9, 10);
 
+-- Rebalanceo de supervivencia de TODOS los monstruos del juego (todas las zonas, incluida la
+-- torre): con equipo +4/mascotas el jugador ya mataba de un solo golpe a casi cualquier comun
+-- desde nivel 30 en adelante (verificado con el set estandar de cada zona en las 5 clases
+-- base). +150% DEF/DEF_MAG, +70% HP y +30% SPD sobre el valor que ya tenian. OJO: pasado
+-- Volcan Rojo (nivel 31) esto sigue sin alcanzar para sacarlos de "mueren en 1 golpe" porque el
+-- ataque del jugador crece mucho mas rapido que la defensa del monstruo por nivel — ese es un
+-- problema de la curva de crecimiento (class_growths / monster_level_scalings), no de este %;
+-- si hace falta arreglarlo de raiz, hay que revisar esa curva por separado.
+UPDATE monster_level_scalings SET
+  def = ROUND(def * 2.5),
+  magic_def = ROUND(magic_def * 2.5),
+  hp = ROUND(hp * 1.7),
+  spd = ROUND(spd * 1.3);
+UPDATE monsters SET
+  base_def = ROUND(base_def * 2.5),
+  base_magic_def = ROUND(base_magic_def * 2.5),
+  base_hp = ROUND(base_hp * 1.7),
+  base_spd = ROUND(base_spd * 1.3);
+
 
 -- Caps globales de stats de monstruos
 UPDATE monsters SET
