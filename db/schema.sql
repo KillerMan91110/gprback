@@ -257,6 +257,9 @@ CREATE TABLE IF NOT EXISTS players (
   magic_def INT DEFAULT 0,
   spd INT DEFAULT 0,
   crit NUMERIC(5,2) DEFAULT 0,
+  combat_wins INT NOT NULL DEFAULT 0,
+  combat_losses INT NOT NULL DEFAULT 0,
+  boss_kills INT NOT NULL DEFAULT 0,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT now(),
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT now()
 );
@@ -593,6 +596,9 @@ CREATE TABLE IF NOT EXISTS guilds (
   level       INT NOT NULL DEFAULT 1,
   xp          INT NOT NULL DEFAULT 0,
   type        VARCHAR(6) NOT NULL DEFAULT 'OPEN' CHECK (type IN ('OPEN','CLOSED')),
+  emblem      VARCHAR(8),
+  color       VARCHAR(7),
+  bank_gold   BIGINT NOT NULL DEFAULT 0,
   created_at  TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
@@ -617,6 +623,34 @@ CREATE TABLE IF NOT EXISTS guild_join_requests (
   UNIQUE (guild_id, player_id)
 );
 CREATE INDEX IF NOT EXISTS idx_guild_join_requests_guild_id ON guild_join_requests(guild_id);
+
+-- Historial de actividad del gremio (join/leave/kick/promote/demote/transfer/level up/edit/banco).
+CREATE TABLE IF NOT EXISTS guild_activity_log (
+  id          SERIAL PRIMARY KEY,
+  guild_id    INT NOT NULL REFERENCES guilds(id) ON DELETE CASCADE,
+  type        VARCHAR(20) NOT NULL CHECK (type IN
+    ('JOIN','LEAVE','KICK','PROMOTE','DEMOTE','TRANSFER','LEVEL_UP','EDIT','DONATION','SHOP_PURCHASE')),
+  actor_id    INT REFERENCES players(id),
+  target_id   INT REFERENCES players(id),
+  meta        JSONB,
+  created_at  TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS idx_guild_activity_log_guild_id ON guild_activity_log(guild_id, created_at DESC);
+
+-- Banco de gremio: depósitos de miembros + compras en la tienda exclusiva.
+CREATE TABLE IF NOT EXISTS guild_bank_transactions (
+  id            SERIAL PRIMARY KEY,
+  guild_id      INT NOT NULL REFERENCES guilds(id) ON DELETE CASCADE,
+  player_id     INT NOT NULL REFERENCES players(id),
+  type          VARCHAR(10) NOT NULL CHECK (type IN ('DEPOSIT','PURCHASE')),
+  amount        INT NOT NULL,
+  item_id       INT REFERENCES items(id),
+  quantity      INT,
+  recipient_id  INT REFERENCES players(id),
+  created_at    TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS idx_guild_bank_tx_guild_id  ON guild_bank_transactions(guild_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_guild_bank_tx_player_id ON guild_bank_transactions(player_id, created_at DESC);
 
 CREATE TABLE IF NOT EXISTS chat_messages (
   id         SERIAL PRIMARY KEY,

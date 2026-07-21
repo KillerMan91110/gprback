@@ -10,7 +10,7 @@ const { getRankBonuses, applyPercentBonus } = require('../lib/ranks');
 const questProgress = require('../lib/questProgress');
 const achievements = require('../lib/achievements');
 const { requireAuth } = require('../lib/auth');
-const { applyGuildXp } = require('../lib/guilds');
+const { applyGuildXp, getGuildLevelsForPlayers, combatBonusMultipliers } = require('../lib/guilds');
 const pets = require('../lib/pets');
 
 const router = express.Router();
@@ -890,6 +890,11 @@ async function handleTowerSessionEnd(sessionId, status) {
       `UPDATE player_tower_runs SET current_session_id=NULL, coins_earned = coins_earned + $2 WHERE id=$1`,
       [run.id, coinsGained]
     );
+
+    if (floorRow.is_boss_floor) {
+      const runPlayerIds = [run.player_id, run.guest_player_id, run.guest_player_id_2].filter(Boolean);
+      await db.query('UPDATE players SET boss_kills = boss_kills + 1 WHERE id = ANY($1::int[])', [runPlayerIds]);
+    }
   }
 }
 
@@ -946,10 +951,16 @@ async function finalizeSession(sessionId, status, participants) {
       const goldPerHero = Math.floor(rewards.gold / heroPs.length);
       rewards.gold = goldPerHero;
 
+      // Bonus de combate por nivel de gremio: cada héroe usa el nivel de SU PROPIO gremio
+      // (0 si no está en ninguno, en cuyo caso el bonus es nulo).
+      const heroGuildLevels = await getGuildLevelsForPlayers(heroPs.map((hp) => hp.player_id));
+
       for (const hp of heroPs) {
+        const heroGoldMult = combatBonusMultipliers(heroGuildLevels.get(hp.player_id)).gold;
+        const heroGold = Math.round(goldPerHero * heroGoldMult);
         await db.query(
-          'UPDATE players SET hp = $1, mana = $2, gold = gold + $3, updated_at = now() WHERE id = $4',
-          [hp.hp, hp.mana, goldPerHero, hp.player_id]
+          'UPDATE players SET hp = $1, mana = $2, gold = gold + $3, combat_wins = combat_wins + 1, updated_at = now() WHERE id = $4',
+          [hp.hp, hp.mana, heroGold, hp.player_id]
         );
       }
 
@@ -957,7 +968,9 @@ async function finalizeSession(sessionId, status, participants) {
       const splitXp = Math.floor(rewards.xp / partySize);
 
       for (const hp of heroPs) {
-        const levelResult = await leveling.applyXpGain(hp.player_id, splitXp);
+        const heroXpMult = combatBonusMultipliers(heroGuildLevels.get(hp.player_id)).xp;
+        const heroXp = Math.round(splitXp * heroXpMult);
+        const levelResult = await leveling.applyXpGain(hp.player_id, heroXp);
         if (levelResult && levelResult.leveledUp) {
           rewards.levelUps.push({ playerId: hp.player_id, newLevel: levelResult.newLevel });
         }
@@ -1010,10 +1023,17 @@ async function finalizeSession(sessionId, status, participants) {
       }
     } else {
       for (const hp of heroPs) {
-        await db.query(
-          'UPDATE players SET hp = $1, mana = $2, updated_at = now() WHERE id = $3',
-          [hp.hp, hp.mana, hp.player_id]
-        );
+        if (status === 'ENEMY_WON') {
+          await db.query(
+            'UPDATE players SET hp = $1, mana = $2, combat_losses = combat_losses + 1, updated_at = now() WHERE id = $3',
+            [hp.hp, hp.mana, hp.player_id]
+          );
+        } else {
+          await db.query(
+            'UPDATE players SET hp = $1, mana = $2, updated_at = now() WHERE id = $3',
+            [hp.hp, hp.mana, hp.player_id]
+          );
+        }
       }
     }
   }

@@ -1204,6 +1204,9 @@ router.post('/:playerId/quests/:questId/complete', async (req, res, next) => {
       'UPDATE players SET gold = $1, reputation = $2, rank = $3, updated_at = now() WHERE id = $4',
       [newGold, newReputation, newRank, playerId]
     );
+    if (quest.is_boss_quest) {
+      await db.query('UPDATE players SET boss_kills = boss_kills + 1 WHERE id = $1', [playerId]);
+    }
 
     const levelResult = await leveling.applyXpGain(playerId, bonusedXp);
 

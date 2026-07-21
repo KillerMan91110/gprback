@@ -12911,4 +12911,44 @@ CREATE TABLE IF NOT EXISTS chat_messages (
 CREATE INDEX IF NOT EXISTS idx_chat_messages_channel ON chat_messages(channel, id) WHERE channel != 'GUILD';
 CREATE INDEX IF NOT EXISTS idx_chat_messages_guild   ON chat_messages(guild_id, id) WHERE channel = 'GUILD';
 
+-- Mejoras de gremio: emblema/color curados, banco real y estadísticas de combate por miembro.
+ALTER TABLE guilds
+  ADD COLUMN IF NOT EXISTS emblem VARCHAR(8),
+  ADD COLUMN IF NOT EXISTS color VARCHAR(7),
+  ADD COLUMN IF NOT EXISTS bank_gold BIGINT NOT NULL DEFAULT 0;
+
+ALTER TABLE players
+  ADD COLUMN IF NOT EXISTS combat_wins INT NOT NULL DEFAULT 0,
+  ADD COLUMN IF NOT EXISTS combat_losses INT NOT NULL DEFAULT 0,
+  ADD COLUMN IF NOT EXISTS boss_kills INT NOT NULL DEFAULT 0;
+
+-- Historial de actividad del gremio (join/leave/kick/promote/demote/transfer/level up/edit/banco).
+CREATE TABLE IF NOT EXISTS guild_activity_log (
+  id          SERIAL PRIMARY KEY,
+  guild_id    INT NOT NULL REFERENCES guilds(id) ON DELETE CASCADE,
+  type        VARCHAR(20) NOT NULL CHECK (type IN
+    ('JOIN','LEAVE','KICK','PROMOTE','DEMOTE','TRANSFER','LEVEL_UP','EDIT','DONATION','SHOP_PURCHASE')),
+  actor_id    INT REFERENCES players(id),
+  target_id   INT REFERENCES players(id),
+  meta        JSONB,
+  created_at  TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS idx_guild_activity_log_guild_id ON guild_activity_log(guild_id, created_at DESC);
+
+-- Banco de gremio: depósitos de miembros + compras en la tienda exclusiva. Sirve también como
+-- log de auditoría (quién donó, quién compró qué y para quién).
+CREATE TABLE IF NOT EXISTS guild_bank_transactions (
+  id            SERIAL PRIMARY KEY,
+  guild_id      INT NOT NULL REFERENCES guilds(id) ON DELETE CASCADE,
+  player_id     INT NOT NULL REFERENCES players(id),
+  type          VARCHAR(10) NOT NULL CHECK (type IN ('DEPOSIT','PURCHASE')),
+  amount        INT NOT NULL,
+  item_id       INT REFERENCES items(id),
+  quantity      INT,
+  recipient_id  INT REFERENCES players(id),
+  created_at    TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS idx_guild_bank_tx_guild_id  ON guild_bank_transactions(guild_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_guild_bank_tx_player_id ON guild_bank_transactions(player_id, created_at DESC);
+
 
