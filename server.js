@@ -230,6 +230,7 @@ app.get('/api/player/:playerId/stats', requireAuth, requireSelf, async (req, res
       critDamage: baseCritDamage + passives.crit_damage + (bonus.crit_damage || 0) + petB.crit_damage,
       magicDamageBonus: passives.magic_damage_bonus,
       uniqueSkill: passives.uniqueSkill,
+      innate: passives.innate ?? null,
       resistances: resistancesResult.rows.map((r) => ({
         element: r.element,
         elementCode: r.element_code,
