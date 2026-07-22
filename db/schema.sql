@@ -18,7 +18,8 @@ CREATE TABLE IF NOT EXISTS classes (
   base_crit_chance NUMERIC(5,2) NOT NULL DEFAULT 0,
   base_crit_damage NUMERIC(5,2) NOT NULL DEFAULT 0,
   base_mana INT NOT NULL DEFAULT 0,
-  created_at TIMESTAMP WITH TIME ZONE DEFAULT now()
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT now(),
+  lore TEXT
 );
 
 CREATE TABLE IF NOT EXISTS class_growths (

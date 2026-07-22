@@ -139,9 +139,11 @@ app.get('/api/player/:playerId/stats', requireAuth, requireSelf, async (req, res
               c.code AS class_code,
               c.role AS class_role,
               c.description AS class_description,
+              c.lore AS class_lore,
               c.xp_rate,
               p.evolution_class_id,
-              ce.name AS evolution_class_name
+              ce.name AS evolution_class_name,
+              ce.lore AS evolution_class_lore
        FROM players p
        LEFT JOIN classes c ON p.current_class_id = c.id
        LEFT JOIN class_evolutions e ON e.class_id = p.current_class_id AND e.evolves_to_class_id = p.evolution_class_id
@@ -206,11 +208,13 @@ app.get('/api/player/:playerId/stats', requireAuth, requireSelf, async (req, res
         code: player.class_code,
         role: player.class_role,
         description: player.class_description,
+        lore: player.class_lore,
         portrait: `${player.class_name}.png`,
       },
       evolution: {
         id: player.evolution_class_id,
-        name: player.evolution_class_name
+        name: player.evolution_class_name,
+        lore: player.evolution_class_lore,
       },
       hp: Math.min(player.hp, Math.round(player.max_hp * (1 + passives.hp / 100)) + petB.hp),
       maxHp: Math.round(player.max_hp * (1 + passives.hp / 100)) + petB.hp,
