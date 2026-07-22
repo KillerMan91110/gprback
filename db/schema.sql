@@ -1075,13 +1075,18 @@ DO $$ BEGIN
 END $$;
 
 -- Innata de clase evolucionada (a lo sumo 1 por clase). Ver docs/backend-spec-class-innates.md.
+-- is_stacking=TRUE = Nivel 3 (Ira Creciente, Sed de Sangre, Caos Encarnado, Trofeos de Caza):
+-- el bono real es percent_amount * combat_participants.innate_stacks, recalculado en cada lectura.
 CREATE TABLE IF NOT EXISTS class_innate_abilities (
   id SERIAL PRIMARY KEY,
   class_id INT NOT NULL UNIQUE REFERENCES classes(id),
   name TEXT NOT NULL,
   trigger_type TEXT NOT NULL CHECK (trigger_type IN (
     'ON_CRIT', 'ON_KILL', 'ON_HEAL_CAST', 'ON_DODGE', 'ON_DOT_APPLY', 'ON_COMBAT_START',
-    'ON_VICTORY_REWARD', 'PASSIVE_STAT', 'PASSIVE_CONDITIONAL', 'TEAM_AURA', 'ONCE_PER_COMBAT_SAVE'
+    'ON_VICTORY_REWARD', 'PASSIVE_STAT', 'PASSIVE_CONDITIONAL', 'TEAM_AURA', 'ONCE_PER_COMBAT',
+    'ON_BASIC_ATTACK_HIT', 'ON_SPELL_DAMAGE', 'ON_SPELL_CAST', 'ON_AOE_HIT', 'ON_CRIT_RECEIVED',
+    'ON_DAMAGE_TAKEN', 'ON_DEFEND', 'ON_IMBUE', 'ON_TURN_START', 'ON_ENEMY_TARGETS_ME',
+    'ON_REVIVE_CAST', 'ON_CRAFT', 'MODIFIES_SKILL'
   )),
   chance_percent NUMERIC(5,2),
   chance_scales_with_luck BOOLEAN NOT NULL DEFAULT FALSE,
@@ -1090,8 +1095,10 @@ CREATE TABLE IF NOT EXISTS class_innate_abilities (
   condition_type TEXT,
   condition_value NUMERIC(6,2),
   extra_json JSONB,
-  description TEXT NOT NULL
+  description TEXT NOT NULL,
+  is_stacking BOOLEAN NOT NULL DEFAULT FALSE
 );
 CREATE INDEX IF NOT EXISTS idx_class_innate_abilities_class_id ON class_innate_abilities(class_id);
 
 ALTER TABLE combat_participants ADD COLUMN IF NOT EXISTS innate_used_this_combat BOOLEAN NOT NULL DEFAULT FALSE;
+ALTER TABLE combat_participants ADD COLUMN IF NOT EXISTS innate_stacks INT NOT NULL DEFAULT 0;

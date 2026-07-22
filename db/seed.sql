@@ -13175,14 +13175,19 @@ WHERE c.id = v.id;
 -- Como maximo 1 innata por clase evolucionada (de ahi el UNIQUE en class_id). El motor de combate
 -- llama a applyInnateTrigger(triggerType, ctx) en los puntos donde ya se resuelve cada evento;
 -- el efecto en si (sumar stat, DOT extra, escudo, etc.) lo interpreta cada punto de enganche
--- leyendo stat_code/percent_amount/extra_json, igual que ya hace con skill_effects.
+-- leyendo stat_code/percent_amount/extra_json, igual que ya hace con skill_effects. Las 4 innatas
+-- de "stacks que escalan en combate" (is_stacking=TRUE) son Nivel 3: el bono real es
+-- percent_amount * innate_stacks, recalculado en cada lectura de stats.
 CREATE TABLE IF NOT EXISTS class_innate_abilities (
   id SERIAL PRIMARY KEY,
   class_id INT NOT NULL UNIQUE REFERENCES classes(id),
   name TEXT NOT NULL,
   trigger_type TEXT NOT NULL CHECK (trigger_type IN (
     'ON_CRIT', 'ON_KILL', 'ON_HEAL_CAST', 'ON_DODGE', 'ON_DOT_APPLY', 'ON_COMBAT_START',
-    'ON_VICTORY_REWARD', 'PASSIVE_STAT', 'PASSIVE_CONDITIONAL', 'TEAM_AURA', 'ONCE_PER_COMBAT_SAVE'
+    'ON_VICTORY_REWARD', 'PASSIVE_STAT', 'PASSIVE_CONDITIONAL', 'TEAM_AURA', 'ONCE_PER_COMBAT',
+    'ON_BASIC_ATTACK_HIT', 'ON_SPELL_DAMAGE', 'ON_SPELL_CAST', 'ON_AOE_HIT', 'ON_CRIT_RECEIVED',
+    'ON_DAMAGE_TAKEN', 'ON_DEFEND', 'ON_IMBUE', 'ON_TURN_START', 'ON_ENEMY_TARGETS_ME',
+    'ON_REVIVE_CAST', 'ON_CRAFT', 'MODIFIES_SKILL'
   )),
   chance_percent NUMERIC(5,2),
   chance_scales_with_luck BOOLEAN NOT NULL DEFAULT FALSE,
@@ -13191,25 +13196,249 @@ CREATE TABLE IF NOT EXISTS class_innate_abilities (
   condition_type TEXT,
   condition_value NUMERIC(6,2),
   extra_json JSONB,
-  description TEXT NOT NULL
+  description TEXT NOT NULL,
+  is_stacking BOOLEAN NOT NULL DEFAULT FALSE
 );
 CREATE INDEX IF NOT EXISTS idx_class_innate_abilities_class_id ON class_innate_abilities(class_id);
 
-ALTER TABLE combat_participants ADD COLUMN IF NOT EXISTS innate_used_this_combat BOOLEAN NOT NULL DEFAULT FALSE;
+-- Reemplaza cualquier fila cargada antes (ej. los 5 ejemplos de la primera versión del framework,
+-- que usaban un shape de datos viejo y un enum viejo de trigger_type) por el set completo y
+-- definitivo de 94 innatas. Va ANTES de recrear el CHECK constraint para que filas viejas con
+-- valores de enum que ya no existen (ej. ONCE_PER_COMBAT_SAVE) no lo violen.
+DELETE FROM class_innate_abilities;
 
--- 5 ejemplos resueltos (uno por cada trigger_type "nuevo" de verdad, ver seccion 6 del spec).
-INSERT INTO class_innate_abilities (class_id, name, trigger_type, chance_percent, stat_code, percent_amount, condition_type, extra_json, description)
+-- Idempotente contra una base que ya tenía la versión vieja del enum (con ONCE_PER_COMBAT_SAVE
+-- y menos trigger_type) — reconstruye el constraint con la lista completa de arriba.
+ALTER TABLE class_innate_abilities DROP CONSTRAINT IF EXISTS class_innate_abilities_trigger_type_check;
+ALTER TABLE class_innate_abilities ADD CONSTRAINT class_innate_abilities_trigger_type_check
+  CHECK (trigger_type IN (
+    'ON_CRIT', 'ON_KILL', 'ON_HEAL_CAST', 'ON_DODGE', 'ON_DOT_APPLY', 'ON_COMBAT_START',
+    'ON_VICTORY_REWARD', 'PASSIVE_STAT', 'PASSIVE_CONDITIONAL', 'TEAM_AURA', 'ONCE_PER_COMBAT',
+    'ON_BASIC_ATTACK_HIT', 'ON_SPELL_DAMAGE', 'ON_SPELL_CAST', 'ON_AOE_HIT', 'ON_CRIT_RECEIVED',
+    'ON_DAMAGE_TAKEN', 'ON_DEFEND', 'ON_IMBUE', 'ON_TURN_START', 'ON_ENEMY_TARGETS_ME',
+    'ON_REVIVE_CAST', 'ON_CRAFT', 'MODIFIES_SKILL'
+  ));
+ALTER TABLE class_innate_abilities ADD COLUMN IF NOT EXISTS is_stacking BOOLEAN NOT NULL DEFAULT FALSE;
+
+ALTER TABLE combat_participants ADD COLUMN IF NOT EXISTS innate_used_this_combat BOOLEAN NOT NULL DEFAULT FALSE;
+ALTER TABLE combat_participants ADD COLUMN IF NOT EXISTS innate_stacks INT NOT NULL DEFAULT 0;
+
+-- ═══ GUERRERO (18 de 21 — quedan afuera Berserker/Titán Furioso/Titán del Caos, van en Nivel 3) ═══
+INSERT INTO class_innate_abilities
+  (class_id, name, trigger_type, chance_percent, chance_scales_with_luck, stat_code, percent_amount, condition_type, condition_value, extra_json, description)
 VALUES
-  (39, 'Puño Corrupto', 'ON_CRIT', 10, NULL, 5, NULL, '{"duration_turns": 2}',
+  (6, 'Centro de Gravedad', 'ON_DEFEND', NULL, FALSE, NULL, 20, NULL, NULL, NULL,
+    'Al usar Defender, el primer golpe que recibe ese turno reduce su daño un 20% adicional.'),
+  (7, 'Filo Constante', 'ON_BASIC_ATTACK_HIT', 15, FALSE, NULL, NULL, NULL, NULL, '{"effect":"extra_attack"}',
+    '15% de probabilidad de atacar una segunda vez en la misma ronda tras un ataque básico exitoso.'),
+  (8, 'Muro Viviente', 'PASSIVE_CONDITIONAL', NULL, FALSE, 'DAMAGE_TAKEN_PHYSICAL', -10, 'MORE_HP_THAN_ALLIES', NULL, NULL,
+    'Mientras tenga más HP que cualquier aliado vivo, recibe 10% menos de daño físico.'),
+  (10, 'Canalización Dual', 'ON_BASIC_ATTACK_HIT', 20, FALSE, NULL, NULL, NULL, NULL, '{"effect":"add_minor_magic_hit_of_imbued_element"}',
+    '20% de probabilidad de que un ataque básico agregue un golpe mágico menor del elemento imbuido.'),
+  (38, 'Cuerpo de Hierro', 'ON_CRIT_RECEIVED', NULL, FALSE, NULL, NULL, NULL, NULL, '{"immune_def_debuff_turns":1}',
+    'Inmune a debuffs de DEF por 1 turno después de recibir un golpe crítico.'),
+  (39, 'Puño Corrupto', 'ON_BASIC_ATTACK_HIT', 10, FALSE, NULL, NULL, NULL, NULL, '{"apply_dot":"DARK_MINOR"}',
     'Sus ataques básicos tienen 10% de probabilidad de aplicar un DOT oscuro leve.'),
-  (8, 'Muro Viviente', 'PASSIVE_CONDITIONAL', NULL, 'DAMAGE_TAKEN', -10, 'MORE_HP_THAN_ALLIES', NULL,
-    'Mientras tenga más HP que cualquier aliado vivo, recibe 10% menos de daño.'),
-  (46, 'Aura Celestial', 'TEAM_AURA', NULL, 'RESIST_DARK', 5, NULL, NULL,
-    'Todo el equipo gana +5% resistencia a daño oscuro mientras esté vivo.'),
-  (42, 'Vacío del Combate', 'ONCE_PER_COMBAT_SAVE', NULL, NULL, NULL, NULL, '{"survive_hp": 1}',
+  (40, 'Temblor', 'ON_AOE_HIT', NULL, FALSE, 'SPD', NULL, NULL, NULL, '{"debuff_all_targets_1_turn":true}',
+    'Su ataque en área también reduce la SPD de todos los golpeados por 1 turno.'),
+  (41, 'Puño Bendito', 'ON_BASIC_ATTACK_HIT', NULL, FALSE, NULL, 3, NULL, NULL, '{"effect":"heal_self_percent_of_damage_dealt"}',
+    'Sus ataques básicos lo curan un 3% del daño infligido.'),
+  (42, 'Vacío del Combate', 'ONCE_PER_COMBAT', NULL, FALSE, NULL, NULL, NULL, NULL, '{"survive_hp":1}',
     'Una vez por combate, si su HP llega a 0, sobrevive con 1 HP.'),
-  (82, 'A Sueldo', 'ON_VICTORY_REWARD', NULL, 'GOLD', 10, NULL, NULL,
-    '+10% de oro ganado en cada victoria.')
-ON CONFLICT (class_id) DO NOTHING;
+  (43, 'Danza de Acero', 'ON_DODGE', NULL, FALSE, NULL, NULL, NULL, NULL, '{"guarantee_next_crit":true}',
+    'Cada vez que esquiva un ataque, su próximo golpe es crítico garantizado.'),
+  (44, 'Armadura que Sangra', 'ON_DAMAGE_TAKEN', 15, FALSE, NULL, 10, NULL, NULL, '{"effect":"reflect_damage"}',
+    '15% de probabilidad de reflejar 10% del daño recibido al atacante.'),
+  (45, 'Escudo de Fe', 'ON_HEAL_CAST', NULL, FALSE, NULL, NULL, NULL, NULL, '{"effect":"grant_small_shield_to_healed_target"}',
+    'Al curar a un aliado, ese aliado recibe también un escudo pequeño (absorbe el próximo golpe).'),
+  (46, 'Aura Celestial', 'TEAM_AURA', NULL, FALSE, 'RESIST_DARK', 5, NULL, NULL, NULL,
+    'Todo el equipo gana +5% resistencia a daño oscuro mientras esté vivo.'),
+  (47, 'Pacto Abisal', 'ON_KILL', NULL, FALSE, NULL, 5, NULL, NULL, '{"effect":"heal_self_percent_max_hp"}',
+    'Al matar a un enemigo, roba 5% de su HP máximo como curación instantánea.'),
+  (48, 'Fortaleza', 'PASSIVE_STAT', NULL, FALSE, 'DAMAGE_TAKEN_PHYSICAL', -8, NULL, NULL, '{"non_stackable_with_temp_def_buffs":true}',
+    '-8% daño físico recibido de forma permanente, no acumulable con buffs temporales de DEF.'),
+  (49, 'Escamas de Dragón', 'ONCE_PER_COMBAT', NULL, FALSE, NULL, NULL, NULL, NULL, '{"immune_first_crit":true}',
+    'Inmune al primer golpe crítico que reciba en cada combate.'),
+  (52, 'Filo Arcano', 'PASSIVE_STAT', NULL, FALSE, NULL, NULL, NULL, NULL, '{"basic_attack_also_scales_with":"MAG"}',
+    'Sus ataques básicos escalan también con un % de MAG, además de ATK.'),
+  (53, 'Saber Ancestral', 'PASSIVE_CONDITIONAL', NULL, FALSE, 'ALL_DAMAGE', 10, 'ZONE_IN', NULL, '{"zones":["Ruinas Ancestrales","Catacumbas del Abismo"]}',
+    '+10% de todo el daño en combates dentro de Ruinas Ancestrales o Catacumbas del Abismo.');
+
+-- ═══ MAGO (19 de 19) ═══
+INSERT INTO class_innate_abilities
+  (class_id, name, trigger_type, chance_percent, chance_scales_with_luck, stat_code, percent_amount, condition_type, condition_value, extra_json, description)
+VALUES
+  (12, 'Eco de los Caídos', 'ON_KILL', 20, FALSE, NULL, NULL, NULL, NULL, '{"effect":"summon_spirit_single_attack"}',
+    '20% de probabilidad de que un enemigo muerto por su hechizo invoque un espíritu que ataca una vez.'),
+  (13, 'Vínculo Espiritual', 'PASSIVE_STAT', NULL, FALSE, NULL, NULL, NULL, NULL, '{"summon_bonus":{"atk":10,"mag":10}}',
+    'Sus invocados reciben +10% ATK/MAG sobre el valor estándar de invocación.'),
+  (14, 'Resonancia Elemental', 'ON_IMBUE', NULL, FALSE, NULL, 5, NULL, NULL, '{"effect":"self_gains_resist_that_element_1_turn"}',
+    'Al imbuir un elemento en un aliado, también gana +5% de resistencia a ese elemento por 1 turno.'),
+  (15, 'Luz Interior', 'ON_SPELL_DAMAGE', NULL, FALSE, NULL, 5, NULL, NULL, '{"effect":"heal_lowest_hp_ally_percent_of_damage"}',
+    'Sus hechizos ofensivos curan un 5% de su daño al aliado con menos HP.'),
+  (31, 'Combustión', 'PASSIVE_STAT', NULL, FALSE, NULL, NULL, NULL, NULL, '{"dot_can_crit":["FIRE"]}',
+    'Sus DOT de Fuego pueden hacer crítico.'),
+  (32, 'Escarcha', 'ON_SPELL_DAMAGE', 10, FALSE, 'SPD', NULL, NULL, NULL, '{"element":"ICE","debuff_target_1_turn":true}',
+    'Sus hechizos de Hielo tienen 10% de probabilidad de reducir la SPD del objetivo 1 turno.'),
+  (33, 'Reflejos del Rayo', 'PASSIVE_STAT', NULL, FALSE, 'SPD', 10, NULL, NULL, NULL,
+    '+10% SPD permanente.'),
+  (34, 'Erosión', 'PASSIVE_STAT', NULL, FALSE, NULL, NULL, NULL, NULL, '{"element":"WATER","ignore_def_percent":10}',
+    'Sus hechizos de Agua ignoran 10% de la DEF/DEF MAG enemiga.'),
+  (35, 'Raíces de Piedra', 'PASSIVE_STAT', NULL, FALSE, 'DEF', 10, NULL, NULL, NULL,
+    '+10% DEF permanente.'),
+  (36, 'Paso del Viento', 'PASSIVE_STAT', NULL, FALSE, 'EVASION', 10, NULL, NULL, NULL,
+    '10% de probabilidad de esquivar cualquier ataque.'),
+  (37, 'Bendición de Luz', 'PASSIVE_CONDITIONAL', NULL, FALSE, 'DAMAGE_DEALT', 15, 'TARGET_CATEGORY_IN', NULL, '{"categories":["DEMONIO","ESPECTRO","MUERTO_VIVIENTE"]}',
+    '+15% de daño contra enemigos oscuros o no-muertos.'),
+  (59, 'Convergencia', 'ON_SPELL_DAMAGE', NULL, FALSE, NULL, NULL, NULL, NULL, '{"effect":"apply_resist_debuff_of_that_element"}',
+    'Cada hechizo elemental aplica también un pequeño debuff de resistencia a ese elemento en el objetivo.'),
+  (54, 'Legión', 'ON_KILL', 25, FALSE, NULL, NULL, NULL, NULL, '{"effect":"summon_skeleton_temp"}',
+    'Probabilidad de invocar un esqueleto aliado temporal al matar un enemigo.'),
+  (55, 'Trascendencia', 'ONCE_PER_COMBAT', NULL, FALSE, NULL, NULL, NULL, NULL, '{"revive_percent":25}',
+    'Una vez por combate, si muere, revive automáticamente con 25% HP.'),
+  (56, 'Pacto de Sangre', 'PASSIVE_CONDITIONAL', NULL, FALSE, NULL, NULL, NULL, NULL, '{"effect":"summon_damage_scales_inverse_self_hp"}',
+    'Sus invocados hacen más daño cuanto menos HP tenga el invocador.'),
+  (57, 'Coro Celestial', 'ON_TURN_START', NULL, FALSE, NULL, NULL, NULL, NULL, '{"effect":"heal_team_small_while_summon_active"}',
+    'Sus invocados curan levemente al equipo en cada turno que están activos.'),
+  (58, 'Instinto de Manada', 'PASSIVE_CONDITIONAL', NULL, FALSE, 'SPD', NULL, 'MULTIPLE_SUMMONS_ACTIVE', NULL, '{"applies_to":"summons"}',
+    'Sus invocados ganan SPD extra si hay más de un invocado activo a la vez.'),
+  (61, 'Casi Mito', 'ON_SPELL_CAST', 5, FALSE, NULL, NULL, NULL, NULL, '{"effect":"no_mana_cost"}',
+    'Probabilidad pequeña (5%) de que un hechizo no consuma maná.'),
+  (60, 'Ecos del Cosmos', 'PASSIVE_STAT', NULL, FALSE, NULL, NULL, NULL, NULL, '{"element":"COSMIC","ignore_all_resistance":true}',
+    'Sus hechizos de elemento Cósmico ignoran toda resistencia elemental enemiga.');
+
+-- ═══ ARQUERO (16 de 17 — queda afuera Maestro Cazador, va en Nivel 3) ═══
+INSERT INTO class_innate_abilities
+  (class_id, name, trigger_type, chance_percent, chance_scales_with_luck, stat_code, percent_amount, condition_type, condition_value, extra_json, description)
+VALUES
+  (16, 'Instinto de Caza', 'PASSIVE_CONDITIONAL', NULL, FALSE, 'DAMAGE_DEALT', 10, 'ALREADY_FOUGHT_TYPE', NULL, NULL,
+    '+10% de daño contra un tipo de enemigo si ya se enfrentó a uno igual antes en el combate.'),
+  (17, 'Ojo Certero', 'PASSIVE_STAT', NULL, FALSE, NULL, NULL, NULL, NULL, '{"ignore_def_percent":15}',
+    'Sus ataques ignoran 15% de la DEF enemiga.'),
+  (18, 'Versatilidad', 'PASSIVE_CONDITIONAL', NULL, FALSE, NULL, 10, 'ANY_ALLY_HP_BELOW', 50, '{"if_true":"HEAL_POWER","if_false":"DAMAGE"}',
+    'Recibe +10% de poder de curación si algún aliado (incluido él) está bajo 50% HP; si no, +10% de daño.'),
+  (19, 'Flecha que Corrompe', 'ON_CRIT', NULL, FALSE, NULL, NULL, NULL, NULL, '{"effect":"debuff_mag_target"}',
+    'Sus golpes críticos aplican un pequeño debuff de MAG al objetivo.'),
+  (20, 'Favor del Bosque', 'ON_TURN_START', NULL, FALSE, NULL, 3, NULL, NULL, '{"effect":"heal_self"}',
+    'Regenera 3% de su HP cada turno.'),
+  (62, 'Disparo Fantasma', 'ON_COMBAT_START', NULL, FALSE, NULL, NULL, NULL, NULL, '{"first_attack_unavoidable":true}',
+    'Su primer ataque de cada combate no puede ser esquivado.'),
+  (63, 'Onda Expansiva', 'ON_AOE_HIT', 10, FALSE, NULL, NULL, NULL, NULL, '{"effect":"stun_1_turn"}',
+    'Sus ataques en área tienen 10% de probabilidad de aturdir 1 turno.'),
+  (64, 'Veneno Persistente', 'PASSIVE_STAT', NULL, FALSE, NULL, NULL, NULL, NULL, '{"dot_duration_bonus_turns":1}',
+    'Sus DOT duran 1 turno más de lo normal.'),
+  (68, 'Velocidad del Trueno', 'PASSIVE_STAT', NULL, FALSE, NULL, NULL, NULL, NULL, '{"tie_break_spd_always_first":true}',
+    'En empate de SPD contra el enemigo más veloz, siempre actúa primero.'),
+  (67, 'Perforación', 'PASSIVE_STAT', NULL, FALSE, NULL, NULL, NULL, NULL, '{"ignore_defend_status":true}',
+    'Sus ataques básicos ignoran el estado Defender del objetivo.'),
+  (66, 'Flecha de Luz', 'ON_BASIC_ATTACK_HIT', NULL, FALSE, NULL, NULL, NULL, NULL, '{"effect":"heal_random_ally_small"}',
+    'Sus flechas curan levemente a un aliado al azar al impactar.'),
+  (73, 'Sombra Doble', 'ON_ENEMY_TARGETS_ME', 40, TRUE, NULL, NULL, NULL, NULL, '{"effect":"redirect_to_random_participant"}',
+    '40% × luck de que un ataque enemigo se confunda y golpee a otro objetivo al azar (aliado o enemigo del confundido).'),
+  (70, 'Arco Legendario', 'ON_CRIT', NULL, FALSE, NULL, 20, NULL, NULL, '{"effect":"crit_damage_bonus"}',
+    'Sus golpes críticos hacen 20% más daño de lo normal.'),
+  (74, 'Corona Ancestral', 'TEAM_AURA', NULL, FALSE, 'ALL_ELEMENTAL_RESIST', 5, NULL, NULL, NULL,
+    'Todo el equipo gana +5% de todas las resistencias elementales.'),
+  (71, 'Un Solo Ser', 'PASSIVE_STAT', NULL, FALSE, NULL, 15, NULL, NULL, '{"effect":"copy_ally_resistances_percent"}',
+    'Copia el 15% de las resistencias elementales de sus aliados vivos.'),
+  (72, 'Escudo de Ramas', 'TEAM_AURA', NULL, FALSE, 'DAMAGE_TAKEN', -10, NULL, NULL, '{"target":"lowest_hp_ally"}',
+    'El aliado con menos HP recibe 10% menos daño mientras esté vivo.');
+
+-- ═══ PÍCARO (18 de 18) ═══
+INSERT INTO class_innate_abilities
+  (class_id, name, trigger_type, chance_percent, chance_scales_with_luck, stat_code, percent_amount, condition_type, condition_value, extra_json, description)
+VALUES
+  (21, 'Paso Ligero', 'PASSIVE_STAT', NULL, FALSE, 'SPD', 8, NULL, NULL, NULL,
+    '+8% SPD permanente.'),
+  (22, 'Instinto Letal', 'PASSIVE_CONDITIONAL', NULL, FALSE, 'CRIT_CHANCE', 10, 'TARGET_HP_ABOVE_SELF', NULL, NULL,
+    'Contra enemigos con más HP que él, +10% de probabilidad de crítico.'),
+  (23, 'Manos Rápidas', 'MODIFIES_SKILL', NULL, FALSE, NULL, NULL, NULL, NULL, '{"skill_code":"PICARO_ROBAR","effect":"extra_action_reduced_chance","penalty_percent":50}',
+    'Su skill Robar no consume el turno completo: puede volver a actuar con -50% de probabilidad de éxito ese mismo turno.'),
+  (24, 'Toxina Base', 'PASSIVE_STAT', NULL, FALSE, NULL, NULL, NULL, NULL, '{"dot_damage_bonus_percent":10}',
+    'Sus DOT hacen 10% más daño por turno.'),
+  (25, 'Terreno Preparado', 'MODIFIES_SKILL', NULL, FALSE, NULL, NULL, NULL, NULL, '{"skill_code":"ESPECIALISTA_TRAMPAS_TRAMPA","effect":"instant_activation_same_turn"}',
+    'Su Trampa tarda un turno menos en activarse (plantar y activar en el mismo turno).'),
+  (78, 'Nunca Visto', 'PASSIVE_CONDITIONAL', NULL, FALSE, 'EVASION', 20, 'IS_INVISIBLE', NULL, NULL,
+    '+20% de probabilidad de esquivar cualquier ataque mientras tenga invisibilidad activa.'),
+  (79, 'Fusión de Sombras', 'PASSIVE_STAT', NULL, FALSE, NULL, NULL, NULL, NULL, '{"dot_can_crit":["DARK"]}',
+    'Sus DOT oscuros pueden hacer crítico.'),
+  (87, 'Casi Intocable', 'PASSIVE_STAT', NULL, FALSE, 'EVASION', 15, NULL, NULL, NULL,
+    '+15% de evasión permanente.'),
+  (75, 'Un Golpe, Un Final', 'PASSIVE_CONDITIONAL', NULL, FALSE, NULL, NULL, 'TARGET_HP_BELOW', 15, '{"effect":"guarantee_crit"}',
+    'Contra enemigos con menos de 15% HP, sus ataques son crítico garantizado.'),
+  (76, 'Cazador de Jefes', 'PASSIVE_CONDITIONAL', NULL, FALSE, 'DAMAGE_DEALT', 20, 'TARGET_IS_BOSS', NULL, NULL,
+    '+20% de daño contra jefes de quest o de piso de torre.'),
+  (80, 'Leyenda Viva', 'MODIFIES_SKILL', NULL, FALSE, NULL, NULL, NULL, NULL, '{"skill_code":"PICARO_ROBAR","success_bonus_percent":15}',
+    '+15% de probabilidad de éxito adicional en Robar.'),
+  (81, 'Ojo de Tesoros', 'MODIFIES_SKILL', NULL, FALSE, NULL, NULL, NULL, NULL, '{"skill_code":"PICARO_ROBAR","effect":"rare_drop_chance_bonus"}',
+    'Al robar con éxito, probabilidad extra de obtener el drop más raro del monstruo en vez de uno al azar.'),
+  (77, 'Síntesis Tóxica', 'PASSIVE_STAT', NULL, FALSE, NULL, NULL, NULL, NULL, '{"poisons_stack_independently":true}',
+    'Sus 5 venenos pueden coexistir en el mismo objetivo sin reemplazarse entre sí.'),
+  (86, 'Filo Elemental', 'ON_COMBAT_START', NULL, FALSE, NULL, NULL, NULL, NULL, '{"effect":"imbue_random_element_on_basic_attacks"}',
+    'Sus ataques básicos se imbuyen con un elemento al azar al empezar cada combate.'),
+  (82, 'A Sueldo', 'ON_VICTORY_REWARD', NULL, FALSE, 'GOLD', 10, NULL, NULL, NULL,
+    '+10% de oro ganado en cada victoria.'),
+  (83, 'Sentido de Mazmorra', 'ON_VICTORY_REWARD', NULL, FALSE, 'DUNGEON_COINS', 15, NULL, NULL, NULL,
+    '+15% de monedas de mazmorra ganadas en la Torre Infinita.'),
+  (84, 'Fantasma de Combate', 'PASSIVE_STAT', NULL, FALSE, NULL, NULL, NULL, NULL, '{"invisibility_duration_bonus_turns":1}',
+    'Su invisibilidad dura 1 turno extra.'),
+  (85, 'Detector Nato', 'MODIFIES_SKILL', NULL, FALSE, NULL, NULL, NULL, NULL, '{"skill_code":"ESPECIALISTA_TRAMPAS_DESACTIVAR","success_rate_percent":100}',
+    'Su Desactivar Trampas nunca falla (100% de éxito).');
+
+-- ═══ SACERDOTE (19 de 19) ═══
+INSERT INTO class_innate_abilities
+  (class_id, name, trigger_type, chance_percent, chance_scales_with_luck, stat_code, percent_amount, condition_type, condition_value, extra_json, description)
+VALUES
+  (26, 'Fe Instantánea', 'ON_HEAL_CAST', 10, FALSE, NULL, NULL, NULL, NULL, '{"effect":"double_heal"}',
+    '10% de probabilidad de que una curación se duplique.'),
+  (27, 'Equilibrio Natural', 'PASSIVE_STAT', NULL, FALSE, NULL, NULL, NULL, NULL, '{"effect":"no_extra_mana_switching_dmg_heal"}',
+    'Alterna entre daño y curación sin costo de maná adicional por el cambio.'),
+  (28, 'Escudo de Fe', 'ON_DEFEND', NULL, FALSE, NULL, NULL, NULL, NULL, '{"effect":"grant_small_shield_random_ally"}',
+    'Al usar Defender, también otorga un escudo pequeño a un aliado al azar.'),
+  (29, 'Milagro', 'PASSIVE_CONDITIONAL', NULL, FALSE, 'HEAL_POWER', 20, 'TARGET_HP_BELOW', 30, NULL,
+    'Sus curas a aliados con menos de 30% HP curan 20% más.'),
+  (30, 'Juicio', 'PASSIVE_CONDITIONAL', NULL, FALSE, NULL, NULL, 'TARGET_CATEGORY_IN', NULL, '{"categories":["DEMONIO","ESPECTRO","MUERTO_VIVIENTE"],"effect":"ignore_magic_resistance"}',
+    'Su daño contra enemigos oscuros o no-muertos ignora la resistencia mágica.'),
+  (88, 'Curación en Cadena', 'ON_HEAL_CAST', NULL, FALSE, NULL, NULL, NULL, NULL, '{"effect":"heal_adjacent_lowest_hp_ally_small"}',
+    'Su cura principal también cura levemente al aliado adyacente con menos HP.'),
+  (97, 'Plegaria Constante', 'PASSIVE_STAT', NULL, FALSE, NULL, NULL, NULL, NULL, '{"no_buff_target_limit":true}',
+    'Sus bendiciones no tienen límite de aliados con el buff activo a la vez.'),
+  (100, 'Incontables Milagros', 'ONCE_PER_COMBAT', NULL, FALSE, NULL, NULL, NULL, NULL, '{"effect":"next_heal_cannot_fail_or_be_interrupted"}',
+    'Una vez por combate, su próxima curación no puede fallar ni ser interrumpida.'),
+  (90, 'Ciclo de Vida', 'ON_HEAL_CAST', NULL, FALSE, NULL, NULL, NULL, NULL, '{"effect":"restore_mana_on_heal"}',
+    'Recupera maná extra cada vez que cura a un aliado.'),
+  (91, 'Escudo Natural', 'TEAM_AURA', NULL, FALSE, 'EVASION', 5, NULL, NULL, '{"target":"protected_ally"}',
+    'El aliado que protege también gana +5% de evasión.'),
+  (98, 'Alquimia Sagrada', 'ON_CRAFT', NULL, FALSE, NULL, 10, NULL, NULL, '{"effect":"potion_potency_bonus"}',
+    'Las pociones que craftea tienen 10% más potencia.'),
+  (92, 'Fe Blindada', 'PASSIVE_CONDITIONAL', NULL, FALSE, NULL, NULL, 'SELF_HP_ABOVE', 50, '{"effect":"immune_def_debuffs"}',
+    'Inmune a debuffs de DEF mientras tenga más de 50% HP.'),
+  (93, 'Presencia Divina', 'TEAM_AURA', NULL, FALSE, 'CRIT_CHANCE', 5, NULL, NULL, NULL,
+    'Todo el equipo gana +5% de probabilidad de crítico mientras esté vivo.'),
+  (89, 'Nunca Solos', 'ON_REVIVE_CAST', NULL, FALSE, NULL, NULL, NULL, NULL, '{"effect":"heal_team_small_on_revive"}',
+    'Su Revivir también cura levemente a todo el equipo al activarse.'),
+  (101, 'Premonición', 'PASSIVE_STAT', NULL, FALSE, 'EVASION', 10, NULL, NULL, NULL,
+    '10% de probabilidad de esquivar cualquier ataque, incluso sin usar Predicción.'),
+  (95, 'Santuario Interior', 'ON_HEAL_CAST', NULL, FALSE, NULL, NULL, NULL, NULL, '{"skill_code":"SANADOR_LEGENDARIO_MEDITACION","effect":"cleanse_one_debuff_each_ally"}',
+    'Su Meditación también limpia un debuff de cada aliado al lanzarse.'),
+  (99, 'Fe Retorcida', 'ON_HEAL_CAST', NULL, FALSE, NULL, NULL, NULL, NULL, '{"effect":"heal_also_damages_enemies_small"}',
+    'Sus curaciones también dañan levemente a los enemigos.'),
+  (94, 'Purga Absoluta', 'PASSIVE_CONDITIONAL', NULL, FALSE, NULL, NULL, 'TARGET_CATEGORY_IN', NULL, '{"categories":["DEMONIO","ESPECTRO","MUERTO_VIVIENTE"],"effect":"ignore_all_resistance"}',
+    'Su daño contra criaturas oscuras ignora toda resistencia.'),
+  (96, 'Exorcismo Perfecto', 'MODIFIES_SKILL', NULL, FALSE, NULL, NULL, NULL, NULL, '{"skill_code":"EXORCISTA_APOYO","success_rate_percent":100}',
+    'Su Exorcismo (Exorcismo Supremo) nunca falla.');
+
+-- Nivel 3: innatas de stacks que escalan durante el combate.
+INSERT INTO class_innate_abilities
+  (class_id, name, trigger_type, is_stacking, stat_code, percent_amount, extra_json, description)
+VALUES
+  (9, 'Ira Creciente', 'ON_DAMAGE_TAKEN', TRUE, 'ATK', 3, '{"stack_per_hp_lost_percent":10,"reset_on":"full_heal"}',
+    '+3% ATK acumulativo por cada 10% de HP perdido; se reinicia al curarse por completo.'),
+  (50, 'Sed de Sangre', 'ON_KILL', TRUE, 'ATK', 5, '{"stack_amount":1,"reset_on":"never_within_combat"}',
+    'Cada kill otorga un stack permanente de +5% ATK por el resto del combate.'),
+  (51, 'Caos Encarnado', 'ON_KILL', TRUE, 'ATK', 5, '{"stack_amount":1,"reset_on":"never_within_combat","also_stat_code":"DAMAGE_TAKEN","also_percent_per_stack":2}',
+    'Los stacks de Sed de Sangre también aumentan levemente el daño que recibe, +2% por stack (riesgo/recompensa).'),
+  (69, 'Trofeos de Caza', 'ON_KILL', TRUE, 'DAMAGE_DEALT', 1, '{"stack_amount":1,"reset_on":"never_within_combat"}',
+    '+1% de daño acumulable por cada kill logrado durante el combate.');
 
 

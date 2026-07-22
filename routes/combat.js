@@ -13,7 +13,28 @@ const { requireAuth } = require('../lib/auth');
 const { applyGuildXp, getGuildLevelsForPlayers, combatBonusMultipliers } = require('../lib/guilds');
 const pets = require('../lib/pets');
 const { incrementCounter, markCounterCodeSeen, getCounter } = require('../lib/counters');
-const { applyInnateTrigger, applyLiveInnateModifiers, getInnateForClass } = require('../lib/innates');
+const { applyInnateTrigger, applyLiveInnateModifiers, getInnateForClass, getSkillModifier, getTargetDamageBonus } = require('../lib/innates');
+
+// Enriquece `target` con datos que PASSIVE_CONDITIONAL "por target" necesita (categoría de
+// monstruo, si es jefe, si ya se enfrentó ese tipo antes en este combate) y arma el Set de
+// categorías ya enfrentadas. No se persiste nada de esto, es solo para evaluar la condición.
+async function buildTargetInnateContext(sessionId, target) {
+  if (!target?.monster_code) return { alreadyFought: new Set() };
+  const monsterRes = await db.query('SELECT category FROM monsters WHERE code = $1', [target.monster_code]);
+  target.monster_category = monsterRes.rows[0]?.category || null;
+  const bossRes = await db.query(
+    `SELECT 1 FROM player_tower_runs ptr JOIN tower_floors tf ON tf.floor_number = ptr.current_floor
+     WHERE ptr.current_session_id = $1 AND tf.is_boss_floor AND tf.boss_monster_code = $2`,
+    [sessionId, target.monster_code]
+  );
+  target.is_boss = bossRes.rows.length > 0;
+  const foughtRes = await db.query(
+    `SELECT DISTINCT m.category FROM combat_participants cp JOIN monsters m ON m.code = cp.monster_code
+     WHERE cp.session_id = $1 AND cp.side = 'ENEMY' AND cp.hp <= 0 AND cp.id != $2`,
+    [sessionId, target.id]
+  );
+  return { alreadyFought: new Set(foughtRes.rows.map((r) => r.category)) };
+}
 
 // Meditación (Sanador Legendario -> Asceta): el % de curación escala con MEDITACIONES_USADAS
 // acumulado del propio jugador (se lee ANTES de incrementarlo con este uso).
@@ -377,28 +398,162 @@ async function persistParticipant(p) {
   await markNearDeathIfLow(p);
 }
 
-// ONCE_PER_COMBAT_SAVE: si `p` acaba de quedar en <=0 HP y su clase tiene esta innata (y todavía
-// no la usó en este combate), sobrevive con el HP indicado en extra_json.survive_hp (1 por
-// defecto) en vez de caer. Mismo patrón que pet_revive_used, pero a nivel innata de clase.
+// ONCE_PER_COMBAT (variantes ligadas a la muerte): si `p` acaba de quedar en <=0 HP y su clase
+// tiene esta innata (y todavía no la usó en este combate), sobrevive/revive en vez de caer.
+// extra_json.survive_hp = nunca cae (Vacío del Combate); extra_json.revive_percent = cae y
+// revive al toque (Trascendencia). Mismo patrón que pet_revive_used, a nivel innata de clase.
 async function checkOnceForCombatSave(p) {
   if (!p || p.hp > 0 || p.innate_used_this_combat) return;
   const innate = await getInnateForClass(p.class_id);
-  if (!innate || innate.trigger_type !== 'ONCE_PER_COMBAT_SAVE') return;
-  p.hp = Number(innate.extra_json?.survive_hp || 1);
+  if (!innate || innate.trigger_type !== 'ONCE_PER_COMBAT') return;
+  if (innate.extra_json?.survive_hp != null) {
+    p.hp = Number(innate.extra_json.survive_hp);
+  } else if (innate.extra_json?.revive_percent != null) {
+    p.hp = Math.max(1, Math.round(Number(p.max_hp) * Number(innate.extra_json.revive_percent) / 100));
+  } else {
+    return;
+  }
   p.innate_used_this_combat = true;
   await db.query('UPDATE combat_participants SET innate_used_this_combat = TRUE WHERE id = $1', [p.id]);
 }
 
-// ON_CRIT: dispara la innata de clase del actor (si tiene una) cuando conecta un crítico.
-// Efecto soportado hoy: DOT leve sobre el target (ej. "Puño Corrupto" del Monje Oscuro).
-async function applyOnCritInnate(sessionId, actor, target) {
-  const innate = await applyInnateTrigger('ON_CRIT', { actor, target, allies: [], enemies: [] });
-  if (!innate || !target) return;
-  const durationTurns = Number(innate.extra_json?.duration_turns || 1);
-  await db.query(
-    "INSERT INTO combat_participant_buffs(session_id,participant_id,stat_code,applied_flat,rounds_remaining,is_debuff,skill_id) VALUES($1,$2,'DOT',$3,$4,TRUE,NULL)",
-    [sessionId, target.id, Number(innate.percent_amount || 0), durationTurns]
+// ONCE_PER_COMBAT (Escamas de Dragón): inmune al primer crítico que reciba en el combate. Se
+// llama ANTES de resolver el golpe; si corresponde, marca target.crit_immune para que
+// lib/combat.js no aplique el multiplicador de crítico, y consume el uso solo si de verdad
+// hubiera sido crítico (chequeado después vía result.critPrevented).
+async function checkCritImmunity(target) {
+  if (!target || target.innate_used_this_combat) return;
+  const innate = await getInnateForClass(target.class_id);
+  if (!innate || innate.trigger_type !== 'ONCE_PER_COMBAT' || !innate.extra_json?.immune_first_crit) return;
+  target.crit_immune = true;
+}
+async function consumeCritImmunityIfUsed(target, result) {
+  if (target?.crit_immune && result?.critPrevented) {
+    target.innate_used_this_combat = true;
+    await db.query('UPDATE combat_participants SET innate_used_this_combat = TRUE WHERE id = $1', [target.id]);
+  }
+}
+
+// Nombre de zona de este combate (para PASSIVE_CONDITIONAL/ZONE_IN, ej. Saber Ancestral). Se
+// deriva de cualquier enemigo con monster_code; null si no aplica (ej. PvP inexistente hoy).
+async function getCombatZoneName(participants) {
+  const anyEnemy = participants.enemy.find((e) => e.monster_code);
+  if (!anyEnemy) return null;
+  const res = await db.query(
+    `SELECT mz.name FROM monsters m JOIN monster_zones mz ON mz.id = m.zone_id WHERE m.code = $1`,
+    [anyEnemy.monster_code]
   );
+  return res.rows[0]?.name || null;
+}
+
+// Sombra Doble (Asesino Umbrío): antes de que un enemigo confirme su objetivo, chance de que se
+// "confunda" y golpee a otro participante al azar (de cualquier bando, aliado o enemigo del
+// confundido). Devuelve el nuevo target si redirige, o null si no corresponde/no dispara.
+async function maybeRedirectTarget(originalTarget, participants) {
+  if (!originalTarget || originalTarget.hp <= 0) return null;
+  const innate = await applyInnateTrigger('ON_ENEMY_TARGETS_ME', { actor: originalTarget, target: null, allies: [], enemies: [] });
+  if (innate?.extra_json?.effect !== 'redirect_to_random_participant') return null;
+  const pool = participants.all.filter((p) => p.hp > 0 && p.id !== originalTarget.id && !p.is_summon);
+  if (!pool.length) return null;
+  return pool[Math.floor(Math.random() * pool.length)];
+}
+
+// Escudo pequeño temporal: no existe un mecanismo de "escudo" dedicado, así que se aproxima con
+// un DAMAGE_TAKEN negativo de 1-2 turnos (reduce el próximo golpe/s que reciba), reusando la
+// misma tabla que ya usan los debuffs/buffs de daño recibido.
+async function grantSmallShield(sessionId, participantId, reductionPercent = 15, durationTurns = 2) {
+  await db.query(
+    "INSERT INTO combat_participant_buffs(session_id,participant_id,stat_code,applied_flat,rounds_remaining,is_debuff,skill_id) VALUES($1,$2,'DAMAGE_TAKEN',$3,$4,FALSE,NULL)",
+    [sessionId, participantId, -reductionPercent, durationTurns]
+  );
+}
+
+async function grantGuaranteedNextCrit(sessionId, participantId) {
+  await db.query(
+    "INSERT INTO combat_participant_buffs(session_id,participant_id,stat_code,applied_flat,rounds_remaining,is_debuff,skill_id) VALUES($1,$2,'PENDING_GUARANTEED_CRIT',0,3,FALSE,NULL)",
+    [sessionId, participantId]
+  );
+}
+// Si `actor` tiene un crítico garantizado pendiente (Danza de Acero), lo consume y devuelve true
+// para que el caller fuerce el crítico en la resolución de este golpe.
+async function consumePendingGuaranteedCrit(actor) {
+  const res = await db.query(
+    "DELETE FROM combat_participant_buffs WHERE participant_id = $1 AND stat_code = 'PENDING_GUARANTEED_CRIT' RETURNING id",
+    [actor.id]
+  );
+  return res.rows.length > 0;
+}
+// Disparo Fantasma (Francotirador Fantasmal): el primer ataque de cada combate no puede ser
+// esquivado. Se consume en el primer ATTACK básico que el actor haga (no en skills).
+async function consumePendingUnavoidableHit(actor) {
+  const res = await db.query(
+    "DELETE FROM combat_participant_buffs WHERE participant_id = $1 AND stat_code = 'PENDING_UNAVOIDABLE_HIT' RETURNING id",
+    [actor.id]
+  );
+  return res.rows.length > 0;
+}
+
+// Efectos de la familia de "golpe conectado": ON_BASIC_ATTACK_HIT (actor, ataque básico exitoso),
+// ON_CRIT (actor, crítico) / ON_CRIT_RECEIVED (target, recibió un crítico), ON_DAMAGE_TAKEN
+// (target, recibió daño — reflejo). ON_DODGE se maneja aparte en cada punto de esquive (ya
+// existía desde la fase 2) para no disparar el trigger dos veces. isBasicAttack=true solo para
+// el ATTACK básico (no skills). `allies` = vivos del mismo bando que `actor` (para heal random ally).
+async function resolveOnHitInnates(sessionId, actor, target, result, isBasicAttack, actorAllies = []) {
+  if (!target || result.evaded || !(result.damage > 0)) return;
+
+  if (isBasicAttack) {
+    const basicInnate = await applyInnateTrigger('ON_BASIC_ATTACK_HIT', { actor, target, allies: actorAllies, enemies: [] });
+    if (basicInnate) {
+      const eff = basicInnate.extra_json || {};
+      if (eff.effect === 'extra_attack') {
+        actor.grants_extra_action = true; // se lee al final del handler, ver "grants_extra_action"
+      } else if (eff.apply_dot) {
+        await db.query(
+          "INSERT INTO combat_participant_buffs(session_id,participant_id,stat_code,applied_flat,rounds_remaining,is_debuff,skill_id) VALUES($1,$2,'DOT',5,2,TRUE,NULL)",
+          [sessionId, target.id]
+        );
+      } else if (eff.effect === 'heal_self_percent_of_damage_dealt') {
+        const healAmt = Math.max(1, Math.round(result.damage * Number(basicInnate.percent_amount || 0) / 100));
+        actor.hp = Math.min(Number(actor.max_hp), actor.hp + healAmt);
+        await persistParticipant(actor);
+      } else if (eff.effect === 'heal_random_ally_small') {
+        const pool = [actor, ...actorAllies].filter((a) => a.hp > 0);
+        const randomAlly = pool[Math.floor(Math.random() * pool.length)];
+        if (randomAlly) {
+          const healAmt = Math.max(1, Math.round(Number(randomAlly.max_hp) * 0.05));
+          randomAlly.hp = Math.min(Number(randomAlly.max_hp), randomAlly.hp + healAmt);
+          await persistParticipant(randomAlly);
+        }
+      } else if (eff.effect === 'add_minor_magic_hit_of_imbued_element' && actor.imbued_element_id) {
+        const minorDmg = Math.max(1, Math.round(Number(actor.mag || 0) * 0.3));
+        target.hp = Math.max(0, target.hp - minorDmg);
+        await checkOnceForCombatSave(target);
+        await persistParticipant(target);
+      }
+    }
+  }
+
+  if (result.crit) {
+    const critInnate = await applyInnateTrigger('ON_CRIT', { actor, target, allies: actorAllies, enemies: [] });
+    if (critInnate?.extra_json?.effect === 'debuff_mag_target') {
+      await db.query(
+        "INSERT INTO combat_participant_buffs(session_id,participant_id,stat_code,applied_flat,rounds_remaining,is_debuff,skill_id) VALUES($1,$2,'MAG',$3,2,TRUE,NULL)",
+        [sessionId, target.id, -10]
+      );
+    }
+    // Cuerpo de Hierro (Maestro Monje, ON_CRIT_RECEIVED): dispara para que quede registrado, pero
+    // no hay motor de "inmunidad a debuffs de DEF" todavía — no hay ningún debuff de DEF que
+    // pueda aplicarse en el mismo golpe que un crítico hoy, así que no tiene efecto observable aún.
+    await applyInnateTrigger('ON_CRIT_RECEIVED', { actor: target, target: actor, allies: [], enemies: [] });
+  }
+
+  const dmgTakenInnate = await applyInnateTrigger('ON_DAMAGE_TAKEN', { actor: target, target: actor, allies: [], enemies: [] });
+  if (dmgTakenInnate?.extra_json?.effect === 'reflect_damage') {
+    const reflectDmg = Math.max(1, Math.round(result.damage * Number(dmgTakenInnate.percent_amount || 0) / 100));
+    actor.hp = Math.max(0, actor.hp - reflectDmg);
+    await checkOnceForCombatSave(actor);
+    await persistParticipant(actor);
+  }
 }
 
 // CRITICOS_REALIZADOS / CRITICOS_ARCO: cualquier golpe (ATTACK o SKILL) del jugador con crit.
@@ -416,11 +571,31 @@ async function registerCritCounter(playerId, isCrit) {
 // Contadores de kill: por elemento de la skill, por categoría/zona del monstruo, y los 4
 // contadores atados a un skill/clase puntual (GOLPES_LETALES, KILLS_EXPLOSIVO, KILLS_GOLPE_PUNO,
 // KILLS_CORTE). `skill` es null para un ATTACK básico (sin elemento ni clase asociada).
-async function registerKillCounters(playerId, sessionId, deadTargets, skill, actor = null) {
+async function registerKillCounters(playerId, sessionId, deadTargets, skill, actor = null, participants = null) {
   if (!deadTargets.length) return;
 
   if (actor) {
-    await applyInnateTrigger('ON_KILL', { actor, target: deadTargets[0], allies: [], enemies: [] });
+    const killInnate = await applyInnateTrigger('ON_KILL', { actor, target: deadTargets[0], allies: [], enemies: [] });
+    if (killInnate?.is_stacking) {
+      const stackAmount = Number(killInnate.extra_json?.stack_amount || 1);
+      actor.innate_stacks = (actor.innate_stacks || 0) + stackAmount;
+      await db.query('UPDATE combat_participants SET innate_stacks = $1 WHERE id = $2', [actor.innate_stacks, actor.id]);
+    } else if (killInnate) {
+      const eff = killInnate.extra_json || {};
+      if (eff.effect === 'heal_self_percent_max_hp') {
+        const healAmt = Math.max(1, Math.round(Number(actor.max_hp) * Number(killInnate.percent_amount || 0) / 100));
+        actor.hp = Math.min(Number(actor.max_hp), actor.hp + healAmt);
+        await persistParticipant(actor);
+      } else if (participants && (eff.effect === 'summon_spirit_single_attack' || eff.effect === 'summon_skeleton_temp')) {
+        const name = eff.effect === 'summon_spirit_single_attack' ? 'Espíritu Vengador' : 'Esqueleto Invocado';
+        await createSummonParticipant(
+          sessionId, actor, { stat_code: name, duration_turns: eff.effect === 'summon_spirit_single_attack' ? 1 : 3, percent_amount: 0 },
+          { id: null, element_id: null }, participants
+        );
+        const roundRes = await db.query('SELECT current_round FROM combat_sessions WHERE id = $1', [sessionId]);
+        await execSummonBonusAttack(sessionId, actor.id, roundRes.rows[0]?.current_round, participants);
+      }
+    }
   }
 
   let elemCode = null;
@@ -639,7 +814,7 @@ function applyStatDelta(participant, statCode, delta) {
 // Aplica un efecto STAT_MOD (imbue, resist, DAMAGE_TAKEN, o stat regular) a un participante.
 // skillId: si se pasa, la misma skill no puede acumular el mismo efecto (solo refresca duración).
 // Distintas skills con el mismo stat_code SÍ pueden acumularse (ej. dos imbues distintos de fuego).
-async function applyStatModBuff(sessionId, target, effect, isDebuff, descParts, skillId = null) {
+async function applyStatModBuff(sessionId, target, effect, isDebuff, descParts, skillId = null, actor = null) {
   const ELEMENT_CODES = ['FIRE', 'ICE', 'LIGHTNING', 'WIND', 'EARTH', 'WATER', 'LIGHT', 'DARK', 'COSMIC'];
   const SUPPORTED_BUFF_STATS = ['ATK', 'MAG', 'DEF', 'MAGIC_DEF', 'SPD', 'CRIT_CHANCE', 'EVASION'];
   const pct = Number(effect.percent_amount || 0);
@@ -692,6 +867,15 @@ async function applyStatModBuff(sessionId, target, effect, isDebuff, descParts, 
         [sessionId, target.id, imbueStatCode, pct, durationTurns, false, skillId]
       );
       descParts.push(`${target.name} imbuído con ${imbueElemCode} +${pct}% daño (${durationTurns}T)`);
+      if (actor) {
+        const imbueInnate = await applyInnateTrigger('ON_IMBUE', { actor, target, allies: [], enemies: [] });
+        if (imbueInnate?.extra_json?.effect === 'self_gains_resist_that_element_1_turn') {
+          await db.query(
+            "INSERT INTO combat_participant_buffs(session_id,participant_id,stat_code,applied_flat,rounds_remaining,is_debuff,skill_id) VALUES($1,$2,$3,$4,1,FALSE,NULL)",
+            [sessionId, actor.id, `RESIST_${imbueElemCode}`, Number(imbueInnate.percent_amount || 0)]
+          );
+        }
+      }
     }
     return;
   }
@@ -1258,7 +1442,7 @@ async function resolveAbandonedPlayerTurn(sessionId, round, actor, participants)
 async function advanceEnemyTurns(sessionId) {
   for (let safety = 0; safety < 200; safety += 1) {
     const participants = await loadParticipants(sessionId);
-    await applyLiveInnateModifiers(participants);
+    await applyLiveInnateModifiers(participants, await getCombatZoneName(participants));
 
     if (combat.isWiped(participants.player)) {
       // Revivir pasiva de mascota: si un héroe tiene mascota con PASSIVE_REVIVE y no la usó aún
@@ -1407,7 +1591,7 @@ async function advanceEnemyTurns(sessionId) {
           for (const effect of buffEffects.rows) {
             if (effect.effect_type === 'STAT_MOD') {
               for (const t of skillTargets) {
-                await applyStatModBuff(sessionId, t, effect, isDebuff, skillDescParts, skill.id);
+                await applyStatModBuff(sessionId, t, effect, isDebuff, skillDescParts, skill.id, actor);
               }
             } else if (effect.effect_type === 'HOT') {
               const pct = Number(effect.percent_amount || 0);
@@ -1474,7 +1658,7 @@ async function advanceEnemyTurns(sessionId) {
               }
             } else if (effect.effect_type === 'STAT_MOD' && effect.duration_turns) {
               for (const t of skillTargets) {
-                await applyStatModBuff(sessionId, t, effect, false, skillDescParts, skill.id);
+                await applyStatModBuff(sessionId, t, effect, false, skillDescParts, skill.id, actor);
               }
             }
           }
@@ -1493,13 +1677,16 @@ async function advanceEnemyTurns(sessionId) {
               elemModsByTargetId[t.id] = { damageBonusPercent, resistancePercent: baseResist + tempResist };
             }
           }
+          for (const t of skillTargets) await checkCritImmunity(t);
           const results = combat.resolveSkill(actor, skillTargets, skill, elemModsByTargetId);
+          for (const r of results) await consumeCritImmunityIfUsed(r.target, r);
           for (const r of results) await checkOnceForCombatSave(r.target);
           for (const r of results) await persistParticipant(r.target);
           for (const r of results) {
             if (!r.evaded) continue;
             if (r.target.player_id) await incrementCounter(r.target.player_id, 'ATAQUES_ESQUIVADOS');
-            await applyInnateTrigger('ON_DODGE', { actor: r.target, target: actor, allies: [], enemies: [] });
+            const dodgeInnate = await applyInnateTrigger('ON_DODGE', { actor: r.target, target: actor, allies: [], enemies: [] });
+            if (dodgeInnate?.extra_json?.guarantee_next_crit) await grantGuaranteedNextCrit(sessionId, r.target.id);
           }
           const verb = skill.skill_type === 'CURACION' ? 'cura' : 'daña';
           const summary = results.map((r) => (r.evaded ? `${r.target.name} esquiva` : `${r.target.name} por ${r.amount}${r.crit ? ' (¡crítico!)' : ''}`)).join(', ');
@@ -1522,7 +1709,8 @@ async function advanceEnemyTurns(sessionId) {
 
     if (!skillActionDone) {
     // Ataque básico
-    const target = combat.pickRandomAliveTarget(participants.player);
+    let target = combat.pickRandomAliveTarget(participants.player);
+    target = await maybeRedirectTarget(target, participants) || target;
 
     if (target.no_damage_window) {
       actor.has_acted_this_round = true;
@@ -1553,15 +1741,20 @@ async function advanceEnemyTurns(sessionId) {
       elementalMods = { damageBonusPercent, resistancePercent: baseResist + tempResist };
     }
 
+    await checkCritImmunity(target);
     const result = combat.resolveAttack(actor, target, elementalMods);
     actor.has_acted_this_round = true;
+    await consumeCritImmunityIfUsed(target, result);
     await checkOnceForCombatSave(target);
 
     await persistParticipant(actor);
     await persistParticipant(target);
     if (result.evaded) {
       if (target.player_id) await incrementCounter(target.player_id, 'ATAQUES_ESQUIVADOS');
-      await applyInnateTrigger('ON_DODGE', { actor: target, target: actor, allies: [], enemies: [] });
+      const dodgeInnate = await applyInnateTrigger('ON_DODGE', { actor: target, target: actor, allies: [], enemies: [] });
+      if (dodgeInnate?.extra_json?.guarantee_next_crit) await grantGuaranteedNextCrit(sessionId, target.id);
+    } else {
+      await resolveOnHitInnates(sessionId, actor, target, result, true, participants.player.filter((p) => p.id !== target.id && p.hp > 0));
     }
     await insertLog(sessionId, round, {
       actorId: actor.id,
@@ -1968,7 +2161,7 @@ router.post('/sessions/:id/action', async (req, res, next) => {
     }
 
     const participants = await loadParticipants(sessionId);
-    await applyLiveInnateModifiers(participants);
+    await applyLiveInnateModifiers(participants, await getCombatZoneName(participants));
     const lastActingSide = await getLastActingSide(sessionId, session.current_round);
     const side = combat.determineActingSide(participants.player, participants.enemy, lastActingSide);
 
@@ -2018,10 +2211,44 @@ router.post('/sessions/:id/action', async (req, res, next) => {
       : null;
 
     if (session.current_round === 1) {
-      await applyInnateTrigger('ON_COMBAT_START', { actor, target: null, allies: [], enemies: [] });
+      const startInnate = await applyInnateTrigger('ON_COMBAT_START', { actor, target: null, allies: [], enemies: [] });
+      if (startInnate?.extra_json?.first_attack_unavoidable) {
+        await db.query(
+          "INSERT INTO combat_participant_buffs(session_id,participant_id,stat_code,applied_flat,rounds_remaining,is_debuff,skill_id) VALUES($1,$2,'PENDING_UNAVOIDABLE_HIT',0,3,FALSE,NULL)",
+          [sessionId, actor.id]
+        );
+      } else if (startInnate?.extra_json?.effect === 'imbue_random_element_on_basic_attacks') {
+        const randomElemCode = ['FIRE', 'ICE', 'LIGHTNING', 'WIND', 'EARTH', 'WATER', 'LIGHT', 'DARK'][Math.floor(Math.random() * 8)];
+        const elemId = await elements.getElementIdByCode(randomElemCode);
+        if (elemId) {
+          actor.imbued_element_id = elemId;
+          actor.imbued_damage_bonus = 10;
+          await persistParticipant(actor);
+        }
+      }
+    }
+
+    const turnStartInnate = await applyInnateTrigger('ON_TURN_START', { actor, target: null, allies: [], enemies: [] });
+    if (turnStartInnate) {
+      const eff = turnStartInnate.extra_json || {};
+      if (eff.effect === 'heal_self') {
+        const healAmt = Math.max(1, Math.round(Number(actor.max_hp) * Number(turnStartInnate.percent_amount || 0) / 100));
+        actor.hp = Math.min(Number(actor.max_hp), actor.hp + healAmt);
+        await persistParticipant(actor);
+      } else if (eff.effect === 'heal_team_small_while_summon_active') {
+        const hasActiveSummon = participants.player.some((p) => p.is_summon && Number(p.summoner_id) === actor.id && p.hp > 0);
+        if (hasActiveSummon) {
+          for (const ally of participants.player.filter((p) => p.hp > 0 && !p.is_summon)) {
+            const healAmt = Math.max(1, Math.round(Number(ally.max_hp) * 0.03));
+            ally.hp = Math.min(Number(ally.max_hp), ally.hp + healAmt);
+            await persistParticipant(ally);
+          }
+        }
+      }
     }
 
     let logEntry;
+    actor.grants_extra_action = false; // Filo Constante / Manos Rápidas: no marcar como actuado al final
 
     if (action === 'ATTACK') {
       const target = targetParticipantId
@@ -2089,13 +2316,28 @@ router.post('/sessions/:id/action', async (req, res, next) => {
       else attackBonusPercent += Number(actor.physical_damage_bonus || 0);
       if (attackImbueElemCode) attackBonusPercent += Number(actor.elemental_damage_bonus || 0);
 
+      const { alreadyFought } = await buildTargetInnateContext(sessionId, target);
+      const targetBonus = await getTargetDamageBonus(actor, target, { alreadyFoughtCategoriesThisCombat: alreadyFought });
+      attackBonusPercent += targetBonus.damagePercent;
+      if (targetBonus.critChancePercent) actor.crit_chance = (actor.crit_chance || 0) + targetBonus.critChancePercent;
+
+      const hadGuaranteedCrit = (await consumePendingGuaranteedCrit(actor)) || targetBonus.guaranteedCrit;
+      if (hadGuaranteedCrit) actor.crit_chance = 100;
+      const hadUnavoidableHit = await consumePendingUnavoidableHit(actor);
+      const savedEvasion = target.evasion;
+      if (hadUnavoidableHit) target.evasion = 0;
+      await checkCritImmunity(target);
       const result = combat.resolveAttack(actor, target, attackElementalMods, attackBonusPercent);
+      if (hadUnavoidableHit) target.evasion = savedEvasion;
+      await consumeCritImmunityIfUsed(target, result);
+      await checkOnceForCombatSave(target);
       await persistParticipant(target);
       if (actor.player_id === req.playerId) {
         await questProgress.registerAction(req.playerId, { baseAction: 'ATTACK', killCount: target.hp <= 0 ? 1 : 0 });
         await registerCritCounter(req.playerId, result.crit);
-        if (result.crit) await applyOnCritInnate(sessionId, actor, target);
-        if (target.hp <= 0) await registerKillCounters(req.playerId, sessionId, [target], null, actor);
+        const actorAllies = participants.player.filter((p) => p.id !== actor.id && p.hp > 0);
+        await resolveOnHitInnates(sessionId, actor, target, result, true, actorAllies);
+        if (target.hp <= 0) await registerKillCounters(req.playerId, sessionId, [target], null, actor, participants);
       }
       logEntry = {
         actorId: actor.id,
@@ -2233,7 +2475,9 @@ router.post('/sessions/:id/action', async (req, res, next) => {
       if (!targets.length) return res.status(400).json({ error: 'Objetivo inválido' });
 
       const manaCostReduction = actorPetBonuses ? actorPetBonuses.mana_cost_reduction : 0;
-      const effectiveManaCost = Math.max(0, Math.ceil(skill.mana_cost * (1 - manaCostReduction / 100)));
+      let effectiveManaCost = Math.max(0, Math.ceil(skill.mana_cost * (1 - manaCostReduction / 100)));
+      const spellCastInnate = await applyInnateTrigger('ON_SPELL_CAST', { actor, target: null, allies: [], enemies: [] });
+      if (spellCastInnate?.extra_json?.effect === 'no_mana_cost') effectiveManaCost = 0;
       actor.mana -= effectiveManaCost;
 
       // Bono elemental del atacante (por clase) y resistencia de cada objetivo. Para objetivos
@@ -2295,7 +2539,7 @@ router.post('/sessions/:id/action', async (req, res, next) => {
         for (const effect of effectsResult.rows) {
           if (effect.effect_type === 'STAT_MOD') {
             for (const target of targets) {
-              await applyStatModBuff(sessionId, target, effect, isDebuff, buffDescParts, skillId);
+              await applyStatModBuff(sessionId, target, effect, isDebuff, buffDescParts, skillId, actor);
             }
           } else if (effect.effect_type === 'HOT') {
             let pct = Number(effect.percent_amount || 0);
@@ -2318,7 +2562,23 @@ router.post('/sessions/:id/action', async (req, res, next) => {
             if (skill.code === 'SANADOR_LEGENDARIO_MEDITACION' && actor.player_id === req.playerId) {
               await incrementCounter(req.playerId, 'MEDITACIONES_USADAS');
             }
-            await applyInnateTrigger('ON_HEAL_CAST', { actor, target: targets[0], allies: [], enemies: [] });
+            const hotInnate = await applyInnateTrigger('ON_HEAL_CAST', { actor, target: targets[0], allies: [], enemies: [] });
+            if (hotInnate?.extra_json?.effect === 'cleanse_one_debuff_each_ally' && hotInnate.extra_json?.skill_code === skill.code) {
+              for (const ally of targets) {
+                const debuffRow = await db.query(
+                  'SELECT id, stat_code, applied_flat FROM combat_participant_buffs WHERE participant_id = $1 AND is_debuff = TRUE LIMIT 1',
+                  [ally.id]
+                );
+                if (debuffRow.rows.length) {
+                  const d = debuffRow.rows[0];
+                  if (d.stat_code !== 'DOT' && d.stat_code !== 'NO_DAMAGE' && !d.stat_code.startsWith('RESIST_')) {
+                    applyStatDelta(ally, d.stat_code, -Number(d.applied_flat));
+                    await persistParticipant(ally);
+                  }
+                  await db.query('DELETE FROM combat_participant_buffs WHERE id = $1', [d.id]);
+                }
+              }
+            }
           }
         }
         if (actor.player_id === req.playerId) {
@@ -2362,7 +2622,7 @@ router.post('/sessions/:id/action', async (req, res, next) => {
             }
           } else if (effect.effect_type === 'STAT_MOD' && effect.duration_turns) {
             for (const target of targets) {
-              await applyStatModBuff(sessionId, target, effect, true, altDescParts, skillId);
+              await applyStatModBuff(sessionId, target, effect, true, altDescParts, skillId, actor);
             }
           }
         }
@@ -2377,7 +2637,14 @@ router.post('/sessions/:id/action', async (req, res, next) => {
 
         if (skill.code === 'PICARO_ROBAR') {
           const target = targets[0];
-          const chance = 30 + Number(actor.luck || 0) * 0.5;
+          const leyendaViva = await getSkillModifier(actor.class_id, 'PICARO_ROBAR');
+          const retryPenaltyRes = await db.query(
+            "DELETE FROM combat_participant_buffs WHERE participant_id = $1 AND stat_code = 'ROBAR_RETRY_PENALTY' RETURNING applied_flat",
+            [actor.id]
+          );
+          const retryPenalty = retryPenaltyRes.rows[0] ? Number(retryPenaltyRes.rows[0].applied_flat) : 0;
+          let chance = 30 + Number(actor.luck || 0) * 0.5 - retryPenalty;
+          if (leyendaViva?.extra_json?.success_bonus_percent) chance += Number(leyendaViva.extra_json.success_bonus_percent);
           const success = Math.random() * 100 < chance;
           const ownerId = actor.player_id || req.playerId;
           if (!success) {
@@ -2386,33 +2653,64 @@ router.post('/sessions/:id/action', async (req, res, next) => {
             const monsterRes = target.monster_code
               ? await db.query('SELECT id FROM monsters WHERE code = $1', [target.monster_code])
               : { rows: [] };
+            const ojoDeTesoros = await getSkillModifier(actor.class_id, 'PICARO_ROBAR');
+            const preferRare = ojoDeTesoros?.extra_json?.effect === 'rare_drop_chance_bonus';
             const dropsRes = monsterRes.rows.length
-              ? await db.query('SELECT item_id, min_quantity, max_quantity FROM monster_drops WHERE monster_id = $1', [monsterRes.rows[0].id])
+              ? await db.query(
+                  preferRare
+                    ? `SELECT md.item_id, md.min_quantity, md.max_quantity FROM monster_drops md JOIN items i ON i.id = md.item_id
+                       WHERE md.monster_id = $1 ORDER BY
+                       CASE i.rarity WHEN 'LEGENDARIO' THEN 5 WHEN 'EPICO' THEN 4 WHEN 'RARO' THEN 3 WHEN 'POCO_COMUN' THEN 2 ELSE 1 END DESC
+                       LIMIT 1`
+                    : 'SELECT item_id, min_quantity, max_quantity FROM monster_drops WHERE monster_id = $1',
+                  [monsterRes.rows[0].id]
+                )
               : { rows: [] };
             if (!dropsRes.rows.length) {
               espDescParts.push(`${actor.name} le roba a ${target.name}, pero no tenía nada que robar.`);
             } else {
-              const drop = dropsRes.rows[Math.floor(Math.random() * dropsRes.rows.length)];
+              const drop = preferRare ? dropsRes.rows[0] : dropsRes.rows[Math.floor(Math.random() * dropsRes.rows.length)];
               const qty = drop.min_quantity + Math.floor(Math.random() * (drop.max_quantity - drop.min_quantity + 1));
               await inventory.addItem(ownerId, drop.item_id, qty);
               if (actor.player_id === req.playerId) await incrementCounter(req.playerId, 'ITEMS_ROBADOS');
               espDescParts.push(`¡${actor.name} le roba ${qty}x un objeto a ${target.name}!`);
             }
           }
+          const manosRapidas = await getSkillModifier(actor.class_id, 'PICARO_ROBAR');
+          if (manosRapidas?.extra_json?.effect === 'extra_action_reduced_chance') {
+            actor.grants_extra_action = true;
+            await db.query(
+              "INSERT INTO combat_participant_buffs(session_id,participant_id,stat_code,applied_flat,rounds_remaining,is_debuff,skill_id) VALUES($1,$2,'ROBAR_RETRY_PENALTY',$3,1,TRUE,NULL)",
+              [sessionId, actor.id, Number(manosRapidas.extra_json.penalty_percent || 0)]
+            );
+          }
         } else if (skill.code === 'ESPECIALISTA_TRAMPAS_TRAMPA') {
-          actor.is_preparing_trap = true;
-          actor.trap_rounds_remaining = 1;
-          await db.query(
-            'UPDATE combat_participants SET is_preparing_trap = TRUE, trap_rounds_remaining = 1 WHERE id = $1',
-            [actor.id]
-          );
-          espDescParts.push(`${actor.name} está preparando una trampa...`);
+          const terrenoPreparado = await getSkillModifier(actor.class_id, 'ESPECIALISTA_TRAMPAS_TRAMPA');
+          if (terrenoPreparado?.extra_json?.effect === 'instant_activation_same_turn') {
+            actor.is_preparing_trap = false;
+            actor.trap_rounds_remaining = 0;
+            await db.query(
+              'UPDATE combat_participants SET is_preparing_trap = FALSE, trap_rounds_remaining = 0 WHERE id = $1',
+              [actor.id]
+            );
+            await resolveTrapActivation(sessionId, session.current_round, actor, participants);
+            espDescParts.push(`${actor.name} activa la trampa al instante.`);
+          } else {
+            actor.is_preparing_trap = true;
+            actor.trap_rounds_remaining = 1;
+            await db.query(
+              'UPDATE combat_participants SET is_preparing_trap = TRUE, trap_rounds_remaining = 1 WHERE id = $1',
+              [actor.id]
+            );
+            espDescParts.push(`${actor.name} está preparando una trampa...`);
+          }
         } else if (skill.code === 'ESPECIALISTA_TRAMPAS_DESACTIVAR') {
           const target = targets[0];
           if (!target.is_preparing_trap) {
             espDescParts.push(`${target.name} no tiene ninguna trampa que desactivar.`);
           } else {
-            const chance = 50 + Number(actor.luck || 0) * 0.5;
+            const detectorNato = await getSkillModifier(actor.class_id, 'ESPECIALISTA_TRAMPAS_DESACTIVAR');
+            const chance = detectorNato?.extra_json?.success_rate_percent ?? (50 + Number(actor.luck || 0) * 0.5);
             const success = Math.random() * 100 < chance;
             if (!success) {
               espDescParts.push(`${actor.name} intenta desactivar la trampa de ${target.name}, pero falla.`);
@@ -2437,6 +2735,14 @@ router.post('/sessions/:id/action', async (req, res, next) => {
               await persistParticipant(target);
               espDescParts.push(`${target.name} revivido con ${target.hp} HP`);
               if (actor.player_id === req.playerId) await incrementCounter(req.playerId, 'ALIADOS_SALVADOS');
+              const reviveInnate = await applyInnateTrigger('ON_REVIVE_CAST', { actor, target, allies: [], enemies: [] });
+              if (reviveInnate?.extra_json?.effect === 'heal_team_small_on_revive') {
+                for (const ally of participants.player.filter((p) => p.hp > 0 && p.id !== target.id)) {
+                  const healAmt = Math.max(1, Math.round(Number(ally.max_hp) * 0.05));
+                  ally.hp = Math.min(Number(ally.max_hp), ally.hp + healAmt);
+                  await persistParticipant(ally);
+                }
+              }
             }
           } else if (effect.effect_type === 'CLEANSE') {
             for (const target of targets) {
@@ -2470,7 +2776,7 @@ router.post('/sessions/:id/action', async (req, res, next) => {
             }
           } else if (effect.effect_type === 'STAT_MOD' && effect.duration_turns) {
             for (const target of targets) {
-              await applyStatModBuff(sessionId, target, effect, false, espDescParts, skillId);
+              await applyStatModBuff(sessionId, target, effect, false, espDescParts, skillId, actor);
             }
           } else if (effect.effect_type === 'SUMMON') {
             const { summon, auraStrength } = await createSummonParticipant(sessionId, actor, effect, skill, participants);
@@ -2511,6 +2817,11 @@ router.post('/sessions/:id/action', async (req, res, next) => {
                 const catRes = await db.query('SELECT category FROM monsters WHERE code = $1', [t.monster_code]);
                 targetBonus += playerBonuses.categoryDamage[catRes.rows[0]?.category] || 0;
               }
+              const { alreadyFought: fought2 } = await buildTargetInnateContext(sessionId, t);
+              const innateBonus = await getTargetDamageBonus(actor, t, { alreadyFoughtCategoriesThisCombat: fought2 });
+              targetBonus += innateBonus.damagePercent;
+              if (innateBonus.critChancePercent) actor.crit_chance = (actor.crit_chance || 0) + innateBonus.critChancePercent;
+              if (innateBonus.guaranteedCrit) elementalModsByTargetId[t.id] = { ...(elementalModsByTargetId[t.id] || {}), guaranteedCrit: true };
               if (targetBonus) categoryBonusByTargetId[t.id] = targetBonus;
             }
           } else if (baseSkillBonus > 0) {
@@ -2541,13 +2852,59 @@ router.post('/sessions/:id/action', async (req, res, next) => {
             killCount: deadTargets.length,
           });
 
-          if (results.some((r) => r.crit)) {
-            await registerCritCounter(req.playerId, true);
-            const critTarget = results.find((r) => r.crit)?.target;
-            if (critTarget) await applyOnCritInnate(sessionId, actor, critTarget);
+          if (results.some((r) => r.crit)) await registerCritCounter(req.playerId, true);
+          const actorAllies = participants.player.filter((p) => p.id !== actor.id && p.hp > 0);
+          for (const r of results) {
+            await resolveOnHitInnates(sessionId, actor, r.target, r, false, actorAllies);
+          }
+          if (skill.skill_type === 'ATAQUE') {
+            const spellInnate = await applyInnateTrigger('ON_SPELL_DAMAGE', { actor, target: results[0]?.target, allies: actorAllies, enemies: [] });
+            if (spellInnate) {
+              const eff = spellInnate.extra_json || {};
+              if (eff.effect === 'heal_lowest_hp_ally_percent_of_damage') {
+                const totalDmg = results.reduce((s, r) => s + r.amount, 0);
+                const pool = [actor, ...actorAllies];
+                const lowest = pool.reduce((min, a) => (a.hp / a.max_hp < min.hp / min.max_hp ? a : min), pool[0]);
+                const healAmt = Math.max(1, Math.round(totalDmg * Number(spellInnate.percent_amount || 0) / 100));
+                lowest.hp = Math.min(Number(lowest.max_hp), lowest.hp + healAmt);
+                await persistParticipant(lowest);
+              } else if (eff.debuff_target_1_turn && results[0]?.target) {
+                await db.query(
+                  "INSERT INTO combat_participant_buffs(session_id,participant_id,stat_code,applied_flat,rounds_remaining,is_debuff,skill_id) VALUES($1,$2,'SPD',$3,1,TRUE,NULL)",
+                  [sessionId, results[0].target.id, -10]
+                );
+              } else if (eff.effect === 'apply_resist_debuff_of_that_element' && skill.element_id && results[0]?.target) {
+                const elemCode = await elements.getElementCodeById(skill.element_id);
+                if (elemCode) {
+                  await db.query(
+                    "INSERT INTO combat_participant_buffs(session_id,participant_id,stat_code,applied_flat,rounds_remaining,is_debuff,skill_id) VALUES($1,$2,$3,$4,2,TRUE,NULL)",
+                    [sessionId, results[0].target.id, `RESIST_${elemCode}`, -10]
+                  );
+                }
+              }
+            }
+          }
+          if (skill.target_type === 'ALL_ENEMIES') {
+            const aoeInnate = await applyInnateTrigger('ON_AOE_HIT', { actor, target: results[0]?.target, allies: actorAllies, enemies: [] });
+            if (aoeInnate) {
+              const eff = aoeInnate.extra_json || {};
+              if (eff.debuff_all_targets_1_turn) {
+                for (const r of results.filter((x) => x.target.hp > 0)) {
+                  await db.query(
+                    "INSERT INTO combat_participant_buffs(session_id,participant_id,stat_code,applied_flat,rounds_remaining,is_debuff,skill_id) VALUES($1,$2,'SPD',$3,1,TRUE,NULL)",
+                    [sessionId, r.target.id, -15]
+                  );
+                }
+              } else if (eff.effect === 'stun_1_turn') {
+                for (const r of results.filter((x) => x.target.hp > 0)) {
+                  r.target.has_acted_this_round = true;
+                  await persistParticipant(r.target);
+                }
+              }
+            }
           }
           if (deadTargets.length) {
-            await registerKillCounters(req.playerId, sessionId, deadTargets, skill, actor);
+            await registerKillCounters(req.playerId, sessionId, deadTargets, skill, actor, participants);
             const invisRes = await db.query(
               `SELECT 1 FROM combat_participant_buffs WHERE participant_id = $1 AND stat_code = 'NO_DAMAGE'`,
               [actor.id]
@@ -2557,7 +2914,48 @@ router.post('/sessions/:id/action', async (req, res, next) => {
           if (skill.skill_type === 'CURACION') {
             await incrementCounter(req.playerId, 'CUROS_REALIZADOS');
             await incrementCounter(req.playerId, '_CURA_ATAQUE_CURAS');
-            await applyInnateTrigger('ON_HEAL_CAST', { actor, target: results[0]?.target, allies: [], enemies: [] });
+            const healAllies = participants.player.filter((p) => p.id !== actor.id && p.hp > 0);
+            const healInnate = await applyInnateTrigger('ON_HEAL_CAST', { actor, target: results[0]?.target, allies: healAllies, enemies: [] });
+            if (healInnate) {
+              const eff = healInnate.extra_json || {};
+              const mainTarget = results[0]?.target;
+              if (eff.effect === 'double_heal' && mainTarget) {
+                const extra = results.reduce((s, r) => s + r.amount, 0) / results.length || 0;
+                mainTarget.hp = Math.min(Number(mainTarget.max_hp), mainTarget.hp + Math.round(extra));
+                await persistParticipant(mainTarget);
+              } else if (eff.effect === 'grant_small_shield_to_healed_target' && mainTarget) {
+                await grantSmallShield(sessionId, mainTarget.id);
+              } else if (eff.effect === 'heal_adjacent_lowest_hp_ally_small' && healAllies.length) {
+                const lowest = healAllies.reduce((min, a) => (a.hp / a.max_hp < min.hp / min.max_hp ? a : min), healAllies[0]);
+                const healAmt = Math.max(1, Math.round(Number(lowest.max_hp) * 0.05));
+                lowest.hp = Math.min(Number(lowest.max_hp), lowest.hp + healAmt);
+                await persistParticipant(lowest);
+              } else if (eff.effect === 'restore_mana_on_heal') {
+                actor.mana = Math.min(Number(actor.max_mana), actor.mana + Math.round(Number(actor.max_mana) * 0.1));
+                await persistParticipant(actor);
+              } else if (eff.effect === 'cleanse_one_debuff_each_ally' && healInnate.extra_json?.skill_code === skill.code) {
+                for (const ally of [actor, ...healAllies]) {
+                  const debuffRow = await db.query(
+                    'SELECT id, stat_code, applied_flat FROM combat_participant_buffs WHERE participant_id = $1 AND is_debuff = TRUE LIMIT 1',
+                    [ally.id]
+                  );
+                  if (debuffRow.rows.length) {
+                    const d = debuffRow.rows[0];
+                    if (d.stat_code !== 'DOT' && d.stat_code !== 'NO_DAMAGE' && !d.stat_code.startsWith('RESIST_')) {
+                      applyStatDelta(ally, d.stat_code, -Number(d.applied_flat));
+                      await persistParticipant(ally);
+                    }
+                    await db.query('DELETE FROM combat_participant_buffs WHERE id = $1', [d.id]);
+                  }
+                }
+              } else if (eff.effect === 'heal_also_damages_enemies_small') {
+                for (const enemy of participants.enemy.filter((e) => e.hp > 0)) {
+                  const dmg = Math.max(1, Math.round(Number(enemy.max_hp) * 0.03));
+                  enemy.hp = Math.max(0, enemy.hp - dmg);
+                  await persistParticipant(enemy);
+                }
+              }
+            }
           } else if (skill.skill_type === 'ATAQUE') {
             await incrementCounter(req.playerId, '_CURA_ATAQUE_ATAQUES');
           }
@@ -2587,7 +2985,23 @@ router.post('/sessions/:id/action', async (req, res, next) => {
       if (actor.player_id === req.playerId) {
         await questProgress.registerAction(req.playerId, { baseAction: 'DEFEND', killCount: 0 });
       }
-      logEntry = { actorId: actor.id, action, description: `${actor.name} se pone en guardia.`, mana_after: actor.mana };
+      let defendDescExtra = '';
+      const defendInnate = await applyInnateTrigger('ON_DEFEND', { actor, target: null, allies: [], enemies: [] });
+      if (defendInnate) {
+        if (defendInnate.percent_amount != null && defendInnate.extra_json == null) {
+          // Centro de Gravedad: reducción extra al primer golpe que reciba este turno, se
+          // consume junto con is_defending (mismo patrón, ver lib/combat.js).
+          actor.defend_bonus_reduction = Number(defendInnate.percent_amount);
+        } else if (defendInnate.extra_json?.effect === 'grant_small_shield_random_ally') {
+          const allyPool = participants.player.filter((p) => p.hp > 0 && p.id !== actor.id);
+          const randomAlly = allyPool[Math.floor(Math.random() * allyPool.length)];
+          if (randomAlly) {
+            await grantSmallShield(sessionId, randomAlly.id);
+            defendDescExtra = ` ${randomAlly.name} recibe un escudo pequeño.`;
+          }
+        }
+      }
+      logEntry = { actorId: actor.id, action, description: `${actor.name} se pone en guardia.${defendDescExtra}`, mana_after: actor.mana };
     } else if (action === 'ESCAPE') {
       if (!actor.player_id) {
         return res.status(400).json({ error: 'Solo el héroe puede intentar escapar' });
@@ -2711,7 +3125,7 @@ router.post('/sessions/:id/action', async (req, res, next) => {
       };
     }
 
-    actor.has_acted_this_round = true;
+    actor.has_acted_this_round = !actor.grants_extra_action;
     await persistParticipant(actor);
     await insertLog(sessionId, session.current_round, logEntry);
 

@@ -12,6 +12,7 @@ const { fetchQuestDetail } = require('./quests');
 const { requireAuth, requireSelf } = require('../lib/auth');
 const { getActivePetBonuses } = require('../lib/pets');
 const { incrementCounter } = require('../lib/counters');
+const { applyInnateTrigger } = require('../lib/innates');
 
 const router = express.Router();
 
@@ -1598,6 +1599,22 @@ router.post('/:playerId/craft', async (req, res, next) => {
 
     if (totalGained > 0 && recipe.result_item_type === 'CONSUMABLE') {
       await incrementCounter(playerId, 'POCIONES_CRAFTEADAS', totalGained);
+    }
+
+    if (totalGained > 0) {
+      const classRes = await db.query(
+        'SELECT COALESCE(evolution_class_id, current_class_id) AS class_id, luck FROM players WHERE id = $1',
+        [playerId]
+      );
+      const craftInnate = await applyInnateTrigger('ON_CRAFT', {
+        actor: { class_id: classRes.rows[0]?.class_id, luck: classRes.rows[0]?.luck }, target: null, allies: [], enemies: [],
+      });
+      // Alquimia Sagrada: el motor no soporta "potencia" variable por ítem crafteado todavía, así
+      // que se aproxima con unidades extra (redondeado hacia arriba) en vez de +% de efecto.
+      if (craftInnate?.extra_json?.effect === 'potion_potency_bonus') {
+        const bonusQty = Math.ceil(totalGained * Number(craftInnate.percent_amount || 0) / 100);
+        if (bonusQty > 0) await inventory.addItem(playerId, recipe.result_item_id, bonusQty, 0, 0);
+      }
     }
 
     res.json({
