@@ -12,13 +12,28 @@ const achievements = require('../lib/achievements');
 const { requireAuth } = require('../lib/auth');
 const { applyGuildXp, getGuildLevelsForPlayers, combatBonusMultipliers } = require('../lib/guilds');
 const pets = require('../lib/pets');
-const { incrementCounter } = require('../lib/counters');
+const { incrementCounter, markCounterCodeSeen, getCounter } = require('../lib/counters');
+
+// Meditación (Sanador Legendario -> Asceta): el % de curación escala con MEDITACIONES_USADAS
+// acumulado del propio jugador (se lee ANTES de incrementarlo con este uso).
+function meditationHealPercent(usesSoFar) {
+  if (usesSoFar >= 150) return 10;
+  if (usesSoFar >= 100) return 7.5;
+  if (usesSoFar >= 50) return 5;
+  return 2.5;
+}
 
 // Clases cuyos ataques cuentan para KILLS_GOLPE_PUNO (Monje y evoluciones) / KILLS_CORTE
 // (Espadachín y evoluciones) — no hay un único skill "Golpe de Puño"/"técnicas de corte",
 // el contador es de clase (ver backend-spec-evolution-counters.md sección 3.1).
 const PUNCH_CLASS_IDS = [6, 38, 42];
 const CUT_CLASS_IDS = [7, 43];
+
+// Los 5 venenos que cuentan para VENENOS_DOMINADOS (Envenenador -> Maestro Envenenador).
+const POISON_SKILL_CODES = [
+  'PICARO_ENVENENAMIENTO', 'ENVENENADOR_DOT', 'ENVENENADOR_DOT_DEBILITANTE',
+  'ENVENENADOR_DOT_CORROSIVO', 'MAESTRO_ENVENENADOR_DOT_VACIO',
+];
 
 const router = express.Router();
 router.use(requireAuth);
@@ -425,6 +440,41 @@ async function registerKillCounters(playerId, sessionId, deadTargets, skill) {
   }
 }
 
+// Trampa (Pícaro -> Especialista en Trampas): se activa SOLA en el turno siguiente de quien la
+// plantó, sin pedirle ninguna acción (mismo espíritu que un turno de IA/abandonado). Hiere a un
+// objetivo random del bando CONTRARIO a quien puso la trampa con un sangrado de 5 turnos.
+async function resolveTrapActivation(sessionId, round, actor, participants) {
+  const targetPool = actor.side === 'PLAYER' ? participants.enemy : participants.player;
+  const target = combat.pickRandomAliveTarget(targetPool);
+
+  actor.is_preparing_trap = false;
+  actor.trap_rounds_remaining = 0;
+  actor.has_acted_this_round = true;
+  await db.query(
+    'UPDATE combat_participants SET is_preparing_trap = FALSE, trap_rounds_remaining = 0, has_acted_this_round = TRUE WHERE id = $1',
+    [actor.id]
+  );
+
+  if (!target) {
+    await insertLog(sessionId, round, {
+      actorId: actor.id, action: 'SKILL', targetId: null,
+      description: `¡La trampa de ${actor.name} se activó, pero ya no quedaba nadie a quien herir!`,
+    });
+    return;
+  }
+
+  await db.query(
+    "INSERT INTO combat_participant_buffs(session_id,participant_id,stat_code,applied_flat,rounds_remaining,is_debuff,skill_id) VALUES($1,$2,'DOT',5,5,TRUE,NULL)",
+    [sessionId, target.id]
+  );
+  await insertLog(sessionId, round, {
+    actorId: actor.id, action: 'SKILL', targetId: target.id,
+    description: `¡La trampa de ${actor.name} se activó! ${target.name} queda sangrando (5% HP máx/turno, 5 turnos).`,
+  });
+
+  if (actor.player_id) await incrementCounter(actor.player_id, 'TRAMPAS_DESPLEGADAS');
+}
+
 // Crea un invocado como combat_participant del lado PLAYER con has_acted_this_round=TRUE
 // (el invocado no tiene turno propio; actua como bonus action del invocador).
 // Aplica el aura de resistencia elemental a todos los aliados vivos.
@@ -543,6 +593,7 @@ function getParticipantStat(participant, statCode) {
   if (statCode === 'MAGIC_DEF') return Number(participant.magic_def || 0);
   if (statCode === 'SPD') return Number(participant.spd || 0);
   if (statCode === 'CRIT_CHANCE') return Number(participant.crit_chance || 0);
+  if (statCode === 'EVASION') return Number(participant.evasion || 0);
   return 0;
 }
 
@@ -553,6 +604,7 @@ function applyStatDelta(participant, statCode, delta) {
   else if (statCode === 'MAGIC_DEF') participant.magic_def = (participant.magic_def || 0) + delta;
   else if (statCode === 'SPD') participant.spd = (participant.spd || 0) + delta;
   else if (statCode === 'CRIT_CHANCE') participant.crit_chance = (participant.crit_chance || 0) + delta;
+  else if (statCode === 'EVASION') participant.evasion = (participant.evasion || 0) + delta;
 }
 
 // Aplica un efecto STAT_MOD (imbue, resist, DAMAGE_TAKEN, o stat regular) a un participante.
@@ -560,7 +612,7 @@ function applyStatDelta(participant, statCode, delta) {
 // Distintas skills con el mismo stat_code SÍ pueden acumularse (ej. dos imbues distintos de fuego).
 async function applyStatModBuff(sessionId, target, effect, isDebuff, descParts, skillId = null) {
   const ELEMENT_CODES = ['FIRE', 'ICE', 'LIGHTNING', 'WIND', 'EARTH', 'WATER', 'LIGHT', 'DARK', 'COSMIC'];
-  const SUPPORTED_BUFF_STATS = ['ATK', 'MAG', 'DEF', 'MAGIC_DEF', 'SPD', 'CRIT_CHANCE'];
+  const SUPPORTED_BUFF_STATS = ['ATK', 'MAG', 'DEF', 'MAGIC_DEF', 'SPD', 'CRIT_CHANCE', 'EVASION'];
   const pct = Number(effect.percent_amount || 0);
   const durationTurns = Number(effect.duration_turns);
 
@@ -649,7 +701,11 @@ async function applyStatModBuff(sessionId, target, effect, isDebuff, descParts, 
         return;
       }
     }
-    const appliedFlat = Math.round(getParticipantStat(target, effect.stat_code) * pct / 100);
+    // EVASION es un caso especial: pct es el valor ABSOLUTO objetivo (ej. 100 = esquiva
+    // garantizada), no un multiplicador del valor actual (que suele arrancar en 0).
+    const appliedFlat = effect.stat_code === 'EVASION'
+      ? pct - getParticipantStat(target, 'EVASION')
+      : Math.round(getParticipantStat(target, effect.stat_code) * pct / 100);
     applyStatDelta(target, effect.stat_code, appliedFlat);
     await persistParticipant(target);
     await db.query(
@@ -1209,6 +1265,10 @@ async function advanceEnemyTurns(sessionId) {
     }
     if (side === 'PLAYER') {
       const actor = combat.nextActor(participants.player);
+      if (actor.is_preparing_trap) {
+        await resolveTrapActivation(sessionId, round, actor, participants);
+        continue;
+      }
       const ownerId = actor.player_id ?? actor.owner_player_id;
       const abandonedRes = await db.query(
         'SELECT player_id FROM combat_abandoned_players WHERE session_id = $1', [sessionId]
@@ -1222,6 +1282,10 @@ async function advanceEnemyTurns(sessionId) {
     }
 
     const actor = combat.nextActor(participants.enemy);
+    if (actor.is_preparing_trap) {
+      await resolveTrapActivation(sessionId, round, actor, participants);
+      continue;
+    }
 
     // === IA de skills de monstruo ===
     let skillActionDone = false;
@@ -1880,6 +1944,29 @@ router.post('/sessions/:id/action', async (req, res, next) => {
       return res.status(403).json({ error: 'Ese NPC pertenece a tu compañero' });
     }
 
+    // Trampa: si este participante está "cargando" la activación, este turno se resuelve solo,
+    // sin importar qué acción haya mandado el front (bloqueado, no elige nada este turno).
+    if (actor.is_preparing_trap) {
+      await resolveTrapActivation(sessionId, session.current_round, actor, participants);
+      const refreshed = await loadParticipants(sessionId);
+      if (combat.isWiped(refreshed.enemy)) {
+        const rewards = await finalizeSession(sessionId, 'PLAYER_WON', refreshed);
+        const state = await fetchSessionState(sessionId);
+        emitCombatUpdate(req, sessionId, state);
+        return res.json({ ...state, rewards });
+      }
+      if (combat.isWiped(refreshed.player)) {
+        await finalizeSession(sessionId, 'ENEMY_WON', refreshed);
+        const state = await fetchSessionState(sessionId);
+        emitCombatUpdate(req, sessionId, state);
+        return res.json({ ...state, rewards: null });
+      }
+      await advanceEnemyTurns(sessionId);
+      const state = await fetchSessionState(sessionId);
+      emitCombatUpdate(req, sessionId, state);
+      return res.json(state);
+    }
+
     const actorPetBonuses = actor.player_id === req.playerId
       ? await pets.getActivePetBonuses(req.playerId)
       : null;
@@ -2035,6 +2122,16 @@ router.post('/sessions/:id/action', async (req, res, next) => {
         return res.status(400).json({ error: `No te alcanza el maná (necesitas ${skill.mana_cost})` });
       }
 
+      // Cooldown genérico entre usos de una misma skill (hoy solo Predicción lo usa).
+      if (skill.cooldown_rounds != null) {
+        if (actor.cd_skill_id === skill.id && actor.cd_round != null &&
+            (session.current_round - actor.cd_round) < skill.cooldown_rounds) {
+          const roundsLeft = skill.cooldown_rounds - (session.current_round - actor.cd_round);
+          return res.status(400).json({ error: `Esa habilidad está en cooldown (${roundsLeft} ronda(s) más).` });
+        }
+        await db.query('UPDATE combat_participants SET cd_skill_id = $1, cd_round = $2 WHERE id = $3', [skill.id, session.current_round, actor.id]);
+      }
+
       // Efectos de skills ESPECIAL necesarios antes de seleccionar objetivo (REVIVE apunta a muertos)
       let specialEffects = [];
       if (skill.skill_type === 'ESPECIAL') {
@@ -2150,7 +2247,11 @@ router.post('/sessions/:id/action', async (req, res, next) => {
               await applyStatModBuff(sessionId, target, effect, isDebuff, buffDescParts, skillId);
             }
           } else if (effect.effect_type === 'HOT') {
-            const pct = Number(effect.percent_amount || 0);
+            let pct = Number(effect.percent_amount || 0);
+            if (skill.code === 'SANADOR_LEGENDARIO_MEDITACION' && actor.player_id === req.playerId) {
+              const usesSoFar = await getCounter(req.playerId, 'MEDITACIONES_USADAS');
+              pct = meditationHealPercent(usesSoFar);
+            }
             const dur = Number(effect.duration_turns);
             for (const target of targets) {
               await db.query(
@@ -2163,6 +2264,9 @@ router.post('/sessions/:id/action', async (req, res, next) => {
               );
               buffDescParts.push(`${target.name} regeneración: ${pct}% HP/turno (${dur}T)`);
             }
+            if (skill.code === 'SANADOR_LEGENDARIO_MEDITACION' && actor.player_id === req.playerId) {
+              await incrementCounter(req.playerId, 'MEDITACIONES_USADAS');
+            }
           }
         }
         if (actor.player_id === req.playerId) {
@@ -2171,6 +2275,7 @@ router.post('/sessions/:id/action', async (req, res, next) => {
           }
           if (skill.code === 'SACERDOTE_BENDICION') await incrementCounter(req.playerId, 'BENDICIONES_DADAS');
           if (skill.code === 'EXORCISTA_APOYO') await incrementCounter(req.playerId, 'EXORCISMOS_EXITOSOS');
+          if (skill.code === 'SANADOR_DIVINO_PREDICCION') await incrementCounter(req.playerId, 'PREDICCIONES_USADAS');
         }
         logEntry = {
           actorId: actor.id, action,
@@ -2197,6 +2302,10 @@ router.post('/sessions/:id/action', async (req, res, next) => {
                 [sessionId, target.id, pct, dur, skillId]
               );
               altDescParts.push(`${target.name} envenenado: ${pct}% HP/turno (${dur}T)`);
+              if (actor.player_id === req.playerId && POISON_SKILL_CODES.includes(skill.code)) {
+                await incrementCounter(req.playerId, 'ENVENENAMIENTOS');
+                await markCounterCodeSeen(req.playerId, 'VENENOS_DOMINADOS', skill.code);
+              }
             }
           } else if (effect.effect_type === 'STAT_MOD' && effect.duration_turns) {
             for (const target of targets) {
@@ -2212,6 +2321,61 @@ router.post('/sessions/:id/action', async (req, res, next) => {
       } else if (skill.skill_type === 'ESPECIAL') {
         // specialEffects ya fue cargado antes de la selección de objetivo
         const espDescParts = [];
+
+        if (skill.code === 'PICARO_ROBAR') {
+          const target = targets[0];
+          const chance = 30 + Number(actor.luck || 0) * 0.5;
+          const success = Math.random() * 100 < chance;
+          const ownerId = actor.player_id || req.playerId;
+          if (!success) {
+            espDescParts.push(`${actor.name} intenta robarle a ${target.name}, pero falla.`);
+          } else {
+            const monsterRes = target.monster_code
+              ? await db.query('SELECT id FROM monsters WHERE code = $1', [target.monster_code])
+              : { rows: [] };
+            const dropsRes = monsterRes.rows.length
+              ? await db.query('SELECT item_id, min_quantity, max_quantity FROM monster_drops WHERE monster_id = $1', [monsterRes.rows[0].id])
+              : { rows: [] };
+            if (!dropsRes.rows.length) {
+              espDescParts.push(`${actor.name} le roba a ${target.name}, pero no tenía nada que robar.`);
+            } else {
+              const drop = dropsRes.rows[Math.floor(Math.random() * dropsRes.rows.length)];
+              const qty = drop.min_quantity + Math.floor(Math.random() * (drop.max_quantity - drop.min_quantity + 1));
+              await inventory.addItem(ownerId, drop.item_id, qty);
+              if (actor.player_id === req.playerId) await incrementCounter(req.playerId, 'ITEMS_ROBADOS');
+              espDescParts.push(`¡${actor.name} le roba ${qty}x un objeto a ${target.name}!`);
+            }
+          }
+        } else if (skill.code === 'ESPECIALISTA_TRAMPAS_TRAMPA') {
+          actor.is_preparing_trap = true;
+          actor.trap_rounds_remaining = 1;
+          await db.query(
+            'UPDATE combat_participants SET is_preparing_trap = TRUE, trap_rounds_remaining = 1 WHERE id = $1',
+            [actor.id]
+          );
+          espDescParts.push(`${actor.name} está preparando una trampa...`);
+        } else if (skill.code === 'ESPECIALISTA_TRAMPAS_DESACTIVAR') {
+          const target = targets[0];
+          if (!target.is_preparing_trap) {
+            espDescParts.push(`${target.name} no tiene ninguna trampa que desactivar.`);
+          } else {
+            const chance = 50 + Number(actor.luck || 0) * 0.5;
+            const success = Math.random() * 100 < chance;
+            if (!success) {
+              espDescParts.push(`${actor.name} intenta desactivar la trampa de ${target.name}, pero falla.`);
+            } else {
+              target.is_preparing_trap = false;
+              target.trap_rounds_remaining = 0;
+              await db.query(
+                'UPDATE combat_participants SET is_preparing_trap = FALSE, trap_rounds_remaining = 0 WHERE id = $1',
+                [target.id]
+              );
+              espDescParts.push(`¡${actor.name} desactivó la trampa de ${target.name}!`);
+              if (actor.player_id === req.playerId) await incrementCounter(req.playerId, 'TRAMPAS_DETECTADAS');
+            }
+          }
+        }
+
         for (const effect of specialEffects) {
           if (effect.effect_type === 'REVIVE') {
             const pct = Number(effect.percent_amount || 30);

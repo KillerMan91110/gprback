@@ -12981,4 +12981,84 @@ UPDATE class_evolution_requirements SET counter_code = 'MEDITACIONES_USADAS',
   description = '100 usos de la skill Meditación en combate.'
   WHERE counter_code = 'DIAS_MEDITANDO';
 
+-- ===== Fase 2: skills nuevas (venenos, robar, trampas, predicción, meditación) =====
+-- Ver backend-spec-evolution-counters.md sección 8.
+
+-- VENENOS_DOMINADOS necesita saber CUÁNTOS CÓDIGOS DISTINTOS de veneno impactaron con éxito al
+-- menos una vez (no cuántas veces en total) — no alcanza con un simple INT.
+CREATE TABLE IF NOT EXISTS player_counter_seen_codes (
+  player_id    INT NOT NULL REFERENCES players(id) ON DELETE CASCADE,
+  counter_code TEXT NOT NULL,
+  sub_code     TEXT NOT NULL,
+  PRIMARY KEY (player_id, counter_code, sub_code)
+);
+
+-- Trampa (Pícaro): 2 turnos bloqueados (plantar + auto-activar).
+ALTER TABLE combat_participants
+  ADD COLUMN IF NOT EXISTS is_preparing_trap BOOLEAN NOT NULL DEFAULT FALSE,
+  ADD COLUMN IF NOT EXISTS trap_rounds_remaining INT NOT NULL DEFAULT 0;
+
+-- Cooldown genérico entre usos de una misma skill (hoy solo lo usa Predicción, pero se deja
+-- reusable para cualquier skill futura en vez de hardcodear un campo por skill).
+ALTER TABLE skills ADD COLUMN IF NOT EXISTS cooldown_rounds INT;
+ALTER TABLE combat_participants
+  ADD COLUMN IF NOT EXISTS cd_skill_id INT REFERENCES skills(id),
+  ADD COLUMN IF NOT EXISTS cd_round INT;
+
+INSERT INTO skills(class_id, code, name, skill_type, damage_school, element_id, target_type,
+  base_value, scaling_stat, scaling_multiplier, hits, mana_cost, is_passive, learn_method,
+  learn_level, learn_gold_cost, learn_requirement_text, description, cooldown_rounds)
+VALUES
+  (24, 'ENVENENADOR_DOT_DEBILITANTE', 'Veneno Debilitante', 'ESTADO_ALTERADO', 'FISICO', NULL, 'ENEMY',
+    NULL, NULL, NULL, 1, 40, FALSE, 'LEVEL', 26, NULL, NULL,
+    'Veneno debilitante: reduce la defensa del enemigo mientras lo consume por dentro.', NULL),
+  (24, 'ENVENENADOR_DOT_CORROSIVO', 'Veneno Corrosivo', 'ESTADO_ALTERADO', 'FISICO', NULL, 'ENEMY',
+    NULL, NULL, NULL, 1, 45, FALSE, 'LEVEL', 30, NULL, NULL,
+    'Veneno corrosivo que consume al enemigo por dentro.', NULL),
+  (77, 'MAESTRO_ENVENENADOR_DOT_VACIO', 'Veneno del Vacío', 'ESTADO_ALTERADO', 'FISICO', NULL, 'ENEMY',
+    NULL, NULL, NULL, 1, 55, FALSE, 'LEVEL', 1, NULL, NULL,
+    'El más letal de los venenos: consume al enemigo desde el vacío.', NULL),
+  (4, 'PICARO_ROBAR', 'Robar', 'ESPECIAL', NULL, NULL, 'ENEMY',
+    NULL, NULL, NULL, 1, 20, FALSE, 'LEVEL', 8, NULL, NULL,
+    'Intenta robarle un objeto al enemigo. No hace daño.', NULL),
+  (25, 'ESPECIALISTA_TRAMPAS_TRAMPA', 'Trampa', 'ESPECIAL', NULL, NULL, 'SELF',
+    NULL, NULL, NULL, 1, 30, FALSE, 'LEVEL', 20, NULL, NULL,
+    'Prepara una trampa que se activa sola en tu próximo turno, hiriendo a un objetivo rival al azar.', NULL),
+  (25, 'ESPECIALISTA_TRAMPAS_DESACTIVAR', 'Desactivar Trampas', 'ESPECIAL', NULL, NULL, 'ENEMY',
+    NULL, NULL, NULL, 1, 25, FALSE, 'LEVEL', 24, NULL, NULL,
+    'Intenta desactivar una trampa que el enemigo esté preparando, antes de que se active.', NULL),
+  (29, 'SANADOR_DIVINO_PREDICCION', 'Predicción', 'BUFF', NULL, NULL, 'SELF',
+    NULL, NULL, NULL, 1, 30, FALSE, 'LEVEL', 20, NULL, NULL,
+    'Predice los ataques enemigos, garantizando esquivar el próximo golpe.', 2),
+  (89, 'SANADOR_LEGENDARIO_MEDITACION', 'Meditación', 'BUFF', NULL, NULL, 'ALL_ALLIES',
+    NULL, NULL, NULL, 1, 45, FALSE, 'LEVEL', 40, NULL, NULL,
+    'Crea un santuario de curación para todo el equipo. Su poder crece cuanto más se practica.', NULL)
+ON CONFLICT (code) DO NOTHING;
+
+-- skill_effects no tiene UNIQUE constraint (no admite ON CONFLICT), así que el guard de
+-- idempotencia se arma a mano con NOT EXISTS (para que una migración standalone contra una base
+-- ya existente se pueda re-correr sin duplicar filas).
+INSERT INTO skill_effects(skill_id, effect_type, stat_code, percent_amount, flat_amount, duration_turns,
+  condition_stat, condition_comparison, condition_value, description)
+SELECT v.skill_id, v.effect_type, v.stat_code, v.percent_amount, v.flat_amount, v.duration_turns,
+  v.condition_stat, v.condition_comparison, v.condition_value, v.description
+FROM (
+  VALUES
+    ((SELECT id FROM skills WHERE code = 'ENVENENADOR_DOT_DEBILITANTE'), 'DOT', NULL::text, 13::numeric, NULL::numeric, 3::int, NULL::text, NULL::text, NULL::numeric,
+      'Veneno Debilitante: pierde 13% HP máximo por turno durante 3 turnos.'),
+    ((SELECT id FROM skills WHERE code = 'ENVENENADOR_DOT_DEBILITANTE'), 'STAT_MOD', 'DEF', -10, NULL, 3, NULL, NULL, NULL,
+      'Veneno Debilitante: -10% DEF al enemigo por 3 turnos.'),
+    ((SELECT id FROM skills WHERE code = 'ENVENENADOR_DOT_CORROSIVO'), 'DOT', NULL, 16, NULL, 3, NULL, NULL, NULL,
+      'Veneno Corrosivo: pierde 16% HP máximo por turno durante 3 turnos.'),
+    ((SELECT id FROM skills WHERE code = 'MAESTRO_ENVENENADOR_DOT_VACIO'), 'DOT', NULL, 20, NULL, 4, NULL, NULL, NULL,
+      'Veneno del Vacío: pierde 20% HP máximo por turno durante 4 turnos.'),
+    ((SELECT id FROM skills WHERE code = 'SANADOR_DIVINO_PREDICCION'), 'STAT_MOD', 'EVASION', 100, NULL, 1, NULL, NULL, NULL,
+      'Predicción: esquiva garantizada (100% evasión) por 1 turno.'),
+    ((SELECT id FROM skills WHERE code = 'SANADOR_LEGENDARIO_MEDITACION'), 'HOT', 'HP', 2.5, NULL, 4, NULL, NULL, NULL,
+      'Meditación: cura HP/turno a todo el equipo durante 4 turnos (% escala con MEDITACIONES_USADAS).')
+) AS v(skill_id, effect_type, stat_code, percent_amount, flat_amount, duration_turns, condition_stat, condition_comparison, condition_value, description)
+WHERE NOT EXISTS (
+  SELECT 1 FROM skill_effects se WHERE se.skill_id = v.skill_id AND se.effect_type = v.effect_type AND se.stat_code IS NOT DISTINCT FROM v.stat_code
+);
+
 

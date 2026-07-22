@@ -119,7 +119,8 @@ CREATE TABLE IF NOT EXISTS skills (
   learn_level INT,
   learn_gold_cost INT,
   learn_requirement_text TEXT,
-  description TEXT
+  description TEXT,
+  cooldown_rounds INT
 );
 
 -- Efectos secundarios de una habilidad (0 a N por skill): permite que una sola skill module
@@ -1039,8 +1040,21 @@ ALTER TABLE combat_participants ADD COLUMN IF NOT EXISTS pet_revive_used BOOLEAN
 ALTER TABLE combat_participants ADD COLUMN IF NOT EXISTS damage_reduction NUMERIC NOT NULL DEFAULT 0;
 ALTER TABLE combat_participants ADD COLUMN IF NOT EXISTS level INT;
 ALTER TABLE combat_participants ADD COLUMN IF NOT EXISTS luck NUMERIC(5,2) NOT NULL DEFAULT 0;
+ALTER TABLE combat_participants ADD COLUMN IF NOT EXISTS is_preparing_trap BOOLEAN NOT NULL DEFAULT FALSE;
+ALTER TABLE combat_participants ADD COLUMN IF NOT EXISTS trap_rounds_remaining INT NOT NULL DEFAULT 0;
+ALTER TABLE combat_participants ADD COLUMN IF NOT EXISTS cd_skill_id INT REFERENCES skills(id);
+ALTER TABLE combat_participants ADD COLUMN IF NOT EXISTS cd_round INT;
 
 ALTER TABLE monster_zones ADD COLUMN IF NOT EXISTS is_tower_zone BOOLEAN NOT NULL DEFAULT FALSE;
+
+-- Distintos códigos de veneno (u otros "logros de variedad") que un jugador ya aplicó con éxito
+-- al menos una vez. VENENOS_DOMINADOS = COUNT(*) de sub_code para ese counter_code.
+CREATE TABLE IF NOT EXISTS player_counter_seen_codes (
+  player_id    INT NOT NULL REFERENCES players(id) ON DELETE CASCADE,
+  counter_code TEXT NOT NULL,
+  sub_code     TEXT NOT NULL,
+  PRIMARY KEY (player_id, counter_code, sub_code)
+);
 
 ALTER TABLE players ADD COLUMN IF NOT EXISTS dungeon_coins INT NOT NULL DEFAULT 0;
 ALTER TABLE players ADD COLUMN IF NOT EXISTS luck NUMERIC(5,2) NOT NULL DEFAULT 1.0;
