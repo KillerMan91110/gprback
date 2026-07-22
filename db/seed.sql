@@ -13171,4 +13171,45 @@ FROM (VALUES
 ) AS v(id, lore)
 WHERE c.id = v.id;
 
+-- ===== Framework de innatas de clase evolucionada (ver docs/backend-spec-class-innates.md) =====
+-- Como maximo 1 innata por clase evolucionada (de ahi el UNIQUE en class_id). El motor de combate
+-- llama a applyInnateTrigger(triggerType, ctx) en los puntos donde ya se resuelve cada evento;
+-- el efecto en si (sumar stat, DOT extra, escudo, etc.) lo interpreta cada punto de enganche
+-- leyendo stat_code/percent_amount/extra_json, igual que ya hace con skill_effects.
+CREATE TABLE IF NOT EXISTS class_innate_abilities (
+  id SERIAL PRIMARY KEY,
+  class_id INT NOT NULL UNIQUE REFERENCES classes(id),
+  name TEXT NOT NULL,
+  trigger_type TEXT NOT NULL CHECK (trigger_type IN (
+    'ON_CRIT', 'ON_KILL', 'ON_HEAL_CAST', 'ON_DODGE', 'ON_DOT_APPLY', 'ON_COMBAT_START',
+    'ON_VICTORY_REWARD', 'PASSIVE_STAT', 'PASSIVE_CONDITIONAL', 'TEAM_AURA', 'ONCE_PER_COMBAT_SAVE'
+  )),
+  chance_percent NUMERIC(5,2),
+  chance_scales_with_luck BOOLEAN NOT NULL DEFAULT FALSE,
+  stat_code TEXT,
+  percent_amount NUMERIC(6,2),
+  condition_type TEXT,
+  condition_value NUMERIC(6,2),
+  extra_json JSONB,
+  description TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_class_innate_abilities_class_id ON class_innate_abilities(class_id);
+
+ALTER TABLE combat_participants ADD COLUMN IF NOT EXISTS innate_used_this_combat BOOLEAN NOT NULL DEFAULT FALSE;
+
+-- 5 ejemplos resueltos (uno por cada trigger_type "nuevo" de verdad, ver seccion 6 del spec).
+INSERT INTO class_innate_abilities (class_id, name, trigger_type, chance_percent, stat_code, percent_amount, condition_type, extra_json, description)
+VALUES
+  (39, 'Puño Corrupto', 'ON_CRIT', 10, NULL, 5, NULL, '{"duration_turns": 2}',
+    'Sus ataques básicos tienen 10% de probabilidad de aplicar un DOT oscuro leve.'),
+  (8, 'Muro Viviente', 'PASSIVE_CONDITIONAL', NULL, 'DAMAGE_TAKEN', -10, 'MORE_HP_THAN_ALLIES', NULL,
+    'Mientras tenga más HP que cualquier aliado vivo, recibe 10% menos de daño.'),
+  (46, 'Aura Celestial', 'TEAM_AURA', NULL, 'RESIST_DARK', 5, NULL, NULL,
+    'Todo el equipo gana +5% resistencia a daño oscuro mientras esté vivo.'),
+  (42, 'Vacío del Combate', 'ONCE_PER_COMBAT_SAVE', NULL, NULL, NULL, NULL, '{"survive_hp": 1}',
+    'Una vez por combate, si su HP llega a 0, sobrevive con 1 HP.'),
+  (82, 'A Sueldo', 'ON_VICTORY_REWARD', NULL, 'GOLD', 10, NULL, NULL,
+    '+10% de oro ganado en cada victoria.')
+ON CONFLICT (class_id) DO NOTHING;
+
 

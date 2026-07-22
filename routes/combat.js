@@ -13,6 +13,7 @@ const { requireAuth } = require('../lib/auth');
 const { applyGuildXp, getGuildLevelsForPlayers, combatBonusMultipliers } = require('../lib/guilds');
 const pets = require('../lib/pets');
 const { incrementCounter, markCounterCodeSeen, getCounter } = require('../lib/counters');
+const { applyInnateTrigger, applyLiveInnateModifiers, getInnateForClass } = require('../lib/innates');
 
 // Meditación (Sanador Legendario -> Asceta): el % de curación escala con MEDITACIONES_USADAS
 // acumulado del propio jugador (se lee ANTES de incrementarlo con este uso).
@@ -376,6 +377,30 @@ async function persistParticipant(p) {
   await markNearDeathIfLow(p);
 }
 
+// ONCE_PER_COMBAT_SAVE: si `p` acaba de quedar en <=0 HP y su clase tiene esta innata (y todavía
+// no la usó en este combate), sobrevive con el HP indicado en extra_json.survive_hp (1 por
+// defecto) en vez de caer. Mismo patrón que pet_revive_used, pero a nivel innata de clase.
+async function checkOnceForCombatSave(p) {
+  if (!p || p.hp > 0 || p.innate_used_this_combat) return;
+  const innate = await getInnateForClass(p.class_id);
+  if (!innate || innate.trigger_type !== 'ONCE_PER_COMBAT_SAVE') return;
+  p.hp = Number(innate.extra_json?.survive_hp || 1);
+  p.innate_used_this_combat = true;
+  await db.query('UPDATE combat_participants SET innate_used_this_combat = TRUE WHERE id = $1', [p.id]);
+}
+
+// ON_CRIT: dispara la innata de clase del actor (si tiene una) cuando conecta un crítico.
+// Efecto soportado hoy: DOT leve sobre el target (ej. "Puño Corrupto" del Monje Oscuro).
+async function applyOnCritInnate(sessionId, actor, target) {
+  const innate = await applyInnateTrigger('ON_CRIT', { actor, target, allies: [], enemies: [] });
+  if (!innate || !target) return;
+  const durationTurns = Number(innate.extra_json?.duration_turns || 1);
+  await db.query(
+    "INSERT INTO combat_participant_buffs(session_id,participant_id,stat_code,applied_flat,rounds_remaining,is_debuff,skill_id) VALUES($1,$2,'DOT',$3,$4,TRUE,NULL)",
+    [sessionId, target.id, Number(innate.percent_amount || 0), durationTurns]
+  );
+}
+
 // CRITICOS_REALIZADOS / CRITICOS_ARCO: cualquier golpe (ATTACK o SKILL) del jugador con crit.
 async function registerCritCounter(playerId, isCrit) {
   if (!isCrit) return;
@@ -391,8 +416,12 @@ async function registerCritCounter(playerId, isCrit) {
 // Contadores de kill: por elemento de la skill, por categoría/zona del monstruo, y los 4
 // contadores atados a un skill/clase puntual (GOLPES_LETALES, KILLS_EXPLOSIVO, KILLS_GOLPE_PUNO,
 // KILLS_CORTE). `skill` es null para un ATTACK básico (sin elemento ni clase asociada).
-async function registerKillCounters(playerId, sessionId, deadTargets, skill) {
+async function registerKillCounters(playerId, sessionId, deadTargets, skill, actor = null) {
   if (!deadTargets.length) return;
+
+  if (actor) {
+    await applyInnateTrigger('ON_KILL', { actor, target: deadTargets[0], allies: [], enemies: [] });
+  }
 
   let elemCode = null;
   if (skill?.element_id) {
@@ -766,6 +795,7 @@ async function startNewRound(sessionId, participants) {
     if (p && p.hp > 0) {
       const dotDmg = Math.max(1, Math.round(Number(p.max_hp) * Number(dot.applied_flat) / 100));
       p.hp = Math.max(0, p.hp - dotDmg);
+      await checkOnceForCombatSave(p);
       await db.query('UPDATE combat_participants SET hp = $1 WHERE id = $2', [p.hp, p.id]);
       await markNearDeathIfLow(p);
     }
@@ -1104,7 +1134,11 @@ async function finalizeSession(sessionId, status, participants) {
 
       for (const hp of heroPs) {
         const heroGoldMult = combatBonusMultipliers(heroGuildLevels.get(hp.player_id)).gold;
-        const heroGold = Math.round(goldPerHero * heroGoldMult);
+        let heroGold = Math.round(goldPerHero * heroGoldMult);
+        const victoryInnate = await applyInnateTrigger('ON_VICTORY_REWARD', { actor: hp, target: null, allies: [], enemies: [] });
+        if (victoryInnate?.stat_code === 'GOLD') {
+          heroGold = Math.round(heroGold * (1 + Number(victoryInnate.percent_amount || 0) / 100));
+        }
         await db.query(
           'UPDATE players SET hp = $1, mana = $2, gold = gold + $3, combat_wins = combat_wins + 1, updated_at = now() WHERE id = $4',
           [hp.hp, hp.mana, heroGold, hp.player_id]
@@ -1224,6 +1258,7 @@ async function resolveAbandonedPlayerTurn(sessionId, round, actor, participants)
 async function advanceEnemyTurns(sessionId) {
   for (let safety = 0; safety < 200; safety += 1) {
     const participants = await loadParticipants(sessionId);
+    await applyLiveInnateModifiers(participants);
 
     if (combat.isWiped(participants.player)) {
       // Revivir pasiva de mascota: si un héroe tiene mascota con PASSIVE_REVIVE y no la usó aún
@@ -1285,6 +1320,9 @@ async function advanceEnemyTurns(sessionId) {
     if (actor.is_preparing_trap) {
       await resolveTrapActivation(sessionId, round, actor, participants);
       continue;
+    }
+    if (round === 1) {
+      await applyInnateTrigger('ON_COMBAT_START', { actor, target: null, allies: [], enemies: [] });
     }
 
     // === IA de skills de monstruo ===
@@ -1456,9 +1494,12 @@ async function advanceEnemyTurns(sessionId) {
             }
           }
           const results = combat.resolveSkill(actor, skillTargets, skill, elemModsByTargetId);
+          for (const r of results) await checkOnceForCombatSave(r.target);
           for (const r of results) await persistParticipant(r.target);
           for (const r of results) {
-            if (r.evaded && r.target.player_id) await incrementCounter(r.target.player_id, 'ATAQUES_ESQUIVADOS');
+            if (!r.evaded) continue;
+            if (r.target.player_id) await incrementCounter(r.target.player_id, 'ATAQUES_ESQUIVADOS');
+            await applyInnateTrigger('ON_DODGE', { actor: r.target, target: actor, allies: [], enemies: [] });
           }
           const verb = skill.skill_type === 'CURACION' ? 'cura' : 'daña';
           const summary = results.map((r) => (r.evaded ? `${r.target.name} esquiva` : `${r.target.name} por ${r.amount}${r.crit ? ' (¡crítico!)' : ''}`)).join(', ');
@@ -1514,10 +1555,14 @@ async function advanceEnemyTurns(sessionId) {
 
     const result = combat.resolveAttack(actor, target, elementalMods);
     actor.has_acted_this_round = true;
+    await checkOnceForCombatSave(target);
 
     await persistParticipant(actor);
     await persistParticipant(target);
-    if (result.evaded && target.player_id) await incrementCounter(target.player_id, 'ATAQUES_ESQUIVADOS');
+    if (result.evaded) {
+      if (target.player_id) await incrementCounter(target.player_id, 'ATAQUES_ESQUIVADOS');
+      await applyInnateTrigger('ON_DODGE', { actor: target, target: actor, allies: [], enemies: [] });
+    }
     await insertLog(sessionId, round, {
       actorId: actor.id,
       action: 'ATTACK',
@@ -1923,6 +1968,7 @@ router.post('/sessions/:id/action', async (req, res, next) => {
     }
 
     const participants = await loadParticipants(sessionId);
+    await applyLiveInnateModifiers(participants);
     const lastActingSide = await getLastActingSide(sessionId, session.current_round);
     const side = combat.determineActingSide(participants.player, participants.enemy, lastActingSide);
 
@@ -1970,6 +2016,10 @@ router.post('/sessions/:id/action', async (req, res, next) => {
     const actorPetBonuses = actor.player_id === req.playerId
       ? await pets.getActivePetBonuses(req.playerId)
       : null;
+
+    if (session.current_round === 1) {
+      await applyInnateTrigger('ON_COMBAT_START', { actor, target: null, allies: [], enemies: [] });
+    }
 
     let logEntry;
 
@@ -2044,7 +2094,8 @@ router.post('/sessions/:id/action', async (req, res, next) => {
       if (actor.player_id === req.playerId) {
         await questProgress.registerAction(req.playerId, { baseAction: 'ATTACK', killCount: target.hp <= 0 ? 1 : 0 });
         await registerCritCounter(req.playerId, result.crit);
-        if (target.hp <= 0) await registerKillCounters(req.playerId, sessionId, [target], null);
+        if (result.crit) await applyOnCritInnate(sessionId, actor, target);
+        if (target.hp <= 0) await registerKillCounters(req.playerId, sessionId, [target], null, actor);
       }
       logEntry = {
         actorId: actor.id,
@@ -2267,6 +2318,7 @@ router.post('/sessions/:id/action', async (req, res, next) => {
             if (skill.code === 'SANADOR_LEGENDARIO_MEDITACION' && actor.player_id === req.playerId) {
               await incrementCounter(req.playerId, 'MEDITACIONES_USADAS');
             }
+            await applyInnateTrigger('ON_HEAL_CAST', { actor, target: targets[0], allies: [], enemies: [] });
           }
         }
         if (actor.player_id === req.playerId) {
@@ -2306,6 +2358,7 @@ router.post('/sessions/:id/action', async (req, res, next) => {
                 await incrementCounter(req.playerId, 'ENVENENAMIENTOS');
                 await markCounterCodeSeen(req.playerId, 'VENENOS_DOMINADOS', skill.code);
               }
+              await applyInnateTrigger('ON_DOT_APPLY', { actor, target, allies: [], enemies: [] });
             }
           } else if (effect.effect_type === 'STAT_MOD' && effect.duration_turns) {
             for (const target of targets) {
@@ -2488,9 +2541,13 @@ router.post('/sessions/:id/action', async (req, res, next) => {
             killCount: deadTargets.length,
           });
 
-          if (results.some((r) => r.crit)) await registerCritCounter(req.playerId, true);
+          if (results.some((r) => r.crit)) {
+            await registerCritCounter(req.playerId, true);
+            const critTarget = results.find((r) => r.crit)?.target;
+            if (critTarget) await applyOnCritInnate(sessionId, actor, critTarget);
+          }
           if (deadTargets.length) {
-            await registerKillCounters(req.playerId, sessionId, deadTargets, skill);
+            await registerKillCounters(req.playerId, sessionId, deadTargets, skill, actor);
             const invisRes = await db.query(
               `SELECT 1 FROM combat_participant_buffs WHERE participant_id = $1 AND stat_code = 'NO_DAMAGE'`,
               [actor.id]
@@ -2500,6 +2557,7 @@ router.post('/sessions/:id/action', async (req, res, next) => {
           if (skill.skill_type === 'CURACION') {
             await incrementCounter(req.playerId, 'CUROS_REALIZADOS');
             await incrementCounter(req.playerId, '_CURA_ATAQUE_CURAS');
+            await applyInnateTrigger('ON_HEAL_CAST', { actor, target: results[0]?.target, allies: [], enemies: [] });
           } else if (skill.skill_type === 'ATAQUE') {
             await incrementCounter(req.playerId, '_CURA_ATAQUE_ATAQUES');
           }

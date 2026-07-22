@@ -1073,3 +1073,25 @@ DO $$ BEGIN
   ALTER TABLE skill_effects ADD CONSTRAINT skill_effects_effect_type_check
     CHECK (effect_type IN ('STAT_MOD','DOT','HOT','REVIVE','CLEANSE','NO_DAMAGE_WINDOW','GUARANTEED_CRIT','CONDITIONAL_DAMAGE','SUMMON'));
 END $$;
+
+-- Innata de clase evolucionada (a lo sumo 1 por clase). Ver docs/backend-spec-class-innates.md.
+CREATE TABLE IF NOT EXISTS class_innate_abilities (
+  id SERIAL PRIMARY KEY,
+  class_id INT NOT NULL UNIQUE REFERENCES classes(id),
+  name TEXT NOT NULL,
+  trigger_type TEXT NOT NULL CHECK (trigger_type IN (
+    'ON_CRIT', 'ON_KILL', 'ON_HEAL_CAST', 'ON_DODGE', 'ON_DOT_APPLY', 'ON_COMBAT_START',
+    'ON_VICTORY_REWARD', 'PASSIVE_STAT', 'PASSIVE_CONDITIONAL', 'TEAM_AURA', 'ONCE_PER_COMBAT_SAVE'
+  )),
+  chance_percent NUMERIC(5,2),
+  chance_scales_with_luck BOOLEAN NOT NULL DEFAULT FALSE,
+  stat_code TEXT,
+  percent_amount NUMERIC(6,2),
+  condition_type TEXT,
+  condition_value NUMERIC(6,2),
+  extra_json JSONB,
+  description TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_class_innate_abilities_class_id ON class_innate_abilities(class_id);
+
+ALTER TABLE combat_participants ADD COLUMN IF NOT EXISTS innate_used_this_combat BOOLEAN NOT NULL DEFAULT FALSE;
