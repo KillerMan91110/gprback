@@ -421,7 +421,7 @@ app.get('/api/leaderboard', async (req, res, next) => {
     const result = await db.query(
       `SELECT p.nickname, p.level, p.xp, c.name AS class_name, p.rank
        FROM players p
-       JOIN classes c ON c.id = p.current_class_id
+       JOIN classes c ON c.id = COALESCE(p.evolution_class_id, p.current_class_id)
        ORDER BY p.level DESC, p.xp DESC
        LIMIT 30`
     );
@@ -443,7 +443,7 @@ app.get('/api/leaderboard/wealth', async (req, res, next) => {
     const result = await db.query(
       `SELECT p.nickname, p.level, p.gold, c.name AS class_name
        FROM players p
-       JOIN classes c ON c.id = p.current_class_id
+       JOIN classes c ON c.id = COALESCE(p.evolution_class_id, p.current_class_id)
        ORDER BY p.gold DESC
        LIMIT 30`
     );
@@ -836,7 +836,7 @@ app.get('/api/players/search', requireAuth, async (req, res, next) => {
               gm.guild_id,
               g.name AS guild_name
        FROM players p
-       LEFT JOIN classes c ON c.id = p.current_class_id
+       LEFT JOIN classes c ON c.id = COALESCE(p.evolution_class_id, p.current_class_id)
        LEFT JOIN guild_members gm ON gm.player_id = p.id
        LEFT JOIN guilds g ON g.id = gm.guild_id
        WHERE p.nickname ILIKE $1

@@ -2148,7 +2148,7 @@ VALUES
   ((SELECT id FROM class_evolutions WHERE class_id = 10 AND evolves_to_class_id = 52), 'EQUIPMENT', NULL, '=', NULL, NULL, 'ESPADA_MAGICA', NULL, 'Debe tener equipada una espada mágica.'),
   ((SELECT id FROM class_evolutions WHERE class_id = 10 AND evolves_to_class_id = 53), 'COUNTER', 'KILLS_EN_RUINAS', '>=', 100, NULL, NULL, NULL, '100 enemigos eliminados en ruinas.'),
   ((SELECT id FROM class_evolutions WHERE class_id = 12 AND evolves_to_class_id = 54), 'COUNTER', 'ENEMIGOS_OSCUROS_MUERTOS', '>=', 300, NULL, NULL, NULL, '300 enemigos oscuros eliminados.'),
-  ((SELECT id FROM class_evolutions WHERE class_id = 12 AND evolves_to_class_id = 55), 'COUNTER', 'DIAS_VIVIDOS', '>=', 100, NULL, NULL, NULL, 'Vivir 100 días de juego.'),
+  ((SELECT id FROM class_evolutions WHERE class_id = 12 AND evolves_to_class_id = 55), 'COUNTER', 'COMBATES_LIMITE_SOBREVIVIDOS', '>=', 100, NULL, NULL, NULL, 'Ganar 100 combates habiendo bajado a 10% HP o menos.'),
   ((SELECT id FROM class_evolutions WHERE class_id = 12 AND evolves_to_class_id = 55), 'ITEM', NULL, '>=', 1, 'PIEDRA_FILOSOFAL', NULL, NULL, 'Requiere el item único Piedra Filosofal.'),
   ((SELECT id FROM class_evolutions WHERE class_id = 13 AND evolves_to_class_id = 58), 'COUNTER', 'ANIMALES_SALVAJES_MUERTOS', '>=', 200, NULL, NULL, NULL, '200 animales salvajes eliminados.'),
   ((SELECT id FROM class_evolutions WHERE class_id = 14 AND evolves_to_class_id = 59), 'COUNTER', 'ELEMENTOS_DOMINADOS', '>=', 8, NULL, NULL, NULL, 'Dominar los 8 elementos.'),
@@ -2192,7 +2192,7 @@ VALUES
   ((SELECT id FROM class_evolutions WHERE class_id = 28 AND evolves_to_class_id = 92), 'STAT_THRESHOLD', NULL, '>', 180, NULL, NULL, 'DEF', 'DEF actual mayor a 180.'),
   ((SELECT id FROM class_evolutions WHERE class_id = 28 AND evolves_to_class_id = 92), 'COUNTER', 'CUROS_REALIZADOS', '>=', 300, NULL, NULL, NULL, '300 curaciones realizadas.'),
   ((SELECT id FROM class_evolutions WHERE class_id = 30 AND evolves_to_class_id = 94), 'COUNTER', 'ENEMIGOS_OSCUROS_MUERTOS', '>=', 500, NULL, NULL, NULL, '500 enemigos oscuros eliminados.'),
-  ((SELECT id FROM class_evolutions WHERE class_id = 89 AND evolves_to_class_id = 95), 'COUNTER', 'DIAS_MEDITANDO', '>=', 100, NULL, NULL, NULL, '100 días en meditación.'),
+  ((SELECT id FROM class_evolutions WHERE class_id = 89 AND evolves_to_class_id = 95), 'COUNTER', 'MEDITACIONES_USADAS', '>=', 100, NULL, NULL, NULL, '100 usos de la skill Meditación en combate.'),
   ((SELECT id FROM class_evolutions WHERE class_id = 94 AND evolves_to_class_id = 96), 'COUNTER', 'EXORCISMOS_EXITOSOS', '>=', 75, NULL, NULL, NULL, '75 exorcismos exitosos.'),
   ((SELECT id FROM class_evolutions WHERE class_id = 26 AND evolves_to_class_id = 97), 'COUNTER', 'BENDICIONES_DADAS', '>=', 200, NULL, NULL, NULL, '200 bendiciones otorgadas.'),
   ((SELECT id FROM class_evolutions WHERE class_id = 90 AND evolves_to_class_id = 98), 'COUNTER', 'POCIONES_CRAFTEADAS', '>=', 100, NULL, NULL, NULL, '100 pociones/hierbas crafteadas.'),
@@ -12950,5 +12950,35 @@ CREATE TABLE IF NOT EXISTS guild_bank_transactions (
 );
 CREATE INDEX IF NOT EXISTS idx_guild_bank_tx_guild_id  ON guild_bank_transactions(guild_id, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_guild_bank_tx_player_id ON guild_bank_transactions(player_id, created_at DESC);
+
+-- Contadores de jugador para requisitos de evolución de clase tipo COUNTER (ver
+-- backend-spec-evolution-counters.md). _CURA_ATAQUE_ATAQUES/_CURA_ATAQUE_CURAS son sub-contadores
+-- internos de CUROS_Y_ATAQUES (se resuelve como min() de ambos al chequear el requisito).
+CREATE TABLE IF NOT EXISTS player_counters (
+  player_id    INT NOT NULL REFERENCES players(id) ON DELETE CASCADE,
+  counter_code TEXT NOT NULL,
+  value        INT NOT NULL DEFAULT 0,
+  updated_at   TIMESTAMPTZ NOT NULL DEFAULT now(),
+  PRIMARY KEY (player_id, counter_code)
+);
+
+-- Nigromante -> Lich (COMBATES_LIMITE_SOBREVIVIDOS): marca si algún jugador de la sesión bajó a
+-- <=10% de su HP máximo en algún momento del combate. Se consume al ganar (nunca si se pierde).
+ALTER TABLE combat_sessions ADD COLUMN IF NOT EXISTS had_near_death BOOLEAN NOT NULL DEFAULT FALSE;
+
+-- Nueva rareza UNICO (drop raro a definir por el dueño del proyecto).
+ALTER TABLE items DROP CONSTRAINT IF EXISTS items_rarity_check;
+ALTER TABLE items ADD CONSTRAINT items_rarity_check
+  CHECK (rarity IN ('COMUN', 'POCO_COMUN', 'RARO', 'EPICO', 'LEGENDARIO', 'UNICO'));
+
+-- Renombra los counter_code que no describían la mecánica real (ya redefinidos, ver spec secciones
+-- 3.3/3.4). No-op en una instalación nueva (el INSERT de arriba ya usa el nombre nuevo) — esto es
+-- para renombrar en una base ya sembrada previamente (ej. producción).
+UPDATE class_evolution_requirements SET counter_code = 'COMBATES_LIMITE_SOBREVIVIDOS',
+  description = 'Ganar 100 combates habiendo bajado a 10% HP o menos.'
+  WHERE counter_code = 'DIAS_VIVIDOS';
+UPDATE class_evolution_requirements SET counter_code = 'MEDITACIONES_USADAS',
+  description = '100 usos de la skill Meditación en combate.'
+  WHERE counter_code = 'DIAS_MEDITANDO';
 
 

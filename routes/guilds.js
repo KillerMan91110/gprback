@@ -64,7 +64,7 @@ router.get('/mine', async (req, res, next) => {
                 c.name AS class_name
          FROM guild_members gm
          JOIN players p ON p.id = gm.player_id
-         LEFT JOIN classes c ON c.id = p.current_class_id
+         LEFT JOIN classes c ON c.id = COALESCE(p.evolution_class_id, p.current_class_id)
          WHERE gm.guild_id = $1
          ORDER BY CASE gm.role WHEN 'LEADER' THEN 1 WHEN 'OFFICER' THEN 2 ELSE 3 END, p.level DESC`,
         [guild.id]
@@ -121,7 +121,7 @@ router.get('/:id', async (req, res, next) => {
               c.name AS class_name
        FROM guild_members gm
        JOIN players p ON p.id = gm.player_id
-       LEFT JOIN classes c ON c.id = p.current_class_id
+       LEFT JOIN classes c ON c.id = COALESCE(p.evolution_class_id, p.current_class_id)
        WHERE gm.guild_id = $1
        ORDER BY CASE gm.role WHEN 'LEADER' THEN 1 WHEN 'OFFICER' THEN 2 ELSE 3 END, p.level DESC`,
       [guild.id]
@@ -502,7 +502,7 @@ router.get('/:id/requests', async (req, res, next) => {
               c.name AS class_name
        FROM guild_join_requests gjr
        JOIN players p ON p.id = gjr.player_id
-       LEFT JOIN classes c ON c.id = p.current_class_id
+       LEFT JOIN classes c ON c.id = COALESCE(p.evolution_class_id, p.current_class_id)
        WHERE gjr.guild_id = $1 AND gjr.status = 'PENDING'
        ORDER BY gjr.created_at ASC`,
       [guildId]

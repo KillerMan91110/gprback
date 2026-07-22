@@ -7,6 +7,7 @@ const db = require('../db/db');
 const { requireAuth, requireSelf } = require('../lib/auth');
 const combatEngine = require('./combat');
 const inventory = require('../lib/inventory');
+const { incrementCounter } = require('../lib/counters');
 
 router.use(requireAuth);
 router.use(requireSelf);
@@ -274,6 +275,7 @@ router.post('/extract', async (req, res, next) => {
     const coinsEach = run.coins_earned;
     for (const pid of allPlayerIds) {
       await db.query('UPDATE players SET dungeon_coins = dungeon_coins + $1 WHERE id = $2', [coinsEach, pid]);
+      await incrementCounter(pid, 'MAZMORRAS_EXPLORADAS');
     }
 
     const playerRes = await db.query('SELECT dungeon_coins FROM players WHERE id = $1', [run.player_id]);

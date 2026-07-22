@@ -62,6 +62,15 @@ CREATE TABLE IF NOT EXISTS class_evolution_requirements (
   description TEXT
 );
 
+-- Contadores de jugador para requisitos de evolución de clase tipo COUNTER.
+CREATE TABLE IF NOT EXISTS player_counters (
+  player_id    INT NOT NULL REFERENCES players(id) ON DELETE CASCADE,
+  counter_code TEXT NOT NULL,
+  value        INT NOT NULL DEFAULT 0,
+  updated_at   TIMESTAMPTZ NOT NULL DEFAULT now(),
+  PRIMARY KEY (player_id, counter_code)
+);
+
 CREATE TABLE IF NOT EXISTS elements (
   id SERIAL PRIMARY KEY,
   code TEXT UNIQUE NOT NULL,
@@ -138,7 +147,7 @@ CREATE TABLE IF NOT EXISTS items (
   item_type TEXT NOT NULL CHECK (item_type IN ('EQUIPMENT', 'MATERIAL', 'CONSUMABLE')),
   slot TEXT CHECK (slot IN ('WEAPON', 'OFFHAND', 'HELMET', 'ARMOR', 'GLOVES', 'BOOTS', 'ACCESSORY')),
   is_two_handed BOOLEAN NOT NULL DEFAULT FALSE,
-  rarity TEXT CHECK (rarity IN ('COMUN', 'POCO_COMUN', 'RARO', 'EPICO', 'LEGENDARIO')),
+  rarity TEXT CHECK (rarity IN ('COMUN', 'POCO_COMUN', 'RARO', 'EPICO', 'LEGENDARIO', 'UNICO')),
   class_id INT REFERENCES classes(id),
   required_level INT,
   is_craftable BOOLEAN NOT NULL DEFAULT FALSE,
@@ -453,7 +462,8 @@ CREATE TABLE IF NOT EXISTS combat_sessions (
   created_at TIMESTAMP WITH TIME ZONE DEFAULT now(),
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT now(),
   guest_player_id INT REFERENCES players(id) ON DELETE SET NULL,
-  guest_player_id_2 INT REFERENCES players(id) ON DELETE SET NULL
+  guest_player_id_2 INT REFERENCES players(id) ON DELETE SET NULL,
+  had_near_death BOOLEAN NOT NULL DEFAULT FALSE
 );
 
 -- Puntero 1-a-1: en que sesion IN_PROGRESS esta cada jugador. player_id es PK, asi que

@@ -12,6 +12,13 @@ const achievements = require('../lib/achievements');
 const { requireAuth } = require('../lib/auth');
 const { applyGuildXp, getGuildLevelsForPlayers, combatBonusMultipliers } = require('../lib/guilds');
 const pets = require('../lib/pets');
+const { incrementCounter } = require('../lib/counters');
+
+// Clases cuyos ataques cuentan para KILLS_GOLPE_PUNO (Monje y evoluciones) / KILLS_CORTE
+// (Espadachín y evoluciones) — no hay un único skill "Golpe de Puño"/"técnicas de corte",
+// el contador es de clase (ver backend-spec-evolution-counters.md sección 3.1).
+const PUNCH_CLASS_IDS = [6, 38, 42];
+const CUT_CLASS_IDS = [7, 43];
 
 const router = express.Router();
 router.use(requireAuth);
@@ -333,6 +340,15 @@ async function loadParticipants(sessionId) {
   };
 }
 
+// Nigromante -> Lich (COMBATES_LIMITE_SOBREVIVIDOS, ex DIAS_VIVIDOS): marca la sesión si algún
+// jugador bajó a <=10% de su HP máximo en algún momento. Se consume (y cuenta +1 por héroe) al
+// ganar el combate en finalizeSession — nunca si se pierde estando así.
+async function markNearDeathIfLow(p) {
+  if (!p.player_id || p.hp <= 0 || !p.session_id) return;
+  if (p.hp > Number(p.max_hp) * 0.10) return;
+  await db.query('UPDATE combat_sessions SET had_near_death = TRUE WHERE id = $1', [p.session_id]);
+}
+
 async function persistParticipant(p) {
   await db.query(
     `UPDATE combat_participants SET hp=$1, mana=$2, is_defending=$3, has_acted_this_round=$4,
@@ -342,6 +358,71 @@ async function persistParticipant(p) {
     [p.hp, p.mana, p.is_defending, p.has_acted_this_round, p.atk, p.mag, p.def, p.spd, p.magic_def, p.crit_chance,
      p.imbued_element_id ?? null, p.imbued_damage_bonus ?? 0, p.id]
   );
+  await markNearDeathIfLow(p);
+}
+
+// CRITICOS_REALIZADOS / CRITICOS_ARCO: cualquier golpe (ATTACK o SKILL) del jugador con crit.
+async function registerCritCounter(playerId, isCrit) {
+  if (!isCrit) return;
+  await incrementCounter(playerId, 'CRITICOS_REALIZADOS');
+  const bowRes = await db.query(
+    `SELECT 1 FROM player_equipment pe JOIN items i ON i.id = pe.item_id
+     WHERE pe.player_id = $1 AND pe.slot = 'WEAPON' AND i.code LIKE 'ARCO_%'`,
+    [playerId]
+  );
+  if (bowRes.rows.length) await incrementCounter(playerId, 'CRITICOS_ARCO');
+}
+
+// Contadores de kill: por elemento de la skill, por categoría/zona del monstruo, y los 4
+// contadores atados a un skill/clase puntual (GOLPES_LETALES, KILLS_EXPLOSIVO, KILLS_GOLPE_PUNO,
+// KILLS_CORTE). `skill` es null para un ATTACK básico (sin elemento ni clase asociada).
+async function registerKillCounters(playerId, sessionId, deadTargets, skill) {
+  if (!deadTargets.length) return;
+
+  let elemCode = null;
+  if (skill?.element_id) {
+    elemCode = await elements.getElementCodeById(skill.element_id);
+    if (elemCode) await incrementCounter(playerId, `KILLS_${elemCode}`, deadTargets.length);
+    if (elemCode) await incrementCounter(playerId, 'KILLS_ELEMENTAL', deadTargets.length);
+  }
+
+  if (skill) {
+    if (skill.code === 'PICARO_GOLPE_LETAL') await incrementCounter(playerId, 'GOLPES_LETALES', deadTargets.length);
+    if (skill.code === 'ARQUERO_FLECHA_EXPLOSIVA') await incrementCounter(playerId, 'KILLS_EXPLOSIVO', deadTargets.length);
+    if (PUNCH_CLASS_IDS.includes(skill.class_id)) await incrementCounter(playerId, 'KILLS_GOLPE_PUNO', deadTargets.length);
+    if (CUT_CLASS_IDS.includes(skill.class_id)) await incrementCounter(playerId, 'KILLS_CORTE', deadTargets.length);
+  }
+
+  for (const target of deadTargets) {
+    if (!target.monster_code) continue; // estos contadores son solo por kills de monstruos
+    const monsterRes = await db.query('SELECT category, zone_id FROM monsters WHERE code = $1', [target.monster_code]);
+    const monster = monsterRes.rows[0];
+    if (!monster) continue;
+
+    if (monster.category === 'DRACOIDE') await incrementCounter(playerId, 'KILLS_DRAGON');
+    if (monster.category === 'BESTIA') {
+      await incrementCounter(playerId, 'ANIMALES_CAZADOS');
+      await incrementCounter(playerId, 'ANIMALES_SALVAJES_MUERTOS');
+    }
+    if (['DEMONIO', 'ESPECTRO', 'MUERTO_VIVIENTE'].includes(monster.category) || elemCode === 'DARK') {
+      await incrementCounter(playerId, 'ENEMIGOS_OSCUROS_MUERTOS');
+    }
+    if (elemCode === 'COSMIC') {
+      const bossRes = await db.query(
+        `SELECT 1 FROM player_tower_runs ptr JOIN tower_floors tf ON tf.floor_number = ptr.current_floor
+         WHERE ptr.current_session_id = $1 AND tf.is_boss_floor AND tf.boss_monster_code = $2`,
+        [sessionId, target.monster_code]
+      );
+      if (bossRes.rows.length) await incrementCounter(playerId, 'BOSSES_COSMICOS_MUERTOS');
+    }
+    if (monster.zone_id) {
+      const zoneRes = await db.query(
+        `SELECT 1 FROM monster_zones WHERE id = $1 AND (name ILIKE 'Ruinas%' OR name ILIKE 'Catacumbas%')`,
+        [monster.zone_id]
+      );
+      if (zoneRes.rows.length) await incrementCounter(playerId, 'KILLS_EN_RUINAS');
+    }
+  }
 }
 
 // Crea un invocado como combat_participant del lado PLAYER con has_acted_this_round=TRUE
@@ -630,6 +711,7 @@ async function startNewRound(sessionId, participants) {
       const dotDmg = Math.max(1, Math.round(Number(p.max_hp) * Number(dot.applied_flat) / 100));
       p.hp = Math.max(0, p.hp - dotDmg);
       await db.query('UPDATE combat_participants SET hp = $1 WHERE id = $2', [p.hp, p.id]);
+      await markNearDeathIfLow(p);
     }
   }
 
@@ -657,6 +739,10 @@ async function startNewRound(sessionId, participants) {
       await db.query('DELETE FROM combat_participant_buffs WHERE id = $1', [buff.id]);
     } else {
       await db.query('UPDATE combat_participant_buffs SET rounds_remaining = $1 WHERE id = $2', [newRounds, buff.id]);
+      // SEGUNDOS_OCULTO: aunque el nombre diga "segundos", se mide en turnos con invisibilidad activa.
+      if (buff.stat_code === 'NO_DAMAGE' && p?.player_id) {
+        await incrementCounter(p.player_id, 'SEGUNDOS_OCULTO');
+      }
     }
   }
 
@@ -955,6 +1041,11 @@ async function finalizeSession(sessionId, status, participants) {
       // (0 si no está en ninguno, en cuyo caso el bonus es nulo).
       const heroGuildLevels = await getGuildLevelsForPlayers(heroPs.map((hp) => hp.player_id));
 
+      // COMBATES_LIMITE_SOBREVIVIDOS (ex DIAS_VIVIDOS): solo cuenta si alguien del equipo bajó
+      // a <=10% HP en algún momento de ESTA pelea Y la terminaron ganando (nunca si se pierde).
+      const sessionRes = await db.query('SELECT had_near_death FROM combat_sessions WHERE id = $1', [sessionId]);
+      const hadNearDeath = sessionRes.rows[0]?.had_near_death || false;
+
       for (const hp of heroPs) {
         const heroGoldMult = combatBonusMultipliers(heroGuildLevels.get(hp.player_id)).gold;
         const heroGold = Math.round(goldPerHero * heroGoldMult);
@@ -962,6 +1053,7 @@ async function finalizeSession(sessionId, status, participants) {
           'UPDATE players SET hp = $1, mana = $2, gold = gold + $3, combat_wins = combat_wins + 1, updated_at = now() WHERE id = $4',
           [hp.hp, hp.mana, heroGold, hp.player_id]
         );
+        if (hadNearDeath) await incrementCounter(hp.player_id, 'COMBATES_LIMITE_SOBREVIVIDOS');
       }
 
       const partySize = heroPs.length + npcPs.length;
@@ -1301,6 +1393,9 @@ async function advanceEnemyTurns(sessionId) {
           }
           const results = combat.resolveSkill(actor, skillTargets, skill, elemModsByTargetId);
           for (const r of results) await persistParticipant(r.target);
+          for (const r of results) {
+            if (r.evaded && r.target.player_id) await incrementCounter(r.target.player_id, 'ATAQUES_ESQUIVADOS');
+          }
           const verb = skill.skill_type === 'CURACION' ? 'cura' : 'daña';
           const summary = results.map((r) => (r.evaded ? `${r.target.name} esquiva` : `${r.target.name} por ${r.amount}${r.crit ? ' (¡crítico!)' : ''}`)).join(', ');
           skillDescParts.push(`${verb} a ${summary}`);
@@ -1358,6 +1453,7 @@ async function advanceEnemyTurns(sessionId) {
 
     await persistParticipant(actor);
     await persistParticipant(target);
+    if (result.evaded && target.player_id) await incrementCounter(target.player_id, 'ATAQUES_ESQUIVADOS');
     await insertLog(sessionId, round, {
       actorId: actor.id,
       action: 'ATTACK',
@@ -1860,6 +1956,8 @@ router.post('/sessions/:id/action', async (req, res, next) => {
       await persistParticipant(target);
       if (actor.player_id === req.playerId) {
         await questProgress.registerAction(req.playerId, { baseAction: 'ATTACK', killCount: target.hp <= 0 ? 1 : 0 });
+        await registerCritCounter(req.playerId, result.crit);
+        if (target.hp <= 0) await registerKillCounters(req.playerId, sessionId, [target], null);
       }
       logEntry = {
         actorId: actor.id,
@@ -2067,6 +2165,13 @@ router.post('/sessions/:id/action', async (req, res, next) => {
             }
           }
         }
+        if (actor.player_id === req.playerId) {
+          if (!isDebuff && ['ALLY', 'ALL_ALLIES'].includes(skill.target_type)) {
+            await incrementCounter(req.playerId, 'ALIADOS_PROTEGIDOS');
+          }
+          if (skill.code === 'SACERDOTE_BENDICION') await incrementCounter(req.playerId, 'BENDICIONES_DADAS');
+          if (skill.code === 'EXORCISTA_APOYO') await incrementCounter(req.playerId, 'EXORCISMOS_EXITOSOS');
+        }
         logEntry = {
           actorId: actor.id, action,
           targetId: targets[0]?.id || null,
@@ -2114,6 +2219,7 @@ router.post('/sessions/:id/action', async (req, res, next) => {
               target.hp = Math.max(1, Math.round(Number(target.max_hp) * pct / 100));
               await persistParticipant(target);
               espDescParts.push(`${target.name} revivido con ${target.hp} HP`);
+              if (actor.player_id === req.playerId) await incrementCounter(req.playerId, 'ALIADOS_SALVADOS');
             }
           } else if (effect.effect_type === 'CLEANSE') {
             for (const target of targets) {
@@ -2153,6 +2259,7 @@ router.post('/sessions/:id/action', async (req, res, next) => {
             const { summon, auraStrength } = await createSummonParticipant(sessionId, actor, effect, skill, participants);
             const elemCode = skill.element_id ? await elements.getElementCodeById(skill.element_id) : null;
             espDescParts.push(`¡${summon.name} invocado! Atacará ${effect.duration_turns} rondas. Equipo +${auraStrength}% resist ${elemCode || ''}.`);
+            if (actor.player_id === req.playerId) await incrementCounter(req.playerId, 'INVOCACIONES_REALIZADAS');
           }
         }
         logEntry = {
@@ -2209,12 +2316,29 @@ router.post('/sessions/:id/action', async (req, res, next) => {
 
         for (const r of results) await persistParticipant(r.target);
         if (actor.player_id === req.playerId) {
+          const deadTargets = results.filter((r) => r.target.hp <= 0).map((r) => r.target);
           await questProgress.registerAction(req.playerId, {
             skillId: skill.id,
             damageSchool: skill.damage_school,
             isElemental: !!skill.element_id,
-            killCount: results.filter((r) => r.target.hp <= 0).length,
+            killCount: deadTargets.length,
           });
+
+          if (results.some((r) => r.crit)) await registerCritCounter(req.playerId, true);
+          if (deadTargets.length) {
+            await registerKillCounters(req.playerId, sessionId, deadTargets, skill);
+            const invisRes = await db.query(
+              `SELECT 1 FROM combat_participant_buffs WHERE participant_id = $1 AND stat_code = 'NO_DAMAGE'`,
+              [actor.id]
+            );
+            if (invisRes.rows.length) await incrementCounter(req.playerId, 'KILLS_EN_INVISIBILIDAD', deadTargets.length);
+          }
+          if (skill.skill_type === 'CURACION') {
+            await incrementCounter(req.playerId, 'CUROS_REALIZADOS');
+            await incrementCounter(req.playerId, '_CURA_ATAQUE_CURAS');
+          } else if (skill.skill_type === 'ATAQUE') {
+            await incrementCounter(req.playerId, '_CURA_ATAQUE_ATAQUES');
+          }
         }
 
         const verb = skill.skill_type === 'CURACION' ? 'cura' : 'daña';

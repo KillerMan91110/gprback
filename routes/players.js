@@ -11,6 +11,7 @@ const evolution = require('../lib/evolution');
 const { fetchQuestDetail } = require('./quests');
 const { requireAuth, requireSelf } = require('../lib/auth');
 const { getActivePetBonuses } = require('../lib/pets');
+const { incrementCounter } = require('../lib/counters');
 
 const router = express.Router();
 
@@ -1207,6 +1208,9 @@ router.post('/:playerId/quests/:questId/complete', async (req, res, next) => {
     if (quest.is_boss_quest) {
       await db.query('UPDATE players SET boss_kills = boss_kills + 1 WHERE id = $1', [playerId]);
     }
+    const isCombatQuest = quest.objectives?.some((o) =>
+      ['KILL_MONSTER', 'KILL_ANY_IN_ZONE', 'DEFEAT_BOSS'].includes(o.objective_type));
+    if (isCombatQuest) await incrementCounter(playerId, 'MISIONES_COMBATE_COMPLETADAS');
 
     const levelResult = await leveling.applyXpGain(playerId, bonusedXp);
 
@@ -1476,7 +1480,7 @@ router.post('/:playerId/craft', async (req, res, next) => {
 
   try {
     const recipeResult = await db.query(
-      `SELECT cr.id, cr.result_item_id, i.name AS result_name, cr.result_quantity,
+      `SELECT cr.id, cr.result_item_id, i.name AS result_name, i.item_type AS result_item_type, cr.result_quantity,
               cr.rarity, cr.success_rate_percent, cr.zone_id, cr.scroll_item_id
        FROM crafting_recipes cr
        JOIN items i ON i.id = cr.result_item_id
@@ -1591,6 +1595,10 @@ router.post('/:playerId/craft', async (req, res, next) => {
 
     const totalGained = recipe.result_quantity * successCount;
     const luckyCount = Object.entries(tierCounts).filter(([t]) => Number(t) > 0).reduce((s, [, c]) => s + c, 0);
+
+    if (totalGained > 0 && recipe.result_item_type === 'CONSUMABLE') {
+      await incrementCounter(playerId, 'POCIONES_CRAFTEADAS', totalGained);
+    }
 
     res.json({
       success: successCount > 0,
