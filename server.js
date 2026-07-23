@@ -163,7 +163,7 @@ app.get('/api/player/:playerId/stats', requireAuth, requireSelf, async (req, res
     const effectiveClassId = player.evolution_class_id || player.current_class_id;
     const [bonus, passives, baseCritDamage, resistancesResult, bonusesResult, petB] = await Promise.all([
       getEquipmentBonuses(player.id),
-      getClassPassiveBonuses(effectiveClassId, player.level),
+      getClassPassiveBonuses([player.current_class_id, player.evolution_class_id], player.level),
       getClassBaseCritDamage(effectiveClassId),
       db.query(
         `SELECT e.name AS element, e.code AS element_code, cer.resistance_percent

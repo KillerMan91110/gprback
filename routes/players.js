@@ -1535,12 +1535,12 @@ router.post('/:playerId/craft', async (req, res, next) => {
 
     // Luck total: base del jugador + equipo + pasivas del heroe + pasivas de NPCs en el grupo.
     const playerLuckRow = await db.query(
-      'SELECT luck, current_class_id, level FROM players WHERE id = $1',
+      'SELECT luck, current_class_id, evolution_class_id, level FROM players WHERE id = $1',
       [playerId]
     );
     const pd = playerLuckRow.rows[0] || {};
     const equipBonus = await getEquipmentBonuses(playerId);
-    const heroPassives = await getClassPassiveBonuses(pd.current_class_id, pd.level);
+    const heroPassives = await getClassPassiveBonuses([pd.current_class_id, pd.evolution_class_id], pd.level);
     const partyNpcs = await db.query(
       `SELECT pn.class_id, pn.level FROM player_party pp
        JOIN player_npcs pn ON pn.id = pp.npc_id
@@ -1900,6 +1900,7 @@ router.get('/:playerId/party', async (req, res, next) => {
       db.query(
         `SELECT p.nickname, p.level, p.hp, p.max_hp, p.mana, p.max_mana,
                 p.atk, p.def, p.mag, p.magic_def, p.spd, p.crit,
+                p.current_class_id, p.evolution_class_id,
                 c.id AS class_id, c.name AS class_name, c.code AS class_code, c.base_evasion
          FROM players p JOIN classes c ON c.id = COALESCE(p.evolution_class_id, p.current_class_id)
          WHERE p.id = $1`,
@@ -1920,7 +1921,7 @@ router.get('/:playerId/party', async (req, res, next) => {
     const npcClassIds = partyRes.rows.map((n) => n.class_id);
     const [heroEquip, heroPassives, heroBaseCritDamage, npcResistances, npcBonuses, classXpRates] = await Promise.all([
       getEquipmentBonuses(Number(playerId)),
-      getClassPassiveBonuses(hero.class_id, hero.level),
+      getClassPassiveBonuses([hero.current_class_id, hero.evolution_class_id], hero.level),
       leveling.getClassBaseCritDamage(hero.class_id),
       npcClassIds.length
         ? db.query(

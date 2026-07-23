@@ -95,16 +95,19 @@ async function hasActiveCombatSession(playerId) {
 async function hydratePlayers(playerIds) {
   const result = await db.query(
     `SELECT id, nickname, hp, max_hp, mana, max_mana, atk, def, mag, magic_def, spd, crit, luck,
-            level, COALESCE(evolution_class_id, current_class_id) AS class_id
+            level, current_class_id, evolution_class_id,
+            COALESCE(evolution_class_id, current_class_id) AS class_id
      FROM players WHERE id = ANY($1::int[])`,
     [playerIds]
   );
   return Promise.all(result.rows.map(async (p) => {
     // p.hp/max_hp ya incluyen el bono de equipo (ver lib/equipment.js applyHpBonusDelta);
-    // sumarlo de nuevo aca lo duplicaba en cada pelea.
+    // sumarlo de nuevo aca lo duplicaba en cada pelea. Las pasivas SI suman de toda la cadena
+    // de evolucion (p.class_id, usado abajo, sigue siendo solo la clase EFECTIVA — es lo que
+    // el motor de innatas/combate necesita para saber "qué clase es ahora").
     const [bonus, passives, baseCritDamage, petB] = await Promise.all([
       getEquipmentBonuses(p.id),
-      getClassPassiveBonuses(p.class_id, p.level),
+      getClassPassiveBonuses([p.current_class_id, p.evolution_class_id], p.level),
       leveling.getClassBaseCritDamage(p.class_id),
       pets.getActivePetBonuses(p.id),
     ]);
@@ -716,6 +719,15 @@ async function createSummonParticipant(sessionId, actor, summonEffect, skill, pa
   summon.no_damage_window = false;
   summon.damage_taken_bonus = 0;
 
+  // Vínculo Espiritual: los invocados del dueño de la innata nacen con stats reforzados.
+  const summonerInnate = await getInnateForClass(actor.class_id);
+  if (summonerInnate?.trigger_type === 'PASSIVE_STAT' && summonerInnate.extra_json?.summon_bonus) {
+    const { atk: atkPct, mag: magPct } = summonerInnate.extra_json.summon_bonus;
+    if (atkPct) summon.atk = Math.round(Number(summon.atk || 0) * (1 + Number(atkPct) / 100));
+    if (magPct) summon.mag = Math.round(Number(summon.mag || 0) * (1 + Number(magPct) / 100));
+    await db.query('UPDATE combat_participants SET atk = $1, mag = $2 WHERE id = $3', [summon.atk, summon.mag, summon.id]);
+  }
+
   // Aura de resistencia elemental para todos los aliados vivos
   if (skill.element_id) {
     const elemCode = await elements.getElementCodeById(skill.element_id);
@@ -1292,10 +1304,13 @@ async function finalizeSession(sessionId, status, participants) {
       ]);
 
       const heroClassRes = await db.query(
-        'SELECT COALESCE(evolution_class_id, current_class_id) AS class_id, level FROM players WHERE id = $1',
+        'SELECT current_class_id, evolution_class_id, level FROM players WHERE id = $1',
         [heroP.player_id]
       );
-      const heroPassives = await getClassPassiveBonuses(heroClassRes.rows[0]?.class_id, heroClassRes.rows[0]?.level);
+      const heroPassives = await getClassPassiveBonuses(
+        [heroClassRes.rows[0]?.current_class_id, heroClassRes.rows[0]?.evolution_class_id],
+        heroClassRes.rows[0]?.level
+      );
 
       rewards.gold = applyPercentBonus(applyPercentBonus(applyPercentBonus(applyPercentBonus(rewards.gold, rewardBonusPercent), combatAchBonuses.goldEarned), heroPassives.gold_bonus), heroPetBonuses.gold_percent);
       rewards.xp   = applyPercentBonus(applyPercentBonus(applyPercentBonus(applyPercentBonus(rewards.xp,   xpBonusPercent),     combatAchBonuses.xpEarned),   heroPassives.xp_bonus),   heroPetBonuses.xp_percent);
@@ -2320,6 +2335,7 @@ router.post('/sessions/:id/action', async (req, res, next) => {
       const targetBonus = await getTargetDamageBonus(actor, target, { alreadyFoughtCategoriesThisCombat: alreadyFought });
       attackBonusPercent += targetBonus.damagePercent;
       if (targetBonus.critChancePercent) actor.crit_chance = (actor.crit_chance || 0) + targetBonus.critChancePercent;
+      if (targetBonus.ignoreResistance && attackElementalMods) attackElementalMods.resistancePercent = 0;
 
       const hadGuaranteedCrit = (await consumePendingGuaranteedCrit(actor)) || targetBonus.guaranteedCrit;
       if (hadGuaranteedCrit) actor.crit_chance = 100;
@@ -2496,7 +2512,8 @@ router.post('/sessions/:id/action', async (req, res, next) => {
               ? await elements.getPlayerElementResistance(t.player_id, skill.element_id)
               : await elements.getClassElementResistance(t.class_id, skill.element_id);
           const tempResist = (skillElemCode && t.temp_resist?.[skillElemCode]) || 0;
-          elementalModsByTargetId[t.id] = { damageBonusPercent, resistancePercent: baseResist + tempResist };
+          const ignoresThisElement = actor.ignore_resistance_element && actor.ignore_resistance_element === skillElemCode;
+          elementalModsByTargetId[t.id] = { damageBonusPercent, resistancePercent: ignoresThisElement ? 0 : baseResist + tempResist };
         }
       }
 
@@ -2600,10 +2617,29 @@ router.post('/sessions/:id/action', async (req, res, next) => {
           [skillId]
         );
         const altDescParts = [];
+        const dotInnate = await getInnateForClass(actor.class_id);
+        const dotElemCode = skill.element_id ? await elements.getElementCodeById(skill.element_id) : null;
         for (const effect of altEffectsRes.rows) {
           if (effect.effect_type === 'DOT') {
-            const pct = Number(effect.percent_amount || 0);
-            const dur = Number(effect.duration_turns);
+            let pct = Number(effect.percent_amount || 0);
+            let dur = Number(effect.duration_turns);
+            // Toxina Base / Veneno Persistente: la magnitud/duración vive en extra_json del
+            // atacante, no en el skill_effect (aplica a CUALQUIER DOT que el actor inflija).
+            if (dotInnate?.trigger_type === 'PASSIVE_STAT') {
+              if (dotInnate.extra_json?.dot_damage_bonus_percent) {
+                pct *= 1 + Number(dotInnate.extra_json.dot_damage_bonus_percent) / 100;
+              }
+              if (dotInnate.extra_json?.dot_duration_bonus_turns) {
+                dur += Number(dotInnate.extra_json.dot_duration_bonus_turns);
+              }
+              // Combustión/Fusión de Sombras: "el DOT puede critar" se aproxima como una
+              // probabilidad, al momento de aplicarlo, de que pegue más fuerte durante toda
+              // su duración (no hay caster_id en combat_participant_buffs para rolear por tick).
+              if ((dotInnate.extra_json?.dot_can_crit || []).includes(dotElemCode)
+                  && Math.random() * 100 < Number(actor.crit_chance || 0)) {
+                pct *= 1 + Number(actor.crit_damage || 50) / 100;
+              }
+            }
             for (const target of targets) {
               await db.query(
                 "DELETE FROM combat_participant_buffs WHERE participant_id = $1 AND stat_code = 'DOT' AND skill_id = $2",
@@ -2613,7 +2649,7 @@ router.post('/sessions/:id/action', async (req, res, next) => {
                 "INSERT INTO combat_participant_buffs(session_id,participant_id,stat_code,applied_flat,rounds_remaining,is_debuff,skill_id) VALUES($1,$2,'DOT',$3,$4,TRUE,$5)",
                 [sessionId, target.id, pct, dur, skillId]
               );
-              altDescParts.push(`${target.name} envenenado: ${pct}% HP/turno (${dur}T)`);
+              altDescParts.push(`${target.name} envenenado: ${Math.round(pct)}% HP/turno (${dur}T)`);
               if (actor.player_id === req.playerId && POISON_SKILL_CODES.includes(skill.code)) {
                 await incrementCounter(req.playerId, 'ENVENENAMIENTOS');
                 await markCounterCodeSeen(req.playerId, 'VENENOS_DOMINADOS', skill.code);
@@ -2761,7 +2797,8 @@ router.post('/sessions/:id/action', async (req, res, next) => {
               espDescParts.push(`${target.name}: ${debuffRows.rows.length} debuff(s) eliminado(s)`);
             }
           } else if (effect.effect_type === 'NO_DAMAGE_WINDOW') {
-            const dur = Number(effect.duration_turns || 1);
+            const invisInnate = await getInnateForClass(actor.class_id);
+            const dur = Number(effect.duration_turns || 1) + Number(invisInnate?.extra_json?.invisibility_duration_bonus_turns || 0);
             for (const target of targets) {
               await db.query(
                 "DELETE FROM combat_participant_buffs WHERE participant_id = $1 AND stat_code = 'NO_DAMAGE' AND skill_id = $2",
@@ -2822,6 +2859,8 @@ router.post('/sessions/:id/action', async (req, res, next) => {
               targetBonus += innateBonus.damagePercent;
               if (innateBonus.critChancePercent) actor.crit_chance = (actor.crit_chance || 0) + innateBonus.critChancePercent;
               if (innateBonus.guaranteedCrit) elementalModsByTargetId[t.id] = { ...(elementalModsByTargetId[t.id] || {}), guaranteedCrit: true };
+              if (innateBonus.ignoreResistance) elementalModsByTargetId[t.id] = { ...(elementalModsByTargetId[t.id] || {}), resistancePercent: 0 };
+              if (innateBonus.ignoreMagicDef) elementalModsByTargetId[t.id] = { ...(elementalModsByTargetId[t.id] || {}), ignoreMagicDef: true };
               if (targetBonus) categoryBonusByTargetId[t.id] = targetBonus;
             }
           } else if (baseSkillBonus > 0) {
