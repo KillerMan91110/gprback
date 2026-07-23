@@ -13442,3 +13442,56 @@ VALUES
     '+1% de daño acumulable por cada kill logrado durante el combate.');
 
 
+
+-- ===== Skill books: libros consumibles que enseñan una skill universal (class_id NULL) =====
+-- Cualquier clase/evolucion puede usar la skill una vez aprendida (routes/combat.js ya autoriza
+-- skill.class_id IS NULL para cualquier heroe/NPC, ver linea ~2412). Cada libro enseña 1 de los
+-- 8 ataques elementales basicos (COSMIC queda afuera, reservado para jefes/endgame). scaling_stat
+-- HYBRID (promedio ATK+MAG) para que le sirva parejo a una clase fisica o magica, mas debil que el
+-- ataque elemental propio de cada clase a proposito (es un "filler" universal, no reemplaza nada).
+CREATE TABLE IF NOT EXISTS item_teaches_skill (
+  id SERIAL PRIMARY KEY,
+  item_id INT NOT NULL REFERENCES items(id) ON DELETE CASCADE,
+  skill_id INT NOT NULL REFERENCES skills(id) ON DELETE CASCADE,
+  UNIQUE(item_id, skill_id)
+);
+
+INSERT INTO skills(class_id, code, name, skill_type, damage_school, element_id, target_type, base_value, scaling_stat, scaling_multiplier, hits, mana_cost, is_passive, learn_method, learn_level, learn_gold_cost, learn_requirement_text, description)
+VALUES
+  (NULL, 'UNIVERSAL_DARDO_FUEGO', 'Dardo de Fuego', 'ATAQUE', 'MAGICO', (SELECT id FROM elements WHERE code = 'FIRE'), 'ENEMY', 40, 'HYBRID', 0.9, 1, 15, FALSE, 'ITEM', NULL, NULL, NULL, 'Ataque elemental básico de Fuego, disponible para cualquier clase. Se aprende con un Libro de Hechizos.'),
+  (NULL, 'UNIVERSAL_DARDO_HIELO', 'Dardo de Hielo', 'ATAQUE', 'MAGICO', (SELECT id FROM elements WHERE code = 'ICE'), 'ENEMY', 40, 'HYBRID', 0.9, 1, 15, FALSE, 'ITEM', NULL, NULL, NULL, 'Ataque elemental básico de Hielo, disponible para cualquier clase. Se aprende con un Libro de Hechizos.'),
+  (NULL, 'UNIVERSAL_DARDO_RAYO', 'Dardo de Rayo', 'ATAQUE', 'MAGICO', (SELECT id FROM elements WHERE code = 'LIGHTNING'), 'ENEMY', 40, 'HYBRID', 0.9, 1, 15, FALSE, 'ITEM', NULL, NULL, NULL, 'Ataque elemental básico de Rayo, disponible para cualquier clase. Se aprende con un Libro de Hechizos.'),
+  (NULL, 'UNIVERSAL_DARDO_VIENTO', 'Dardo de Viento', 'ATAQUE', 'MAGICO', (SELECT id FROM elements WHERE code = 'WIND'), 'ENEMY', 40, 'HYBRID', 0.9, 1, 15, FALSE, 'ITEM', NULL, NULL, NULL, 'Ataque elemental básico de Viento, disponible para cualquier clase. Se aprende con un Libro de Hechizos.'),
+  (NULL, 'UNIVERSAL_DARDO_TIERRA', 'Dardo de Tierra', 'ATAQUE', 'MAGICO', (SELECT id FROM elements WHERE code = 'EARTH'), 'ENEMY', 40, 'HYBRID', 0.9, 1, 15, FALSE, 'ITEM', NULL, NULL, NULL, 'Ataque elemental básico de Tierra, disponible para cualquier clase. Se aprende con un Libro de Hechizos.'),
+  (NULL, 'UNIVERSAL_DARDO_AGUA', 'Dardo de Agua', 'ATAQUE', 'MAGICO', (SELECT id FROM elements WHERE code = 'WATER'), 'ENEMY', 40, 'HYBRID', 0.9, 1, 15, FALSE, 'ITEM', NULL, NULL, NULL, 'Ataque elemental básico de Agua, disponible para cualquier clase. Se aprende con un Libro de Hechizos.'),
+  (NULL, 'UNIVERSAL_DARDO_LUZ', 'Dardo de Luz', 'ATAQUE', 'MAGICO', (SELECT id FROM elements WHERE code = 'LIGHT'), 'ENEMY', 40, 'HYBRID', 0.9, 1, 15, FALSE, 'ITEM', NULL, NULL, NULL, 'Ataque elemental básico de Luz, disponible para cualquier clase. Se aprende con un Libro de Hechizos.'),
+  (NULL, 'UNIVERSAL_DARDO_OSCURIDAD', 'Dardo de Oscuridad', 'ATAQUE', 'MAGICO', (SELECT id FROM elements WHERE code = 'DARK'), 'ENEMY', 40, 'HYBRID', 0.9, 1, 15, FALSE, 'ITEM', NULL, NULL, NULL, 'Ataque elemental básico de Oscuridad, disponible para cualquier clase. Se aprende con un Libro de Hechizos.')
+ON CONFLICT (code) DO NOTHING;
+
+-- obtain_method/buy_price quedan NULL a propósito: todavía no se definió cómo se consiguen
+-- (tienda, drop, crafteo) — se decide en otra pasada.
+INSERT INTO items(code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+VALUES
+  ('LIBRO_HECHIZOS_FUEGO', 'Libro de Hechizos: Fuego', 'CONSUMABLE', NULL, FALSE, 'POCO_COMUN', NULL, NULL, FALSE, NULL, 'Enseña Dardo de Fuego a quien lo use. Se consume al usarlo.'),
+  ('LIBRO_HECHIZOS_HIELO', 'Libro de Hechizos: Hielo', 'CONSUMABLE', NULL, FALSE, 'POCO_COMUN', NULL, NULL, FALSE, NULL, 'Enseña Dardo de Hielo a quien lo use. Se consume al usarlo.'),
+  ('LIBRO_HECHIZOS_RAYO', 'Libro de Hechizos: Rayo', 'CONSUMABLE', NULL, FALSE, 'POCO_COMUN', NULL, NULL, FALSE, NULL, 'Enseña Dardo de Rayo a quien lo use. Se consume al usarlo.'),
+  ('LIBRO_HECHIZOS_VIENTO', 'Libro de Hechizos: Viento', 'CONSUMABLE', NULL, FALSE, 'POCO_COMUN', NULL, NULL, FALSE, NULL, 'Enseña Dardo de Viento a quien lo use. Se consume al usarlo.'),
+  ('LIBRO_HECHIZOS_TIERRA', 'Libro de Hechizos: Tierra', 'CONSUMABLE', NULL, FALSE, 'POCO_COMUN', NULL, NULL, FALSE, NULL, 'Enseña Dardo de Tierra a quien lo use. Se consume al usarlo.'),
+  ('LIBRO_HECHIZOS_AGUA', 'Libro de Hechizos: Agua', 'CONSUMABLE', NULL, FALSE, 'POCO_COMUN', NULL, NULL, FALSE, NULL, 'Enseña Dardo de Agua a quien lo use. Se consume al usarlo.'),
+  ('LIBRO_HECHIZOS_LUZ', 'Libro de Hechizos: Luz', 'CONSUMABLE', NULL, FALSE, 'POCO_COMUN', NULL, NULL, FALSE, NULL, 'Enseña Dardo de Luz a quien lo use. Se consume al usarlo.'),
+  ('LIBRO_HECHIZOS_OSCURIDAD', 'Libro de Hechizos: Oscuridad', 'CONSUMABLE', NULL, FALSE, 'POCO_COMUN', NULL, NULL, FALSE, NULL, 'Enseña Dardo de Oscuridad a quien lo use. Se consume al usarlo.')
+ON CONFLICT (code) DO NOTHING;
+
+INSERT INTO item_teaches_skill (item_id, skill_id)
+SELECT i.id, s.id FROM items i JOIN skills s ON TRUE
+WHERE (i.code, s.code) IN (
+  ('LIBRO_HECHIZOS_FUEGO', 'UNIVERSAL_DARDO_FUEGO'),
+  ('LIBRO_HECHIZOS_HIELO', 'UNIVERSAL_DARDO_HIELO'),
+  ('LIBRO_HECHIZOS_RAYO', 'UNIVERSAL_DARDO_RAYO'),
+  ('LIBRO_HECHIZOS_VIENTO', 'UNIVERSAL_DARDO_VIENTO'),
+  ('LIBRO_HECHIZOS_TIERRA', 'UNIVERSAL_DARDO_TIERRA'),
+  ('LIBRO_HECHIZOS_AGUA', 'UNIVERSAL_DARDO_AGUA'),
+  ('LIBRO_HECHIZOS_LUZ', 'UNIVERSAL_DARDO_LUZ'),
+  ('LIBRO_HECHIZOS_OSCURIDAD', 'UNIVERSAL_DARDO_OSCURIDAD')
+)
+ON CONFLICT (item_id, skill_id) DO NOTHING;

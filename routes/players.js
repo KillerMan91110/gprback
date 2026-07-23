@@ -295,7 +295,7 @@ router.get('/:playerId/skills', async (req, res, next) => {
               s.hits, s.description
        FROM skills s
        WHERE s.is_passive = FALSE AND s.skill_type != 'PASIVA'
-         AND s.class_id = ANY($1::int[])
+         AND (s.class_id = ANY($1::int[]) OR s.class_id IS NULL)
          AND (
            (s.learn_method = 'LEVEL' AND s.learn_level <= $2)
            OR EXISTS (SELECT 1 FROM player_skills ps WHERE ps.player_id = $3 AND ps.skill_id = s.id)
@@ -1657,6 +1657,32 @@ router.post('/:playerId/use-item', async (req, res, next) => {
     const bestTier = await inventory.getBestQualityTier(playerId, itemId);
     const have = await inventory.getQuantity(playerId, itemId, 0, bestTier);
     if (have < 1) return res.status(400).json({ error: 'No tienes ese item' });
+
+    // Libros de hechizo: enseñan una skill universal (class_id NULL) al héroe, no afectan HP/MP.
+    // Se resuelven acá y no en el loop de item_stat_bonuses porque no es un bono numérico de stat.
+    const teaches = await db.query(
+      `SELECT s.id AS skill_id, s.name, s.description
+       FROM item_teaches_skill its JOIN skills s ON s.id = its.skill_id
+       WHERE its.item_id = $1`,
+      [itemId]
+    );
+    if (teaches.rows.length) {
+      if (targetNpcId) {
+        return res.status(400).json({ error: 'Los libros de hechizo solo se pueden usar en el héroe.' });
+      }
+      const { skill_id: skillId, name: skillName } = teaches.rows[0];
+      const already = await db.query('SELECT 1 FROM player_skills WHERE player_id = $1 AND skill_id = $2', [playerId, skillId]);
+      if (already.rows.length) {
+        return res.status(400).json({ error: `Ya conoces la habilidad "${skillName}".` });
+      }
+      await db.query('INSERT INTO player_skills(player_id, skill_id) VALUES ($1, $2)', [playerId, skillId]);
+      await inventory.removeItem(playerId, itemId, 1, 0, bestTier);
+      return res.json({
+        message: `Aprendiste "${skillName}" con ${item.name}.`,
+        learnedSkillId: skillId,
+        skillName,
+      });
+    }
 
     const bonuses = await db.query(
       'SELECT stat_code, amount, is_percent FROM item_stat_bonuses WHERE item_id = $1',

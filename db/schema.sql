@@ -179,6 +179,15 @@ CREATE TABLE IF NOT EXISTS item_unlocks_skill (
   UNIQUE(item_id, skill_id)
 );
 
+-- Libros de hechizo: consumibles que enseñan permanentemente una skill (INSERT en player_skills)
+-- al usarse desde el inventario, a diferencia de item_unlocks_skill que es solo informativo.
+CREATE TABLE IF NOT EXISTS item_teaches_skill (
+  id SERIAL PRIMARY KEY,
+  item_id INT NOT NULL REFERENCES items(id) ON DELETE CASCADE,
+  skill_id INT NOT NULL REFERENCES skills(id) ON DELETE CASCADE,
+  UNIQUE(item_id, skill_id)
+);
+
 CREATE TABLE IF NOT EXISTS monster_zones (
   id SERIAL PRIMARY KEY,
   name TEXT NOT NULL UNIQUE,
