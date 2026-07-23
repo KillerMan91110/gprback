@@ -25,6 +25,7 @@ const marketRouter = require('./routes/market');
 const petsRouter = require('./routes/pets');
 const towerRouter = require('./routes/tower');
 const chatRouter = require('./routes/chat');
+const { globalRouter: worldBossGlobalRouter, playerRouter: worldBossPlayerRouter } = require('./routes/worldboss');
 const { getActivePetBonuses } = require('./lib/pets');
 
 const app = express();
@@ -99,6 +100,8 @@ app.use('/api/player/:playerId/market', marketRouter);
 app.use('/api/player/:playerId/pets', petsRouter);
 app.use('/api/player/:playerId/tower', towerRouter);
 app.use('/api/player/:playerId/chat', chatRouter);
+app.use('/api/worldboss', worldBossGlobalRouter);
+app.use('/api/player/:playerId/worldboss', worldBossPlayerRouter);
 
 // ========== RUTAS DE PRUEBA ==========
 

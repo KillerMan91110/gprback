@@ -58,6 +58,19 @@ const POISON_SKILL_CODES = [
   'ENVENENADOR_DOT_CORROSIVO', 'MAESTRO_ENVENENADOR_DOT_VACIO',
 ];
 
+// World Boss (docs/backend-spec-world-boss.md): balance defaults, ajustables sin tocar
+// arquitectura. Cualquier monstruo cuyo code empiece con este prefijo usa el golpe en área por
+// % de HP máximo en vez de la fórmula de daño normal (ver rama especial en advanceEnemyTurns).
+const WORLD_BOSS_CODE_PREFIX = 'WORLD_BOSS_';
+const WORLD_BOSS_ATTEMPT_COOLDOWN_SECONDS = 60;
+const WORLD_BOSS_MIN_LEVEL_TO_ENTER = 10;
+const WORLD_BOSS_HIT_PERCENT_MIN = 3;
+const WORLD_BOSS_HIT_PERCENT_MAX = 7;
+const WORLD_BOSS_DEF_MITIGATION_CAP = 0.45;
+const WORLD_BOSS_SHARDS_PER_DAMAGE_POINT = 1 / 400;
+const WORLD_BOSS_KILL_BONUS_SHARDS = 500;
+const WORLD_BOSS_TOP3_BONUS_SHARDS = [300, 200, 100];
+
 const router = express.Router();
 router.use(requireAuth);
 
@@ -1434,8 +1447,89 @@ async function finalizeSession(sessionId, status, participants) {
   }
 
   await handleTowerSessionEnd(sessionId, status);
+  await handleWorldBossFinalize(sessionId, participants);
 
   return rewards;
+}
+
+// World Boss (docs/backend-spec-world-boss.md sección 4): si esta sesión es un clon de World
+// Boss, resta el daño hecho del HP global compartido y reparte fragmentos cósmicos por jugador
+// real (agrupando por dueño — hero o NPCs propios — via combat_log, que ya tiene el actor exacto
+// de cada golpe). Corre en CUALQUIER cierre de sesión (ganada, perdida o escapada), no solo
+// PLAYER_WON, porque el daño ya hecho cuenta aunque el jugador no haya matado a SU clon.
+async function handleWorldBossFinalize(sessionId, participants) {
+  const sessRes = await db.query('SELECT world_boss_event_id FROM combat_sessions WHERE id = $1', [sessionId]);
+  const eventId = sessRes.rows[0]?.world_boss_event_id;
+  if (!eventId) return;
+
+  const boss = participants.enemy.find((e) => e.monster_code?.startsWith(WORLD_BOSS_CODE_PREFIX));
+  if (!boss) return;
+
+  const damageDealt = Math.max(0, Math.round(Number(boss.max_hp) - Number(boss.hp)));
+  if (damageDealt <= 0) return;
+
+  const dmgByOwner = await db.query(
+    `SELECT COALESCE(cp.player_id, cp.owner_player_id) AS owner_id, SUM(cl.damage) AS dmg
+     FROM combat_log cl
+     JOIN combat_participants cp ON cp.id = cl.actor_participant_id
+     WHERE cl.session_id = $1 AND cl.damage IS NOT NULL AND cl.damage > 0 AND cp.side = 'PLAYER'
+       AND COALESCE(cp.player_id, cp.owner_player_id) IS NOT NULL
+     GROUP BY COALESCE(cp.player_id, cp.owner_player_id)`,
+    [sessionId]
+  );
+
+  const hpRes = await db.query(
+    'UPDATE world_boss_events SET hp_remaining = GREATEST(0, hp_remaining - $1) WHERE id = $2 RETURNING hp_remaining',
+    [damageDealt, eventId]
+  );
+  const hpRemaining = hpRes.rows[0]?.hp_remaining ?? 0;
+
+  for (const row of dmgByOwner.rows) {
+    const dmg = Number(row.dmg);
+    if (dmg <= 0) continue;
+    await db.query(
+      `INSERT INTO world_boss_damage_log(event_id, player_id, total_damage, last_attempt_at)
+       VALUES ($1, $2, $3, now())
+       ON CONFLICT (event_id, player_id) DO UPDATE
+         SET total_damage = world_boss_damage_log.total_damage + EXCLUDED.total_damage, last_attempt_at = now()`,
+      [eventId, row.owner_id, dmg]
+    );
+    const shards = Math.round(dmg * WORLD_BOSS_SHARDS_PER_DAMAGE_POINT);
+    if (shards > 0) await db.query('UPDATE players SET cosmic_shards = cosmic_shards + $1 WHERE id = $2', [shards, row.owner_id]);
+  }
+
+  if (hpRemaining <= 0) {
+    // "WHERE status='ACTIVE'" es la guarda atomica: si 2 sesiones cierran casi al mismo tiempo
+    // y ambas ven hp_remaining<=0, solo la primera en llegar a la DB gana el claim y reparte
+    // bonos; la otra hace un no-op acá (rows.length === 0).
+    const lastHitRes = await db.query(
+      `SELECT COALESCE(cp.player_id, cp.owner_player_id) AS owner_id
+       FROM combat_log cl JOIN combat_participants cp ON cp.id = cl.actor_participant_id
+       WHERE cl.session_id = $1 AND cl.damage IS NOT NULL AND cl.damage > 0 AND cp.side = 'PLAYER'
+       ORDER BY cl.id DESC LIMIT 1`,
+      [sessionId]
+    );
+    const killerPlayerId = lastHitRes.rows[0]?.owner_id ?? null;
+
+    const claim = await db.query(
+      `UPDATE world_boss_events SET status = 'KILLED', closed_at = now(), killed_by_player_id = $1
+       WHERE id = $2 AND status = 'ACTIVE' RETURNING id`,
+      [killerPlayerId, eventId]
+    );
+    if (claim.rows.length) {
+      if (killerPlayerId) {
+        await db.query('UPDATE players SET cosmic_shards = cosmic_shards + $1 WHERE id = $2', [WORLD_BOSS_KILL_BONUS_SHARDS, killerPlayerId]);
+      }
+      const top3 = await db.query(
+        'SELECT player_id FROM world_boss_damage_log WHERE event_id = $1 ORDER BY total_damage DESC LIMIT 3',
+        [eventId]
+      );
+      for (let i = 0; i < top3.rows.length; i += 1) {
+        const bonus = WORLD_BOSS_TOP3_BONUS_SHARDS[i];
+        if (bonus) await db.query('UPDATE players SET cosmic_shards = cosmic_shards + $1 WHERE id = $2', [bonus, top3.rows[i].player_id]);
+      }
+    }
+  }
 }
 
 async function resolveAbandonedPlayerTurn(sessionId, round, actor, participants) {
@@ -1723,6 +1817,33 @@ async function advanceEnemyTurns(sessionId) {
         skillActionDone = true;
         break;
       }
+    }
+
+    if (!skillActionDone && actor.monster_code?.startsWith(WORLD_BOSS_CODE_PREFIX)) {
+      // World Boss: ignora la fórmula de daño física/mágica normal — golpe en área por % del
+      // HP MÁXIMO de cada objetivo, mitigado (con tope) por su DEF. Sección 5 del doc.
+      const aliveTargets = participants.player.filter((p) => p.hp > 0);
+      const basePercent = WORLD_BOSS_HIT_PERCENT_MIN + Math.random() * (WORLD_BOSS_HIT_PERCENT_MAX - WORLD_BOSS_HIT_PERCENT_MIN);
+      const hitParts = [];
+      for (const target of aliveTargets) {
+        const mitigation = Math.min(WORLD_BOSS_DEF_MITIGATION_CAP, (target.def || 0) / 3000);
+        const finalPercent = basePercent * (1 - mitigation);
+        const dmg = Math.max(1, Math.round(Number(target.max_hp) * finalPercent / 100));
+        target.hp = Math.max(0, target.hp - dmg);
+        await persistParticipant(target);
+        await markNearDeathIfLow(target);
+        hitParts.push(`${target.name} por ${dmg}`);
+      }
+      actor.has_acted_this_round = true;
+      await persistParticipant(actor);
+      await insertLog(sessionId, round, {
+        actorId: actor.id,
+        action: 'ATTACK',
+        targetId: aliveTargets[0]?.id ?? null,
+        description: `¡${actor.name} golpea a todo el equipo! ${hitParts.join(', ')}.`,
+        hp_after: aliveTargets[0]?.hp ?? null,
+      });
+      continue;
     }
 
     if (!skillActionDone) {
@@ -3208,3 +3329,7 @@ module.exports.hasAbandonedActiveSession = hasAbandonedActiveSession;
 module.exports.hasActiveCombatSession = hasActiveCombatSession;
 module.exports.buildTowerRoom = buildTowerRoom;
 module.exports.resolveInfiniteFloor = resolveInfiniteFloor;
+module.exports.createCombatSessionWithClaim = createCombatSessionWithClaim;
+module.exports.WORLD_BOSS_CODE_PREFIX = WORLD_BOSS_CODE_PREFIX;
+module.exports.WORLD_BOSS_ATTEMPT_COOLDOWN_SECONDS = WORLD_BOSS_ATTEMPT_COOLDOWN_SECONDS;
+module.exports.WORLD_BOSS_MIN_LEVEL_TO_ENTER = WORLD_BOSS_MIN_LEVEL_TO_ENTER;

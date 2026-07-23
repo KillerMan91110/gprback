@@ -13540,3 +13540,67 @@ WHERE (i.code, s.code) IN (
   ('TOMO_ARCANO_OSCURIDAD', 'UNIVERSAL_MAGIA_OSCURIDAD')
 )
 ON CONFLICT (item_id, skill_id) DO NOTHING;
+
+-- ===== World Boss: "El Devorador de Estrellas" (docs/backend-spec-world-boss.md) =====
+-- Jefe unico server-wide con HP compartido entre todos los jugadores. Cada jugador pelea su
+-- propia sub-sesion de combate normal contra un clon escalado a su nivel (hydrateMonsters ya
+-- soporta esto); el HP inicial del clon se pisa con hp_remaining del evento en el momento de
+-- entrar (ver routes/worldboss.js), y el dano hecho en esa sub-sesion se resta del HP global al
+-- cerrar la sesion (ver hook en finalizeSession, routes/combat.js).
+INSERT INTO monsters (code, name, category, rarity, element_id, base_level, min_spawn_level, max_spawn_level, base_atk, base_def, base_magic_atk, base_magic_def, base_spd, base_hp, xp_reward, gold_reward)
+VALUES ('WORLD_BOSS_DEVORADOR_ESTRELLAS', 'El Devorador de Estrellas', 'COSMICO', 'LEGENDARY',
+        (SELECT id FROM elements WHERE code = 'COSMIC'), 50, 10, 120, 900, 700, 950, 750, 90, 40000, 8000, 6000)
+ON CONFLICT (code) DO NOTHING;
+
+-- monster_level_scalings: 3 filas (10/60/120) para que interpolateStat() escale al nivel del
+-- jugador que entra. El HP de estas filas no importa (se pisa con hp_remaining al entrar), pero
+-- hay que cargarlo por la constraint NOT NULL. Curva calibrada contra GRAN_ESQUELETO_ABISMO
+-- (LEGENDARY nivel ~100: spd~910-936, atk~1140, def~1970 con equipo/nivel de jugador real) y
+-- anclada en el nivel base_level=50 con los valores atk/def/magic_atk/magic_def que ya trae el
+-- INSERT de arriba (900/700/950/750) — default, ajustable sin tocar arquitectura.
+INSERT INTO monster_level_scalings (monster_id, level, hp, atk, def, magic_atk, magic_def, spd, evasion, crit_chance, crit_damage, elemental_damage)
+SELECT id, level, hp, atk, def, magic_atk, magic_def, spd, 0, 0, 0, 0
+FROM monsters, (VALUES
+  (10,  40000, 360,  280,  380,  300,  40),
+  (60,  40000, 950,  750,  1000, 800,  95),
+  (120, 40000, 2100, 1650, 2200, 1750, 190)
+) AS v(level, hp, atk, def, magic_atk, magic_def, spd)
+WHERE monsters.code = 'WORLD_BOSS_DEVORADOR_ESTRELLAS'
+ON CONFLICT (monster_id, level) DO NOTHING;
+
+-- Estado del evento (uno activo por vez).
+CREATE TABLE IF NOT EXISTS world_boss_events (
+  id            SERIAL PRIMARY KEY,
+  monster_code  TEXT NOT NULL REFERENCES monsters(code),
+  max_hp        INT NOT NULL,
+  hp_remaining  INT NOT NULL,
+  status        TEXT NOT NULL DEFAULT 'ACTIVE' CHECK (status IN ('ACTIVE', 'KILLED', 'EXPIRED')),
+  started_at    TIMESTAMPTZ NOT NULL DEFAULT now(),
+  ends_at       TIMESTAMPTZ NOT NULL,
+  closed_at     TIMESTAMPTZ,
+  killed_by_player_id INT REFERENCES players(id)
+);
+
+-- Daño acumulado por jugador REAL en el evento actual (NPCs propios ya están sumados acá,
+-- nunca tienen fila propia).
+CREATE TABLE IF NOT EXISTS world_boss_damage_log (
+  event_id     INT NOT NULL REFERENCES world_boss_events(id) ON DELETE CASCADE,
+  player_id    INT NOT NULL REFERENCES players(id),
+  total_damage BIGINT NOT NULL DEFAULT 0,
+  last_attempt_at TIMESTAMPTZ,
+  PRIMARY KEY (event_id, player_id)
+);
+
+-- Moneda global.
+ALTER TABLE players ADD COLUMN IF NOT EXISTS cosmic_shards INT NOT NULL DEFAULT 0;
+
+-- Tienda (mismo patrón que tower_vendor_shop).
+CREATE TABLE IF NOT EXISTS world_boss_shop (
+  id      SERIAL PRIMARY KEY,
+  item_id INT NOT NULL REFERENCES items(id),
+  price   INT NOT NULL
+);
+
+-- Marca qué sub-sesión de combate pertenece a qué evento de world boss, para que el hook de
+-- finalizeSession sepa cuándo aplicar la lógica especial (restar HP global, repartir shards).
+ALTER TABLE combat_sessions ADD COLUMN IF NOT EXISTS world_boss_event_id INT REFERENCES world_boss_events(id);

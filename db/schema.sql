@@ -255,6 +255,33 @@ CREATE TABLE IF NOT EXISTS monster_level_scalings (
   UNIQUE(monster_id, level)
 );
 
+-- World Boss (docs/backend-spec-world-boss.md): jefe unico server-wide con HP compartido.
+CREATE TABLE IF NOT EXISTS world_boss_events (
+  id            SERIAL PRIMARY KEY,
+  monster_code  TEXT NOT NULL REFERENCES monsters(code),
+  max_hp        INT NOT NULL,
+  hp_remaining  INT NOT NULL,
+  status        TEXT NOT NULL DEFAULT 'ACTIVE' CHECK (status IN ('ACTIVE', 'KILLED', 'EXPIRED')),
+  started_at    TIMESTAMPTZ NOT NULL DEFAULT now(),
+  ends_at       TIMESTAMPTZ NOT NULL,
+  closed_at     TIMESTAMPTZ,
+  killed_by_player_id INT REFERENCES players(id)
+);
+
+CREATE TABLE IF NOT EXISTS world_boss_damage_log (
+  event_id     INT NOT NULL REFERENCES world_boss_events(id) ON DELETE CASCADE,
+  player_id    INT NOT NULL REFERENCES players(id),
+  total_damage BIGINT NOT NULL DEFAULT 0,
+  last_attempt_at TIMESTAMPTZ,
+  PRIMARY KEY (event_id, player_id)
+);
+
+CREATE TABLE IF NOT EXISTS world_boss_shop (
+  id      SERIAL PRIMARY KEY,
+  item_id INT NOT NULL REFERENCES items(id),
+  price   INT NOT NULL
+);
+
 CREATE TABLE IF NOT EXISTS players (
   id SERIAL PRIMARY KEY,
   email TEXT NOT NULL UNIQUE,
@@ -474,7 +501,8 @@ CREATE TABLE IF NOT EXISTS combat_sessions (
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT now(),
   guest_player_id INT REFERENCES players(id) ON DELETE SET NULL,
   guest_player_id_2 INT REFERENCES players(id) ON DELETE SET NULL,
-  had_near_death BOOLEAN NOT NULL DEFAULT FALSE
+  had_near_death BOOLEAN NOT NULL DEFAULT FALSE,
+  world_boss_event_id INT REFERENCES world_boss_events(id)
 );
 
 -- Puntero 1-a-1: en que sesion IN_PROGRESS esta cada jugador. player_id es PK, asi que
@@ -1067,6 +1095,7 @@ CREATE TABLE IF NOT EXISTS player_counter_seen_codes (
 );
 
 ALTER TABLE players ADD COLUMN IF NOT EXISTS dungeon_coins INT NOT NULL DEFAULT 0;
+ALTER TABLE players ADD COLUMN IF NOT EXISTS cosmic_shards INT NOT NULL DEFAULT 0;
 ALTER TABLE players ADD COLUMN IF NOT EXISTS luck NUMERIC(5,2) NOT NULL DEFAULT 1.0;
 ALTER TABLE players ADD COLUMN IF NOT EXISTS pool_last_generated_at TIMESTAMP WITH TIME ZONE;
 ALTER TABLE players ADD COLUMN IF NOT EXISTS last_seen_at TIMESTAMP WITH TIME ZONE DEFAULT now();
