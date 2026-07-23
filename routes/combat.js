@@ -5,6 +5,7 @@ const inventory = require('../lib/inventory');
 const leveling = require('../lib/leveling');
 const { getEquipmentBonuses, getNpcEquipmentBonuses } = require('../lib/equipment');
 const { getClassPassiveBonuses } = require('../lib/passives');
+const { getClassAncestorChain } = require('../lib/evolution');
 const elements = require('../lib/elements');
 const { getRankBonuses, applyPercentBonus } = require('../lib/ranks');
 const questProgress = require('../lib/questProgress');
@@ -103,11 +104,13 @@ async function hydratePlayers(playerIds) {
   return Promise.all(result.rows.map(async (p) => {
     // p.hp/max_hp ya incluyen el bono de equipo (ver lib/equipment.js applyHpBonusDelta);
     // sumarlo de nuevo aca lo duplicaba en cada pelea. Las pasivas SI suman de toda la cadena
-    // de evolucion (p.class_id, usado abajo, sigue siendo solo la clase EFECTIVA — es lo que
-    // el motor de innatas/combate necesita para saber "qué clase es ahora").
+    // de evolucion, no solo current/evolution (hay hasta 3 niveles de profundidad, ver
+    // getClassAncestorChain) — p.class_id, usado abajo, sigue siendo solo la clase EFECTIVA, es
+    // lo que el motor de innatas/combate necesita para saber "qué clase es ahora".
+    const classChain = await getClassAncestorChain(p.class_id);
     const [bonus, passives, baseCritDamage, petB] = await Promise.all([
       getEquipmentBonuses(p.id),
-      getClassPassiveBonuses([p.current_class_id, p.evolution_class_id], p.level),
+      getClassPassiveBonuses(classChain, p.level),
       leveling.getClassBaseCritDamage(p.class_id),
       pets.getActivePetBonuses(p.id),
     ]);
@@ -1307,10 +1310,10 @@ async function finalizeSession(sessionId, status, participants) {
         'SELECT current_class_id, evolution_class_id, level FROM players WHERE id = $1',
         [heroP.player_id]
       );
-      const heroPassives = await getClassPassiveBonuses(
-        [heroClassRes.rows[0]?.current_class_id, heroClassRes.rows[0]?.evolution_class_id],
-        heroClassRes.rows[0]?.level
+      const heroChain = await getClassAncestorChain(
+        heroClassRes.rows[0]?.evolution_class_id || heroClassRes.rows[0]?.current_class_id
       );
+      const heroPassives = await getClassPassiveBonuses(heroChain, heroClassRes.rows[0]?.level);
 
       rewards.gold = applyPercentBonus(applyPercentBonus(applyPercentBonus(applyPercentBonus(rewards.gold, rewardBonusPercent), combatAchBonuses.goldEarned), heroPassives.gold_bonus), heroPetBonuses.gold_percent);
       rewards.xp   = applyPercentBonus(applyPercentBonus(applyPercentBonus(applyPercentBonus(rewards.xp,   xpBonusPercent),     combatAchBonuses.xpEarned),   heroPassives.xp_bonus),   heroPetBonuses.xp_percent);

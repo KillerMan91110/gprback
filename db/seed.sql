@@ -2200,7 +2200,7 @@ VALUES
   ((SELECT id FROM class_evolutions WHERE class_id = 88 AND evolves_to_class_id = 100), 'COUNTER', 'CUROS_REALIZADOS', '>=', 1000, NULL, NULL, NULL, '1000 curaciones realizadas.'),
   ((SELECT id FROM class_evolutions WHERE class_id = 29 AND evolves_to_class_id = 101), 'COUNTER', 'PREDICCIONES_USADAS', '>=', 200, NULL, NULL, NULL, '200 usos de predicción/visión futura.');
 -- Habilidades de las 5 clases base (40 activas + 5 pasivas), desde habilidades_5_clases_base.html.
--- Las clases evolucionadas (38-101) aun no tienen habilidades propias; se agregaran en otra pasada.
+-- Las habilidades propias de las 94 clases evolucionadas se agregan mas abajo en el archivo.
 INSERT INTO skills(class_id, code, name, skill_type, damage_school, element_id, target_type, base_value, scaling_stat, scaling_multiplier, hits, mana_cost, is_passive, learn_method, learn_level, learn_gold_cost, learn_requirement_text, description)
 VALUES
   (1, 'GUERRERO_GOLPE_BASICO', 'Golpe Básico', 'ATAQUE', 'FISICO', NULL, 'ENEMY', 40, 'ATK', 0.8, 1, 15, FALSE, 'LEVEL', 1, NULL, NULL, 'Ataque simple con tu arma. Útil para ganar maná.'),
@@ -13493,5 +13493,50 @@ WHERE (i.code, s.code) IN (
   ('LIBRO_HECHIZOS_AGUA', 'UNIVERSAL_DARDO_AGUA'),
   ('LIBRO_HECHIZOS_LUZ', 'UNIVERSAL_DARDO_LUZ'),
   ('LIBRO_HECHIZOS_OSCURIDAD', 'UNIVERSAL_DARDO_OSCURIDAD')
+)
+ON CONFLICT (item_id, skill_id) DO NOTHING;
+
+-- ===== Tomos Arcanos: segunda tanda de skill books, estilo "mago puro" (scaling_stat MAG) =====
+-- Complementa a los Dardo_* (HYBRID, filler para cualquiera): estos son mas fuertes para un
+-- caster real y flojos para un fisico, mismo shape que MAGO_BOLA_DE_FUEGO (que se deja intacta,
+-- el Mago la sigue aprendiendo gratis a nivel 1). Bola de Fuego se repite acá como gemela
+-- classless para que otras clases puedan aprenderla con el tomo sin tocar la skill original.
+INSERT INTO skills(class_id, code, name, skill_type, damage_school, element_id, target_type, base_value, scaling_stat, scaling_multiplier, hits, mana_cost, is_passive, learn_method, learn_level, learn_gold_cost, learn_requirement_text, description)
+VALUES
+  (NULL, 'UNIVERSAL_MAGIA_FUEGO', 'Bola de Fuego', 'ATAQUE', 'MAGICO', (SELECT id FROM elements WHERE code = 'FIRE'), 'ENEMY', 40, 'MAG', 0.9, 1, 15, FALSE, 'ITEM', NULL, NULL, NULL, 'Ataque mágico básico de Fuego, disponible para cualquier clase (requiere buen MAG). Se aprende con un Tomo Arcano.'),
+  (NULL, 'UNIVERSAL_MAGIA_HIELO', 'Esquirla de Hielo', 'ATAQUE', 'MAGICO', (SELECT id FROM elements WHERE code = 'ICE'), 'ENEMY', 40, 'MAG', 0.9, 1, 15, FALSE, 'ITEM', NULL, NULL, NULL, 'Ataque mágico básico de Hielo, disponible para cualquier clase (requiere buen MAG). Se aprende con un Tomo Arcano.'),
+  (NULL, 'UNIVERSAL_MAGIA_RAYO', 'Chispa Eléctrica', 'ATAQUE', 'MAGICO', (SELECT id FROM elements WHERE code = 'LIGHTNING'), 'ENEMY', 40, 'MAG', 0.9, 1, 15, FALSE, 'ITEM', NULL, NULL, NULL, 'Ataque mágico básico de Rayo, disponible para cualquier clase (requiere buen MAG). Se aprende con un Tomo Arcano.'),
+  (NULL, 'UNIVERSAL_MAGIA_VIENTO', 'Hoja de Viento', 'ATAQUE', 'MAGICO', (SELECT id FROM elements WHERE code = 'WIND'), 'ENEMY', 40, 'MAG', 0.9, 1, 15, FALSE, 'ITEM', NULL, NULL, NULL, 'Ataque mágico básico de Viento, disponible para cualquier clase (requiere buen MAG). Se aprende con un Tomo Arcano.'),
+  (NULL, 'UNIVERSAL_MAGIA_TIERRA', 'Proyectil Geomante', 'ATAQUE', 'MAGICO', (SELECT id FROM elements WHERE code = 'EARTH'), 'ENEMY', 40, 'MAG', 0.9, 1, 15, FALSE, 'ITEM', NULL, NULL, NULL, 'Ataque mágico básico de Tierra, disponible para cualquier clase (requiere buen MAG). Se aprende con un Tomo Arcano.'),
+  (NULL, 'UNIVERSAL_MAGIA_AGUA', 'Chorro de Agua', 'ATAQUE', 'MAGICO', (SELECT id FROM elements WHERE code = 'WATER'), 'ENEMY', 40, 'MAG', 0.9, 1, 15, FALSE, 'ITEM', NULL, NULL, NULL, 'Ataque mágico básico de Agua, disponible para cualquier clase (requiere buen MAG). Se aprende con un Tomo Arcano.'),
+  (NULL, 'UNIVERSAL_MAGIA_LUZ', 'Rayo Luminoso', 'ATAQUE', 'MAGICO', (SELECT id FROM elements WHERE code = 'LIGHT'), 'ENEMY', 40, 'MAG', 0.9, 1, 15, FALSE, 'ITEM', NULL, NULL, NULL, 'Ataque mágico básico de Luz, disponible para cualquier clase (requiere buen MAG). Se aprende con un Tomo Arcano.'),
+  (NULL, 'UNIVERSAL_MAGIA_OSCURIDAD', 'Orbe Sombrío', 'ATAQUE', 'MAGICO', (SELECT id FROM elements WHERE code = 'DARK'), 'ENEMY', 40, 'MAG', 0.9, 1, 15, FALSE, 'ITEM', NULL, NULL, NULL, 'Ataque mágico básico de Oscuridad, disponible para cualquier clase (requiere buen MAG). Se aprende con un Tomo Arcano.')
+ON CONFLICT (code) DO NOTHING;
+
+-- obtain_method/buy_price quedan NULL a propósito, igual que los Libro de Hechizos: todavía no se
+-- definió cómo se consiguen (tienda, drop, crafteo).
+INSERT INTO items(code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+VALUES
+  ('TOMO_ARCANO_FUEGO', 'Tomo Arcano: Fuego', 'CONSUMABLE', NULL, FALSE, 'POCO_COMUN', NULL, NULL, FALSE, NULL, 'Enseña Bola de Fuego a quien lo use. Se consume al usarlo.'),
+  ('TOMO_ARCANO_HIELO', 'Tomo Arcano: Hielo', 'CONSUMABLE', NULL, FALSE, 'POCO_COMUN', NULL, NULL, FALSE, NULL, 'Enseña Esquirla de Hielo a quien lo use. Se consume al usarlo.'),
+  ('TOMO_ARCANO_RAYO', 'Tomo Arcano: Rayo', 'CONSUMABLE', NULL, FALSE, 'POCO_COMUN', NULL, NULL, FALSE, NULL, 'Enseña Chispa Eléctrica a quien lo use. Se consume al usarlo.'),
+  ('TOMO_ARCANO_VIENTO', 'Tomo Arcano: Viento', 'CONSUMABLE', NULL, FALSE, 'POCO_COMUN', NULL, NULL, FALSE, NULL, 'Enseña Hoja de Viento a quien lo use. Se consume al usarlo.'),
+  ('TOMO_ARCANO_TIERRA', 'Tomo Arcano: Tierra', 'CONSUMABLE', NULL, FALSE, 'POCO_COMUN', NULL, NULL, FALSE, NULL, 'Enseña Proyectil Geomante a quien lo use. Se consume al usarlo.'),
+  ('TOMO_ARCANO_AGUA', 'Tomo Arcano: Agua', 'CONSUMABLE', NULL, FALSE, 'POCO_COMUN', NULL, NULL, FALSE, NULL, 'Enseña Chorro de Agua a quien lo use. Se consume al usarlo.'),
+  ('TOMO_ARCANO_LUZ', 'Tomo Arcano: Luz', 'CONSUMABLE', NULL, FALSE, 'POCO_COMUN', NULL, NULL, FALSE, NULL, 'Enseña Rayo Luminoso a quien lo use. Se consume al usarlo.'),
+  ('TOMO_ARCANO_OSCURIDAD', 'Tomo Arcano: Oscuridad', 'CONSUMABLE', NULL, FALSE, 'POCO_COMUN', NULL, NULL, FALSE, NULL, 'Enseña Orbe Sombrío a quien lo use. Se consume al usarlo.')
+ON CONFLICT (code) DO NOTHING;
+
+INSERT INTO item_teaches_skill (item_id, skill_id)
+SELECT i.id, s.id FROM items i JOIN skills s ON TRUE
+WHERE (i.code, s.code) IN (
+  ('TOMO_ARCANO_FUEGO', 'UNIVERSAL_MAGIA_FUEGO'),
+  ('TOMO_ARCANO_HIELO', 'UNIVERSAL_MAGIA_HIELO'),
+  ('TOMO_ARCANO_RAYO', 'UNIVERSAL_MAGIA_RAYO'),
+  ('TOMO_ARCANO_VIENTO', 'UNIVERSAL_MAGIA_VIENTO'),
+  ('TOMO_ARCANO_TIERRA', 'UNIVERSAL_MAGIA_TIERRA'),
+  ('TOMO_ARCANO_AGUA', 'UNIVERSAL_MAGIA_AGUA'),
+  ('TOMO_ARCANO_LUZ', 'UNIVERSAL_MAGIA_LUZ'),
+  ('TOMO_ARCANO_OSCURIDAD', 'UNIVERSAL_MAGIA_OSCURIDAD')
 )
 ON CONFLICT (item_id, skill_id) DO NOTHING;

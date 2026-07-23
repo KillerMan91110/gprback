@@ -10,6 +10,7 @@ const { requireAuth, requireSelf } = require('./lib/auth');
 const { xpThreshold, getClassBaseCritDamage, syncPlayerLevel } = require('./lib/leveling');
 const { getRankProgress } = require('./lib/ranks');
 const { getClassPassiveBonuses } = require('./lib/passives');
+const { getClassAncestorChain } = require('./lib/evolution');
 const authRouter = require('./routes/auth');
 const itemsRouter = require('./routes/items');
 const craftingRouter = require('./routes/crafting');
@@ -161,9 +162,10 @@ app.get('/api/player/:playerId/stats', requireAuth, requireSelf, async (req, res
     // ver lib/equipment.js applyHpBonusDelta), a diferencia de atk/def/mag/etc que si se
     // recalculan al vuelo aca porque nunca se persisten.
     const effectiveClassId = player.evolution_class_id || player.current_class_id;
+    const classChain = await getClassAncestorChain(effectiveClassId);
     const [bonus, passives, baseCritDamage, resistancesResult, bonusesResult, petB] = await Promise.all([
       getEquipmentBonuses(player.id),
-      getClassPassiveBonuses([player.current_class_id, player.evolution_class_id], player.level),
+      getClassPassiveBonuses(classChain, player.level),
       getClassBaseCritDamage(effectiveClassId),
       db.query(
         `SELECT e.name AS element, e.code AS element_code, cer.resistance_percent

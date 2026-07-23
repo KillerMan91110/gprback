@@ -1540,7 +1540,8 @@ router.post('/:playerId/craft', async (req, res, next) => {
     );
     const pd = playerLuckRow.rows[0] || {};
     const equipBonus = await getEquipmentBonuses(playerId);
-    const heroPassives = await getClassPassiveBonuses([pd.current_class_id, pd.evolution_class_id], pd.level);
+    const heroChain = await evolution.getClassAncestorChain(pd.evolution_class_id || pd.current_class_id);
+    const heroPassives = await getClassPassiveBonuses(heroChain, pd.level);
     const partyNpcs = await db.query(
       `SELECT pn.class_id, pn.level FROM player_party pp
        JOIN player_npcs pn ON pn.id = pp.npc_id
@@ -1945,9 +1946,10 @@ router.get('/:playerId/party', async (req, res, next) => {
     const hero = heroRes.rows[0];
 
     const npcClassIds = partyRes.rows.map((n) => n.class_id);
+    const heroChain = await evolution.getClassAncestorChain(hero.evolution_class_id || hero.current_class_id);
     const [heroEquip, heroPassives, heroBaseCritDamage, npcResistances, npcBonuses, classXpRates] = await Promise.all([
       getEquipmentBonuses(Number(playerId)),
-      getClassPassiveBonuses([hero.current_class_id, hero.evolution_class_id], hero.level),
+      getClassPassiveBonuses(heroChain, hero.level),
       leveling.getClassBaseCritDamage(hero.class_id),
       npcClassIds.length
         ? db.query(
