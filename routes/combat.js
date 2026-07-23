@@ -1004,7 +1004,9 @@ async function startNewRound(sessionId, participants) {
   );
   for (const dot of dotRows.rows) {
     const p = participants.all.find((x) => x.id === dot.participant_id);
-    if (p && p.hp > 0) {
+    // World Boss: inmune a todo DOT (% de daño por turno), sea cual sea la skill/innata que lo
+    // haya aplicado — el buff sigue su curso normal (cuenta rondas, expira) pero no pega.
+    if (p && p.hp > 0 && !p.monster_code?.startsWith(WORLD_BOSS_CODE_PREFIX)) {
       const dotDmg = Math.max(1, Math.round(Number(p.max_hp) * Number(dot.applied_flat) / 100));
       p.hp = Math.max(0, p.hp - dotDmg);
       await checkOnceForCombatSave(p);
