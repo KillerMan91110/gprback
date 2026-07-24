@@ -261,7 +261,10 @@ async function hydrateMonsters(monsterSpecs) {
       player_id: null,
       monster_code: monster.code,
       element_id: monster.element_id,
-      name: `${monster.name} Lv.${level}`,
+      // World Boss: el nivel real (escala al del jugador que entra) queda oculto en la ficha,
+      // no en la logica de combate — level sigue siendo el numero real mas abajo y en toda
+      // la interpolacion de arriba, solo se tapa lo que ve el jugador.
+      name: monster.code.startsWith(WORLD_BOSS_CODE_PREFIX) ? `${monster.name} Lv.???` : `${monster.name} Lv.${level}`,
       hp,
       max_hp: hp,
       mana: level * 10,
@@ -2006,6 +2009,8 @@ async function fetchSessionState(sessionId) {
   const enrichedParticipants = participants.all.map((p) => ({
     ...p,
     is_ai_controlled: abandonedIds.includes(p.player_id ?? p.owner_player_id),
+    // World Boss: el nivel real no se expone al jugador (ver hydrateMonsters, mismo criterio).
+    level: p.monster_code?.startsWith(WORLD_BOSS_CODE_PREFIX) ? null : p.level,
   }));
 
   return {
