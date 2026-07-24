@@ -171,6 +171,13 @@ playerRouter.post('/enter', async (req, res, next) => {
       return res.status(400).json({ error: 'Toda la formación está derrotada.' });
     }
 
+    // El World Boss anula toda regeneración por turno (ver startNewRound en routes/combat.js) —
+    // si alguien de la formación trae una pasiva de regen, avisa desde antes de entrar.
+    const hasPassiveRegen = [...aliveCombatants, ...aliveNpcs].some((p) => Number(p.hot_hp_percent) > 0);
+    const bossTaunt = hasPassiveRegen
+      ? 'El Devorador de Estrellas se ríe: "Aquí no funciona la regeneración de vida."'
+      : null;
+
     const enemyCombatants = await combatEngine.hydrateMonsters([{ code: event.monster_code, level: player.level }]);
     if (!enemyCombatants.length) return res.status(500).json({ error: 'No se pudo cargar el World Boss' });
 
@@ -196,7 +203,7 @@ playerRouter.post('/enter', async (req, res, next) => {
 
     const state = await combatEngine.fetchSessionState(sessionId);
     emitCombatUpdate(req, sessionId, state);
-    res.status(201).json({ ...state, coopPartnerIds });
+    res.status(201).json({ ...state, coopPartnerIds, bossTaunt });
   } catch (err) {
     if (err.isActiveCombatConflict) return res.status(409).json({ error: err.message });
     next(err);

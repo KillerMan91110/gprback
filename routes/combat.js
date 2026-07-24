@@ -983,8 +983,9 @@ async function insertLog(sessionId, round, entry) {
 
 async function startNewRound(sessionId, participants) {
   await db.query('UPDATE combat_sessions SET current_round = current_round + 1, updated_at = now() WHERE id = $1', [sessionId]);
-  const roundRes = await db.query('SELECT current_round FROM combat_sessions WHERE id = $1', [sessionId]);
+  const roundRes = await db.query('SELECT current_round, world_boss_event_id FROM combat_sessions WHERE id = $1', [sessionId]);
   const newRound = roundRes.rows[0].current_round;
+  const isWorldBoss = !!roundRes.rows[0].world_boss_event_id;
   // Los invocados tienen has_acted_this_round=TRUE permanente (actuan como bonus action, no turno propio)
   await db.query(
     'UPDATE combat_participants SET has_acted_this_round = FALSE, is_defending = FALSE WHERE session_id = $1 AND hp > 0 AND NOT is_summon',
@@ -1046,26 +1047,32 @@ async function startNewRound(sessionId, participants) {
     }
   }
 
-  // HOT tick desde skills temporales (stat_code='HOT', applied_flat = % del max_hp).
+  // HOT tick desde skills temporales (stat_code='HOT', applied_flat = % del max_hp). World Boss:
+  // anula toda regeneración por turno (activa o pasiva, ver loop siguiente) — el buff sigue
+  // existiendo y contando rondas, solo no cura, para que la pelea no se pueda "turtlear".
   const hotSkillRows = await db.query(
     "SELECT * FROM combat_participant_buffs WHERE session_id = $1 AND stat_code = 'HOT'",
     [sessionId]
   );
-  for (const hot of hotSkillRows.rows) {
-    const p = participants.all.find((x) => x.id === hot.participant_id);
-    if (p && p.hp > 0) {
-      const healAmt = Math.max(1, Math.round(Number(p.max_hp) * Number(hot.applied_flat) / 100));
-      p.hp = Math.min(Number(p.max_hp), p.hp + healAmt);
-      await db.query('UPDATE combat_participants SET hp = $1 WHERE id = $2', [p.hp, p.id]);
+  if (!isWorldBoss) {
+    for (const hot of hotSkillRows.rows) {
+      const p = participants.all.find((x) => x.id === hot.participant_id);
+      if (p && p.hp > 0) {
+        const healAmt = Math.max(1, Math.round(Number(p.max_hp) * Number(hot.applied_flat) / 100));
+        p.hp = Math.min(Number(p.max_hp), p.hp + healAmt);
+        await db.query('UPDATE combat_participants SET hp = $1 WHERE id = $2', [p.hp, p.id]);
+      }
     }
   }
 
   // HOT (Heal Over Time): participantes vivos con hot_hp_percent > 0 se curan al final de cada ronda.
-  for (const p of participants.all) {
-    if (p.hp > 0 && Number(p.hot_hp_percent) > 0) {
-      const heal = Math.max(1, Math.round(Number(p.max_hp) * Number(p.hot_hp_percent) / 100));
-      p.hp = Math.min(Number(p.max_hp), p.hp + heal);
-      await db.query('UPDATE combat_participants SET hp = $1 WHERE id = $2', [p.hp, p.id]);
+  if (!isWorldBoss) {
+    for (const p of participants.all) {
+      if (p.hp > 0 && Number(p.hot_hp_percent) > 0) {
+        const heal = Math.max(1, Math.round(Number(p.max_hp) * Number(p.hot_hp_percent) / 100));
+        p.hp = Math.min(Number(p.max_hp), p.hp + heal);
+        await db.query('UPDATE combat_participants SET hp = $1 WHERE id = $2', [p.hp, p.id]);
+      }
     }
   }
 
@@ -1449,7 +1456,7 @@ async function finalizeSession(sessionId, status, participants) {
   }
 
   await handleTowerSessionEnd(sessionId, status);
-  await handleWorldBossFinalize(sessionId, participants);
+  await handleWorldBossFinalize(sessionId, status, participants);
 
   return rewards;
 }
@@ -1457,9 +1464,10 @@ async function finalizeSession(sessionId, status, participants) {
 // World Boss (docs/backend-spec-world-boss.md sección 4): si esta sesión es un clon de World
 // Boss, resta el daño hecho del HP global compartido y reparte fragmentos cósmicos por jugador
 // real (agrupando por dueño — hero o NPCs propios — via combat_log, que ya tiene el actor exacto
-// de cada golpe). Corre en CUALQUIER cierre de sesión (ganada, perdida o escapada), no solo
-// PLAYER_WON, porque el daño ya hecho cuenta aunque el jugador no haya matado a SU clon.
-async function handleWorldBossFinalize(sessionId, participants) {
+// de cada golpe). Corre en cierres ganados o perdidos, NO en ESCAPED: si el jugador huye, pierde
+// todo el crédito de esta sub-sesión (ni resta del HP global ni suma a su daño/fragmentos).
+async function handleWorldBossFinalize(sessionId, status, participants) {
+  if (status === 'ESCAPED') return;
   const sessRes = await db.query('SELECT world_boss_event_id FROM combat_sessions WHERE id = $1', [sessionId]);
   const eventId = sessRes.rows[0]?.world_boss_event_id;
   if (!eventId) return;
@@ -2700,7 +2708,11 @@ router.post('/sessions/:id/action', async (req, res, next) => {
                 "INSERT INTO combat_participant_buffs(session_id,participant_id,stat_code,applied_flat,rounds_remaining,is_debuff,skill_id) VALUES($1,$2,'HOT',$3,$4,FALSE,$5)",
                 [sessionId, target.id, pct, dur, skillId]
               );
-              buffDescParts.push(`${target.name} regeneración: ${pct}% HP/turno (${dur}T)`);
+              // World Boss anula toda regeneración por turno (ver startNewRound) — el buff se
+              // aplica igual (por si el mismo skill trae otro efecto aparte) pero nunca cura acá.
+              buffDescParts.push(session.world_boss_event_id
+                ? `${target.name}: "¡Ese truco tampoco funcionará!" — El Devorador de Estrellas anula la regeneración`
+                : `${target.name} regeneración: ${pct}% HP/turno (${dur}T)`);
             }
             if (skill.code === 'SANADOR_LEGENDARIO_MEDITACION' && actor.player_id === req.playerId) {
               await incrementCounter(req.playerId, 'MEDITACIONES_USADAS');
