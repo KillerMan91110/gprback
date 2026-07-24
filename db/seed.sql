@@ -2182,7 +2182,7 @@ VALUES
   ((SELECT id FROM class_evolutions WHERE class_id = 25 AND evolves_to_class_id = 84), 'COUNTER', 'SEGUNDOS_OCULTO', '>=', 500, NULL, NULL, NULL, '500 segundos oculto en combate.'),
   ((SELECT id FROM class_evolutions WHERE class_id = 25 AND evolves_to_class_id = 85), 'COUNTER', 'TRAMPAS_DETECTADAS', '>=', 100, NULL, NULL, NULL, '100 trampas detectadas.'),
   ((SELECT id FROM class_evolutions WHERE class_id = 24 AND evolves_to_class_id = 86), 'COUNTER', 'ELEMENTOS_DOMINADOS', '>=', 2, NULL, NULL, NULL, '2 o más elementos aprendidos.'),
-  ((SELECT id FROM class_evolutions WHERE class_id = 21 AND evolves_to_class_id = 87), 'STAT_THRESHOLD', NULL, '>', 60, NULL, NULL, 'EVASION', 'Evasión actual mayor a 60%.'),
+  ((SELECT id FROM class_evolutions WHERE class_id = 21 AND evolves_to_class_id = 87), 'STAT_THRESHOLD', NULL, '>', 40, NULL, NULL, 'EVASION', 'Evasión actual mayor a 40%.'),
   ((SELECT id FROM class_evolutions WHERE class_id = 21 AND evolves_to_class_id = 87), 'COUNTER', 'ATAQUES_ESQUIVADOS', '>=', 200, NULL, NULL, NULL, '200 ataques esquivados.'),
   ((SELECT id FROM class_evolutions WHERE class_id = 26 AND evolves_to_class_id = 88), 'COUNTER', 'CUROS_REALIZADOS', '>=', 500, NULL, NULL, NULL, '500 curaciones realizadas.'),
   ((SELECT id FROM class_evolutions WHERE class_id = 29 AND evolves_to_class_id = 89), 'COUNTER', 'ALIADOS_SALVADOS', '>=', 100, NULL, NULL, NULL, '100 aliados salvados de la muerte.'),
