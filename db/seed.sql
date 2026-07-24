@@ -13604,3 +13604,10 @@ CREATE TABLE IF NOT EXISTS world_boss_shop (
 -- Marca qué sub-sesión de combate pertenece a qué evento de world boss, para que el hook de
 -- finalizeSession sepa cuándo aplicar la lógica especial (restar HP global, repartir shards).
 ALTER TABLE combat_sessions ADD COLUMN IF NOT EXISTS world_boss_event_id INT REFERENCES world_boss_events(id);
+
+-- ===== World Boss: ready-check de grupo (docs/backend-followup-world-boss-cycle-ready.md) =====
+-- Mismo patron que player_tower_ready, tabla separada porque es "por actividad".
+CREATE TABLE IF NOT EXISTS player_worldboss_ready (
+  player_id INT PRIMARY KEY REFERENCES players(id) ON DELETE CASCADE,
+  ready_at  TIMESTAMPTZ NOT NULL DEFAULT now()
+);

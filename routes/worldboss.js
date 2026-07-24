@@ -21,6 +21,20 @@ function emitCombatUpdate(req, sessionId, state) {
   req.app.get('io')?.to(`combat:${sessionId}`).emit('combat:update', state);
 }
 
+// Ready-check de grupo (docs/backend-followup-world-boss-cycle-ready.md sección 3): mismo patrón
+// que routes/tower.js (player_tower_ready), tabla separada porque es "por actividad".
+const WORLDBOSS_READY_TTL_MS = 15000;
+
+async function getMyGroupId(playerId) {
+  const res = await db.query('SELECT gm.group_id FROM player_coop_group_members gm WHERE gm.player_id = $1', [playerId]);
+  return res.rows[0]?.group_id ?? null;
+}
+
+async function getGroupMemberIds(groupId) {
+  const res = await db.query('SELECT player_id FROM player_coop_group_members WHERE group_id = $1', [groupId]);
+  return res.rows.map((r) => r.player_id);
+}
+
 async function getActiveOrLastEvent() {
   const activeRes = await db.query("SELECT * FROM world_boss_events WHERE status = 'ACTIVE' ORDER BY id DESC LIMIT 1");
   if (activeRes.rows.length) return activeRes.rows[0];
@@ -187,6 +201,62 @@ playerRouter.post('/enter', async (req, res, next) => {
     if (err.isActiveCombatConflict) return res.status(409).json({ error: err.message });
     next(err);
   }
+});
+
+// POST /api/player/:playerId/worldboss/ready
+playerRouter.post('/ready', async (req, res, next) => {
+  try {
+    const groupId = await getMyGroupId(req.playerId);
+    if (!groupId) return res.status(400).json({ error: 'No estás en un grupo co-op' });
+
+    await db.query(
+      `INSERT INTO player_worldboss_ready(player_id, ready_at) VALUES($1, now())
+       ON CONFLICT (player_id) DO UPDATE SET ready_at = now()`,
+      [req.playerId]
+    );
+
+    const memberIds = await getGroupMemberIds(groupId);
+    const readyRows = await db.query(
+      `SELECT player_id FROM player_worldboss_ready
+       WHERE player_id = ANY($1::int[]) AND ready_at > now() - INTERVAL '${WORLDBOSS_READY_TTL_MS / 1000} seconds'`,
+      [memberIds]
+    );
+
+    const allReady = readyRows.rows.length === memberIds.length;
+    if (!allReady) return res.json({ allReady: false });
+
+    const otherIds = memberIds.filter((id) => id !== req.playerId);
+    await db.query('DELETE FROM player_worldboss_ready WHERE player_id = ANY($1::int[])', [memberIds]);
+    res.json({ allReady: true, coopPartnerIds: otherIds });
+  } catch (err) { next(err); }
+});
+
+// DELETE /api/player/:playerId/worldboss/ready
+playerRouter.delete('/ready', async (req, res, next) => {
+  try {
+    await db.query('DELETE FROM player_worldboss_ready WHERE player_id = $1', [req.playerId]);
+    res.json({ cancelled: true });
+  } catch (err) { next(err); }
+});
+
+// GET /api/player/:playerId/worldboss/ready-status
+playerRouter.get('/ready-status', async (req, res, next) => {
+  try {
+    const groupId = await getMyGroupId(req.playerId);
+    if (!groupId) return res.json({ inParty: false, members: [] });
+
+    const memberIds = await getGroupMemberIds(groupId);
+    const otherIds = memberIds.filter((id) => id !== req.playerId);
+
+    const rows = await db.query(
+      `SELECT player_id FROM player_worldboss_ready
+       WHERE player_id = ANY($1::int[]) AND ready_at > now() - INTERVAL '${WORLDBOSS_READY_TTL_MS / 1000} seconds'`,
+      [memberIds]
+    );
+    const readyIds = new Set(rows.rows.map((r) => r.player_id));
+    const members = otherIds.map((id) => ({ playerId: id, ready: readyIds.has(id) }));
+    res.json({ inParty: true, myReady: readyIds.has(req.playerId), members });
+  } catch (err) { next(err); }
 });
 
 // GET /api/player/:playerId/worldboss/shop

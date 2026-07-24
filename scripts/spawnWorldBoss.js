@@ -1,10 +1,10 @@
 // scripts/spawnWorldBoss.js
-// Lanza manualmente un evento de World Boss (docs/backend-spec-world-boss.md sección 8). Sin
-// panel de admin todavía, así que por ahora es un script que corrés vos cuando quieras arrancar
-// el evento: node scripts/spawnWorldBoss.js
+// Lanza manualmente un evento de World Boss. Desde el follow-up del ciclo automático
+// (docs/backend-followup-world-boss-cycle-ready.md), el server ya lanza el evento solo cada
+// 3hs activo / 1h de pausa (ver lib/worldBossScheduler.js) — este script queda solo para forzar
+// uno extra a mano durante pruebas: node scripts/spawnWorldBoss.js [--force]
 //
-// Usa --force para lanzar uno nuevo aunque ya haya un evento ACTIVE (lo normal es dejar que
-// termine solo, esto es solo para pruebas).
+// --force lanza uno nuevo aunque ya haya un evento ACTIVE (lo normal es dejar que termine solo).
 
 require('dotenv').config();
 
@@ -17,10 +17,9 @@ process.env.PGDATABASE = url.pathname.slice(1);
 process.env.NODE_ENV = 'production';
 
 const db = require('../db/db');
+const { spawnWorldBossEvent } = require('../lib/worldBossScheduler');
 
 const WORLD_BOSS_MONSTER_CODE = 'WORLD_BOSS_DEVORADOR_ESTRELLAS';
-const WORLD_BOSS_MAX_HP = 40000;
-const EVENT_DURATION_HOURS = 3;
 
 async function main() {
   const force = process.argv.includes('--force');
@@ -37,13 +36,7 @@ async function main() {
     process.exit(1);
   }
 
-  const insertRes = await db.query(
-    `INSERT INTO world_boss_events (monster_code, max_hp, hp_remaining, status, ends_at)
-     VALUES ($1, $2, $2, 'ACTIVE', now() + interval '${EVENT_DURATION_HOURS} hours')
-     RETURNING *`,
-    [WORLD_BOSS_MONSTER_CODE, WORLD_BOSS_MAX_HP]
-  );
-  const event = insertRes.rows[0];
+  const event = await spawnWorldBossEvent();
   console.log(`Evento de World Boss lanzado: id=${event.id}, HP=${event.max_hp}, termina ${event.ends_at}`);
   process.exit(0);
 }

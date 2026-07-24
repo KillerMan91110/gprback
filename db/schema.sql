@@ -1066,6 +1066,12 @@ CREATE TABLE IF NOT EXISTS player_tower_ready (
   ready_at  TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
+-- Ready-check del World Boss, mismo patron que player_tower_ready (tabla separada, "por actividad").
+CREATE TABLE IF NOT EXISTS player_worldboss_ready (
+  player_id INT PRIMARY KEY REFERENCES players(id) ON DELETE CASCADE,
+  ready_at  TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
 -- ─── Columnas y constraints añadidas tras el schema inicial ──────────────────
 ALTER TABLE combat_log ADD COLUMN IF NOT EXISTS heal INT;
 ALTER TABLE combat_log ADD COLUMN IF NOT EXISTS hp_after INT;

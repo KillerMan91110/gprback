@@ -26,6 +26,7 @@ const petsRouter = require('./routes/pets');
 const towerRouter = require('./routes/tower');
 const chatRouter = require('./routes/chat');
 const { globalRouter: worldBossGlobalRouter, playerRouter: worldBossPlayerRouter } = require('./routes/worldboss');
+const { tickWorldBossSchedule } = require('./lib/worldBossScheduler');
 const { getActivePetBonuses } = require('./lib/pets');
 
 const app = express();
@@ -102,6 +103,12 @@ app.use('/api/player/:playerId/tower', towerRouter);
 app.use('/api/player/:playerId/chat', chatRouter);
 app.use('/api/worldboss', worldBossGlobalRouter);
 app.use('/api/player/:playerId/worldboss', worldBossPlayerRouter);
+
+// Ciclo automático del World Boss (docs/backend-followup-world-boss-cycle-ready.md): 3hs activo,
+// 1h de pausa, para siempre. No hace falta cron de sistema, el server ya es un proceso de larga
+// duración.
+tickWorldBossSchedule().catch(console.error);
+setInterval(() => { tickWorldBossSchedule().catch(console.error); }, 60 * 1000);
 
 // ========== RUTAS DE PRUEBA ==========
 
