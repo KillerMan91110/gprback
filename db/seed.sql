@@ -13611,3 +13611,220 @@ CREATE TABLE IF NOT EXISTS player_worldboss_ready (
   player_id INT PRIMARY KEY REFERENCES players(id) ON DELETE CASCADE,
   ready_at  TIMESTAMPTZ NOT NULL DEFAULT now()
 );
+
+-- ===== Armas de 2 manos tematicas + set de Armadura Pesada (Guerrero/Arquero) =====
+-- Ver analisis de tematica por rama evolutiva en la conversacion. Guerrero: 2da linea 2H
+-- (hacha, tematica Berserker) + set de armadura pesada (arregla el item ARMADURA_PESADA_COMPLETA
+-- que bloqueaba la evolucion Guerrero->Caballero). Arquero: primera arma 2H de la rama (ballesta
+-- pesada, tematica Ballestero, arregla el item BALLESTA que bloqueaba Cazador->Ballestero).
+-- Mago/Picaro/Sacerdote quedan afuera: sin encaje tematico (casters/velocidad/soporte).
+-- Guerrero: Gran Hacha, linea 2H nueva (tematica Berserker/brute), complementa las 18 espadas 2H ya existentes.
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+VALUES
+  ('GUERRERO_WEAPON2H_HACHA_L1', 'Gran Hacha de Leñador', 'EQUIPMENT', 'WEAPON', TRUE, 'COMUN', 1, 1, FALSE, NULL, 'Gran hacha a dos manos. Nivel 1.'),
+  ('GUERRERO_WEAPON2H_HACHA_L10', 'Gran Hacha de Guerra', 'EQUIPMENT', 'WEAPON', TRUE, 'POCO_COMUN', 1, 10, FALSE, NULL, 'Gran hacha a dos manos. Nivel 10.'),
+  ('GUERRERO_WEAPON2H_HACHA_L20', 'Hacha del Verdugo', 'EQUIPMENT', 'WEAPON', TRUE, 'RARO', 1, 20, FALSE, NULL, 'Gran hacha a dos manos. Nivel 20.'),
+  ('GUERRERO_WEAPON2H_HACHA_L35', 'Hacha de la Furia', 'EQUIPMENT', 'WEAPON', TRUE, 'EPICO', 1, 35, FALSE, NULL, 'Gran hacha a dos manos. Nivel 35.'),
+  ('GUERRERO_WEAPON2H_HACHA_L50', 'Hacha Sangrienta', 'EQUIPMENT', 'WEAPON', TRUE, 'EPICO', 1, 50, FALSE, NULL, 'Gran hacha a dos manos. Nivel 50.'),
+  ('GUERRERO_WEAPON2H_HACHA_L65', 'Hacha del Caos', 'EQUIPMENT', 'WEAPON', TRUE, 'LEGENDARIO', 1, 65, FALSE, NULL, 'Gran hacha a dos manos. Nivel 65.'),
+  ('GUERRERO_WEAPON2H_HACHA_L80', 'Hacha Demoledora', 'EQUIPMENT', 'WEAPON', TRUE, 'LEGENDARIO', 1, 80, FALSE, NULL, 'Gran hacha a dos manos. Nivel 80.'),
+  ('GUERRERO_WEAPON2H_HACHA_L100', 'Hacha del Titán Primordial', 'EQUIPMENT', 'WEAPON', TRUE, 'UNICO', 1, 100, FALSE, NULL, 'Gran hacha a dos manos. Nivel 100.')
+ON CONFLICT (code) DO NOTHING;
+
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT i.id, v.stat_code, v.amount, v.is_percent FROM items i JOIN (VALUES
+  ('GUERRERO_WEAPON2H_HACHA_L1', 'ATK', 32, FALSE),
+  ('GUERRERO_WEAPON2H_HACHA_L1', 'CRIT_CHANCE', 5.2, TRUE),
+  ('GUERRERO_WEAPON2H_HACHA_L10', 'ATK', 66, FALSE),
+  ('GUERRERO_WEAPON2H_HACHA_L10', 'CRIT_CHANCE', 6.5, TRUE),
+  ('GUERRERO_WEAPON2H_HACHA_L20', 'ATK', 104, FALSE),
+  ('GUERRERO_WEAPON2H_HACHA_L20', 'CRIT_CHANCE', 8, TRUE),
+  ('GUERRERO_WEAPON2H_HACHA_L35', 'ATK', 161, FALSE),
+  ('GUERRERO_WEAPON2H_HACHA_L35', 'CRIT_CHANCE', 10.3, TRUE),
+  ('GUERRERO_WEAPON2H_HACHA_L50', 'ATK', 218, FALSE),
+  ('GUERRERO_WEAPON2H_HACHA_L50', 'CRIT_CHANCE', 12.5, TRUE),
+  ('GUERRERO_WEAPON2H_HACHA_L65', 'ATK', 275, FALSE),
+  ('GUERRERO_WEAPON2H_HACHA_L65', 'CRIT_CHANCE', 14.8, TRUE),
+  ('GUERRERO_WEAPON2H_HACHA_L80', 'ATK', 332, FALSE),
+  ('GUERRERO_WEAPON2H_HACHA_L80', 'CRIT_CHANCE', 17, TRUE),
+  ('GUERRERO_WEAPON2H_HACHA_L100', 'ATK', 408, FALSE),
+  ('GUERRERO_WEAPON2H_HACHA_L100', 'CRIT_CHANCE', 20, TRUE)
+) AS v(code, stat_code, amount, is_percent) ON v.code = i.code
+ON CONFLICT DO NOTHING;
+
+-- Arquero: Ballesta Pesada, primera arma 2H de la rama (tematica Ballestero: "cambia el arco por una ballesta pesada").
+-- El primer tramo usa code='BALLESTA' literal: satisface el requisito de evolucion Cazador->Ballestero
+-- (class_evolution_requirements.equipment_type='BALLESTA'), que hoy no tiene ningun item que lo cumpla.
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+VALUES
+  ('BALLESTA', 'Ballesta de Cazador', 'EQUIPMENT', 'WEAPON', TRUE, 'COMUN', 3, 1, FALSE, NULL, 'Ballesta pesada a dos manos. Nivel 1.'),
+  ('ARQUERO_WEAPON2H_BALLESTA_L10', 'Ballesta Reforzada', 'EQUIPMENT', 'WEAPON', TRUE, 'POCO_COMUN', 3, 10, FALSE, NULL, 'Ballesta pesada a dos manos. Nivel 10.'),
+  ('ARQUERO_WEAPON2H_BALLESTA_L20', 'Ballesta Pesada', 'EQUIPMENT', 'WEAPON', TRUE, 'RARO', 3, 20, FALSE, NULL, 'Ballesta pesada a dos manos. Nivel 20.'),
+  ('ARQUERO_WEAPON2H_BALLESTA_L35', 'Ballesta Perforante', 'EQUIPMENT', 'WEAPON', TRUE, 'EPICO', 3, 35, FALSE, NULL, 'Ballesta pesada a dos manos. Nivel 35.'),
+  ('ARQUERO_WEAPON2H_BALLESTA_L50', 'Ballesta del Verdugo', 'EQUIPMENT', 'WEAPON', TRUE, 'EPICO', 3, 50, FALSE, NULL, 'Ballesta pesada a dos manos. Nivel 50.'),
+  ('ARQUERO_WEAPON2H_BALLESTA_L65', 'Ballesta Colosal', 'EQUIPMENT', 'WEAPON', TRUE, 'LEGENDARIO', 3, 65, FALSE, NULL, 'Ballesta pesada a dos manos. Nivel 65.'),
+  ('ARQUERO_WEAPON2H_BALLESTA_L80', 'Ballesta del Dragón', 'EQUIPMENT', 'WEAPON', TRUE, 'LEGENDARIO', 3, 80, FALSE, NULL, 'Ballesta pesada a dos manos. Nivel 80.'),
+  ('ARQUERO_WEAPON2H_BALLESTA_L100', 'Ballesta del Cazador Supremo', 'EQUIPMENT', 'WEAPON', TRUE, 'UNICO', 3, 100, FALSE, NULL, 'Ballesta pesada a dos manos. Nivel 100.')
+ON CONFLICT (code) DO NOTHING;
+
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT i.id, v.stat_code, v.amount, v.is_percent FROM items i JOIN (VALUES
+  ('BALLESTA', 'ATK', 32, FALSE),
+  ('BALLESTA', 'CRIT_DAMAGE', 10.3, TRUE),
+  ('ARQUERO_WEAPON2H_BALLESTA_L10', 'ATK', 66, FALSE),
+  ('ARQUERO_WEAPON2H_BALLESTA_L10', 'CRIT_DAMAGE', 13, TRUE),
+  ('ARQUERO_WEAPON2H_BALLESTA_L20', 'ATK', 104, FALSE),
+  ('ARQUERO_WEAPON2H_BALLESTA_L20', 'CRIT_DAMAGE', 16, TRUE),
+  ('ARQUERO_WEAPON2H_BALLESTA_L35', 'ATK', 161, FALSE),
+  ('ARQUERO_WEAPON2H_BALLESTA_L35', 'CRIT_DAMAGE', 20.5, TRUE),
+  ('ARQUERO_WEAPON2H_BALLESTA_L50', 'ATK', 218, FALSE),
+  ('ARQUERO_WEAPON2H_BALLESTA_L50', 'CRIT_DAMAGE', 25, TRUE),
+  ('ARQUERO_WEAPON2H_BALLESTA_L65', 'ATK', 275, FALSE),
+  ('ARQUERO_WEAPON2H_BALLESTA_L65', 'CRIT_DAMAGE', 29.5, TRUE),
+  ('ARQUERO_WEAPON2H_BALLESTA_L80', 'ATK', 332, FALSE),
+  ('ARQUERO_WEAPON2H_BALLESTA_L80', 'CRIT_DAMAGE', 34, TRUE),
+  ('ARQUERO_WEAPON2H_BALLESTA_L100', 'ATK', 408, FALSE),
+  ('ARQUERO_WEAPON2H_BALLESTA_L100', 'CRIT_DAMAGE', 40, TRUE)
+) AS v(code, stat_code, amount, is_percent) ON v.code = i.code
+ON CONFLICT DO NOTHING;
+
+-- Guerrero: set de Armadura Pesada (Yelmo/Armadura/Guanteletes/Botas), +DEF/+HP vs la armadura
+-- normal del mismo nivel, guantes/botas cambian ATK+CRIT/SPD+EVASION por mas DEF/HP (menos movilidad).
+-- El primer tramo de ARMOR usa code='ARMADURA_PESADA_COMPLETA' literal: satisface el requisito de
+-- evolucion Guerrero->Caballero (equipment_type='ARMADURA_PESADA_COMPLETA'), sin item hoy.
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+VALUES
+  ('ARMADURA_PESADA_COMPLETA', 'Armadura Pesada de Hierro', 'EQUIPMENT', 'ARMOR', FALSE, 'COMUN', 1, 1, FALSE, NULL, 'Pieza central de un set de armadura pesada. Nivel 1.'),
+  ('GUERRERO_HELMET_PESADA_L1', 'Yelmo Pesado de Hierro', 'EQUIPMENT', 'HELMET', FALSE, 'COMUN', 1, 1, FALSE, NULL, 'Yelmo de un set de armadura pesada. Nivel 1.'),
+  ('GUERRERO_GLOVES_PESADA_L1', 'Guanteletes Pesados de Hierro', 'EQUIPMENT', 'GLOVES', FALSE, 'COMUN', 1, 1, FALSE, NULL, 'Guanteletes de un set de armadura pesada. Nivel 1.'),
+  ('GUERRERO_BOOTS_PESADA_L1', 'Botas Pesadas de Hierro', 'EQUIPMENT', 'BOOTS', FALSE, 'COMUN', 1, 1, FALSE, NULL, 'Botas de un set de armadura pesada. Nivel 1.'),
+  ('GUERRERO_ARMOR_PESADA_L10', 'Armadura Pesada de Acero', 'EQUIPMENT', 'ARMOR', FALSE, 'POCO_COMUN', 1, 10, FALSE, NULL, 'Pieza central de un set de armadura pesada. Nivel 10.'),
+  ('GUERRERO_HELMET_PESADA_L10', 'Yelmo Pesado de Acero', 'EQUIPMENT', 'HELMET', FALSE, 'POCO_COMUN', 1, 10, FALSE, NULL, 'Yelmo de un set de armadura pesada. Nivel 10.'),
+  ('GUERRERO_GLOVES_PESADA_L10', 'Guanteletes Pesados de Acero', 'EQUIPMENT', 'GLOVES', FALSE, 'POCO_COMUN', 1, 10, FALSE, NULL, 'Guanteletes de un set de armadura pesada. Nivel 10.'),
+  ('GUERRERO_BOOTS_PESADA_L10', 'Botas Pesadas de Acero', 'EQUIPMENT', 'BOOTS', FALSE, 'POCO_COMUN', 1, 10, FALSE, NULL, 'Botas de un set de armadura pesada. Nivel 10.'),
+  ('GUERRERO_ARMOR_PESADA_L20', 'Armadura Pesada de Bastión', 'EQUIPMENT', 'ARMOR', FALSE, 'RARO', 1, 20, FALSE, NULL, 'Pieza central de un set de armadura pesada. Nivel 20.'),
+  ('GUERRERO_HELMET_PESADA_L20', 'Yelmo Pesado de Bastión', 'EQUIPMENT', 'HELMET', FALSE, 'RARO', 1, 20, FALSE, NULL, 'Yelmo de un set de armadura pesada. Nivel 20.'),
+  ('GUERRERO_GLOVES_PESADA_L20', 'Guanteletes Pesados de Bastión', 'EQUIPMENT', 'GLOVES', FALSE, 'RARO', 1, 20, FALSE, NULL, 'Guanteletes de un set de armadura pesada. Nivel 20.'),
+  ('GUERRERO_BOOTS_PESADA_L20', 'Botas Pesadas de Bastión', 'EQUIPMENT', 'BOOTS', FALSE, 'RARO', 1, 20, FALSE, NULL, 'Botas de un set de armadura pesada. Nivel 20.'),
+  ('GUERRERO_ARMOR_PESADA_L35', 'Armadura Pesada de Titán', 'EQUIPMENT', 'ARMOR', FALSE, 'EPICO', 1, 35, FALSE, NULL, 'Pieza central de un set de armadura pesada. Nivel 35.'),
+  ('GUERRERO_HELMET_PESADA_L35', 'Yelmo Pesado de Titán', 'EQUIPMENT', 'HELMET', FALSE, 'EPICO', 1, 35, FALSE, NULL, 'Yelmo de un set de armadura pesada. Nivel 35.'),
+  ('GUERRERO_GLOVES_PESADA_L35', 'Guanteletes Pesados de Titán', 'EQUIPMENT', 'GLOVES', FALSE, 'EPICO', 1, 35, FALSE, NULL, 'Guanteletes de un set de armadura pesada. Nivel 35.'),
+  ('GUERRERO_BOOTS_PESADA_L35', 'Botas Pesadas de Titán', 'EQUIPMENT', 'BOOTS', FALSE, 'EPICO', 1, 35, FALSE, NULL, 'Botas de un set de armadura pesada. Nivel 35.'),
+  ('GUERRERO_ARMOR_PESADA_L50', 'Armadura Pesada de Inquebrantable', 'EQUIPMENT', 'ARMOR', FALSE, 'EPICO', 1, 50, FALSE, NULL, 'Pieza central de un set de armadura pesada. Nivel 50.'),
+  ('GUERRERO_HELMET_PESADA_L50', 'Yelmo Pesado de Inquebrantable', 'EQUIPMENT', 'HELMET', FALSE, 'EPICO', 1, 50, FALSE, NULL, 'Yelmo de un set de armadura pesada. Nivel 50.'),
+  ('GUERRERO_GLOVES_PESADA_L50', 'Guanteletes Pesados de Inquebrantable', 'EQUIPMENT', 'GLOVES', FALSE, 'EPICO', 1, 50, FALSE, NULL, 'Guanteletes de un set de armadura pesada. Nivel 50.'),
+  ('GUERRERO_BOOTS_PESADA_L50', 'Botas Pesadas de Inquebrantable', 'EQUIPMENT', 'BOOTS', FALSE, 'EPICO', 1, 50, FALSE, NULL, 'Botas de un set de armadura pesada. Nivel 50.'),
+  ('GUERRERO_ARMOR_PESADA_L65', 'Armadura Pesada de Coloso', 'EQUIPMENT', 'ARMOR', FALSE, 'LEGENDARIO', 1, 65, FALSE, NULL, 'Pieza central de un set de armadura pesada. Nivel 65.'),
+  ('GUERRERO_HELMET_PESADA_L65', 'Yelmo Pesado de Coloso', 'EQUIPMENT', 'HELMET', FALSE, 'LEGENDARIO', 1, 65, FALSE, NULL, 'Yelmo de un set de armadura pesada. Nivel 65.'),
+  ('GUERRERO_GLOVES_PESADA_L65', 'Guanteletes Pesados de Coloso', 'EQUIPMENT', 'GLOVES', FALSE, 'LEGENDARIO', 1, 65, FALSE, NULL, 'Guanteletes de un set de armadura pesada. Nivel 65.'),
+  ('GUERRERO_BOOTS_PESADA_L65', 'Botas Pesadas de Coloso', 'EQUIPMENT', 'BOOTS', FALSE, 'LEGENDARIO', 1, 65, FALSE, NULL, 'Botas de un set de armadura pesada. Nivel 65.'),
+  ('GUERRERO_ARMOR_PESADA_L80', 'Armadura Pesada de Indestructible', 'EQUIPMENT', 'ARMOR', FALSE, 'LEGENDARIO', 1, 80, FALSE, NULL, 'Pieza central de un set de armadura pesada. Nivel 80.'),
+  ('GUERRERO_HELMET_PESADA_L80', 'Yelmo Pesado de Indestructible', 'EQUIPMENT', 'HELMET', FALSE, 'LEGENDARIO', 1, 80, FALSE, NULL, 'Yelmo de un set de armadura pesada. Nivel 80.'),
+  ('GUERRERO_GLOVES_PESADA_L80', 'Guanteletes Pesados de Indestructible', 'EQUIPMENT', 'GLOVES', FALSE, 'LEGENDARIO', 1, 80, FALSE, NULL, 'Guanteletes de un set de armadura pesada. Nivel 80.'),
+  ('GUERRERO_BOOTS_PESADA_L80', 'Botas Pesadas de Indestructible', 'EQUIPMENT', 'BOOTS', FALSE, 'LEGENDARIO', 1, 80, FALSE, NULL, 'Botas de un set de armadura pesada. Nivel 80.'),
+  ('GUERRERO_ARMOR_PESADA_L100', 'Armadura Pesada de Titán Primordial', 'EQUIPMENT', 'ARMOR', FALSE, 'UNICO', 1, 100, FALSE, NULL, 'Pieza central de un set de armadura pesada. Nivel 100.'),
+  ('GUERRERO_HELMET_PESADA_L100', 'Yelmo Pesado de Titán Primordial', 'EQUIPMENT', 'HELMET', FALSE, 'UNICO', 1, 100, FALSE, NULL, 'Yelmo de un set de armadura pesada. Nivel 100.'),
+  ('GUERRERO_GLOVES_PESADA_L100', 'Guanteletes Pesados de Titán Primordial', 'EQUIPMENT', 'GLOVES', FALSE, 'UNICO', 1, 100, FALSE, NULL, 'Guanteletes de un set de armadura pesada. Nivel 100.'),
+  ('GUERRERO_BOOTS_PESADA_L100', 'Botas Pesadas de Titán Primordial', 'EQUIPMENT', 'BOOTS', FALSE, 'UNICO', 1, 100, FALSE, NULL, 'Botas de un set de armadura pesada. Nivel 100.')
+ON CONFLICT (code) DO NOTHING;
+
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT i.id, v.stat_code, v.amount, v.is_percent FROM items i JOIN (VALUES
+  ('ARMADURA_PESADA_COMPLETA', 'DEF', 12, FALSE),
+  ('ARMADURA_PESADA_COMPLETA', 'HP', 23, FALSE),
+  ('ARMADURA_PESADA_COMPLETA', 'MAGIC_DEF', 3, FALSE),
+  ('GUERRERO_HELMET_PESADA_L1', 'DEF', 7, FALSE),
+  ('GUERRERO_HELMET_PESADA_L1', 'HP', 9, FALSE),
+  ('GUERRERO_HELMET_PESADA_L1', 'MAGIC_DEF', 2, FALSE),
+  ('GUERRERO_GLOVES_PESADA_L1', 'DEF', 4, FALSE),
+  ('GUERRERO_GLOVES_PESADA_L1', 'HP', 5, FALSE),
+  ('GUERRERO_BOOTS_PESADA_L1', 'DEF', 4, FALSE),
+  ('GUERRERO_BOOTS_PESADA_L1', 'HP', 5, FALSE),
+  ('GUERRERO_BOOTS_PESADA_L1', 'SPD', 15, FALSE),
+  ('GUERRERO_BOOTS_PESADA_L1', 'EVASION', 2.8, TRUE),
+  ('GUERRERO_ARMOR_PESADA_L10', 'DEF', 23, FALSE),
+  ('GUERRERO_ARMOR_PESADA_L10', 'HP', 41, FALSE),
+  ('GUERRERO_ARMOR_PESADA_L10', 'MAGIC_DEF', 6, FALSE),
+  ('GUERRERO_HELMET_PESADA_L10', 'DEF', 13, FALSE),
+  ('GUERRERO_HELMET_PESADA_L10', 'HP', 16, FALSE),
+  ('GUERRERO_HELMET_PESADA_L10', 'MAGIC_DEF', 4, FALSE),
+  ('GUERRERO_GLOVES_PESADA_L10', 'DEF', 8, FALSE),
+  ('GUERRERO_GLOVES_PESADA_L10', 'HP', 9, FALSE),
+  ('GUERRERO_BOOTS_PESADA_L10', 'DEF', 8, FALSE),
+  ('GUERRERO_BOOTS_PESADA_L10', 'HP', 9, FALSE),
+  ('GUERRERO_BOOTS_PESADA_L10', 'SPD', 17, FALSE),
+  ('GUERRERO_BOOTS_PESADA_L10', 'EVASION', 3.1, TRUE),
+  ('GUERRERO_ARMOR_PESADA_L20', 'DEF', 36, FALSE),
+  ('GUERRERO_ARMOR_PESADA_L20', 'HP', 60, FALSE),
+  ('GUERRERO_ARMOR_PESADA_L20', 'MAGIC_DEF', 10, FALSE),
+  ('GUERRERO_HELMET_PESADA_L20', 'DEF', 20, FALSE),
+  ('GUERRERO_HELMET_PESADA_L20', 'HP', 23, FALSE),
+  ('GUERRERO_HELMET_PESADA_L20', 'MAGIC_DEF', 7, FALSE),
+  ('GUERRERO_GLOVES_PESADA_L20', 'DEF', 13, FALSE),
+  ('GUERRERO_GLOVES_PESADA_L20', 'HP', 13, FALSE),
+  ('GUERRERO_BOOTS_PESADA_L20', 'DEF', 13, FALSE),
+  ('GUERRERO_BOOTS_PESADA_L20', 'HP', 13, FALSE),
+  ('GUERRERO_BOOTS_PESADA_L20', 'SPD', 19, FALSE),
+  ('GUERRERO_BOOTS_PESADA_L20', 'EVASION', 3.5, TRUE),
+  ('GUERRERO_ARMOR_PESADA_L35', 'DEF', 56, FALSE),
+  ('GUERRERO_ARMOR_PESADA_L35', 'HP', 88, FALSE),
+  ('GUERRERO_ARMOR_PESADA_L35', 'MAGIC_DEF', 15, FALSE),
+  ('GUERRERO_HELMET_PESADA_L35', 'DEF', 31, FALSE),
+  ('GUERRERO_HELMET_PESADA_L35', 'HP', 34, FALSE),
+  ('GUERRERO_HELMET_PESADA_L35', 'MAGIC_DEF', 10, FALSE),
+  ('GUERRERO_GLOVES_PESADA_L35', 'DEF', 20, FALSE),
+  ('GUERRERO_GLOVES_PESADA_L35', 'HP', 19, FALSE),
+  ('GUERRERO_BOOTS_PESADA_L35', 'DEF', 20, FALSE),
+  ('GUERRERO_BOOTS_PESADA_L35', 'HP', 19, FALSE),
+  ('GUERRERO_BOOTS_PESADA_L35', 'SPD', 23, FALSE),
+  ('GUERRERO_BOOTS_PESADA_L35', 'EVASION', 4, TRUE),
+  ('GUERRERO_ARMOR_PESADA_L50', 'DEF', 75, FALSE),
+  ('GUERRERO_ARMOR_PESADA_L50', 'HP', 117, FALSE),
+  ('GUERRERO_ARMOR_PESADA_L50', 'MAGIC_DEF', 20, FALSE),
+  ('GUERRERO_HELMET_PESADA_L50', 'DEF', 41, FALSE),
+  ('GUERRERO_HELMET_PESADA_L50', 'HP', 46, FALSE),
+  ('GUERRERO_HELMET_PESADA_L50', 'MAGIC_DEF', 13, FALSE),
+  ('GUERRERO_GLOVES_PESADA_L50', 'DEF', 26, FALSE),
+  ('GUERRERO_GLOVES_PESADA_L50', 'HP', 26, FALSE),
+  ('GUERRERO_BOOTS_PESADA_L50', 'DEF', 26, FALSE),
+  ('GUERRERO_BOOTS_PESADA_L50', 'HP', 26, FALSE),
+  ('GUERRERO_BOOTS_PESADA_L50', 'SPD', 26, FALSE),
+  ('GUERRERO_BOOTS_PESADA_L50', 'EVASION', 4.5, TRUE),
+  ('GUERRERO_ARMOR_PESADA_L65', 'DEF', 95, FALSE),
+  ('GUERRERO_ARMOR_PESADA_L65', 'HP', 146, FALSE),
+  ('GUERRERO_ARMOR_PESADA_L65', 'MAGIC_DEF', 25, FALSE),
+  ('GUERRERO_HELMET_PESADA_L65', 'DEF', 52, FALSE),
+  ('GUERRERO_HELMET_PESADA_L65', 'HP', 57, FALSE),
+  ('GUERRERO_HELMET_PESADA_L65', 'MAGIC_DEF', 17, FALSE),
+  ('GUERRERO_GLOVES_PESADA_L65', 'DEF', 33, FALSE),
+  ('GUERRERO_GLOVES_PESADA_L65', 'HP', 32, FALSE),
+  ('GUERRERO_BOOTS_PESADA_L65', 'DEF', 33, FALSE),
+  ('GUERRERO_BOOTS_PESADA_L65', 'HP', 32, FALSE),
+  ('GUERRERO_BOOTS_PESADA_L65', 'SPD', 29, FALSE),
+  ('GUERRERO_BOOTS_PESADA_L65', 'EVASION', 5, TRUE),
+  ('GUERRERO_ARMOR_PESADA_L80', 'DEF', 114, FALSE),
+  ('GUERRERO_ARMOR_PESADA_L80', 'HP', 174, FALSE),
+  ('GUERRERO_ARMOR_PESADA_L80', 'MAGIC_DEF', 30, FALSE),
+  ('GUERRERO_HELMET_PESADA_L80', 'DEF', 63, FALSE),
+  ('GUERRERO_HELMET_PESADA_L80', 'HP', 68, FALSE),
+  ('GUERRERO_HELMET_PESADA_L80', 'MAGIC_DEF', 20, FALSE),
+  ('GUERRERO_GLOVES_PESADA_L80', 'DEF', 40, FALSE),
+  ('GUERRERO_GLOVES_PESADA_L80', 'HP', 38, FALSE),
+  ('GUERRERO_BOOTS_PESADA_L80', 'DEF', 40, FALSE),
+  ('GUERRERO_BOOTS_PESADA_L80', 'HP', 38, FALSE),
+  ('GUERRERO_BOOTS_PESADA_L80', 'SPD', 32, FALSE),
+  ('GUERRERO_BOOTS_PESADA_L80', 'EVASION', 5.6, TRUE),
+  ('GUERRERO_ARMOR_PESADA_L100', 'DEF', 140, FALSE),
+  ('GUERRERO_ARMOR_PESADA_L100', 'HP', 213, FALSE),
+  ('GUERRERO_ARMOR_PESADA_L100', 'MAGIC_DEF', 36, FALSE),
+  ('GUERRERO_HELMET_PESADA_L100', 'DEF', 77, FALSE),
+  ('GUERRERO_HELMET_PESADA_L100', 'HP', 83, FALSE),
+  ('GUERRERO_HELMET_PESADA_L100', 'MAGIC_DEF', 24, FALSE),
+  ('GUERRERO_GLOVES_PESADA_L100', 'DEF', 49, FALSE),
+  ('GUERRERO_GLOVES_PESADA_L100', 'HP', 47, FALSE),
+  ('GUERRERO_BOOTS_PESADA_L100', 'DEF', 49, FALSE),
+  ('GUERRERO_BOOTS_PESADA_L100', 'HP', 47, FALSE),
+  ('GUERRERO_BOOTS_PESADA_L100', 'SPD', 36, FALSE),
+  ('GUERRERO_BOOTS_PESADA_L100', 'EVASION', 6.3, TRUE)
+) AS v(code, stat_code, amount, is_percent) ON v.code = i.code
+ON CONFLICT DO NOTHING;
