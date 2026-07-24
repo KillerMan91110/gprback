@@ -686,6 +686,17 @@ async function resolveTrapActivation(sessionId, round, actor, participants) {
     return;
   }
 
+  // World Boss es inmune a todo DOT (ver startNewRound) — misma razón que el bloque de skills
+  // ESTADO_ALTERADO: evitar crear un buff inerte y un mensaje de "sangrado" que nunca va a pegar.
+  if (target.monster_code?.startsWith(WORLD_BOSS_CODE_PREFIX)) {
+    await insertLog(sessionId, round, {
+      actorId: actor.id, action: 'SKILL', targetId: target.id,
+      description: `¡La trampa de ${actor.name} se activó, pero ${target.name} es inmune al sangrado (daño por % de HP máximo)!`,
+    });
+    if (actor.player_id) await incrementCounter(actor.player_id, 'TRAMPAS_DESPLEGADAS');
+    return;
+  }
+
   await db.query(
     "INSERT INTO combat_participant_buffs(session_id,participant_id,stat_code,applied_flat,rounds_remaining,is_debuff,skill_id) VALUES($1,$2,'DOT',5,5,TRUE,NULL)",
     [sessionId, target.id]
@@ -1832,9 +1843,11 @@ async function advanceEnemyTurns(sessionId) {
     if (!skillActionDone && actor.monster_code?.startsWith(WORLD_BOSS_CODE_PREFIX)) {
       // World Boss: ignora la fórmula de daño física/mágica normal — golpe en área por % del
       // HP MÁXIMO de cada objetivo, mitigado (con tope) por su DEF. Sección 5 del doc.
+      // Una fila de combat_log POR OBJETIVO (no una combinada): useCombatFloaters (front) arma
+      // el número flotante/shake leyendo target_participant_id+damage de cada fila individual —
+      // con una sola fila combinada, solo el primer objetivo mostraba el golpe.
       const aliveTargets = participants.player.filter((p) => p.hp > 0);
       const basePercent = WORLD_BOSS_HIT_PERCENT_MIN + Math.random() * (WORLD_BOSS_HIT_PERCENT_MAX - WORLD_BOSS_HIT_PERCENT_MIN);
-      const hitParts = [];
       for (const target of aliveTargets) {
         const mitigation = Math.min(WORLD_BOSS_DEF_MITIGATION_CAP, (target.def || 0) / 3000);
         const finalPercent = basePercent * (1 - mitigation);
@@ -1842,17 +1855,17 @@ async function advanceEnemyTurns(sessionId) {
         target.hp = Math.max(0, target.hp - dmg);
         await persistParticipant(target);
         await markNearDeathIfLow(target);
-        hitParts.push(`${target.name} por ${dmg}`);
+        await insertLog(sessionId, round, {
+          actorId: actor.id,
+          action: 'ATTACK',
+          targetId: target.id,
+          damage: dmg,
+          description: `¡${actor.name} golpea a ${target.name} por ${dmg}!`,
+          hp_after: target.hp,
+        });
       }
       actor.has_acted_this_round = true;
       await persistParticipant(actor);
-      await insertLog(sessionId, round, {
-        actorId: actor.id,
-        action: 'ATTACK',
-        targetId: aliveTargets[0]?.id ?? null,
-        description: `¡${actor.name} golpea a todo el equipo! ${hitParts.join(', ')}.`,
-        hp_after: aliveTargets[0]?.hp ?? null,
-      });
       continue;
     }
 
@@ -2782,6 +2795,13 @@ router.post('/sessions/:id/action', async (req, res, next) => {
               }
             }
             for (const target of targets) {
+              // World Boss es inmune a todo DOT (ver startNewRound) — antes esto igual creaba el
+              // buff (inerte, nunca tickeaba) y mostraba "envenenado" como si hubiera funcionado.
+              // Ahora ni se crea el buff ni cuenta para ENVENENAMIENTOS/VENENOS_DOMINADOS.
+              if (target.monster_code?.startsWith(WORLD_BOSS_CODE_PREFIX)) {
+                altDescParts.push(`${target.name} es inmune a ${skill.name} (daño por % de HP máximo).`);
+                continue;
+              }
               await db.query(
                 "DELETE FROM combat_participant_buffs WHERE participant_id = $1 AND stat_code = 'DOT' AND skill_id = $2",
                 [target.id, skillId]
