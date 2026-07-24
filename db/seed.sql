@@ -13828,3 +13828,49 @@ SELECT i.id, v.stat_code, v.amount, v.is_percent FROM items i JOIN (VALUES
   ('GUERRERO_BOOTS_PESADA_L100', 'EVASION', 6.3, TRUE)
 ) AS v(code, stat_code, amount, is_percent) ON v.code = i.code
 ON CONFLICT DO NOTHING;
+
+-- ===== Espada Magica (Guerrero, 1H) =====
+-- Resuelve ESPADA_MAGICA, que bloqueaba Guerrero->Espadachin y Guerrero Magus->Mago Espada.
+-- 1H (no 2H como las hachas): encaja con la tecnica de Espadachin y el hibrido ATK+MAG de
+-- Guerrero Magus. Reparte el presupuesto de ATK de una espada normal entre ATK(70%) y MAG(55%)
+-- en vez de dárselo todo a ATK, para no ser mas fuerte en total que una espada normal del mismo nivel.
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+VALUES
+  ('ESPADA_MAGICA', 'Espada Encantada', 'EQUIPMENT', 'WEAPON', FALSE, 'COMUN', 1, 1, FALSE, NULL, 'Espada infundida con magia arcana. Nivel 1.'),
+  ('GUERRERO_WEAPON_MAGICA_L10', 'Espada Rúnica', 'EQUIPMENT', 'WEAPON', FALSE, 'POCO_COMUN', 1, 10, FALSE, NULL, 'Espada infundida con magia arcana. Nivel 10.'),
+  ('GUERRERO_WEAPON_MAGICA_L20', 'Espada del Hechicero', 'EQUIPMENT', 'WEAPON', FALSE, 'RARO', 1, 20, FALSE, NULL, 'Espada infundida con magia arcana. Nivel 20.'),
+  ('GUERRERO_WEAPON_MAGICA_L35', 'Espada Arcana', 'EQUIPMENT', 'WEAPON', FALSE, 'EPICO', 1, 35, FALSE, NULL, 'Espada infundida con magia arcana. Nivel 35.'),
+  ('GUERRERO_WEAPON_MAGICA_L50', 'Espada de Maná Puro', 'EQUIPMENT', 'WEAPON', FALSE, 'EPICO', 1, 50, FALSE, NULL, 'Espada infundida con magia arcana. Nivel 50.'),
+  ('GUERRERO_WEAPON_MAGICA_L65', 'Espada del Archimago', 'EQUIPMENT', 'WEAPON', FALSE, 'LEGENDARIO', 1, 65, FALSE, NULL, 'Espada infundida con magia arcana. Nivel 65.'),
+  ('GUERRERO_WEAPON_MAGICA_L80', 'Espada de las Mil Runas', 'EQUIPMENT', 'WEAPON', FALSE, 'LEGENDARIO', 1, 80, FALSE, NULL, 'Espada infundida con magia arcana. Nivel 80.'),
+  ('GUERRERO_WEAPON_MAGICA_L100', 'Espada del Saber Prohibido', 'EQUIPMENT', 'WEAPON', FALSE, 'UNICO', 1, 100, FALSE, NULL, 'Espada infundida con magia arcana. Nivel 100.')
+ON CONFLICT (code) DO NOTHING;
+
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT i.id, v.stat_code, v.amount, v.is_percent FROM items i JOIN (VALUES
+  ('ESPADA_MAGICA', 'ATK', 8, FALSE),
+  ('ESPADA_MAGICA', 'MAG', 7, FALSE),
+  ('ESPADA_MAGICA', 'CRIT_CHANCE', 6, TRUE),
+  ('GUERRERO_WEAPON_MAGICA_L10', 'ATK', 20, FALSE),
+  ('GUERRERO_WEAPON_MAGICA_L10', 'MAG', 16, FALSE),
+  ('GUERRERO_WEAPON_MAGICA_L10', 'CRIT_CHANCE', 8.6, TRUE),
+  ('GUERRERO_WEAPON_MAGICA_L20', 'ATK', 33, FALSE),
+  ('GUERRERO_WEAPON_MAGICA_L20', 'MAG', 26, FALSE),
+  ('GUERRERO_WEAPON_MAGICA_L20', 'CRIT_CHANCE', 11.6, TRUE),
+  ('GUERRERO_WEAPON_MAGICA_L35', 'ATK', 52, FALSE),
+  ('GUERRERO_WEAPON_MAGICA_L35', 'MAG', 41, FALSE),
+  ('GUERRERO_WEAPON_MAGICA_L35', 'CRIT_CHANCE', 16, TRUE),
+  ('GUERRERO_WEAPON_MAGICA_L50', 'ATK', 72, FALSE),
+  ('GUERRERO_WEAPON_MAGICA_L50', 'MAG', 56, FALSE),
+  ('GUERRERO_WEAPON_MAGICA_L50', 'CRIT_CHANCE', 20.4, TRUE),
+  ('GUERRERO_WEAPON_MAGICA_L65', 'ATK', 91, FALSE),
+  ('GUERRERO_WEAPON_MAGICA_L65', 'MAG', 72, FALSE),
+  ('GUERRERO_WEAPON_MAGICA_L65', 'CRIT_CHANCE', 24.8, TRUE),
+  ('GUERRERO_WEAPON_MAGICA_L80', 'ATK', 111, FALSE),
+  ('GUERRERO_WEAPON_MAGICA_L80', 'MAG', 87, FALSE),
+  ('GUERRERO_WEAPON_MAGICA_L80', 'CRIT_CHANCE', 29.2, TRUE),
+  ('GUERRERO_WEAPON_MAGICA_L100', 'ATK', 137, FALSE),
+  ('GUERRERO_WEAPON_MAGICA_L100', 'MAG', 107, FALSE),
+  ('GUERRERO_WEAPON_MAGICA_L100', 'CRIT_CHANCE', 35.1, TRUE)
+) AS v(code, stat_code, amount, is_percent) ON v.code = i.code
+ON CONFLICT DO NOTHING;
