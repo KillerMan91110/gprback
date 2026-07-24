@@ -1515,14 +1515,23 @@ async function handleWorldBossFinalize(sessionId, status, participants) {
   const damageDealt = Math.max(0, Math.round(Number(boss.max_hp) - Number(boss.hp)));
   if (damageDealt <= 0) return;
 
+  // Igual que ya hace finalizeSession con las recompensas normales de XP/oro: quien abandonó el
+  // grupo (combat_abandoned_players) no cobra nada de esta sesión, aunque la IA haya seguido
+  // jugando en su nombre y le haya seguido pegando de verdad al jefe.
+  const abandonedRes = await db.query(
+    'SELECT player_id FROM combat_abandoned_players WHERE session_id = $1', [sessionId]
+  );
+  const abandonedIds = abandonedRes.rows.map((r) => r.player_id);
+
   const dmgByOwner = await db.query(
     `SELECT COALESCE(cp.player_id, cp.owner_player_id) AS owner_id, SUM(cl.damage) AS dmg
      FROM combat_log cl
      JOIN combat_participants cp ON cp.id = cl.actor_participant_id
      WHERE cl.session_id = $1 AND cl.damage IS NOT NULL AND cl.damage > 0 AND cp.side = 'PLAYER'
        AND COALESCE(cp.player_id, cp.owner_player_id) IS NOT NULL
+       AND COALESCE(cp.player_id, cp.owner_player_id) != ALL($2::int[])
      GROUP BY COALESCE(cp.player_id, cp.owner_player_id)`,
-    [sessionId]
+    [sessionId, abandonedIds]
   );
 
   const hpRes = await db.query(
@@ -1553,8 +1562,9 @@ async function handleWorldBossFinalize(sessionId, status, participants) {
       `SELECT COALESCE(cp.player_id, cp.owner_player_id) AS owner_id
        FROM combat_log cl JOIN combat_participants cp ON cp.id = cl.actor_participant_id
        WHERE cl.session_id = $1 AND cl.damage IS NOT NULL AND cl.damage > 0 AND cp.side = 'PLAYER'
+         AND COALESCE(cp.player_id, cp.owner_player_id) != ALL($2::int[])
        ORDER BY cl.id DESC LIMIT 1`,
-      [sessionId]
+      [sessionId, abandonedIds]
     );
     const killerPlayerId = lastHitRes.rows[0]?.owner_id ?? null;
 
