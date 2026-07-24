@@ -297,7 +297,7 @@ router.get('/:playerId/skills', async (req, res, next) => {
        WHERE s.is_passive = FALSE AND s.skill_type != 'PASIVA'
          AND (s.class_id = ANY($1::int[]) OR s.class_id IS NULL)
          AND (
-           (s.learn_method = 'LEVEL' AND s.learn_level <= $2)
+           (s.class_id = ANY($1::int[]) AND s.learn_method = 'LEVEL' AND s.learn_level <= $2)
            OR EXISTS (SELECT 1 FROM player_skills ps WHERE ps.player_id = $3 AND ps.skill_id = s.id)
          )
        ORDER BY s.class_id, s.name`,
