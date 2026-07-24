@@ -2280,6 +2280,10 @@ router.get('/sessions/active', async (req, res, next) => {
       `SELECT cs.id FROM combat_sessions cs
        JOIN combat_participants cp ON cp.session_id = cs.id
        WHERE cs.status = 'IN_PROGRESS' AND cp.player_id = $1
+         AND NOT EXISTS (
+           SELECT 1 FROM combat_abandoned_players cap
+           WHERE cap.session_id = cs.id AND cap.player_id = $1
+         )
        ORDER BY cs.id DESC
        LIMIT 1`,
       [req.playerId]
