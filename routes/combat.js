@@ -308,12 +308,38 @@ async function recordMonsterEncounters(playerIds, enemyCombatants) {
 // llega a persistir) y se tira un error marcado con .isActiveCombatConflict para que la ruta
 // responda 400 en vez de dejarlo caer en el 500 generico.
 async function createCombatSessionWithClaim(insertSessionFn, playerIds) {
+  const ids = [...new Set(playerIds.filter(Boolean))];
+
+  // Repara claims huérfanas antes de intentar: un jugador puede quedar con una fila en
+  // player_active_combat_session apuntando a una sesión donde nunca terminó de tener su propio
+  // combat_participants (ej. lo invitaron a un coop pero quedó afuera por estar con 0 HP, o el
+  // request se cayó entre el commit del claim y insertParticipants más abajo), o a una sesión
+  // que ya terminó pero finalizeSession no lo limpió porque solo borra claims de quienes SÍ
+  // llegaron a ser participantes. Sin esto, ese jugador queda bloqueado para siempre (todo intento
+  // de entrar a un combate choca contra el PK de player_id y devuelve isActiveCombatConflict).
+  if (ids.length) {
+    await db.query(
+      `DELETE FROM player_active_combat_session pacs
+       USING combat_sessions cs
+       WHERE pacs.session_id = cs.id
+         AND pacs.player_id = ANY($1::int[])
+         AND (
+           cs.status != 'IN_PROGRESS'
+           OR NOT EXISTS (
+             SELECT 1 FROM combat_participants cp
+             WHERE cp.session_id = cs.id AND (cp.player_id = pacs.player_id OR cp.owner_player_id = pacs.player_id)
+           )
+         )`,
+      [ids]
+    );
+  }
+
   const client = await db.pool.connect();
   try {
     await client.query('BEGIN');
     const sessionResult = await insertSessionFn(client);
     const sessionId = sessionResult.rows[0].id;
-    for (const playerId of new Set(playerIds.filter(Boolean))) {
+    for (const playerId of ids) {
       await client.query(
         'INSERT INTO player_active_combat_session(player_id, session_id) VALUES ($1, $2)',
         [playerId, sessionId]
