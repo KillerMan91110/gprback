@@ -2378,7 +2378,10 @@ router.post('/sessions/:id/action', async (req, res, next) => {
     }
 
     const turnStartInnate = await applyInnateTrigger('ON_TURN_START', { actor, target: null, allies: [], enemies: [] });
-    if (turnStartInnate) {
+    // World Boss anula toda regeneración automática por turno — Favor del Bosque/Coro Celestial
+    // son la versión "innata" del mismo mecanismo que hot_hp_percent/HOT (ver startNewRound), así
+    // que se gatean igual: el trigger consume su chance normal, solo no cura.
+    if (turnStartInnate && !session.world_boss_event_id) {
       const eff = turnStartInnate.extra_json || {};
       if (eff.effect === 'heal_self') {
         const healAmt = Math.max(1, Math.round(Number(actor.max_hp) * Number(turnStartInnate.percent_amount || 0) / 100));
