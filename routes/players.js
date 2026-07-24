@@ -1208,6 +1208,7 @@ router.post('/:playerId/quests/:questId/complete', async (req, res, next) => {
     );
     if (quest.is_boss_quest) {
       await db.query('UPDATE players SET boss_kills = boss_kills + 1 WHERE id = $1', [playerId]);
+      await incrementCounter(playerId, 'JEFES_FINALES_MUERTOS');
     }
     const isCombatQuest = quest.objectives?.some((o) =>
       ['KILL_MONSTER', 'KILL_ANY_IN_ZONE', 'DEFEAT_BOSS'].includes(o.objective_type));

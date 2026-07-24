@@ -1327,6 +1327,7 @@ async function handleTowerSessionEnd(sessionId, status) {
     if (floorRow.is_boss_floor) {
       const runPlayerIds = [run.player_id, run.guest_player_id, run.guest_player_id_2].filter(Boolean);
       await db.query('UPDATE players SET boss_kills = boss_kills + 1 WHERE id = ANY($1::int[])', [runPlayerIds]);
+      for (const pid of runPlayerIds) await incrementCounter(pid, 'JEFES_FINALES_MUERTOS');
     }
   }
 }
