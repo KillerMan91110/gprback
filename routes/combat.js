@@ -37,11 +37,6 @@ async function buildTargetInnateContext(sessionId, target) {
   return { alreadyFought: new Set(foughtRes.rows.map((r) => r.category)) };
 }
 
-// Tag " Lv.N" para el log de combate narrativo (docs/backend-spec-log-narrativo.md).
-function levelTag(p) {
-  return p?.level != null ? ` Lv.${p.level}` : '';
-}
-
 // Meditación (Sanador Legendario -> Asceta): el % de curación escala con MEDITACIONES_USADAS
 // acumulado del propio jugador (se lee ANTES de incrementarlo con este uso).
 function meditationHealPercent(usesSoFar) {
@@ -2704,8 +2699,8 @@ router.post('/sessions/:id/action', async (req, res, next) => {
         evaded: result.evaded,
         crit: result.crit,
         description: result.evaded
-          ? `${actor.name} ataca a ${target.name}${levelTag(target)}, pero esquiva el golpe.`
-          : `${actor.name} ataca a ${target.name}${levelTag(target)}, infligiéndole ${result.damage} de daño${attackElementalMods ? ' elemental' : ''}${result.crit ? ' (¡Crítico!)' : ''}.`,
+          ? `${actor.name} ataca a ${target.name}, pero esquiva el golpe.`
+          : `${actor.name} ataca a ${target.name}, infligiéndole ${result.damage} de daño${attackElementalMods ? ' elemental' : ''}${result.crit ? ' (¡Crítico!)' : ''}.`,
         hp_after: target.hp, mana_after: actor.mana,
       };
       } // end else (no_damage_window)
@@ -3354,10 +3349,10 @@ router.post('/sessions/:id/action', async (req, res, next) => {
 
         const summary = results
           .map((r) => (r.evaded
-            ? `${r.target.name}${levelTag(r.target)} esquiva`
+            ? `${r.target.name} esquiva`
             : skill.skill_type === 'CURACION'
-              ? `${r.target.name}${levelTag(r.target)}, curándole ${r.amount} HP`
-              : `${r.target.name}${levelTag(r.target)}, haciéndole ${r.amount} de daño${r.crit ? ' (¡Crítico!)' : ''}`))
+              ? `${r.target.name}, curándole ${r.amount} HP`
+              : `${r.target.name}, haciéndole ${r.amount} de daño${r.crit ? ' (¡Crítico!)' : ''}`))
           .join('; ');
 
         const totalAmount = results.reduce((sum, r) => sum + r.amount, 0);
