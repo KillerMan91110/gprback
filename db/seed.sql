@@ -13904,3 +13904,9 @@ ON CONFLICT DO NOTHING;
 -- Capa nueva y separada de monsters.rarity (spawn eligibility). Solo hace falta una columna:
 -- tiers/multiplicadores/mutaciones viven como constantes en codigo, no como contenido a autorar.
 ALTER TABLE combat_participants ADD COLUMN IF NOT EXISTS mutation_code TEXT;
+
+-- ===== Correccion: pisos de El Abismo tardan mas en completarse por sala =====
+-- room_count=3 hacia que la barra de exploracion se llenara en 3 clicks. Con el sistema de
+-- eventos narrativos + rareza de encuentro ya andando, 8 salas por piso (no de jefe) le da mas
+-- lugar a que ambos sistemas se sientan, en vez de terminar el piso casi de entrada.
+UPDATE tower_floors SET room_count = 8 WHERE NOT is_boss_floor;
