@@ -1158,3 +1158,6 @@ CREATE INDEX IF NOT EXISTS idx_class_innate_abilities_class_id ON class_innate_a
 
 ALTER TABLE combat_participants ADD COLUMN IF NOT EXISTS innate_used_this_combat BOOLEAN NOT NULL DEFAULT FALSE;
 ALTER TABLE combat_participants ADD COLUMN IF NOT EXISTS innate_stacks INT NOT NULL DEFAULT 0;
+
+-- Rareza de encuentro + mutaciones en El Abismo (docs/backend-spec-abismo-rareza-mutaciones.md).
+ALTER TABLE combat_participants ADD COLUMN IF NOT EXISTS mutation_code TEXT;

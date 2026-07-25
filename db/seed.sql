@@ -13899,3 +13899,8 @@ INSERT INTO tower_room_events (event_type, prompt_text, choice_a_label, choice_b
 ('STORY', 'Un diario ajado yace junto a los restos de quien alguna vez lo escribió. Las últimas palabras son casi ilegibles.', 'Leer el diario', 'Dejarlo donde está', 10),
 ('STORY', 'Grabados en la piedra cuentan, en un idioma casi olvidado, la historia de quienes construyeron este lugar.', 'Detenerse a descifrarlos', 'No hay tiempo para esto', 10)
 ON CONFLICT DO NOTHING;
+
+-- ===== Rareza de encuentro + mutaciones en El Abismo (docs/backend-spec-abismo-rareza-mutaciones.md) =====
+-- Capa nueva y separada de monsters.rarity (spawn eligibility). Solo hace falta una columna:
+-- tiers/multiplicadores/mutaciones viven como constantes en codigo, no como contenido a autorar.
+ALTER TABLE combat_participants ADD COLUMN IF NOT EXISTS mutation_code TEXT;

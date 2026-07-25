@@ -372,8 +372,9 @@ async function insertParticipants(sessionId, combatants) {
          session_id, side, player_id, npc_id, class_id, monster_code, name, hp, max_hp, mana, max_mana,
          atk, mag, def, magic_def, spd, crit_chance, crit_damage, evasion,
          magic_damage_bonus, hot_hp_percent, xp_reward, gold_reward,
-         physical_damage_bonus, elemental_damage_bonus, heal_bonus, luck, owner_player_id, damage_reduction, level
-       ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27,$28,$29,$30)
+         physical_damage_bonus, elemental_damage_bonus, heal_bonus, luck, owner_player_id, damage_reduction, level,
+         mutation_code
+       ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27,$28,$29,$30,$31)
        RETURNING *`,
       [
         sessionId, c.side, c.player_id ?? null, c.npc_id ?? null, c.class_id ?? null,
@@ -382,6 +383,7 @@ async function insertParticipants(sessionId, combatants) {
         c.magic_damage_bonus ?? 0, c.hot_hp_percent ?? 0, c.xp_reward, c.gold_reward,
         c.physical_damage_bonus ?? 0, c.elemental_damage_bonus ?? 0, c.heal_bonus ?? 0, c.luck ?? 0,
         c.owner_player_id ?? null, c.damage_reduction ?? 0, c.level ?? null,
+        c.mutation_code ?? null,
       ]
     );
     inserted.push(result.rows[0]);
@@ -1181,6 +1183,61 @@ async function rollMonsterDrops(enemies, dropRateBonusPct = 0) {
 const TOWER_DIFFICULTY_STAT_MULT = { 1: 1.0, 2: 1.3, 3: 1.6 };
 const TOWER_DIFFICULTY_COIN_MULT = { 1: 1, 2: 1.5, 3: 2 };
 
+// Rareza de encuentro + mutaciones (docs/backend-spec-abismo-rareza-mutaciones.md): capa nueva y
+// separada de monsters.rarity (que es elegibilidad de spawn, no esto) — un monstruo de sala normal
+// puede salir más fuerte y/o mutado. No aplica a pisos de jefe.
+const ENCOUNTER_RARITY_WEIGHTS      = { COMUN: 60, POCO_COMUN: 20, RARO: 10, ELITE: 7, MINI_JEFE: 2, JEFE: 1 };
+const ENCOUNTER_RARITY_STAT_MULT    = { COMUN: 1,  POCO_COMUN: 1.15, RARO: 1.35, ELITE: 1.7, MINI_JEFE: 2.2, JEFE: 2.8 };
+const ENCOUNTER_RARITY_REWARD_MULT  = { COMUN: 1,  POCO_COMUN: 1.2,  RARO: 1.5,  ELITE: 2,   MINI_JEFE: 3,   JEFE: 4 };
+const ENCOUNTER_RARITY_MUTATION_CHANCE = { COMUN: 0, POCO_COMUN: 0.1, RARO: 0.3, ELITE: 0.6, MINI_JEFE: 0.9, JEFE: 1 };
+const ENCOUNTER_RARITY_LABEL = { POCO_COMUN: 'Poco Común', RARO: 'Raro', ELITE: 'Élite', MINI_JEFE: 'Mini Jefe', JEFE: 'Jefe' };
+const ENCOUNTER_RARITY_ORDER = Object.keys(ENCOUNTER_RARITY_WEIGHTS);
+
+const MUTATIONS = {
+  FRENETICO: { label: 'Frenético', apply: (e) => { e.spd = Math.round(e.spd * 1.4); } },
+  GIGANTE:   { label: 'Gigante',   apply: (e) => { e.hp = Math.round(e.hp * 2); e.max_hp = e.hp; } },
+  DORADO:    { label: 'Dorado',    apply: (e) => { e.gold_reward = Math.round(e.gold_reward * 3); } },
+  CORRUPTO:  { label: 'Corrupto',  apply: (e) => { e.mutation_code = 'CORRUPTO'; } },
+};
+
+function rollEncounterRarity() {
+  const total = Object.values(ENCOUNTER_RARITY_WEIGHTS).reduce((a, b) => a + b, 0);
+  let roll = Math.random() * total;
+  for (const tier of ENCOUNTER_RARITY_ORDER) {
+    if (roll < ENCOUNTER_RARITY_WEIGHTS[tier]) return tier;
+    roll -= ENCOUNTER_RARITY_WEIGHTS[tier];
+  }
+  return 'COMUN';
+}
+
+// Muta un enemigo YA hidratado (hydrateMonsters) in-place. encounter_rarity no tiene columna
+// propia en combat_participants todavia (v1: alcanza con que quede concatenado en el name, ver
+// sección 5 del doc) — mutation_code SÍ necesita persistir de verdad porque Corrupto se chequea
+// en cada ataque futuro del mismo participante (ver hook en advanceEnemyTurns).
+function applyEncounterRarity(enemy) {
+  const tier = rollEncounterRarity();
+  if (tier !== 'COMUN') {
+    const mult = ENCOUNTER_RARITY_STAT_MULT[tier];
+    enemy.hp = Math.round(enemy.hp * mult); enemy.max_hp = enemy.hp;
+    enemy.atk = Math.round(enemy.atk * mult);
+    enemy.def = Math.round(enemy.def * mult);
+    enemy.mag = Math.round(enemy.mag * mult);
+    enemy.magic_def = Math.round(enemy.magic_def * mult);
+    enemy.spd = Math.round(enemy.spd * mult);
+    const rewardMult = ENCOUNTER_RARITY_REWARD_MULT[tier];
+    enemy.gold_reward = Math.round(enemy.gold_reward * rewardMult);
+    enemy.xp_reward = Math.round(enemy.xp_reward * rewardMult);
+    enemy.name = `${enemy.name} · ${ENCOUNTER_RARITY_LABEL[tier]}`;
+    enemy.encounter_rarity = tier;
+  }
+  if (Math.random() < ENCOUNTER_RARITY_MUTATION_CHANCE[tier]) {
+    const codes = Object.keys(MUTATIONS);
+    const code = codes[Math.floor(Math.random() * codes.length)];
+    MUTATIONS[code].apply(enemy);
+    enemy.name = `${enemy.name} ${MUTATIONS[code].label}`;
+  }
+}
+
 // Eventos narrativos de sala (docs/backend-spec-abismo-eventos-narrativos.md): antes de que una
 // sala sea combate garantizado, una ruleta pesada por Luck decide si en vez es un evento con 2
 // opciones. Luck alta => menos trampas, más de todo lo bueno; luck baja => al revés, tope +/-40
@@ -1329,6 +1386,10 @@ async function buildTowerRoom(run, floorNumber, roomNumber) {
     e.mag = Math.round(e.mag * statMult);
     e.magic_def = Math.round(e.magic_def * statMult);
     e.spd = Math.round(e.spd * statMult);
+  }
+
+  if (!floorRow.is_boss_floor) {
+    for (const e of enemyCombatants) applyEncounterRarity(e);
   }
 
   const sessionResult = await createCombatSessionWithClaim(
@@ -2027,6 +2088,14 @@ async function advanceEnemyTurns(sessionId) {
       if (dodgeInnate?.extra_json?.guarantee_next_crit) await grantGuaranteedNextCrit(sessionId, target.id);
     } else {
       await resolveOnHitInnates(sessionId, actor, target, result, true, participants.player.filter((p) => p.id !== target.id && p.hp > 0));
+      // Mutación Corrupto (docs/backend-spec-abismo-rareza-mutaciones.md): mismo DOT que ya usa
+      // el resto del juego (ver Puño Corrupto), 5% HP máx/turno por 2 turnos.
+      if (actor.mutation_code === 'CORRUPTO') {
+        await db.query(
+          "INSERT INTO combat_participant_buffs(session_id,participant_id,stat_code,applied_flat,rounds_remaining,is_debuff,skill_id) VALUES($1,$2,'DOT',5,2,TRUE,NULL)",
+          [sessionId, target.id]
+        );
+      }
     }
     await insertLog(sessionId, round, {
       actorId: actor.id,
