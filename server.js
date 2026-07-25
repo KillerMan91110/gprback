@@ -154,7 +154,8 @@ app.get('/api/player/:playerId/stats', requireAuth, requireSelf, async (req, res
               c.xp_rate,
               p.evolution_class_id,
               ce.name AS evolution_class_name,
-              ce.lore AS evolution_class_lore
+              ce.lore AS evolution_class_lore,
+              ce.xp_rate AS evolution_xp_rate
        FROM players p
        LEFT JOIN classes c ON p.current_class_id = c.id
        LEFT JOIN class_evolutions e ON e.class_id = p.current_class_id AND e.evolves_to_class_id = p.evolution_class_id
@@ -196,7 +197,7 @@ app.get('/api/player/:playerId/stats', requireAuth, requireSelf, async (req, res
       getActivePetBonuses(player.id),
     ]);
 
-    const xpRate = Number(player.xp_rate || 1);
+    const xpRate = Number(player.evolution_xp_rate || player.xp_rate || 1);
     const xpForCurrentLevel = xpThreshold(player.level, xpRate);
     const xpForNextLevel = xpThreshold(player.level + 1, xpRate);
     const rankProgress = await getRankProgress(Number(player.reputation));
