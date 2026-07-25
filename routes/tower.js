@@ -25,7 +25,22 @@ async function getActiveRun(playerId) {
      WHERE status = 'IN_PROGRESS' AND (player_id = $1 OR guest_player_id = $1 OR guest_player_id_2 = $1)`,
     [playerId]
   );
-  return res.rows[0] || null;
+  let run = res.rows[0] || null;
+  if (run?.current_session_id) run = await reconcileStaleSession(run);
+  return run;
+}
+
+// Si el proceso se reinicia (deploy) a mitad de un finalizeSession, la sesión de combate ya queda
+// resuelta (status != IN_PROGRESS) pero la corrida de torre nunca llega a cerrarse/avanzar de sala
+// — current_session_id se queda apuntando a algo que ya terminó, bloqueando al jugador para
+// siempre. Se repara sola la próxima vez que alguien pide el estado de su corrida.
+async function reconcileStaleSession(run) {
+  const sessRes = await db.query('SELECT status FROM combat_sessions WHERE id = $1', [run.current_session_id]);
+  const sessionStatus = sessRes.rows[0]?.status;
+  if (!sessionStatus || sessionStatus === 'IN_PROGRESS') return run;
+  await combatEngine.handleTowerSessionEnd(run.current_session_id, sessionStatus);
+  const fresh = await db.query('SELECT * FROM player_tower_runs WHERE id = $1', [run.id]);
+  return fresh.rows[0] || null;
 }
 
 async function getFloor(floorNumber) {

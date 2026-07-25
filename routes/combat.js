@@ -3487,4 +3487,5 @@ module.exports.WORLD_BOSS_CODE_PREFIX = WORLD_BOSS_CODE_PREFIX;
 module.exports.WORLD_BOSS_ATTEMPT_COOLDOWN_SECONDS = WORLD_BOSS_ATTEMPT_COOLDOWN_SECONDS;
 module.exports.WORLD_BOSS_MIN_LEVEL_TO_ENTER = WORLD_BOSS_MIN_LEVEL_TO_ENTER;
 module.exports.advanceTowerRoomOrFloor = advanceTowerRoomOrFloor;
+module.exports.handleTowerSessionEnd = handleTowerSessionEnd;
 module.exports.TOWER_EVENT_TRAP_DAMAGE_PERCENT = TOWER_EVENT_TRAP_DAMAGE_PERCENT;
