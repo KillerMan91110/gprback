@@ -37,6 +37,11 @@ async function buildTargetInnateContext(sessionId, target) {
   return { alreadyFought: new Set(foughtRes.rows.map((r) => r.category)) };
 }
 
+// Tag " Lv.N" para el log de combate narrativo (docs/backend-spec-log-narrativo.md).
+function levelTag(p) {
+  return p?.level != null ? ` Lv.${p.level}` : '';
+}
+
 // Meditación (Sanador Legendario -> Asceta): el % de curación escala con MEDITACIONES_USADAS
 // acumulado del propio jugador (se lee ANTES de incrementarlo con este uso).
 function meditationHealPercent(usesSoFar) {
@@ -189,6 +194,7 @@ async function hydratePartyNpcs(playerId, ownerPlayerId = null, slotLimit = null
       class_id: npc.class_id,
       monster_code: null,
       name: npc.name,
+      level: npc.level,
       hp: Math.min(npc.hp, Math.round(npc.max_hp * (1 + passives.hp / 100))),
       max_hp: Math.round(npc.max_hp * (1 + passives.hp / 100)),
       mana: npc.mana,
@@ -2698,8 +2704,8 @@ router.post('/sessions/:id/action', async (req, res, next) => {
         evaded: result.evaded,
         crit: result.crit,
         description: result.evaded
-          ? `${actor.name} ataca a ${target.name} pero esquiva el golpe.`
-          : `${actor.name} ataca a ${target.name} por ${result.damage} de daño${attackElementalMods ? ' elemental' : ''}${result.crit ? ' (¡crítico!)' : ''}.`,
+          ? `${actor.name} ataca a ${target.name}${levelTag(target)}, pero esquiva el golpe.`
+          : `${actor.name} ataca a ${target.name}${levelTag(target)}, infligiéndole ${result.damage} de daño${attackElementalMods ? ' elemental' : ''}${result.crit ? ' (¡Crítico!)' : ''}.`,
         hp_after: target.hp, mana_after: actor.mana,
       };
       } // end else (no_damage_window)
@@ -3346,10 +3352,13 @@ router.post('/sessions/:id/action', async (req, res, next) => {
           }
         }
 
-        const verb = skill.skill_type === 'CURACION' ? 'cura' : 'daña';
         const summary = results
-          .map((r) => (r.evaded ? `${r.target.name} esquiva` : `${r.target.name} por ${r.amount}${r.crit ? ' (¡crítico!)' : ''}`))
-          .join(', ');
+          .map((r) => (r.evaded
+            ? `${r.target.name}${levelTag(r.target)} esquiva`
+            : skill.skill_type === 'CURACION'
+              ? `${r.target.name}${levelTag(r.target)}, curándole ${r.amount} HP`
+              : `${r.target.name}${levelTag(r.target)}, haciéndole ${r.amount} de daño${r.crit ? ' (¡Crítico!)' : ''}`))
+          .join('; ');
 
         const totalAmount = results.reduce((sum, r) => sum + r.amount, 0);
         logEntry = {
@@ -3360,7 +3369,9 @@ router.post('/sessions/:id/action', async (req, res, next) => {
           heal: skill.skill_type === 'CURACION' ? totalAmount : null,
           evaded: results.every((r) => r.evaded),
           crit: results.some((r) => r.crit),
-          description: `${actor.name} usa ${skill.name}: ${verb} a ${summary}.`,
+          description: skill.skill_type === 'CURACION'
+            ? `${actor.name} usa ${skill.name} y cura a ${summary}.`
+            : `${actor.name} usa ${skill.name} sobre ${summary}.`,
           hp_after: results[0].target.hp,
           mana_after: actor.mana,
         };
