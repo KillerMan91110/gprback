@@ -63,6 +63,67 @@ async function canControlRun(run, callerId) {
   return (hpById[callerId] ?? 0) > 0;
 }
 
+// Vendedor ambulante del evento narrativo VENDOR (distinto del vendedor persistente de
+// tower_vendor_shop): ofrece 10 items al azar (CONSUMABLE/MATERIAL) pesados por rareza, con
+// precio en dungeon_coins que escala segun rareza y que tan profundo esta el piso actual.
+const VENDOR_EVENT_RARITY_WEIGHTS = { COMUN: 40, POCO_COMUN: 30, RARO: 18, EPICO: 9, LEGENDARIO: 3 };
+const VENDOR_EVENT_RARITY_PRICE = { COMUN: 5, POCO_COMUN: 15, RARO: 35, EPICO: 80, LEGENDARIO: 200 };
+const VENDOR_EVENT_OFFER_SIZE = 10;
+
+function rollVendorEventRarity() {
+  const entries = Object.entries(VENDOR_EVENT_RARITY_WEIGHTS);
+  const total = entries.reduce((sum, [, w]) => sum + w, 0);
+  let roll = Math.random() * total;
+  for (const [rarity, w] of entries) {
+    if (roll < w) return rarity;
+    roll -= w;
+  }
+  return entries[0][0];
+}
+
+function vendorEventPrice(rarity, floorNumber) {
+  const base = VENDOR_EVENT_RARITY_PRICE[rarity] || VENDOR_EVENT_RARITY_PRICE.COMUN;
+  const floorMult = 1 + Math.floor(floorNumber / 30) * 0.5;
+  return Math.round(base * floorMult);
+}
+
+async function rollVendorEventOffer(floorNumber) {
+  const offer = [];
+  const usedIds = [];
+  for (let i = 0; i < VENDOR_EVENT_OFFER_SIZE; i += 1) {
+    const rarity = rollVendorEventRarity();
+    let itemRes = await db.query(
+      `SELECT id, code, name, description, item_type, rarity FROM items
+       WHERE item_type IN ('CONSUMABLE','MATERIAL') AND COALESCE(rarity,'COMUN') = $1
+         AND NOT (id = ANY($2::int[]))
+       ORDER BY random() LIMIT 1`,
+      [rarity, usedIds]
+    );
+    if (!itemRes.rows.length) {
+      // Esa rareza ya no tiene items sin repetir disponibles: cualquier CONSUMABLE/MATERIAL sirve.
+      itemRes = await db.query(
+        `SELECT id, code, name, description, item_type, rarity FROM items
+         WHERE item_type IN ('CONSUMABLE','MATERIAL') AND NOT (id = ANY($1::int[]))
+         ORDER BY random() LIMIT 1`,
+        [usedIds]
+      );
+    }
+    const item = itemRes.rows[0];
+    if (!item) break; // no quedan mas items distintos para ofrecer
+    usedIds.push(item.id);
+    offer.push({
+      itemId: item.id,
+      code: item.code,
+      name: item.name,
+      description: item.description,
+      itemType: item.item_type,
+      rarity: item.rarity || 'COMUN',
+      price: vendorEventPrice(item.rarity || 'COMUN', floorNumber),
+    });
+  }
+  return offer;
+}
+
 const READY_TTL_MS = 15000;
 
 async function getMyGroupId(playerId) {
@@ -266,6 +327,18 @@ router.post('/event-choice', async (req, res, next) => {
     const allPlayerIds = [run.player_id, run.guest_player_id, run.guest_player_id_2].filter(Boolean);
     let message = 'Seguiste de largo, sin efecto.';
 
+    if (choice === 'A' && event.event_type === 'VENDOR') {
+      // El vendedor no se resuelve solo: abre un pop-up de compra (ver POST /vendor-event-buy).
+      // El evento sigue pendiente hasta que el jugador compre 1 item o decida con choice: 'B'.
+      const offer = await rollVendorEventOffer(run.current_floor);
+      const playerRes = await db.query('SELECT dungeon_coins FROM players WHERE id = $1', [req.playerId]);
+      return res.json({
+        vendorOffer: offer,
+        dungeon_coins: Number(playerRes.rows[0].dungeon_coins),
+        run,
+      });
+    }
+
     if (choice === 'A') {
       if (event.event_type === 'TRAP') {
         const pct = combatEngine.TOWER_EVENT_TRAP_DAMAGE_PERCENT;
@@ -284,15 +357,6 @@ router.post('/event-choice', async (req, res, next) => {
           await db.query('UPDATE player_npcs SET hp = $1 WHERE id = $2', [Math.max(1, n.hp - dmg), n.id]);
         }
         message = `La trampa golpeó a todo el grupo por ${pct}% de su HP máximo.`;
-      } else if (event.event_type === 'VENDOR') {
-        const itemRes = await db.query(
-          `SELECT id, name FROM items WHERE rarity IN ('COMUN','POCO_COMUN') ORDER BY random() LIMIT 1`
-        );
-        const item = itemRes.rows[0];
-        if (item) {
-          await inventory.addItem(run.player_id, item.id, 1);
-          message = `El comerciante te dio: ${item.name}.`;
-        }
       } else if (event.event_type === 'SANCTUARY') {
         await db.query('UPDATE players SET hp = max_hp, mana = max_mana WHERE id = ANY($1::int[])', [allPlayerIds]);
         await db.query(
@@ -322,6 +386,69 @@ router.post('/event-choice', async (req, res, next) => {
       : null;
 
     res.json({ message, run: updatedRun, session, pendingEvent });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// POST /api/player/:playerId/tower/vendor-event-buy   body: { itemId }
+// Compra 1 item del pop-up abierto por event-choice (choice:'A' sobre un evento VENDOR). El
+// precio se recalcula server-side (rareza del item + piso actual), nunca se confía en el que
+// mostró el pop-up. Comprar cierra el evento y avanza la sala, igual que cualquier otra decisión.
+router.post('/vendor-event-buy', async (req, res, next) => {
+  try {
+    const itemId = Number(req.body?.itemId);
+    if (!itemId) return res.status(400).json({ error: 'itemId requerido' });
+
+    const run = await getActiveRun(req.playerId);
+    if (!run) return res.status(400).json({ error: 'No tienes una corrida de torre activa' });
+    if (!run.pending_event_id) return res.status(400).json({ error: 'No hay ningún evento pendiente en esta sala' });
+    if (!(await canControlRun(run, req.playerId))) {
+      return res.status(403).json({ error: 'Solo quien tiene el control de la corrida (el líder, o alguien vivo si el líder murió) puede decidir esto.' });
+    }
+
+    const eventRes = await db.query('SELECT event_type FROM tower_room_events WHERE id = $1', [run.pending_event_id]);
+    if (eventRes.rows[0]?.event_type !== 'VENDOR') {
+      return res.status(400).json({ error: 'El evento pendiente no es un vendedor' });
+    }
+
+    const itemRes = await db.query(
+      `SELECT id, name, item_type, rarity FROM items WHERE id = $1 AND item_type IN ('CONSUMABLE','MATERIAL')`,
+      [itemId]
+    );
+    const item = itemRes.rows[0];
+    if (!item) return res.status(404).json({ error: 'Ítem no disponible en este vendedor' });
+
+    const price = vendorEventPrice(item.rarity || 'COMUN', run.current_floor);
+
+    const playerRes = await db.query('SELECT dungeon_coins FROM players WHERE id = $1', [req.playerId]);
+    const currentCoins = Number(playerRes.rows[0].dungeon_coins);
+    if (currentCoins < price) {
+      return res.status(400).json({ error: `Monedas insuficientes (necesitás ${price}, tenés ${currentCoins})` });
+    }
+
+    await db.query('UPDATE players SET dungeon_coins = dungeon_coins - $1 WHERE id = $2', [price, req.playerId]);
+    await inventory.addItem(req.playerId, item.id, 1);
+
+    await db.query('UPDATE player_tower_runs SET pending_event_id = NULL WHERE id = $1', [run.id]);
+    const floorRow = await getFloor(run.current_floor);
+    await combatEngine.advanceTowerRoomOrFloor(run, floorRow);
+
+    const updatedRun = (await db.query('SELECT * FROM player_tower_runs WHERE id = $1', [run.id])).rows[0];
+    const session = updatedRun.current_session_id ? await combatEngine.fetchSessionState(updatedRun.current_session_id) : null;
+    const pendingEvent = updatedRun.pending_event_id
+      ? (await db.query('SELECT * FROM tower_room_events WHERE id = $1', [updatedRun.pending_event_id])).rows[0]
+      : null;
+    const newCoins = currentCoins - price;
+
+    res.json({
+      message: `Compraste: ${item.name} por ${price} monedas de mazmorra.`,
+      bought: { itemId: item.id, name: item.name, price },
+      dungeon_coins: newCoins,
+      run: updatedRun,
+      session,
+      pendingEvent,
+    });
   } catch (err) {
     next(err);
   }
