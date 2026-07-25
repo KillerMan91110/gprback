@@ -1181,6 +1181,47 @@ async function rollMonsterDrops(enemies, dropRateBonusPct = 0) {
 const TOWER_DIFFICULTY_STAT_MULT = { 1: 1.0, 2: 1.3, 3: 1.6 };
 const TOWER_DIFFICULTY_COIN_MULT = { 1: 1, 2: 1.5, 3: 2 };
 
+// Eventos narrativos de sala (docs/backend-spec-abismo-eventos-narrativos.md): antes de que una
+// sala sea combate garantizado, una ruleta pesada por Luck decide si en vez es un evento con 2
+// opciones. Luck alta => menos trampas, más de todo lo bueno; luck baja => al revés, tope +/-40
+// para no volver el combate irrelevante ni garantizar solo eventos buenos con luck muy alta.
+const TOWER_EVENT_CATEGORY_BASE_WEIGHTS = { COMBAT: 55, TRAP: 15, VENDOR: 10, SANCTUARY: 8, SECRET: 7, STORY: 5 };
+const TOWER_EVENT_TRAP_DAMAGE_PERCENT = 8;
+
+function rollRoomCategory(avgLuck) {
+  const shift = Math.max(-40, Math.min(40, avgLuck * 0.6));
+  const w = { ...TOWER_EVENT_CATEGORY_BASE_WEIGHTS };
+  w.TRAP = Math.max(2, w.TRAP - shift * 0.5);
+  w.VENDOR += shift * 0.15;
+  w.SANCTUARY += shift * 0.15;
+  w.SECRET += shift * 0.1;
+  w.STORY += shift * 0.1;
+
+  const total = Object.values(w).reduce((a, b) => a + b, 0);
+  let roll = Math.random() * total;
+  for (const [cat, weight] of Object.entries(w)) {
+    if (roll < weight) return cat;
+    roll -= weight;
+  }
+  return 'COMBAT';
+}
+
+// Elige una fila al azar de tower_room_events para esa categoria, pesada por su columna weight
+// (no la categoria en si, eso ya lo resolvio rollRoomCategory). Null si esa categoria no tiene
+// ninguna fila cargada todavia (cae a combate en el caller).
+async function pickRoomEvent(eventType) {
+  const rowsRes = await db.query('SELECT * FROM tower_room_events WHERE event_type = $1', [eventType]);
+  const rows = rowsRes.rows;
+  if (!rows.length) return null;
+  const totalWeight = rows.reduce((sum, r) => sum + r.weight, 0);
+  let roll = Math.random() * totalWeight;
+  for (const row of rows) {
+    if (roll < row.weight) return row;
+    roll -= row.weight;
+  }
+  return rows[rows.length - 1];
+}
+
 function towerFloorLevel(floorNumber) {
   return 29 + floorNumber;
 }
@@ -1252,6 +1293,28 @@ async function buildTowerRoom(run, floorNumber, roomNumber) {
     throw Object.assign(new Error('Toda la formación está derrotada.'), { status: 400 });
   }
 
+  // Eventos narrativos: el piso de jefe siempre es combate (no tendria sentido reemplazarlo).
+  // El resto de las salas tiran la ruleta pesada por el Luck promedio del grupo antes de armar
+  // el encuentro; si sale otra cosa que COMBAT, la sala queda como evento pendiente en vez de
+  // sesion de combate.
+  if (!floorRow.is_boss_floor) {
+    const avgLuck = allCombatants.length
+      ? allCombatants.reduce((sum, p) => sum + Number(p.luck || 0), 0) / allCombatants.length
+      : 0;
+    const category = rollRoomCategory(avgLuck);
+    if (category !== 'COMBAT') {
+      const event = await pickRoomEvent(category);
+      if (event) {
+        await db.query(
+          'UPDATE player_tower_runs SET current_floor=$1, current_room=$2, current_session_id=NULL, pending_event_id=$3 WHERE id=$4',
+          [floorNumber, roomNumber, event.id, run.id]
+        );
+        return null;
+      }
+      // Sin filas cargadas todavia para esa categoria: cae a combate en vez de trabarse.
+    }
+  }
+
   const participantCount = aliveCombatants.length + aliveNpcs.length;
   const monsterSpecs = await buildTowerMonsterSpecs(floorRow, participantCount);
   const enemyCombatants = await hydrateMonsters(monsterSpecs);
@@ -1295,6 +1358,29 @@ async function buildTowerRoom(run, floorNumber, roomNumber) {
   return sessionId;
 }
 
+// Compartido entre el cierre de una sesion de combate ganada y la resolucion de un evento
+// narrativo (docs/backend-spec-abismo-eventos-narrativos.md sección 3): sigue a la sala siguiente
+// del piso, o banca la moneda y cierra el piso si ya era la ultima sala.
+async function advanceTowerRoomOrFloor(run, floorRow) {
+  if (run.current_room < floorRow.room_count) {
+    await buildTowerRoom(run, run.current_floor, run.current_room + 1);
+  } else {
+    // Piso completo: banca la moneda de ESTE piso ya mismo (no en /advance), así que si
+    // extraés apenas terminás el piso (sin apretar Seguir) igual la cuenta.
+    const coinsGained = Math.round(1 * (TOWER_DIFFICULTY_COIN_MULT[run.difficulty] || 1));
+    await db.query(
+      `UPDATE player_tower_runs SET current_session_id=NULL, coins_earned = coins_earned + $2 WHERE id=$1`,
+      [run.id, coinsGained]
+    );
+
+    if (floorRow.is_boss_floor) {
+      const runPlayerIds = [run.player_id, run.guest_player_id, run.guest_player_id_2].filter(Boolean);
+      await db.query('UPDATE players SET boss_kills = boss_kills + 1 WHERE id = ANY($1::int[])', [runPlayerIds]);
+      for (const pid of runPlayerIds) await incrementCounter(pid, 'JEFES_FINALES_MUERTOS');
+    }
+  }
+}
+
 async function handleTowerSessionEnd(sessionId, status) {
   const runRes = await db.query(
     `SELECT * FROM player_tower_runs WHERE current_session_id = $1 AND status = 'IN_PROGRESS'`,
@@ -1313,23 +1399,7 @@ async function handleTowerSessionEnd(sessionId, status) {
 
   const floorRes = await db.query('SELECT * FROM tower_floors WHERE floor_number = $1', [run.current_floor]);
   const floorRow = floorRes.rows[0];
-  if (run.current_room < floorRow.room_count) {
-    await buildTowerRoom(run, run.current_floor, run.current_room + 1);
-  } else {
-    // Piso completo: banca la moneda de ESTE piso ya mismo (no en /advance), así que si
-    // extraés apenas terminás el piso (sin apretar Seguir) igual la cuenta.
-    const coinsGained = Math.round(1 * (TOWER_DIFFICULTY_COIN_MULT[run.difficulty] || 1));
-    await db.query(
-      `UPDATE player_tower_runs SET current_session_id=NULL, coins_earned = coins_earned + $2 WHERE id=$1`,
-      [run.id, coinsGained]
-    );
-
-    if (floorRow.is_boss_floor) {
-      const runPlayerIds = [run.player_id, run.guest_player_id, run.guest_player_id_2].filter(Boolean);
-      await db.query('UPDATE players SET boss_kills = boss_kills + 1 WHERE id = ANY($1::int[])', [runPlayerIds]);
-      for (const pid of runPlayerIds) await incrementCounter(pid, 'JEFES_FINALES_MUERTOS');
-    }
-  }
+  await advanceTowerRoomOrFloor(run, floorRow);
 }
 
 async function finalizeSession(sessionId, status, participants) {
@@ -3416,3 +3486,5 @@ module.exports.createCombatSessionWithClaim = createCombatSessionWithClaim;
 module.exports.WORLD_BOSS_CODE_PREFIX = WORLD_BOSS_CODE_PREFIX;
 module.exports.WORLD_BOSS_ATTEMPT_COOLDOWN_SECONDS = WORLD_BOSS_ATTEMPT_COOLDOWN_SECONDS;
 module.exports.WORLD_BOSS_MIN_LEVEL_TO_ENTER = WORLD_BOSS_MIN_LEVEL_TO_ENTER;
+module.exports.advanceTowerRoomOrFloor = advanceTowerRoomOrFloor;
+module.exports.TOWER_EVENT_TRAP_DAMAGE_PERCENT = TOWER_EVENT_TRAP_DAMAGE_PERCENT;

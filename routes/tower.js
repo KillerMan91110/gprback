@@ -220,7 +220,93 @@ router.get('/run', async (req, res, next) => {
     const floorRow = await getFloor(run.current_floor);
     const session = run.current_session_id ? await combatEngine.fetchSessionState(run.current_session_id) : null;
     const canControl = await canControlRun(run, req.playerId);
-    res.json({ run, floor: floorRow, session, canControl });
+    const pendingEvent = run.pending_event_id
+      ? (await db.query('SELECT * FROM tower_room_events WHERE id = $1', [run.pending_event_id])).rows[0]
+      : null;
+    res.json({ run, floor: floorRow, session, canControl, pendingEvent });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// POST /api/player/:playerId/tower/event-choice   body: { choice: 'A' | 'B' }
+// Resuelve el evento narrativo pendiente de la sala actual (docs/backend-spec-abismo-eventos-
+// narrativos.md sección 3). Solo B siempre es "sin efecto"; A aplica el efecto según event_type.
+router.post('/event-choice', async (req, res, next) => {
+  try {
+    const { choice } = req.body;
+    if (!['A', 'B'].includes(choice)) return res.status(400).json({ error: "choice debe ser 'A' o 'B'" });
+
+    const run = await getActiveRun(req.playerId);
+    if (!run) return res.status(400).json({ error: 'No tienes una corrida de torre activa' });
+    if (!run.pending_event_id) return res.status(400).json({ error: 'No hay ningún evento pendiente en esta sala' });
+    if (!(await canControlRun(run, req.playerId))) {
+      return res.status(403).json({ error: 'Solo quien tiene el control de la corrida (el líder, o alguien vivo si el líder murió) puede decidir esto.' });
+    }
+
+    const eventRes = await db.query('SELECT * FROM tower_room_events WHERE id = $1', [run.pending_event_id]);
+    const event = eventRes.rows[0];
+    if (!event) return res.status(500).json({ error: 'Evento no encontrado' });
+
+    const allPlayerIds = [run.player_id, run.guest_player_id, run.guest_player_id_2].filter(Boolean);
+    let message = 'Seguiste de largo, sin efecto.';
+
+    if (choice === 'A') {
+      if (event.event_type === 'TRAP') {
+        const pct = combatEngine.TOWER_EVENT_TRAP_DAMAGE_PERCENT;
+        const playersRes = await db.query('SELECT id, hp, max_hp FROM players WHERE id = ANY($1::int[])', [allPlayerIds]);
+        for (const p of playersRes.rows) {
+          const dmg = Math.max(1, Math.round(Number(p.max_hp) * pct / 100));
+          await db.query('UPDATE players SET hp = $1 WHERE id = $2', [Math.max(1, p.hp - dmg), p.id]);
+        }
+        const npcsRes = await db.query(
+          `SELECT pn.id, pn.hp, pn.max_hp FROM player_party pp
+           JOIN player_npcs pn ON pn.id = pp.npc_id WHERE pp.player_id = ANY($1::int[])`,
+          [allPlayerIds]
+        );
+        for (const n of npcsRes.rows) {
+          const dmg = Math.max(1, Math.round(Number(n.max_hp) * pct / 100));
+          await db.query('UPDATE player_npcs SET hp = $1 WHERE id = $2', [Math.max(1, n.hp - dmg), n.id]);
+        }
+        message = `La trampa golpeó a todo el grupo por ${pct}% de su HP máximo.`;
+      } else if (event.event_type === 'VENDOR') {
+        const itemRes = await db.query(
+          `SELECT id, name FROM items WHERE rarity IN ('COMUN','POCO_COMUN') ORDER BY random() LIMIT 1`
+        );
+        const item = itemRes.rows[0];
+        if (item) {
+          await inventory.addItem(run.player_id, item.id, 1);
+          message = `El comerciante te dio: ${item.name}.`;
+        }
+      } else if (event.event_type === 'SANCTUARY') {
+        await db.query('UPDATE players SET hp = max_hp, mana = max_mana WHERE id = ANY($1::int[])', [allPlayerIds]);
+        await db.query(
+          `UPDATE player_npcs SET hp = max_hp, mana = max_mana
+           WHERE id IN (SELECT npc_id FROM player_party WHERE player_id = ANY($1::int[]))`,
+          [allPlayerIds]
+        );
+        message = 'Todo el grupo descansó y recuperó HP y maná al máximo.';
+      } else if (event.event_type === 'SECRET') {
+        await db.query('UPDATE player_tower_runs SET coins_earned = coins_earned + 2 WHERE id = $1', [run.id]);
+        message = '+2 monedas de mazmorra.';
+      } else if (event.event_type === 'STORY') {
+        await incrementCounter(req.playerId, 'HISTORIAS_DEL_ABISMO_LEIDAS');
+        message = 'Una historia más del Abismo, guardada en tu memoria.';
+      }
+    }
+
+    await db.query('UPDATE player_tower_runs SET pending_event_id = NULL WHERE id = $1', [run.id]);
+
+    const floorRow = await getFloor(run.current_floor);
+    await combatEngine.advanceTowerRoomOrFloor(run, floorRow);
+
+    const updatedRun = (await db.query('SELECT * FROM player_tower_runs WHERE id = $1', [run.id])).rows[0];
+    const session = updatedRun.current_session_id ? await combatEngine.fetchSessionState(updatedRun.current_session_id) : null;
+    const pendingEvent = updatedRun.pending_event_id
+      ? (await db.query('SELECT * FROM tower_room_events WHERE id = $1', [updatedRun.pending_event_id])).rows[0]
+      : null;
+
+    res.json({ message, run: updatedRun, session, pendingEvent });
   } catch (err) {
     next(err);
   }
@@ -237,6 +323,9 @@ router.post('/advance', async (req, res, next) => {
     if (run.current_session_id) {
       return res.status(400).json({ error: 'Todavía hay una sala en curso' });
     }
+    if (run.pending_event_id) {
+      return res.status(400).json({ error: 'Todavía tenés un evento pendiente por resolver en esta sala' });
+    }
 
     const nextFloor = run.current_floor + 1;
     if (!(await getFloor(nextFloor))) {
@@ -246,8 +335,11 @@ router.post('/advance', async (req, res, next) => {
     await combatEngine.buildTowerRoom(run, nextFloor, 1);
 
     const updatedRun = (await db.query('SELECT * FROM player_tower_runs WHERE id = $1', [run.id])).rows[0];
-    const session = await combatEngine.fetchSessionState(updatedRun.current_session_id);
-    res.json({ run: updatedRun, session });
+    const session = updatedRun.current_session_id ? await combatEngine.fetchSessionState(updatedRun.current_session_id) : null;
+    const pendingEvent = updatedRun.pending_event_id
+      ? (await db.query('SELECT * FROM tower_room_events WHERE id = $1', [updatedRun.pending_event_id])).rows[0]
+      : null;
+    res.json({ run: updatedRun, session, pendingEvent });
   } catch (err) {
     next(err);
   }

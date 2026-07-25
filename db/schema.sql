@@ -1038,6 +1038,17 @@ CREATE TABLE IF NOT EXISTS tower_floors (
   escort_monster_codes TEXT[]
 );
 
+-- Eventos narrativos de sala (docs/backend-spec-abismo-eventos-narrativos.md): alternativa al
+-- combate garantizado, ponderada por Luck del grupo (ver rollRoomCategory en routes/combat.js).
+CREATE TABLE IF NOT EXISTS tower_room_events (
+  id             SERIAL PRIMARY KEY,
+  event_type     TEXT NOT NULL CHECK (event_type IN ('TRAP','VENDOR','SANCTUARY','SECRET','STORY')),
+  prompt_text    TEXT NOT NULL,
+  choice_a_label TEXT NOT NULL,
+  choice_b_label TEXT NOT NULL,
+  weight         INT NOT NULL DEFAULT 10
+);
+
 CREATE TABLE IF NOT EXISTS player_tower_runs (
   id                  SERIAL PRIMARY KEY,
   player_id           INT NOT NULL REFERENCES players(id),
@@ -1051,7 +1062,8 @@ CREATE TABLE IF NOT EXISTS player_tower_runs (
   status              TEXT NOT NULL DEFAULT 'IN_PROGRESS' CHECK (status IN ('IN_PROGRESS','EXTRACTED','WIPED')),
   abandoned_player_ids INT[] NOT NULL DEFAULT '{}',
   started_at          TIMESTAMP DEFAULT now(),
-  ended_at            TIMESTAMP
+  ended_at            TIMESTAMP,
+  pending_event_id    INT REFERENCES tower_room_events(id)
 );
 
 CREATE TABLE IF NOT EXISTS tower_vendor_shop (

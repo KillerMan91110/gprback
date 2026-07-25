@@ -13874,3 +13874,28 @@ SELECT i.id, v.stat_code, v.amount, v.is_percent FROM items i JOIN (VALUES
   ('GUERRERO_WEAPON_MAGICA_L100', 'CRIT_CHANCE', 35.1, TRUE)
 ) AS v(code, stat_code, amount, is_percent) ON v.code = i.code
 ON CONFLICT DO NOTHING;
+
+-- ===== Eventos narrativos en El Abismo, ponderados por Luck (docs/backend-spec-abismo-eventos-narrativos.md) =====
+CREATE TABLE IF NOT EXISTS tower_room_events (
+  id             SERIAL PRIMARY KEY,
+  event_type     TEXT NOT NULL CHECK (event_type IN ('TRAP','VENDOR','SANCTUARY','SECRET','STORY')),
+  prompt_text    TEXT NOT NULL,
+  choice_a_label TEXT NOT NULL,
+  choice_b_label TEXT NOT NULL,
+  weight         INT NOT NULL DEFAULT 10
+);
+
+ALTER TABLE player_tower_runs ADD COLUMN IF NOT EXISTS pending_event_id INT REFERENCES tower_room_events(id);
+
+INSERT INTO tower_room_events (event_type, prompt_text, choice_a_label, choice_b_label, weight) VALUES
+('TRAP', 'El suelo cede bajo tus pies — una fosa de picos oxidados se abre de golpe.', 'Saltar e investigar qué hay más allá', 'Retroceder con cuidado', 10),
+('TRAP', 'Un hilo casi invisible cruza el pasillo. Al tensarlo, algo cruje sobre tu cabeza.', 'Cortar el hilo de un tajo', 'Rodearlo por el costado', 10),
+('VENDOR', 'Una figura encapuchada aguarda junto a un carromato destartalado, entre las sombras del Abismo.', 'Comerciar con el desconocido', 'Seguir de largo', 10),
+('VENDOR', 'El eco de monedas cayendo te guía hasta un pequeño campamento abandonado, con mercancía todavía tibia.', 'Revisar la mercancía', 'No tocar nada', 10),
+('SANCTUARY', 'Una luz tenue emana de un altar cubierto de musgo. El aire aquí se siente más liviano.', 'Descansar junto al altar', 'Seguir descendiendo', 10),
+('SANCTUARY', 'Encontrás una fuente de agua cristalina, imposible en un lugar tan profundo y oscuro.', 'Beber y descansar', 'Desconfiar y continuar', 10),
+('SECRET', 'Notás una grieta apenas visible entre las rocas, oculta tras una cortina de raíces.', 'Entrar por la grieta', 'Ignorarla', 10),
+('SECRET', 'Un reflejo metálico llama tu atención bajo un montón de escombros.', 'Cavar entre los escombros', 'No perder el tiempo', 10),
+('STORY', 'Un diario ajado yace junto a los restos de quien alguna vez lo escribió. Las últimas palabras son casi ilegibles.', 'Leer el diario', 'Dejarlo donde está', 10),
+('STORY', 'Grabados en la piedra cuentan, en un idioma casi olvidado, la historia de quienes construyeron este lugar.', 'Detenerse a descifrarlos', 'No hay tiempo para esto', 10)
+ON CONFLICT DO NOTHING;
