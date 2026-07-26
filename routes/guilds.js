@@ -689,15 +689,34 @@ router.get('/:id/masters/:masterId/shop', async (req, res, next) => {
     }
 
     const shopRes = await db.query(
-      `SELECT cmsi.id, cmsi.price, i.id AS item_id, i.code, i.name, i.description, i.item_type, i.rarity
+      `SELECT cmsi.id, cmsi.price, i.id AS item_id, i.code, i.name, i.description, i.item_type,
+              i.slot, i.rarity, i.required_level
        FROM class_master_shop_items cmsi
        JOIN items i ON i.id = cmsi.item_id
        WHERE cmsi.master_id = $1
-       ORDER BY cmsi.price`,
+       ORDER BY i.required_level NULLS LAST, cmsi.price`,
       [masterId]
     );
     const goldRes = await db.query('SELECT gold FROM players WHERE id = $1', [playerId]);
-    res.json({ gold: goldRes.rows[0].gold, shop: shopRes.rows, isMyClass, canGift: canGift && !isMyClass });
+    const gold = Number(goldRes.rows[0].gold);
+    res.json({
+      gold,
+      shop: shopRes.rows.map((i) => ({
+        id: i.id,
+        itemId: i.item_id,
+        code: i.code,
+        name: i.name,
+        description: i.description,
+        itemType: i.item_type,
+        slot: i.slot,
+        rarity: i.rarity,
+        requiredLevel: i.required_level,
+        price: i.price,
+        affordable: gold >= i.price,
+      })),
+      isMyClass,
+      canGift: canGift && !isMyClass,
+    });
   } catch (error) {
     next(error);
   }
