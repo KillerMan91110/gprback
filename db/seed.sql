@@ -13995,3 +13995,48 @@ INSERT INTO class_masters (class_id, name, intro_dialogue, guild_dialogue) VALUE
  'Un circulo arcano inestable amenaza con colapsar sobre Thelen — lo estabilizás justo a tiempo. "El poder sin estudio es solo ruido. Vos ya entendiste eso. Ven, hay mucho que enseñarte todavía."',
  'La magia no es fuerza. Es paciencia con forma de fuego. Todavía te falta paciencia — pero eso se enseña.')
 ON CONFLICT (class_id) DO NOTHING;
+
+-- ===== Tienda de cada maestro de clase (docs/backend-spec-maestros-tienda.md) =====
+-- 2 items por maestro (1 equipo + 1 material), rareza UNICO. Los bonos de stat quedan en FLAT
+-- (no is_percent): lib/equipment.js getEquipmentBonuses ignora esa columna por completo y siempre
+-- trata `amount` como valor plano, asi que el 12% que proponia originalmente el doc hubiera dado
+-- un +12 plano nomas -- muy debil para la rareza mas alta del juego. Calibrado en base a los
+-- valores flat reales de items LEGENDARIO comparables en ese rango de nivel (ver class_growths).
+INSERT INTO items (code, name, item_type, slot, rarity, class_id, required_level, is_craftable, obtain_method, description) VALUES
+('KADRIC_ESPADA_VETERANO', 'Espada del Veterano', 'EQUIPMENT', 'WEAPON', 'UNICO', 1, 15, FALSE, 'Tienda de Kadric (gremio)', 'Forjada por Kadric para quien demuestre sostener el filo con convicción.'),
+('KADRIC_PIEDRA_AFILADO', 'Piedra de Afilado de Kadric', 'MATERIAL', NULL, 'UNICO', NULL, NULL, FALSE, 'Tienda de Kadric (gremio)', 'Una piedra de afilar que Kadric usa desde antes de que nacieras.'),
+('ISOLDE_ESCUDO_JURAMENTO', 'Escudo del Juramento', 'EQUIPMENT', 'OFFHAND', 'UNICO', 8, 15, FALSE, 'Tienda de Dama Isolde (gremio)', 'El escudo que Isolde entrega solo a quienes no se quiebran bajo el peso de la armadura.'),
+('ISOLDE_INSIGNIA_GUARDIA', 'Insignia de Guardia', 'MATERIAL', NULL, 'UNICO', NULL, NULL, FALSE, 'Tienda de Dama Isolde (gremio)', 'Insignia que marca a quien Isolde considera digno de vigilar.'),
+('AURELIO_CETRO_LUZ', 'Cetro de Luz Consagrada', 'EQUIPMENT', 'WEAPON', 'UNICO', 45, 25, FALSE, 'Tienda de Sumo Paladín Aurelio (gremio)', 'Un cetro que canaliza la misma luz que Aurelio sostuvo sin quebrarse.'),
+('AURELIO_RELIQUIA_MENOR', 'Reliquia Sagrada Menor', 'MATERIAL', NULL, 'UNICO', NULL, NULL, FALSE, 'Tienda de Sumo Paladín Aurelio (gremio)', 'Fragmento de una reliquia mayor, todavía tibio de luz.'),
+('SERAPHINE_ARMADURA_CELESTIAL', 'Armadura Celestial Menor', 'EQUIPMENT', 'ARMOR', 'UNICO', 46, 40, FALSE, 'Tienda de La Venerable Seraphine (gremio)', 'Una versión menor de la armadura que el cielo mismo reconoció en Seraphine.'),
+('SERAPHINE_PLUMA_BENDITA', 'Pluma Bendita', 'MATERIAL', NULL, 'UNICO', NULL, NULL, FALSE, 'Tienda de La Venerable Seraphine (gremio)', 'Cae de un ala que ningún mortal debería haber visto de cerca.'),
+('THELEN_GRIMORIO_ARCANO', 'Grimorio del Archimago', 'MATERIAL', NULL, 'UNICO', NULL, NULL, FALSE, 'Tienda de Archimago Thelen (gremio)', 'Páginas escritas por Thelen mismo, todavía con tinta arcana fresca.'),
+('THELEN_CRISTAL_ARCANO', 'Cristal Arcano Puro', 'MATERIAL', NULL, 'UNICO', NULL, NULL, FALSE, 'Tienda de Archimago Thelen (gremio)', 'Un cristal que Thelen guarda para sus mejores alumnos.')
+ON CONFLICT (code) DO NOTHING;
+
+-- Bonos de stat de los 4 items EQUIPMENT, flat (ver nota arriba sobre is_percent)
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT i.id, v.stat_code, v.amount, FALSE FROM items i JOIN (VALUES
+  ('KADRIC_ESPADA_VETERANO', 'ATK', 75),
+  ('ISOLDE_ESCUDO_JURAMENTO', 'DEF', 25),
+  ('AURELIO_CETRO_LUZ', 'MAG', 70),
+  ('SERAPHINE_ARMADURA_CELESTIAL', 'MAGIC_DEF', 55)
+) AS v(code, stat_code, amount) ON v.code = i.code
+ON CONFLICT DO NOTHING;
+
+-- Vincular cada item a la tienda de su maestro
+INSERT INTO class_master_shop_items (master_id, item_id, price)
+SELECT cm.id, i.id, v.price FROM class_masters cm JOIN items i ON TRUE JOIN (VALUES
+  ('Kadric, el Veterano', 'KADRIC_ESPADA_VETERANO', 800),
+  ('Kadric, el Veterano', 'KADRIC_PIEDRA_AFILADO', 300),
+  ('Dama Isolde, Guardiana del Juramento', 'ISOLDE_ESCUDO_JURAMENTO', 800),
+  ('Dama Isolde, Guardiana del Juramento', 'ISOLDE_INSIGNIA_GUARDIA', 300),
+  ('Sumo Paladín Aurelio', 'AURELIO_CETRO_LUZ', 1200),
+  ('Sumo Paladín Aurelio', 'AURELIO_RELIQUIA_MENOR', 450),
+  ('La Venerable Seraphine', 'SERAPHINE_ARMADURA_CELESTIAL', 1600),
+  ('La Venerable Seraphine', 'SERAPHINE_PLUMA_BENDITA', 600),
+  ('Archimago Thelen', 'THELEN_GRIMORIO_ARCANO', 450),
+  ('Archimago Thelen', 'THELEN_CRISTAL_ARCANO', 450)
+) AS v(master_name, code, price) ON v.master_name = cm.name AND v.code = i.code
+ON CONFLICT DO NOTHING;

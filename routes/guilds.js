@@ -5,6 +5,7 @@ const {
   guildXpForLevel, guildMemberCap, getPlayerGuildRow, logGuildActivity,
   GUILD_EMBLEMS, GUILD_COLORS,
 } = require('../lib/guilds');
+const inventory = require('../lib/inventory');
 
 const router = express.Router();
 router.use(requireAuth);
@@ -626,7 +627,7 @@ router.get('/:id/activity', async (req, res, next) => {
 });
 
 // GET /api/guilds/:id/masters - maestros de clase desbloqueados por el gremio (solo lectura,
-// docs/backend-spec-guild-masters-list.md; la tienda es una segunda pasada todavia no implementada)
+// docs/backend-spec-guild-masters-list.md; la tienda de cada maestro son los 2 endpoints de abajo)
 router.get('/:id/masters', async (req, res, next) => {
   try {
     const playerId = req.playerId;
@@ -648,6 +649,74 @@ router.get('/:id/masters', async (req, res, next) => {
       [guildId]
     );
     res.json(result.rows);
+  } catch (error) {
+    next(error);
+  }
+});
+
+// GET /api/guilds/:id/masters/:masterId/shop - items del maestro (docs/backend-spec-maestros-tienda.md)
+router.get('/:id/masters/:masterId/shop', async (req, res, next) => {
+  try {
+    const playerId = req.playerId;
+    const { id: guildId, masterId } = req.params;
+
+    const memberRes = await db.query(
+      'SELECT 1 FROM guild_members WHERE guild_id = $1 AND player_id = $2',
+      [guildId, playerId]
+    );
+    if (!memberRes.rows.length) return res.status(403).json({ error: 'No eres miembro de este gremio' });
+
+    const unlockedRes = await db.query(
+      'SELECT 1 FROM guild_class_masters WHERE guild_id = $1 AND master_id = $2',
+      [guildId, masterId]
+    );
+    if (!unlockedRes.rows.length) return res.status(404).json({ error: 'Ese maestro no está en este gremio' });
+
+    const shopRes = await db.query(
+      `SELECT cmsi.id, cmsi.price, i.id AS item_id, i.code, i.name, i.description, i.item_type, i.rarity
+       FROM class_master_shop_items cmsi
+       JOIN items i ON i.id = cmsi.item_id
+       WHERE cmsi.master_id = $1
+       ORDER BY cmsi.price`,
+      [masterId]
+    );
+    const goldRes = await db.query('SELECT gold FROM players WHERE id = $1', [playerId]);
+    res.json({ gold: goldRes.rows[0].gold, shop: shopRes.rows });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// POST /api/guilds/:id/masters/:masterId/buy   body: { itemId } - compra con ORO del jugador
+// (no oro de banco de gremio: es personal, aunque el maestro viva en el gremio)
+router.post('/:id/masters/:masterId/buy', async (req, res, next) => {
+  try {
+    const playerId = req.playerId;
+    const { id: guildId, masterId } = req.params;
+    const itemId = Number(req.body?.itemId);
+    if (!itemId) return res.status(400).json({ error: 'itemId requerido' });
+
+    const memberRes = await db.query(
+      'SELECT 1 FROM guild_members WHERE guild_id = $1 AND player_id = $2',
+      [guildId, playerId]
+    );
+    if (!memberRes.rows.length) return res.status(403).json({ error: 'No eres miembro de este gremio' });
+
+    const shopItemRes = await db.query(
+      'SELECT price FROM class_master_shop_items WHERE master_id = $1 AND item_id = $2',
+      [masterId, itemId]
+    );
+    if (!shopItemRes.rows.length) return res.status(404).json({ error: 'Ítem no disponible en esta tienda' });
+    const price = shopItemRes.rows[0].price;
+
+    const goldRes = await db.query('SELECT gold FROM players WHERE id = $1', [playerId]);
+    const currentGold = Number(goldRes.rows[0].gold);
+    if (currentGold < price) return res.status(400).json({ error: `Oro insuficiente (necesitás ${price})` });
+
+    await db.query('UPDATE players SET gold = gold - $1 WHERE id = $2', [price, playerId]);
+    await inventory.addItem(playerId, itemId, 1);
+
+    res.json({ bought: true, gold: currentGold - price });
   } catch (error) {
     next(error);
   }
