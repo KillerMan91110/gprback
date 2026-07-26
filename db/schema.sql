@@ -1161,3 +1161,29 @@ ALTER TABLE combat_participants ADD COLUMN IF NOT EXISTS innate_stacks INT NOT N
 
 -- Rareza de encuentro + mutaciones en El Abismo (docs/backend-spec-abismo-rareza-mutaciones.md).
 ALTER TABLE combat_participants ADD COLUMN IF NOT EXISTS mutation_code TEXT;
+
+-- Maestros de clase, piloto de 5 clases (docs/backend-spec-maestros-de-clase.md).
+CREATE TABLE IF NOT EXISTS class_masters (
+  id             SERIAL PRIMARY KEY,
+  class_id       INT NOT NULL REFERENCES classes(id) UNIQUE,
+  name           TEXT NOT NULL,
+  intro_dialogue TEXT NOT NULL,
+  guild_dialogue TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS class_master_shop_items (
+  id         SERIAL PRIMARY KEY,
+  master_id  INT NOT NULL REFERENCES class_masters(id) ON DELETE CASCADE,
+  item_id    INT NOT NULL REFERENCES items(id),
+  price      INT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS guild_class_masters (
+  guild_id              INT NOT NULL REFERENCES guilds(id) ON DELETE CASCADE,
+  master_id             INT NOT NULL REFERENCES class_masters(id),
+  unlocked_by_player_id INT REFERENCES players(id),
+  unlocked_at           TIMESTAMPTZ NOT NULL DEFAULT now(),
+  PRIMARY KEY (guild_id, master_id)
+);
+
+ALTER TABLE players ADD COLUMN IF NOT EXISTS pending_master_id INT REFERENCES class_masters(id);

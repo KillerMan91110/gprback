@@ -698,6 +698,31 @@ router.post('/:playerId/evolve', async (req, res, next) => {
   }
 });
 
+// POST /api/player/:playerId/master-encounter/resolve — ayudar al maestro de clase pendiente
+// (docs/backend-spec-maestros-de-clase.md): lo instala en el gremio actual del jugador (no es
+// personal, cualquier miembro puede comprarle despues).
+router.post('/:playerId/master-encounter/resolve', async (req, res, next) => {
+  try {
+    const playerRes = await db.query('SELECT pending_master_id FROM players WHERE id = $1', [req.playerId]);
+    const masterId = playerRes.rows[0]?.pending_master_id;
+    if (!masterId) return res.status(400).json({ error: 'No hay ningún encuentro pendiente' });
+
+    const guildRes = await db.query('SELECT guild_id FROM guild_members WHERE player_id = $1', [req.playerId]);
+    const guildId = guildRes.rows[0]?.guild_id;
+    if (!guildId) return res.status(400).json({ error: 'Necesitás estar en un gremio' });
+
+    await db.query(
+      `INSERT INTO guild_class_masters(guild_id, master_id, unlocked_by_player_id) VALUES ($1,$2,$3)
+       ON CONFLICT DO NOTHING`,
+      [guildId, masterId, req.playerId]
+    );
+    await db.query('UPDATE players SET pending_master_id = NULL WHERE id = $1', [req.playerId]);
+    res.json({ unlocked: true, masterId });
+  } catch (error) {
+    next(error);
+  }
+});
+
 // GET /api/players/:playerId/inventory?type=EQUIPMENT&slot=WEAPON&rarity=RARO
 router.get('/:playerId/inventory', async (req, res, next) => {
   const { type, slot, rarity } = req.query;

@@ -1736,8 +1736,8 @@ async function resolveAbandonedPlayerTurn(sessionId, round, actor, participants)
     actorId: actor.id, action: 'ATTACK', targetId: target.id,
     damage: result.damage, evaded: result.evaded, crit: result.crit,
     description: result.evaded
-      ? `${actor.name} (IA) ataca a ${target.name} pero esquiva el golpe.`
-      : `${actor.name} (IA) ataca a ${target.name} por ${result.damage} de daño${result.crit ? ' (¡crítico!)' : ''}.`,
+      ? `${actor.name} (IA) ataca a ${target.name}, pero esquiva el golpe.`
+      : `${actor.name} (IA) ataca a ${target.name}, infligiéndole ${result.damage} de daño${result.crit ? ' (¡Crítico!)' : ''}.`,
     hp_after: target.hp,
   });
 }
@@ -2106,8 +2106,8 @@ async function advanceEnemyTurns(sessionId) {
       evaded: result.evaded,
       crit: result.crit,
       description: result.evaded
-        ? `${actor.name} ataca a ${target.name} pero esquiva el golpe.`
-        : `${actor.name} ataca a ${target.name} por ${result.damage} de daño${result.crit ? ' (¡crítico!)' : ''}.`,
+        ? `${actor.name} ataca a ${target.name}, pero esquiva el golpe.`
+        : `${actor.name} ataca a ${target.name}, infligiéndole ${result.damage} de daño${result.crit ? ' (¡Crítico!)' : ''}.`,
       hp_after: target.hp,
     });
     } // end !skillActionDone
@@ -2179,6 +2179,20 @@ router.post('/zones/:zoneId/explore', async (req, res, next) => {
       return res.status(404).json({ error: 'Zona no encontrada' });
     }
     const zone = zoneResult.rows[0];
+
+    // Maestros de clase (docs/backend-spec-maestros-de-clase.md): si evolucionaste a una clase
+    // con maestro pendiente y ya estas en un gremio, la proxima exploracion te encuentra con el
+    // en vez de armar el combate normal. Sin gremio el pendiente queda guardado sin bloquear nada.
+    const pendingMasterRow = await db.query('SELECT pending_master_id FROM players WHERE id = $1', [req.playerId]);
+    const pendingMasterId = pendingMasterRow.rows[0]?.pending_master_id;
+    if (pendingMasterId) {
+      const guildRes = await db.query('SELECT guild_id FROM guild_members WHERE player_id = $1', [req.playerId]);
+      const guildId = guildRes.rows[0]?.guild_id;
+      if (guildId) {
+        const master = (await db.query('SELECT * FROM class_masters WHERE id = $1', [pendingMasterId])).rows[0];
+        return res.status(200).json({ masterEncounter: { masterId: master.id, name: master.name, dialogue: master.intro_dialogue } });
+      }
+    }
 
     // ─── Co-op: cargar combatientes de hasta 2 compañeros si vienen coopPartnerIds ───
     const coopPartnerIds = Array.isArray(req.body?.coopPartnerIds)

@@ -13947,3 +13947,51 @@ INSERT INTO tower_room_events (event_type, prompt_text, choice_a_label, choice_b
 ('STORY', 'Un mural descolorido muestra una ciudad entera, tragada por la oscuridad.', 'Estudiar el mural', 'Continuar el descenso', 10),
 ('STORY', 'Cadenas rotas cuelgan del techo, todavía balanceándose levemente.', 'Investigar las cadenas', 'Pasar rápido, sin mirar arriba', 10)
 ON CONFLICT DO NOTHING;
+
+-- ===== Maestros de clase, piloto de 5 clases (docs/backend-spec-maestros-de-clase.md) =====
+CREATE TABLE IF NOT EXISTS class_masters (
+  id             SERIAL PRIMARY KEY,
+  class_id       INT NOT NULL REFERENCES classes(id) UNIQUE,
+  name           TEXT NOT NULL,
+  intro_dialogue TEXT NOT NULL,
+  guild_dialogue TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS class_master_shop_items (
+  id         SERIAL PRIMARY KEY,
+  master_id  INT NOT NULL REFERENCES class_masters(id) ON DELETE CASCADE,
+  item_id    INT NOT NULL REFERENCES items(id),
+  price      INT NOT NULL
+);
+
+-- Que maestros desbloqueo CADA gremio, y quien lo trajo (para el "gracias a fulano" del front)
+CREATE TABLE IF NOT EXISTS guild_class_masters (
+  guild_id              INT NOT NULL REFERENCES guilds(id) ON DELETE CASCADE,
+  master_id             INT NOT NULL REFERENCES class_masters(id),
+  unlocked_by_player_id INT REFERENCES players(id),
+  unlocked_at           TIMESTAMPTZ NOT NULL DEFAULT now(),
+  PRIMARY KEY (guild_id, master_id)
+);
+
+ALTER TABLE players ADD COLUMN IF NOT EXISTS pending_master_id INT REFERENCES class_masters(id);
+
+-- 5 clases piloto: cadena Guerrero -> Caballero -> Paladin -> Paladin Celestial (encuentro simple
+-- + encuentro en cadena tras evolucionar de nuevo) + Mago (prueba que el gancho no depende de la
+-- familia Guerrero). Items de tienda: segunda pasada, junto con los endpoints de compra.
+INSERT INTO class_masters (class_id, name, intro_dialogue, guild_dialogue) VALUES
+(1, 'Kadric, el Veterano',
+ '¡Cuidado! — un bandido cae ante vos antes de que termine de hablar. Kadric baja el brazo, sorprendido. "Hace tiempo que no veía a alguien sostener el filo con tanta convicción. Ven al gremio cuando puedas."',
+ 'Todavía sostengo el filo mejor que la mayoría de los novatos que veo pasar. Pero vos... vos ya no sos un novato.'),
+(8, 'Dama Isolde, Guardiana del Juramento',
+ 'Isolde retrocede un paso, cediendo terreno ante la bestia — hasta que aparecés vos. "Pocos soportan el peso de una armadura completa sin quebrarse. Bienvenido al gremio, caballero."',
+ 'El juramento no se lleva en la armadura. Se lleva en no romperse cuando pesa. Vos ya lo sabés.'),
+(45, 'Sumo Paladín Aurelio',
+ 'La luz que envuelve a Aurelio parpadea, casi extinguida — y se estabiliza en cuanto derrotás a lo que lo acosaba. "La luz no elige a cualquiera. Vos la sostuviste sin que te consumiera."',
+ 'Cada paladín cree que la luz lo eligió. Pocos entienden que la luz solo espera a ver quién no se quiebra primero.'),
+(46, 'La Venerable Seraphine',
+ 'Seraphine no pide ayuda — la ofrece, incluso rodeada. Cuando termina el combate, te mira con algo parecido al reconocimiento. "El cielo mismo reconoce tu armadura, ahora."',
+ 'Pocos alcanzan la gracia celestial y siguen de pie. Menos todavía la llevan sin arrogancia. Vos, por ahora, sos de los pocos.'),
+(2, 'Archimago Thelen',
+ 'Un circulo arcano inestable amenaza con colapsar sobre Thelen — lo estabilizás justo a tiempo. "El poder sin estudio es solo ruido. Vos ya entendiste eso. Ven, hay mucho que enseñarte todavía."',
+ 'La magia no es fuerza. Es paciencia con forma de fuego. Todavía te falta paciencia — pero eso se enseña.')
+ON CONFLICT (class_id) DO NOTHING;
