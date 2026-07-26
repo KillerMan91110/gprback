@@ -437,13 +437,14 @@ router.get('/:playerId/guild/skills', async (req, res, next) => {
   const requestedClassId = req.query.classId ? Number(req.query.classId) : null;
 
   try {
-    const playerResult = await db.query('SELECT current_class_id, gold FROM players WHERE id = $1', [playerId]);
+    const playerResult = await db.query('SELECT current_class_id, evolution_class_id, gold FROM players WHERE id = $1', [playerId]);
     if (!playerResult.rows.length) {
       return res.status(404).json({ error: 'Jugador no encontrado' });
     }
     const player = playerResult.rows[0];
     const classId = requestedClassId || player.current_class_id;
-    const isOwnClass = classId === player.current_class_id;
+    const classChain = await evolution.getClassAncestorChain(player.evolution_class_id || player.current_class_id);
+    const isOwnClass = classChain.includes(classId);
 
     const skillsResult = await db.query(
       `SELECT s.id, s.code, s.name, s.learn_method, s.learn_gold_cost, s.learn_requirement_text, s.description,
@@ -491,13 +492,14 @@ router.post('/:playerId/guild/learn-skill', async (req, res, next) => {
     }
     const skill = skillResult.rows[0];
 
-    const playerResult = await db.query('SELECT current_class_id, gold FROM players WHERE id = $1', [playerId]);
+    const playerResult = await db.query('SELECT current_class_id, evolution_class_id, gold FROM players WHERE id = $1', [playerId]);
     if (!playerResult.rows.length) {
       return res.status(404).json({ error: 'Jugador no encontrado' });
     }
     const player = playerResult.rows[0];
 
-    if (skill.class_id !== player.current_class_id) {
+    const classChain = await evolution.getClassAncestorChain(player.evolution_class_id || player.current_class_id);
+    if (!classChain.includes(skill.class_id)) {
       return res.status(400).json({ error: 'Esa skill no es de tu clase' });
     }
     if (!['GOLD', 'QUEST'].includes(skill.learn_method)) {
@@ -558,13 +560,14 @@ router.get('/:playerId/guild/shop', async (req, res, next) => {
   const requestedClassId = req.query.classId ? Number(req.query.classId) : null;
 
   try {
-    const playerResult = await db.query('SELECT current_class_id, gold FROM players WHERE id = $1', [playerId]);
+    const playerResult = await db.query('SELECT current_class_id, evolution_class_id, gold FROM players WHERE id = $1', [playerId]);
     if (!playerResult.rows.length) {
       return res.status(404).json({ error: 'Jugador no encontrado' });
     }
     const player = playerResult.rows[0];
     const classId = requestedClassId || player.current_class_id;
-    const isOwnClass = classId === player.current_class_id;
+    const classChain = await evolution.getClassAncestorChain(player.evolution_class_id || player.current_class_id);
+    const isOwnClass = classChain.includes(classId);
 
     const itemsResult = await db.query(
       `SELECT id, code, name, slot, rarity, required_level, buy_price, description
@@ -886,7 +889,7 @@ router.post('/:playerId/equip', async (req, res, next) => {
     }
 
     const playerResult = await db.query(
-      'SELECT current_class_id, level FROM players WHERE id = $1',
+      'SELECT current_class_id, evolution_class_id, level FROM players WHERE id = $1',
       [playerId]
     );
     if (!playerResult.rows.length) {
@@ -894,8 +897,11 @@ router.post('/:playerId/equip', async (req, res, next) => {
     }
     const player = playerResult.rows[0];
 
-    if (item.class_id && item.class_id !== player.current_class_id) {
-      return res.status(400).json({ error: 'Ese item no es de tu clase' });
+    if (item.class_id) {
+      const classChain = await evolution.getClassAncestorChain(player.evolution_class_id || player.current_class_id);
+      if (!classChain.includes(item.class_id)) {
+        return res.status(400).json({ error: 'Ese item no es de tu clase' });
+      }
     }
     if (item.required_level && player.level < item.required_level) {
       return res.status(400).json({ error: `Necesitas nivel ${item.required_level} para equipar esto` });
@@ -993,11 +999,12 @@ router.get('/:playerId/quests/available', async (req, res, next) => {
   const { playerId } = req.params;
 
   try {
-    const playerResult = await db.query('SELECT level, rank, current_class_id FROM players WHERE id = $1', [playerId]);
+    const playerResult = await db.query('SELECT level, rank, current_class_id, evolution_class_id FROM players WHERE id = $1', [playerId]);
     if (!playerResult.rows.length) {
       return res.status(404).json({ error: 'Jugador no encontrado' });
     }
     const player = playerResult.rows[0];
+    const classChain = await evolution.getClassAncestorChain(player.evolution_class_id || player.current_class_id);
 
     const [questsResult, unlockedZoneIds] = await Promise.all([
       db.query(
@@ -1023,7 +1030,7 @@ router.get('/:playerId/quests/available', async (req, res, next) => {
     const available = questsResult.rows.filter((q) => {
       // Quests de zona sólo visibles si esa zona está desbloqueada
       if (q.zone_id && !unlockedZoneIds.has(q.zone_id)) return false;
-      if (q.required_class_id && q.required_class_id !== player.current_class_id) return false;
+      if (q.required_class_id && !classChain.includes(q.required_class_id)) return false;
       if (q.min_rank_code && !rankAtLeast(player.rank, q.min_rank_code)) return false;
       if (!q.prerequisite_met) return false;
       // Ya completada: si NO es repetible, no vuelve a aparecer nunca mas (es de 1 sola vez).
@@ -1052,7 +1059,7 @@ router.post('/:playerId/quests/:questId/accept', async (req, res, next) => {
   const { playerId, questId } = req.params;
 
   try {
-    const playerResult = await db.query('SELECT level, rank, current_class_id FROM players WHERE id = $1', [playerId]);
+    const playerResult = await db.query('SELECT level, rank, current_class_id, evolution_class_id FROM players WHERE id = $1', [playerId]);
     if (!playerResult.rows.length) {
       return res.status(404).json({ error: 'Jugador no encontrado' });
     }
@@ -1061,8 +1068,11 @@ router.post('/:playerId/quests/:questId/accept', async (req, res, next) => {
     const quest = await fetchQuestDetail(questId);
     if (!quest) return res.status(404).json({ error: 'Quest no encontrada' });
 
-    if (quest.required_class_id && quest.required_class_id !== player.current_class_id) {
-      return res.status(403).json({ error: 'Esta misión es solo para tu clase' });
+    if (quest.required_class_id) {
+      const classChain = await evolution.getClassAncestorChain(player.evolution_class_id || player.current_class_id);
+      if (!classChain.includes(quest.required_class_id)) {
+        return res.status(403).json({ error: 'Esta misión es solo para tu clase' });
+      }
     }
     if (quest.min_level && player.level < quest.min_level) {
       return res.status(400).json({ error: `Requiere nivel ${quest.min_level}` });
@@ -1163,7 +1173,7 @@ router.post('/:playerId/quests/:questId/complete', async (req, res, next) => {
   const { playerId, questId } = req.params;
 
   try {
-    const playerResult = await db.query('SELECT level, rank, xp, gold, reputation, current_class_id FROM players WHERE id = $1', [playerId]);
+    const playerResult = await db.query('SELECT level, rank, xp, gold, reputation, current_class_id, evolution_class_id FROM players WHERE id = $1', [playerId]);
     if (!playerResult.rows.length) {
       return res.status(404).json({ error: 'Jugador no encontrado' });
     }
@@ -1172,8 +1182,11 @@ router.post('/:playerId/quests/:questId/complete', async (req, res, next) => {
     const quest = await fetchQuestDetail(questId);
     if (!quest) return res.status(404).json({ error: 'Quest no encontrada' });
 
-    if (quest.required_class_id && quest.required_class_id !== player.current_class_id) {
-      return res.status(403).json({ error: 'Esta misión es solo para tu clase' });
+    if (quest.required_class_id) {
+      const classChain = await evolution.getClassAncestorChain(player.evolution_class_id || player.current_class_id);
+      if (!classChain.includes(quest.required_class_id)) {
+        return res.status(403).json({ error: 'Esta misión es solo para tu clase' });
+      }
     }
     if (quest.min_level && player.level < quest.min_level) {
       return res.status(400).json({ error: `Requiere nivel ${quest.min_level}` });
@@ -2630,8 +2643,11 @@ router.post('/:playerId/npcs/:npcId/equip', async (req, res, next) => {
     if (owned < 1) {
       return res.status(400).json({ error: 'No tienes ese item en tu inventario' });
     }
-    if (item.class_id && item.class_id !== npc.class_id) {
-      return res.status(400).json({ error: 'Ese item no es de la clase de este NPC' });
+    if (item.class_id) {
+      const classChain = await evolution.getClassAncestorChain(npc.class_id);
+      if (!classChain.includes(item.class_id)) {
+        return res.status(400).json({ error: 'Ese item no es de la clase de este NPC' });
+      }
     }
     if (item.required_level && npc.level < item.required_level) {
       return res.status(400).json({ error: `El NPC necesita nivel ${item.required_level} para equipar esto` });
