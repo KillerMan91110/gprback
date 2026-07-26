@@ -15348,3 +15348,38 @@ SELECT cm.id, i.id, v.price FROM class_masters cm JOIN items i ON TRUE JOIN (VAL
   ('Nyssara, Ojos del Mañana', 'NYSSARA_OJO_DEL_MANANA_T3', 500)
 ) AS v(master_name, code, price) ON v.master_name = cm.name AND v.code = i.code
 ON CONFLICT DO NOTHING;
+
+-- ===== Tiers COMUN adicionales para los 3 piloto que SI son evolucion (Isolde/Caballero,
+-- Aurelio/Paladin, Seraphine/Paladin Celestial). Su item nivel-piso original queda UNICO
+-- sin tocar; estos tiers nuevos son COMUN, mismo criterio que los otros 91 maestros.
+-- Kadric (Guerrero) y Thelen (Mago) quedan afuera: son clase base, no evolucion.
+INSERT INTO items (code, name, item_type, slot, rarity, class_id, required_level, is_craftable, obtain_method, description) VALUES
+('ISOLDE_ESCUDO_JURAMENTO_T2', 'Escudo del Juramento II', 'EQUIPMENT', 'OFFHAND', 'COMUN', 8, 25, FALSE, 'Tienda de Dama Isolde, Guardiana del Juramento (gremio)', 'El escudo que Isolde entrega solo a quienes no se quiebran bajo el peso de la armadura.'),
+('ISOLDE_ESCUDO_JURAMENTO_T3', 'Escudo del Juramento III', 'EQUIPMENT', 'OFFHAND', 'COMUN', 8, 35, FALSE, 'Tienda de Dama Isolde, Guardiana del Juramento (gremio)', 'El escudo que Isolde entrega solo a quienes no se quiebran bajo el peso de la armadura.'),
+('AURELIO_CETRO_LUZ_T2', 'Cetro de Luz Consagrada II', 'EQUIPMENT', 'WEAPON', 'COMUN', 45, 35, FALSE, 'Tienda de Sumo Paladín Aurelio (gremio)', 'Un cetro que canaliza la misma luz que Aurelio sostuvo sin quebrarse.'),
+('AURELIO_CETRO_LUZ_T3', 'Cetro de Luz Consagrada III', 'EQUIPMENT', 'WEAPON', 'COMUN', 45, 40, FALSE, 'Tienda de Sumo Paladín Aurelio (gremio)', 'Un cetro que canaliza la misma luz que Aurelio sostuvo sin quebrarse.'),
+('SERAPHINE_ARMADURA_CELESTIAL_T2', 'Armadura Celestial Menor II', 'EQUIPMENT', 'ARMOR', 'COMUN', 46, 50, FALSE, 'Tienda de La Venerable Seraphine (gremio)', 'Una versión menor de la armadura que el cielo mismo reconoció en Seraphine.'),
+('SERAPHINE_ARMADURA_CELESTIAL_T3', 'Armadura Celestial Menor III', 'EQUIPMENT', 'ARMOR', 'COMUN', 46, 60, FALSE, 'Tienda de La Venerable Seraphine (gremio)', 'Una versión menor de la armadura que el cielo mismo reconoció en Seraphine.')
+ON CONFLICT (code) DO NOTHING;
+
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT i.id, v.stat_code, v.amount, FALSE FROM items i JOIN (VALUES
+  ('ISOLDE_ESCUDO_JURAMENTO_T2', 'DEF', 15),
+  ('ISOLDE_ESCUDO_JURAMENTO_T3', 'DEF', 21),
+  ('AURELIO_CETRO_LUZ_T2', 'MAG', 35),
+  ('AURELIO_CETRO_LUZ_T3', 'MAG', 40),
+  ('SERAPHINE_ARMADURA_CELESTIAL_T2', 'MAGIC_DEF', 30),
+  ('SERAPHINE_ARMADURA_CELESTIAL_T3', 'MAGIC_DEF', 36)
+) AS v(code, stat_code, amount) ON v.code = i.code
+ON CONFLICT DO NOTHING;
+
+INSERT INTO class_master_shop_items (master_id, item_id, price)
+SELECT cm.id, i.id, v.price FROM class_masters cm JOIN items i ON TRUE JOIN (VALUES
+  ('Dama Isolde, Guardiana del Juramento', 'ISOLDE_ESCUDO_JURAMENTO_T2', 250),
+  ('Dama Isolde, Guardiana del Juramento', 'ISOLDE_ESCUDO_JURAMENTO_T3', 350),
+  ('Sumo Paladín Aurelio', 'AURELIO_CETRO_LUZ_T2', 350),
+  ('Sumo Paladín Aurelio', 'AURELIO_CETRO_LUZ_T3', 400),
+  ('La Venerable Seraphine', 'SERAPHINE_ARMADURA_CELESTIAL_T2', 500),
+  ('La Venerable Seraphine', 'SERAPHINE_ARMADURA_CELESTIAL_T3', 600)
+) AS v(master_name, code, price) ON v.master_name = cm.name AND v.code = i.code
+ON CONFLICT DO NOTHING;
