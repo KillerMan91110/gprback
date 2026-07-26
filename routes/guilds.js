@@ -625,6 +625,34 @@ router.get('/:id/activity', async (req, res, next) => {
   }
 });
 
+// GET /api/guilds/:id/masters - maestros de clase desbloqueados por el gremio (solo lectura,
+// docs/backend-spec-guild-masters-list.md; la tienda es una segunda pasada todavia no implementada)
+router.get('/:id/masters', async (req, res, next) => {
+  try {
+    const playerId = req.playerId;
+    const { id: guildId } = req.params;
+
+    const memberRes = await db.query(
+      `SELECT role FROM guild_members WHERE guild_id = $1 AND player_id = $2`,
+      [guildId, playerId]
+    );
+    if (!memberRes.rows.length) return res.status(403).json({ error: 'No eres miembro de este gremio' });
+
+    const result = await db.query(
+      `SELECT cm.id, cm.name, cm.guild_dialogue, gcm.unlocked_at, p.nickname AS unlocked_by_nickname
+       FROM guild_class_masters gcm
+       JOIN class_masters cm ON cm.id = gcm.master_id
+       LEFT JOIN players p ON p.id = gcm.unlocked_by_player_id
+       WHERE gcm.guild_id = $1
+       ORDER BY gcm.unlocked_at`,
+      [guildId]
+    );
+    res.json(result.rows);
+  } catch (error) {
+    next(error);
+  }
+});
+
 // GET /api/guilds/:id/bank - estado del banco (solo miembros)
 router.get('/:id/bank', async (req, res, next) => {
   try {
