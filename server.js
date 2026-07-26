@@ -1,5 +1,7 @@
 const express = require('express');
 const cors = require('cors');
+const helmet = require('helmet');
+const rateLimit = require('express-rate-limit');
 require('dotenv').config();
 const http = require('http');
 const jwt = require('jsonwebtoken');
@@ -29,9 +31,13 @@ const { globalRouter: worldBossGlobalRouter, playerRouter: worldBossPlayerRouter
 const { tickWorldBossSchedule } = require('./lib/worldBossScheduler');
 const { getActivePetBonuses } = require('./lib/pets');
 
+// Origenes permitidos para CORS (front en Vercel + eventuales dominios propios), separados por
+// coma en la env var. Las URLs de preview de Vercel (que cambian en cada deploy) no entran acá.
+const ALLOWED_ORIGINS = (process.env.ALLOWED_ORIGINS || '').split(',').map((o) => o.trim()).filter(Boolean);
+
 const app = express();
 const httpServer = http.createServer(app);
-const io = new Server(httpServer, { cors: { origin: '*' } });
+const io = new Server(httpServer, { cors: { origin: ALLOWED_ORIGINS } });
 
 // Autentica el socket con el mismo JWT que usa requireAuth (lib/auth.js).
 io.use((socket, next) => {
@@ -82,8 +88,24 @@ io.on('connection', (socket) => {
 app.set('io', io);
 
 // Middleware
-app.use(cors());
+app.use(helmet());
+app.use(cors({ origin: ALLOWED_ORIGINS }));
 app.use(express.json());
+
+// Rate limiting contra fuerza bruta / spam de cuentas. El login es el blanco típico de fuerza
+// bruta de contraseña, por eso va más restrictivo que el registro.
+const loginLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 min
+  max: 3,
+  message: { error: 'Demasiados intentos, probá de nuevo en un rato' },
+});
+const registerLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 min
+  max: 10,
+  message: { error: 'Demasiados intentos, probá de nuevo en un rato' },
+});
+app.use('/api/auth/login', loginLimiter);
+app.use('/api/auth/register', registerLimiter);
 
 // ========== RUTAS REALES (auth, items, crafteo, quests, rangos, jugador, combate) ==========
 app.use('/api/auth', authRouter);

@@ -15,5 +15,3 @@ node_modules/
 *.log
 *.bak
 *.bak*
-{
-UsersmerocAppData*
