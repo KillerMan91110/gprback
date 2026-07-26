@@ -773,6 +773,191 @@ router.post('/:id/masters/:masterId/buy', async (req, res, next) => {
   }
 });
 
+// GET /api/guilds/:id/masters/:masterId/skills - skills GOLD/QUEST que enseña este maestro
+// (mismo shape que GET /api/players/:playerId/guild/skills), gateado por guild_class_masters:
+// si el gremio no desbloqueó a este maestro, 404 directo (ni se puede espiar la lista).
+router.get('/:id/masters/:masterId/skills', async (req, res, next) => {
+  try {
+    const playerId = req.playerId;
+    const { id: guildId, masterId } = req.params;
+
+    const memberRes = await db.query(
+      'SELECT role FROM guild_members WHERE guild_id = $1 AND player_id = $2',
+      [guildId, playerId]
+    );
+    if (!memberRes.rows.length) return res.status(403).json({ error: 'No eres miembro de este gremio' });
+
+    const unlockedRes = await db.query(
+      'SELECT cm.class_id FROM guild_class_masters gcm JOIN class_masters cm ON cm.id = gcm.master_id WHERE gcm.guild_id = $1 AND gcm.master_id = $2',
+      [guildId, masterId]
+    );
+    if (!unlockedRes.rows.length) return res.status(404).json({ error: 'Ese maestro no está en este gremio' });
+    const masterClassId = unlockedRes.rows[0].class_id;
+
+    const playerRes = await db.query(
+      'SELECT COALESCE(evolution_class_id, current_class_id) AS class_id, gold FROM players WHERE id = $1',
+      [playerId]
+    );
+    const myChain = await getClassAncestorChain(playerRes.rows[0].class_id);
+    const isMyClass = myChain.includes(masterClassId);
+    const gold = Number(playerRes.rows[0].gold);
+
+    const skillsResult = await db.query(
+      `SELECT s.id, s.code, s.name, s.learn_method, s.learn_gold_cost, s.learn_requirement_text, s.description,
+              ps.player_id IS NOT NULL AS learned,
+              EXISTS (
+                SELECT 1 FROM quests q
+                JOIN player_quest_completions pqc ON pqc.quest_id = q.id AND pqc.player_id = $1
+                WHERE q.name = s.learn_requirement_text
+              ) AS quest_completed
+       FROM skills s
+       LEFT JOIN player_skills ps ON ps.skill_id = s.id AND ps.player_id = $1
+       WHERE s.class_id = $2 AND s.learn_method IN ('GOLD', 'QUEST')
+       ORDER BY s.learn_method, s.name`,
+      [playerId, masterClassId]
+    );
+
+    const skills = skillsResult.rows.map((s) => ({
+      id: s.id,
+      code: s.code,
+      name: s.name,
+      description: s.description,
+      learnMethod: s.learn_method,
+      goldCost: s.learn_gold_cost,
+      requirementText: s.learn_requirement_text,
+      learned: s.learned,
+      locked: !isMyClass || (s.learn_method === 'QUEST' && !s.quest_completed),
+      affordable: isMyClass && s.learn_method === 'GOLD' ? gold >= s.learn_gold_cost : null,
+    }));
+
+    res.json({ gold, classId: masterClassId, isMyClass, skills });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// POST /api/guilds/:id/masters/:masterId/learn-skill { skillId }
+router.post('/:id/masters/:masterId/learn-skill', async (req, res, next) => {
+  try {
+    const playerId = req.playerId;
+    const { id: guildId, masterId } = req.params;
+    const skillId = Number(req.body?.skillId);
+    if (!skillId) return res.status(400).json({ error: 'skillId requerido' });
+
+    const memberRes = await db.query(
+      'SELECT role FROM guild_members WHERE guild_id = $1 AND player_id = $2',
+      [guildId, playerId]
+    );
+    if (!memberRes.rows.length) return res.status(403).json({ error: 'No eres miembro de este gremio' });
+
+    const unlockedRes = await db.query(
+      'SELECT cm.class_id FROM guild_class_masters gcm JOIN class_masters cm ON cm.id = gcm.master_id WHERE gcm.guild_id = $1 AND gcm.master_id = $2',
+      [guildId, masterId]
+    );
+    if (!unlockedRes.rows.length) return res.status(404).json({ error: 'Ese maestro no está en este gremio' });
+    const masterClassId = unlockedRes.rows[0].class_id;
+
+    const skillResult = await db.query('SELECT * FROM skills WHERE id = $1', [skillId]);
+    if (!skillResult.rows.length) return res.status(404).json({ error: 'Skill no encontrada' });
+    const skill = skillResult.rows[0];
+    if (skill.class_id !== masterClassId) {
+      return res.status(400).json({ error: 'Esa skill no la enseña este maestro' });
+    }
+    if (!['GOLD', 'QUEST'].includes(skill.learn_method)) {
+      return res.status(400).json({ error: 'Esa skill no se puede aprender en el gremio' });
+    }
+
+    const playerResult = await db.query(
+      'SELECT COALESCE(evolution_class_id, current_class_id) AS class_id, gold FROM players WHERE id = $1',
+      [playerId]
+    );
+    const player = playerResult.rows[0];
+    const myChain = await getClassAncestorChain(player.class_id);
+    if (!myChain.includes(masterClassId)) {
+      return res.status(403).json({ error: 'Esta skill es para la clase de este maestro' });
+    }
+
+    const already = await db.query('SELECT 1 FROM player_skills WHERE player_id = $1 AND skill_id = $2', [playerId, skillId]);
+    if (already.rows.length) {
+      return res.status(400).json({ error: 'Ya aprendiste esa skill' });
+    }
+
+    if (skill.learn_method === 'QUEST') {
+      const questCompleted = await db.query(
+        `SELECT 1 FROM quests q
+         JOIN player_quest_completions pqc ON pqc.quest_id = q.id AND pqc.player_id = $1
+         WHERE q.name = $2`,
+        [playerId, skill.learn_requirement_text]
+      );
+      if (!questCompleted.rows.length) {
+        return res.status(400).json({ error: `Primero debes completar la misión: ${skill.learn_requirement_text}` });
+      }
+      await db.query('INSERT INTO player_skills(player_id, skill_id) VALUES ($1, $2)', [playerId, skillId]);
+      return res.json({ learnedSkillId: skill.id, name: skill.name, cost: 0, newGold: Number(player.gold) });
+    }
+
+    const cost = skill.learn_gold_cost;
+    if (Number(player.gold) < cost) {
+      return res.status(400).json({ error: `No tienes suficiente oro (necesitas ${cost})`, cost, gold: Number(player.gold) });
+    }
+
+    const newGold = Number(player.gold) - cost;
+    await db.query('UPDATE players SET gold = $1, updated_at = now() WHERE id = $2', [newGold, playerId]);
+    await db.query('INSERT INTO player_skills(player_id, skill_id) VALUES ($1, $2)', [playerId, skillId]);
+
+    res.json({ learnedSkillId: skill.id, name: skill.name, cost, newGold });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// GET /api/guilds/:id/masters/:masterId/quests - quests exclusivas de la clase de este maestro
+// (required_class_id = clase del maestro). Solo lectura/preview: aceptar y completar sigue
+// yendo por /api/players/:playerId/quests/accept|complete de siempre (ya gateado por la cadena
+// de ancestros del jugador, ver fix de clase efectiva).
+router.get('/:id/masters/:masterId/quests', async (req, res, next) => {
+  try {
+    const playerId = req.playerId;
+    const { id: guildId, masterId } = req.params;
+
+    const memberRes = await db.query(
+      'SELECT role FROM guild_members WHERE guild_id = $1 AND player_id = $2',
+      [guildId, playerId]
+    );
+    if (!memberRes.rows.length) return res.status(403).json({ error: 'No eres miembro de este gremio' });
+
+    const unlockedRes = await db.query(
+      'SELECT cm.class_id FROM guild_class_masters gcm JOIN class_masters cm ON cm.id = gcm.master_id WHERE gcm.guild_id = $1 AND gcm.master_id = $2',
+      [guildId, masterId]
+    );
+    if (!unlockedRes.rows.length) return res.status(404).json({ error: 'Ese maestro no está en este gremio' });
+    const masterClassId = unlockedRes.rows[0].class_id;
+
+    const myClassRes = await db.query(
+      'SELECT COALESCE(evolution_class_id, current_class_id) AS class_id FROM players WHERE id = $1',
+      [playerId]
+    );
+    const myChain = await getClassAncestorChain(myClassRes.rows[0].class_id);
+    const isMyClass = myChain.includes(masterClassId);
+
+    const questsRes = await db.query(
+      `SELECT q.id, q.code, q.name, q.quest_type, q.zone_id, mz.name AS zone_name,
+              q.min_level, q.max_level, q.min_rank_code, q.is_repeatable, q.repeat_cooldown_hours,
+              q.difficulty_stars, q.description, q.npc_name, q.location_name,
+              q.reputation_reward, q.gold_reward, q.xp_reward
+       FROM quests q
+       LEFT JOIN monster_zones mz ON mz.id = q.zone_id
+       WHERE q.required_class_id = $1
+       ORDER BY q.difficulty_stars DESC, q.chain_position`,
+      [masterClassId]
+    );
+
+    res.json({ classId: masterClassId, isMyClass, quests: questsRes.rows });
+  } catch (error) {
+    next(error);
+  }
+});
+
 // GET /api/guilds/:id/bank - estado del banco (solo miembros)
 router.get('/:id/bank', async (req, res, next) => {
   try {
