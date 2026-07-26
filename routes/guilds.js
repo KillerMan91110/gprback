@@ -685,7 +685,7 @@ router.get('/:id/masters/:masterId/shop', async (req, res, next) => {
     const canGift = myRole === 'LEADER' || myRole === 'OFFICER';
 
     if (!isMyClass && !canGift) {
-      return res.status(403).json({ error: 'Esta tienda es para la clase de este maestro. Pedile a tu líder u oficial que te compre algo si sos de esa clase.' });
+      return res.status(403).json({ error: 'Esta tienda es para la clase evolucionada de este maestro.' });
     }
 
     const shopRes = await db.query(
