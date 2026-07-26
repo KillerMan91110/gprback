@@ -6,6 +6,7 @@ const {
   GUILD_EMBLEMS, GUILD_COLORS,
 } = require('../lib/guilds');
 const inventory = require('../lib/inventory');
+const { getClassAncestorChain } = require('../lib/evolution');
 
 const router = express.Router();
 router.use(requireAuth);
@@ -654,23 +655,38 @@ router.get('/:id/masters', async (req, res, next) => {
   }
 });
 
-// GET /api/guilds/:id/masters/:masterId/shop - items del maestro (docs/backend-spec-maestros-tienda.md)
+// GET /api/guilds/:id/masters/:masterId/shop - items del maestro (docs/backend-spec-maestros-tienda.md,
+// restringido por clase en docs/backend-spec-maestros-restriccion-clase.md)
 router.get('/:id/masters/:masterId/shop', async (req, res, next) => {
   try {
     const playerId = req.playerId;
     const { id: guildId, masterId } = req.params;
 
     const memberRes = await db.query(
-      'SELECT 1 FROM guild_members WHERE guild_id = $1 AND player_id = $2',
+      'SELECT role FROM guild_members WHERE guild_id = $1 AND player_id = $2',
       [guildId, playerId]
     );
     if (!memberRes.rows.length) return res.status(403).json({ error: 'No eres miembro de este gremio' });
+    const myRole = memberRes.rows[0].role;
 
     const unlockedRes = await db.query(
-      'SELECT 1 FROM guild_class_masters WHERE guild_id = $1 AND master_id = $2',
+      'SELECT cm.class_id FROM guild_class_masters gcm JOIN class_masters cm ON cm.id = gcm.master_id WHERE gcm.guild_id = $1 AND gcm.master_id = $2',
       [guildId, masterId]
     );
     if (!unlockedRes.rows.length) return res.status(404).json({ error: 'Ese maestro no está en este gremio' });
+    const masterClassId = unlockedRes.rows[0].class_id;
+
+    const myClassRes = await db.query(
+      'SELECT COALESCE(evolution_class_id, current_class_id) AS class_id FROM players WHERE id = $1',
+      [playerId]
+    );
+    const myChain = await getClassAncestorChain(myClassRes.rows[0].class_id);
+    const isMyClass = myChain.includes(masterClassId);
+    const canGift = myRole === 'LEADER' || myRole === 'OFFICER';
+
+    if (!isMyClass && !canGift) {
+      return res.status(403).json({ error: 'Esta tienda es para la clase de este maestro. Pedile a tu líder u oficial que te compre algo si sos de esa clase.' });
+    }
 
     const shopRes = await db.query(
       `SELECT cmsi.id, cmsi.price, i.id AS item_id, i.code, i.name, i.description, i.item_type, i.rarity
@@ -681,26 +697,61 @@ router.get('/:id/masters/:masterId/shop', async (req, res, next) => {
       [masterId]
     );
     const goldRes = await db.query('SELECT gold FROM players WHERE id = $1', [playerId]);
-    res.json({ gold: goldRes.rows[0].gold, shop: shopRes.rows });
+    res.json({ gold: goldRes.rows[0].gold, shop: shopRes.rows, isMyClass, canGift: canGift && !isMyClass });
   } catch (error) {
     next(error);
   }
 });
 
-// POST /api/guilds/:id/masters/:masterId/buy   body: { itemId } - compra con ORO del jugador
-// (no oro de banco de gremio: es personal, aunque el maestro viva en el gremio)
+// POST /api/guilds/:id/masters/:masterId/buy   body: { itemId, recipientPlayerId? } - compra con
+// ORO PERSONAL de quien compra (no oro de banco de gremio); si recipientPlayerId viene y difiere
+// de quien compra, es un regalo -- solo lider/oficial, y el item se valida contra la clase del
+// DESTINATARIO, no la de quien paga.
 router.post('/:id/masters/:masterId/buy', async (req, res, next) => {
   try {
     const playerId = req.playerId;
     const { id: guildId, masterId } = req.params;
     const itemId = Number(req.body?.itemId);
+    const recipientPlayerId = req.body?.recipientPlayerId ? Number(req.body.recipientPlayerId) : playerId;
     if (!itemId) return res.status(400).json({ error: 'itemId requerido' });
 
     const memberRes = await db.query(
-      'SELECT 1 FROM guild_members WHERE guild_id = $1 AND player_id = $2',
+      'SELECT role FROM guild_members WHERE guild_id = $1 AND player_id = $2',
       [guildId, playerId]
     );
     if (!memberRes.rows.length) return res.status(403).json({ error: 'No eres miembro de este gremio' });
+    const myRole = memberRes.rows[0].role;
+
+    const masterRes = await db.query('SELECT class_id FROM class_masters WHERE id = $1', [masterId]);
+    const masterClassId = masterRes.rows[0]?.class_id;
+
+    if (recipientPlayerId !== playerId) {
+      if (myRole !== 'LEADER' && myRole !== 'OFFICER') {
+        return res.status(403).json({ error: 'Solo el líder o un oficial puede comprarle a otro miembro' });
+      }
+      const recipientMemberRes = await db.query(
+        'SELECT 1 FROM guild_members WHERE guild_id = $1 AND player_id = $2',
+        [guildId, recipientPlayerId]
+      );
+      if (!recipientMemberRes.rows.length) return res.status(400).json({ error: 'El destinatario no es miembro de este gremio' });
+      const recipientClassRes = await db.query(
+        'SELECT COALESCE(evolution_class_id, current_class_id) AS class_id FROM players WHERE id = $1',
+        [recipientPlayerId]
+      );
+      const recipientChain = await getClassAncestorChain(recipientClassRes.rows[0].class_id);
+      if (!recipientChain.includes(masterClassId)) {
+        return res.status(400).json({ error: 'El destinatario no es de la clase de este maestro' });
+      }
+    } else {
+      const myClassRes = await db.query(
+        'SELECT COALESCE(evolution_class_id, current_class_id) AS class_id FROM players WHERE id = $1',
+        [playerId]
+      );
+      const myChain = await getClassAncestorChain(myClassRes.rows[0].class_id);
+      if (!myChain.includes(masterClassId)) {
+        return res.status(403).json({ error: 'Esta tienda es para la clase de este maestro' });
+      }
+    }
 
     const shopItemRes = await db.query(
       'SELECT price FROM class_master_shop_items WHERE master_id = $1 AND item_id = $2',
@@ -714,9 +765,9 @@ router.post('/:id/masters/:masterId/buy', async (req, res, next) => {
     if (currentGold < price) return res.status(400).json({ error: `Oro insuficiente (necesitás ${price})` });
 
     await db.query('UPDATE players SET gold = gold - $1 WHERE id = $2', [price, playerId]);
-    await inventory.addItem(playerId, itemId, 1);
+    await inventory.addItem(recipientPlayerId, itemId, 1);
 
-    res.json({ bought: true, gold: currentGold - price });
+    res.json({ bought: true, gold: currentGold - price, recipientPlayerId });
   } catch (error) {
     next(error);
   }
