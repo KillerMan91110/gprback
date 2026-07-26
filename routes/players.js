@@ -613,11 +613,18 @@ router.post('/:playerId/guild/shop/buy', async (req, res, next) => {
       return res.status(400).json({ error: 'Ese item no está a la venta' });
     }
 
-    const playerResult = await db.query('SELECT current_class_id, gold FROM players WHERE id = $1', [playerId]);
+    const playerResult = await db.query('SELECT current_class_id, evolution_class_id, gold FROM players WHERE id = $1', [playerId]);
     if (!playerResult.rows.length) {
       return res.status(404).json({ error: 'Jugador no encontrado' });
     }
     const player = playerResult.rows[0];
+
+    if (item.class_id) {
+      const classChain = await evolution.getClassAncestorChain(player.evolution_class_id || player.current_class_id);
+      if (!classChain.includes(item.class_id)) {
+        return res.status(403).json({ error: 'Esta tienda es para tu propia clase' });
+      }
+    }
 
     const cost = item.buy_price;
     if (Number(player.gold) < cost) {
