@@ -196,7 +196,7 @@ app.get('/api/player/:playerId/stats', requireAuth, requireSelf, async (req, res
     // recalculan al vuelo aca porque nunca se persisten.
     const effectiveClassId = player.evolution_class_id || player.current_class_id;
     const classChain = await getClassAncestorChain(effectiveClassId);
-    const [bonus, passives, baseCritDamage, resistancesResult, bonusesResult, petB] = await Promise.all([
+    const [bonus, passives, baseCritDamage, resistancesResult, bonusesResult, petB, classChainNamesResult] = await Promise.all([
       getEquipmentBonuses(player.id),
       getClassPassiveBonuses(classChain, player.level),
       getClassBaseCritDamage(effectiveClassId),
@@ -217,7 +217,9 @@ app.get('/api/player/:playerId/stats', requireAuth, requireSelf, async (req, res
         [effectiveClassId]
       ),
       getActivePetBonuses(player.id),
+      db.query('SELECT id, name FROM classes WHERE id = ANY($1::int[])', [classChain]),
     ]);
+    const classNameById = new Map(classChainNamesResult.rows.map((c) => [c.id, c.name]));
 
     const xpRate = Number(player.evolution_xp_rate || player.xp_rate || 1);
     const xpForCurrentLevel = xpThreshold(player.level, xpRate);
@@ -251,6 +253,11 @@ app.get('/api/player/:playerId/stats', requireAuth, requireSelf, async (req, res
         name: player.evolution_class_name,
         lore: player.evolution_class_lore,
       },
+      // Cadena completa base -> efectiva (incluye los tiers intermedios que class/evolution NO
+      // cubren, ya que players solo persiste current_class_id + evolution_class_id = la MAS
+      // reciente). Ej. Sacerdote -> Druida -> Druida Primordial: class/evolution solo darian
+      // Sacerdote y Druida Primordial, salteando Druida.
+      classChain: classChain.map((id) => ({ id, name: classNameById.get(id) })),
       hp: Math.min(player.hp, Math.round(player.max_hp * (1 + passives.hp / 100)) + petB.hp),
       maxHp: Math.round(player.max_hp * (1 + passives.hp / 100)) + petB.hp,
       mana: Math.min(player.mana, player.max_mana + petB.mana),
