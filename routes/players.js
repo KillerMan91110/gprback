@@ -367,7 +367,7 @@ router.get('/:playerId/class-skills', async (req, res, next) => {
                 s.mana_cost, s.target_type, s.damage_school, s.hits, s.description,
                 TRUE AS learned
          FROM skills s
-         WHERE s.class_id = ANY($1::int[])
+         WHERE (s.class_id = ANY($1::int[]) OR s.class_id IS NULL)
            AND s.learn_method = 'LEVEL'
            AND s.learn_level <= $2
          ORDER BY s.is_passive DESC, s.learn_level, s.name`,
@@ -381,7 +381,7 @@ router.get('/:playerId/class-skills', async (req, res, next) => {
                  OR EXISTS(SELECT 1 FROM player_skills ps WHERE ps.player_id = $1 AND ps.skill_id = s.id)
                 ) AS learned
          FROM skills s
-         WHERE s.class_id = ANY($3::int[])
+         WHERE (s.class_id = ANY($3::int[]) OR s.class_id IS NULL)
          ORDER BY s.is_passive DESC, s.learn_level, s.name`,
         [playerId, level, classIds]
       );
