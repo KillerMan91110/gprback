@@ -8,10 +8,33 @@ router.use(requireSelf);
 
 const VALID_CHANNELS = ['GENERAL', 'TRADE', 'GUILD'];
 const MAX_BODY_LEN = 300;
+const CHANNEL_INACTIVITY_MS = 15 * 60 * 1000;
 
 async function resolveGuildId(playerId) {
   const res = await db.query('SELECT guild_id FROM guild_members WHERE player_id = $1', [playerId]);
   return res.rows[0]?.guild_id ?? null;
+}
+
+// TRADE y GUILD (por guild_id, cada gremio independiente) se vacian solos tras 15min sin
+// mensajes nuevos, para no acumular charla vieja para siempre. GENERAL no se toca. Se llama
+// antes de leer o escribir en el canal; si no hace falta limpiar, es un solo SELECT barato.
+async function clearIfInactive(io, channel, guildId) {
+  if (channel !== 'TRADE' && channel !== 'GUILD') return;
+
+  const params = channel === 'GUILD' ? [channel, guildId] : [channel];
+  const guildFilter = channel === 'GUILD' ? 'AND guild_id = $2' : '';
+
+  const maxRes = await db.query(
+    `SELECT MAX(created_at) AS last_at FROM chat_messages WHERE channel = $1 ${guildFilter}`,
+    params
+  );
+  const lastAt = maxRes.rows[0].last_at;
+  if (!lastAt || Date.now() - new Date(lastAt).getTime() < CHANNEL_INACTIVITY_MS) return;
+
+  await db.query(`DELETE FROM chat_messages WHERE channel = $1 ${guildFilter}`, params);
+
+  const room = channel === 'GUILD' ? `chat:GUILD:${guildId}` : `chat:${channel}`;
+  io?.to(room).emit('chat:cleared', { channel, guildId: channel === 'GUILD' ? guildId : null });
 }
 
 // GET /api/player/:playerId/chat/:channel?afterId=0
@@ -28,6 +51,7 @@ router.get('/:channel', async (req, res) => {
     if (channel === 'GUILD') {
       const guildId = await resolveGuildId(req.playerId);
       if (!guildId) return res.json({ messages: [] });
+      await clearIfInactive(req.app.get('io'), channel, guildId);
       if (afterId === 0) {
         const result = await db.query(
           `SELECT * FROM (
@@ -52,6 +76,7 @@ router.get('/:channel', async (req, res) => {
         rows = result.rows;
       }
     } else {
+      await clearIfInactive(req.app.get('io'), channel, null);
       if (afterId === 0) {
         const result = await db.query(
           `SELECT * FROM (
@@ -100,6 +125,7 @@ router.post('/:channel', async (req, res) => {
       guildId = await resolveGuildId(req.playerId);
       if (!guildId) return res.status(403).json({ error: 'No perteneces a ningún gremio' });
     }
+    await clearIfInactive(req.app.get('io'), channel, guildId);
 
     const insert = await db.query(
       `INSERT INTO chat_messages(channel, guild_id, sender_id, body)
