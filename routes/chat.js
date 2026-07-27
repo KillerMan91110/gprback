@@ -15,12 +15,10 @@ async function resolveGuildId(playerId) {
   return res.rows[0]?.guild_id ?? null;
 }
 
-// TRADE y GUILD (por guild_id, cada gremio independiente) se vacian solos tras 15min sin
-// mensajes nuevos, para no acumular charla vieja para siempre. GENERAL no se toca. Se llama
-// antes de leer o escribir en el canal; si no hace falta limpiar, es un solo SELECT barato.
+// Los 3 canales se vacian solos tras 15min sin mensajes nuevos, para no acumular charla vieja
+// para siempre (GUILD por guild_id, cada gremio independiente de los demas). Se llama antes de
+// leer o escribir en el canal; si no hace falta limpiar, es un solo SELECT barato.
 async function clearIfInactive(io, channel, guildId) {
-  if (channel !== 'TRADE' && channel !== 'GUILD') return;
-
   const params = channel === 'GUILD' ? [channel, guildId] : [channel];
   const guildFilter = channel === 'GUILD' ? 'AND guild_id = $2' : '';
 
