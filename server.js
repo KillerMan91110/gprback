@@ -36,6 +36,9 @@ const { getActivePetBonuses } = require('./lib/pets');
 const ALLOWED_ORIGINS = (process.env.ALLOWED_ORIGINS || '').split(',').map((o) => o.trim()).filter(Boolean);
 
 const app = express();
+// Render pone la app detrás de 1 proxy (agrega X-Forwarded-For con la IP real del cliente).
+// Sin esto, express-rate-limit no puede confiar en esa IP para contar intentos por cliente.
+app.set('trust proxy', 1);
 const httpServer = http.createServer(app);
 const io = new Server(httpServer, { cors: { origin: ALLOWED_ORIGINS } });
 
