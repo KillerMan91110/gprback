@@ -21426,3 +21426,16 @@ SELECT i.id, v.base_price FROM items i JOIN (VALUES
   ('HUEVO_EPICO', 80)
 ) AS v(code, base_price) ON v.code = i.code
 ON CONFLICT (item_id) DO NOTHING;
+
+-- Parte 6: reagruparse en el asentamiento -- invitacion sin exigir amistad (a diferencia de
+-- player_coop_invites), basada en estar los dos parados ahora mismo en el mismo checkpoint.
+CREATE TABLE IF NOT EXISTS tower_settlement_invites (
+  id         SERIAL PRIMARY KEY,
+  leader_id  INT NOT NULL REFERENCES players(id) ON DELETE CASCADE,
+  guest_id   INT NOT NULL REFERENCES players(id) ON DELETE CASCADE,
+  floor      INT NOT NULL,
+  status     TEXT NOT NULL DEFAULT 'PENDING' CHECK (status IN ('PENDING','ACCEPTED','DECLINED')),
+  expires_at TIMESTAMPTZ NOT NULL,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS idx_settlement_invites_guest ON tower_settlement_invites(guest_id);

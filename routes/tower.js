@@ -139,6 +139,17 @@ async function bankIfNewCheckpoint(run) {
   return updated.rows[0];
 }
 
+// Cierra una corrida acreditando lo acumulado -- mismo mecanismo que POST /extract, extraido
+// para reusar en el reagrupe de la parte 6 (cada uno cierra la suya antes de compartir una nueva).
+async function closeRunAsExtracted(run) {
+  await db.query(`UPDATE player_tower_runs SET status = 'EXTRACTED', ended_at = now() WHERE id = $1`, [run.id]);
+  const allPlayerIds = [run.player_id, run.guest_player_id, run.guest_player_id_2].filter(Boolean);
+  for (const pid of allPlayerIds) {
+    await db.query('UPDATE players SET dungeon_coins = dungeon_coins + $1 WHERE id = $2', [run.coins_earned, pid]);
+    await incrementCounter(pid, 'MAZMORRAS_EXPLORADAS');
+  }
+}
+
 async function rollVendorEventOffer(floorNumber) {
   const offer = [];
   const usedIds = [];
@@ -769,6 +780,156 @@ router.post('/settlement/shop/buy', async (req, res, next) => {
       cost: totalCost,
       dungeon_coins: newCoins,
     });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// ===== Parte 6: reagruparse en el asentamiento (docs/backend-spec-ciudad-del-abismo.md) =====
+// No reusa el sistema de invitacion co-op normal (POST /coop/invite) porque ese exige amistad
+// -- acá el otro jugador puede ser un desconocido parado al lado en el mismo checkpoint. Al
+// aceptar SI se crea el player_coop_group correspondiente (mismo bloque que ya usa
+// POST /coop/invite/:id/accept), para que abandonar el grupo despues funcione igual que con
+// cualquier otro par co-op -- sin esto quedarian pegados a la corrida compartida para siempre.
+const SETTLEMENT_INVITE_TTL_SECONDS = 60;
+
+async function hasCoopGroup(playerId) {
+  const res = await db.query('SELECT 1 FROM player_coop_group_members WHERE player_id = $1', [playerId]);
+  return res.rows.length > 0;
+}
+
+// GET /api/player/:playerId/tower/settlement/nearby — otros jugadores solos (sin grupo co-op)
+// parados ahora mismo en el mismo checkpoint que el que pregunta.
+router.get('/settlement/nearby', async (req, res, next) => {
+  try {
+    const myRun = await getActiveRun(req.playerId);
+    if (!myRun || !isAtCheckpoint(myRun)) return res.json({ nearby: [] });
+
+    const nearbyRes = await db.query(
+      `SELECT p.id AS "playerId", p.nickname, p.level, c.name AS "className"
+       FROM player_tower_runs ptr
+       JOIN players p ON p.id = ptr.player_id
+       JOIN classes c ON c.id = COALESCE(p.evolution_class_id, p.current_class_id)
+       WHERE ptr.status = 'IN_PROGRESS' AND ptr.current_session_id IS NULL AND ptr.pending_event_id IS NULL
+         AND ptr.guest_player_id IS NULL AND ptr.guest_player_id_2 IS NULL
+         AND ptr.current_floor = $1 AND ptr.player_id != $2`,
+      [myRun.current_floor, req.playerId]
+    );
+    res.json({ floor: myRun.current_floor, nearby: nearbyRes.rows });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// POST /api/player/:playerId/tower/settlement/invite   body: { targetPlayerId }
+router.post('/settlement/invite', async (req, res, next) => {
+  try {
+    const targetPlayerId = Number(req.body?.targetPlayerId);
+    if (!targetPlayerId) return res.status(400).json({ error: 'targetPlayerId requerido' });
+    if (targetPlayerId === req.playerId) return res.status(400).json({ error: 'No puedes invitarte a ti mismo' });
+
+    const myRun = await getActiveRun(req.playerId);
+    if (!myRun || !isAtCheckpoint(myRun)) {
+      return res.status(400).json({ error: 'Tienes que estar parado en un asentamiento para invitar' });
+    }
+    const targetRun = await getActiveRun(targetPlayerId);
+    if (!targetRun || !isAtCheckpoint(targetRun) || targetRun.current_floor !== myRun.current_floor) {
+      return res.status(400).json({ error: 'Ese jugador no está en tu mismo asentamiento ahora mismo' });
+    }
+
+    if (await hasCoopGroup(req.playerId)) return res.status(400).json({ error: 'Ya estás en un grupo co-op' });
+    if (await hasCoopGroup(targetPlayerId)) return res.status(400).json({ error: 'Ese jugador ya está en un grupo co-op' });
+
+    await db.query(
+      `UPDATE tower_settlement_invites SET status='DECLINED'
+       WHERE ((leader_id=$1 AND guest_id=$2) OR (leader_id=$2 AND guest_id=$1)) AND status='PENDING'`,
+      [req.playerId, targetPlayerId]
+    );
+
+    const inv = await db.query(
+      `INSERT INTO tower_settlement_invites(leader_id, guest_id, floor, expires_at)
+       VALUES ($1, $2, $3, now() + INTERVAL '${SETTLEMENT_INVITE_TTL_SECONDS} seconds')
+       RETURNING id, floor, expires_at`,
+      [req.playerId, targetPlayerId, myRun.current_floor]
+    );
+    res.status(201).json(inv.rows[0]);
+  } catch (err) {
+    next(err);
+  }
+});
+
+// GET /api/player/:playerId/tower/settlement/invite/pending — mismo patron que
+// GET /coop/invite/pending, no lo pedia el spec explicitamente pero sin esto no hay forma de
+// que el invitado se entere de la invitacion para poder aceptarla.
+router.get('/settlement/invite/pending', async (req, res, next) => {
+  try {
+    const inv = await db.query(
+      `SELECT tsi.id, tsi.floor, tsi.expires_at, p.id AS "leaderId", p.nickname AS "leaderNickname", p.level AS "leaderLevel"
+       FROM tower_settlement_invites tsi
+       JOIN players p ON p.id = tsi.leader_id
+       WHERE tsi.guest_id = $1 AND tsi.status = 'PENDING' AND tsi.expires_at > now()
+       ORDER BY tsi.created_at DESC LIMIT 1`,
+      [req.playerId]
+    );
+    res.json(inv.rows[0] || null);
+  } catch (err) {
+    next(err);
+  }
+});
+
+// POST /api/player/:playerId/tower/settlement/invite/:inviteId/decline
+router.post('/settlement/invite/:inviteId/decline', async (req, res, next) => {
+  try {
+    await db.query(
+      `UPDATE tower_settlement_invites SET status='DECLINED' WHERE id=$1 AND guest_id=$2 AND status='PENDING'`,
+      [req.params.inviteId, req.playerId]
+    );
+    res.json({ declined: true });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// POST /api/player/:playerId/tower/settlement/invite/:inviteId/accept
+router.post('/settlement/invite/:inviteId/accept', async (req, res, next) => {
+  try {
+    const inv = await db.query(
+      `UPDATE tower_settlement_invites SET status='ACCEPTED'
+       WHERE id=$1 AND guest_id=$2 AND status='PENDING' AND expires_at > now()
+       RETURNING leader_id, guest_id, floor`,
+      [req.params.inviteId, req.playerId]
+    );
+    if (!inv.rows.length) return res.status(404).json({ error: 'Invitación no encontrada o expirada' });
+    const { leader_id: leaderId, guest_id: guestId, floor } = inv.rows[0];
+
+    // Revalidar: pueden haber avanzado, extraido o muerto mientras la invitacion esperaba.
+    const leaderRun = await getActiveRun(leaderId);
+    const guestRun = await getActiveRun(guestId);
+    if (!leaderRun || !isAtCheckpoint(leaderRun) || leaderRun.current_floor !== floor ||
+        !guestRun || !isAtCheckpoint(guestRun) || guestRun.current_floor !== floor) {
+      return res.status(400).json({ error: 'Ya no están los dos parados en ese mismo asentamiento' });
+    }
+    if (await hasCoopGroup(leaderId)) return res.status(400).json({ error: 'El líder ya está en un grupo co-op' });
+    if (await hasCoopGroup(guestId)) return res.status(400).json({ error: 'Ya estás en un grupo co-op' });
+
+    await closeRunAsExtracted(leaderRun);
+    await closeRunAsExtracted(guestRun);
+
+    const newRunRes = await db.query(
+      `INSERT INTO player_tower_runs(player_id, guest_player_id, difficulty, current_floor, current_room, coins_earned, last_banked_floor, status)
+       VALUES ($1, $2, 1, $3, 1, 0, $3, 'IN_PROGRESS') RETURNING *`,
+      [leaderId, guestId, floor]
+    );
+    const newRun = newRunRes.rows[0];
+
+    // Agruparlos como cualquier otro par co-op (mismo bloque que POST /coop/invite/:id/accept).
+    const group = await db.query('INSERT INTO player_coop_groups(leader_id) VALUES($1) RETURNING id', [leaderId]);
+    await db.query(
+      'INSERT INTO player_coop_group_members(group_id, player_id) VALUES ($1,$2), ($1,$3)',
+      [group.rows[0].id, leaderId, guestId]
+    );
+
+    res.json({ run: newRun, checkpoint: checkpointInfo(newRun) });
   } catch (err) {
     next(err);
   }
