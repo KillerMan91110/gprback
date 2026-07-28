@@ -2217,7 +2217,7 @@ router.post('/zones/:zoneId/explore', async (req, res, next) => {
     const minMonsterLevel = zone.min_level;
     const maxMonsterLevel = Math.min(maxFormationLevel + 1, zone.max_level);
 
-    // Si vos o algún compañero de grupo tiene una quest de jefe de esta zona aceptada y
+    // Si tú o algún compañero de grupo tiene una quest de jefe de esta zona aceptada y
     // todavía no la entregó, ESE jefe aparece garantizado (no depende del roll de rareza).
     // Estar en player_active_quests ya implica "no entregada todavia": completar SIEMPRE
     // borra esa fila (ver DELETE en players.js), tanto para quests de una sola vez como

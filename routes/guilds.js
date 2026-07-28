@@ -782,7 +782,7 @@ router.post('/:id/masters/:masterId/buy', async (req, res, next) => {
 
     const goldRes = await db.query('SELECT gold FROM players WHERE id = $1', [playerId]);
     const currentGold = Number(goldRes.rows[0].gold);
-    if (currentGold < price) return res.status(400).json({ error: `Oro insuficiente (necesitás ${price})` });
+    if (currentGold < price) return res.status(400).json({ error: `Oro insuficiente (necesitas ${price})` });
 
     await db.query('UPDATE players SET gold = gold - $1 WHERE id = $2', [price, playerId]);
     await inventory.addItem(recipientPlayerId, itemId, qty);
@@ -1063,7 +1063,7 @@ router.post('/:id/bank/deposit', async (req, res, next) => {
     if (lastDepositRes.rows.length) {
       const elapsedMs = Date.now() - new Date(lastDepositRes.rows[0].created_at).getTime();
       if (elapsedMs < DEPOSIT_COOLDOWN_HOURS * 60 * 60 * 1000) {
-        return res.status(400).json({ error: 'Ya donaste hoy; podés volver a donar en 24hs' });
+        return res.status(400).json({ error: 'Ya donaste hoy; puedes volver a donar en 24hs' });
       }
     }
 
