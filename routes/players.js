@@ -288,7 +288,7 @@ router.get('/:playerId/skills', async (req, res, next) => {
       return res.status(404).json({ error: 'Jugador no encontrado' });
     }
     const player = playerResult.rows[0];
-    const classIds = [player.current_class_id, player.evolution_class_id].filter(Boolean);
+    const classIds = await evolution.getClassAncestorChain(player.evolution_class_id || player.current_class_id);
 
     const skillsResult = await db.query(
       `SELECT s.id, s.code, s.name, s.skill_type, s.damage_school, s.target_type, s.mana_cost,
@@ -355,7 +355,7 @@ router.get('/:playerId/class-skills', async (req, res, next) => {
       );
       if (!playerRes.rows.length) return res.status(404).json({ error: 'Jugador no encontrado' });
       const p = playerRes.rows[0];
-      classIds = [p.current_class_id, p.evolution_class_id].filter(Boolean);
+      classIds = await evolution.getClassAncestorChain(p.evolution_class_id || p.current_class_id);
       level = p.level;
       isNpc = false;
     }
