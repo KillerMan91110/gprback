@@ -2761,7 +2761,7 @@ router.post('/sessions/:id/action', async (req, res, next) => {
         const playerRow = playerRowResult.rows[0];
         // class_id = NULL → skill universal, cualquier clase puede usarla
         if (skill.class_id !== null) {
-          const knownClassIds = [playerRow.current_class_id, playerRow.evolution_class_id].filter(Boolean);
+          const knownClassIds = await getClassAncestorChain(playerRow.evolution_class_id || playerRow.current_class_id);
           if (!knownClassIds.includes(skill.class_id)) {
             return res.status(400).json({ error: 'Esa habilidad no es de tu clase' });
           }
