@@ -63,15 +63,6 @@ CREATE TABLE IF NOT EXISTS class_evolution_requirements (
   description TEXT
 );
 
--- Contadores de jugador para requisitos de evolución de clase tipo COUNTER.
-CREATE TABLE IF NOT EXISTS player_counters (
-  player_id    INT NOT NULL REFERENCES players(id) ON DELETE CASCADE,
-  counter_code TEXT NOT NULL,
-  value        INT NOT NULL DEFAULT 0,
-  updated_at   TIMESTAMPTZ NOT NULL DEFAULT now(),
-  PRIMARY KEY (player_id, counter_code)
-);
-
 CREATE TABLE IF NOT EXISTS elements (
   id SERIAL PRIMARY KEY,
   code TEXT UNIQUE NOT NULL,
@@ -255,33 +246,6 @@ CREATE TABLE IF NOT EXISTS monster_level_scalings (
   UNIQUE(monster_id, level)
 );
 
--- World Boss (docs/backend-spec-world-boss.md): jefe unico server-wide con HP compartido.
-CREATE TABLE IF NOT EXISTS world_boss_events (
-  id            SERIAL PRIMARY KEY,
-  monster_code  TEXT NOT NULL REFERENCES monsters(code),
-  max_hp        INT NOT NULL,
-  hp_remaining  INT NOT NULL,
-  status        TEXT NOT NULL DEFAULT 'ACTIVE' CHECK (status IN ('ACTIVE', 'KILLED', 'EXPIRED')),
-  started_at    TIMESTAMPTZ NOT NULL DEFAULT now(),
-  ends_at       TIMESTAMPTZ NOT NULL,
-  closed_at     TIMESTAMPTZ,
-  killed_by_player_id INT REFERENCES players(id)
-);
-
-CREATE TABLE IF NOT EXISTS world_boss_damage_log (
-  event_id     INT NOT NULL REFERENCES world_boss_events(id) ON DELETE CASCADE,
-  player_id    INT NOT NULL REFERENCES players(id),
-  total_damage BIGINT NOT NULL DEFAULT 0,
-  last_attempt_at TIMESTAMPTZ,
-  PRIMARY KEY (event_id, player_id)
-);
-
-CREATE TABLE IF NOT EXISTS world_boss_shop (
-  id      SERIAL PRIMARY KEY,
-  item_id INT NOT NULL REFERENCES items(id),
-  price   INT NOT NULL
-);
-
 CREATE TABLE IF NOT EXISTS players (
   id SERIAL PRIMARY KEY,
   email TEXT NOT NULL UNIQUE,
@@ -309,6 +273,44 @@ CREATE TABLE IF NOT EXISTS players (
   boss_kills INT NOT NULL DEFAULT 0,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT now(),
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT now()
+);
+
+-- Contadores de jugador para requisitos de evolución de clase tipo COUNTER.
+CREATE TABLE IF NOT EXISTS player_counters (
+  player_id    INT NOT NULL REFERENCES players(id) ON DELETE CASCADE,
+  counter_code TEXT NOT NULL,
+  value        INT NOT NULL DEFAULT 0,
+  updated_at   TIMESTAMPTZ NOT NULL DEFAULT now(),
+  PRIMARY KEY (player_id, counter_code)
+);
+
+-- World Boss (docs/backend-spec-world-boss.md): jefe unico server-wide con HP compartido.
+-- Movido a despues de "players" (bug de orden encontrado y corregido 2026-07-28: referenciaba
+-- players(id) antes de que la tabla existiera, hacia fallar schema.sql corrido standalone).
+CREATE TABLE IF NOT EXISTS world_boss_events (
+  id            SERIAL PRIMARY KEY,
+  monster_code  TEXT NOT NULL REFERENCES monsters(code),
+  max_hp        INT NOT NULL,
+  hp_remaining  INT NOT NULL,
+  status        TEXT NOT NULL DEFAULT 'ACTIVE' CHECK (status IN ('ACTIVE', 'KILLED', 'EXPIRED')),
+  started_at    TIMESTAMPTZ NOT NULL DEFAULT now(),
+  ends_at       TIMESTAMPTZ NOT NULL,
+  closed_at     TIMESTAMPTZ,
+  killed_by_player_id INT REFERENCES players(id)
+);
+
+CREATE TABLE IF NOT EXISTS world_boss_damage_log (
+  event_id     INT NOT NULL REFERENCES world_boss_events(id) ON DELETE CASCADE,
+  player_id    INT NOT NULL REFERENCES players(id),
+  total_damage BIGINT NOT NULL DEFAULT 0,
+  last_attempt_at TIMESTAMPTZ,
+  PRIMARY KEY (event_id, player_id)
+);
+
+CREATE TABLE IF NOT EXISTS world_boss_shop (
+  id      SERIAL PRIMARY KEY,
+  item_id INT NOT NULL REFERENCES items(id),
+  price   INT NOT NULL
 );
 
 CREATE TABLE IF NOT EXISTS player_class_progress (

@@ -1,4 +1,4 @@
-﻿-- Semilla completa para clases, elementos y monstruos con nivel escalado.
+-- Semilla completa para clases, elementos y monstruos con nivel escalado.
 -- Incluye stats de clase, resistencias elementales, zonas de monstruos y ajustes de nivel.
 -- Estructura principal: 5 clases base (Guerrero, Mago, Arquero, Pícaro y Sacerdote) con ramas de evolución
 -- que funcionan como clases avanzadas con sus propios stats base y rate growth.

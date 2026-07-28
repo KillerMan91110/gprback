@@ -13,8 +13,11 @@ DB_NAME = os.getenv('PGDATABASE', 'gpr')
 DB_USER = os.getenv('PGUSER', 'postgres')
 DB_PASSWORD = os.getenv('PGPASSWORD', '1234')
 
+# schema.sql crea las 93 tablas (DDL puro, validado 2026-07-28 corriendo standalone contra un
+# schema aislado); seed.sql carga todo el contenido encima. init_gpr.sql quedo obsoleto (no
+# crea varias tablas que ya son centrales, ej. player_tower_runs) y ya no se usa aca.
 SQL_FILES = [
-    'init_gpr.sql',
+    'schema.sql',
     'seed.sql'
 ]
 
