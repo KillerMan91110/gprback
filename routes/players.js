@@ -2836,11 +2836,17 @@ router.get('/:playerId/enchant/info', requireAuth, async (req, res, next) => {
   } catch (error) { next(error); }
 });
 
+// Cristal de Estabilidad (docs/backend-spec-ciudad-del-abismo.md parte 4, se compra en la
+// tienda del asentamiento): +15 puntos de éxito para UN intento de encantar, se consume se
+// gane o se pierda, mismo criterio que las piedras normales.
+const STABILITY_CRYSTAL_CODE = 'CRISTAL_ESTABILIDAD';
+const STABILITY_CRYSTAL_RATE_BONUS = 15;
+
 // POST /api/player/:playerId/enchant
-// body: { slot }  — intenta encantar el ítem equipado en ese slot
+// body: { slot, useCrystal? }  — intenta encantar el ítem equipado en ese slot
 router.post('/:playerId/enchant', requireAuth, async (req, res, next) => {
   const { playerId } = req.params;
-  const { slot } = req.body;
+  const { slot, useCrystal } = req.body;
   if (!slot) return res.status(400).json({ error: 'slot es requerido' });
 
   try {
@@ -2870,11 +2876,24 @@ router.post('/:playerId/enchant', requireAuth, async (req, res, next) => {
       return res.status(400).json({ error: `Necesitas ${cost.qty}x ${cost.stone}. Tienes ${stoneQty}.` });
     }
 
+    let crystalId = null;
+    if (useCrystal) {
+      const crystalRes = await db.query('SELECT id FROM items WHERE code = $1', [STABILITY_CRYSTAL_CODE]);
+      if (!crystalRes.rows.length) return res.status(500).json({ error: 'Cristal de Estabilidad no configurado' });
+      crystalId = crystalRes.rows[0].id;
+      const crystalQty = await inventory.getQuantity(playerId, crystalId);
+      if (crystalQty < 1) {
+        return res.status(400).json({ error: 'No tienes ningún Cristal de Estabilidad' });
+      }
+    }
+
     // Consumir recursos (siempre, incluso si falla)
     await db.query('UPDATE players SET gold = gold - $1 WHERE id = $2', [cost.gold, playerId]);
     await inventory.removeItem(playerId, stoneId, cost.qty);
+    if (crystalId) await inventory.removeItem(playerId, crystalId, 1);
 
-    const success = Math.random() * 100 < cost.rate;
+    const effectiveRate = Math.min(100, cost.rate + (crystalId ? STABILITY_CRYSTAL_RATE_BONUS : 0));
+    const success = Math.random() * 100 < effectiveRate;
     if (success) {
       // Delta de HP si el ítem tiene bono de HP
       const hpBonus = await db.query(

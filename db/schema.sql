@@ -1187,3 +1187,18 @@ CREATE TABLE IF NOT EXISTS guild_class_masters (
 );
 
 ALTER TABLE players ADD COLUMN IF NOT EXISTS pending_master_id INT REFERENCES class_masters(id);
+
+-- ===== Ciudades del Abismo: asentamientos cada 15 pisos de la Torre =====
+-- docs/backend-spec-ciudad-del-abismo.md. Parte 2: banking automatico necesita saber si ese
+-- checkpoint puntual ya se banco, para no volver a bancar en cada GET /tower/run.
+ALTER TABLE player_tower_runs ADD COLUMN IF NOT EXISTS last_banked_floor INT NOT NULL DEFAULT 0;
+
+-- Parte 4: tienda de artesanos del abismo -- catalogo fijo (no random) con mejor rareza que
+-- tower_vendor_shop, precio base que se multiplica por profundidad al mostrar (mismo criterio
+-- que vendorEventPrice, ver routes/tower.js depthPriceMultiplier).
+CREATE TABLE IF NOT EXISTS tower_settlement_shop (
+  id SERIAL PRIMARY KEY,
+  item_id INT NOT NULL REFERENCES items(id),
+  base_price INT NOT NULL,
+  UNIQUE (item_id)
+);

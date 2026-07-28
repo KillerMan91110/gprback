@@ -81,10 +81,62 @@ function rollVendorEventRarity() {
   return entries[0][0];
 }
 
+// Mismo multiplicador por profundidad que ya usaba vendorEventPrice, extraido para reusar
+// tambien en la tienda del asentamiento (docs/backend-spec-ciudad-del-abismo.md parte 4).
+function depthPriceMultiplier(floorNumber) {
+  return 1 + Math.floor(floorNumber / 30) * 0.5;
+}
+
 function vendorEventPrice(rarity, floorNumber) {
   const base = VENDOR_EVENT_RARITY_PRICE[rarity] || VENDOR_EVENT_RARITY_PRICE.COMUN;
-  const floorMult = 1 + Math.floor(floorNumber / 30) * 0.5;
-  return Math.round(base * floorMult);
+  return Math.round(base * depthPriceMultiplier(floorNumber));
+}
+
+// Ciudades del Abismo: asentamiento cada 15 pisos (docs/backend-spec-ciudad-del-abismo.md).
+// "Estar parado en el asentamiento" ya es el estado que existe hoy entre limpiar la ultima sala
+// de un piso multiplo de 15 y llamar a /advance: current_session_id NULL, current_floor sin
+// incrementar todavia. No hace falta tocar el flujo piso a piso, solo detectar este estado.
+const SETTLEMENT_FLOOR_INTERVAL = 15;
+
+function isAtCheckpoint(run) {
+  return !run.current_session_id && !run.pending_event_id && run.current_floor % SETTLEMENT_FLOOR_INTERVAL === 0;
+}
+
+function toRoman(num) {
+  const numerals = [
+    [1000, 'M'], [900, 'CM'], [500, 'D'], [400, 'CD'], [100, 'C'], [90, 'XC'],
+    [50, 'L'], [40, 'XL'], [10, 'X'], [9, 'IX'], [5, 'V'], [4, 'IV'], [1, 'I'],
+  ];
+  let n = num;
+  let result = '';
+  for (const [value, symbol] of numerals) {
+    while (n >= value) { result += symbol; n -= value; }
+  }
+  return result;
+}
+
+function checkpointInfo(run) {
+  if (!isAtCheckpoint(run)) return null;
+  const index = run.current_floor / SETTLEMENT_FLOOR_INTERVAL;
+  return { index, name: `Ciudad del Abismo ${toRoman(index)}`, floor: run.current_floor };
+}
+
+// Banca lo acumulado (coins_earned) al llegar a un piso checkpoint, sin cerrar la corrida ni
+// pedir accion del jugador -- mismo mecanismo que /extract pero automatico. last_banked_floor
+// evita bancar de nuevo si el jugador consulta /run varias veces parado en el mismo checkpoint,
+// o si vuelve a pasar por el mismo piso en otra vuelta del loop infinito.
+async function bankIfNewCheckpoint(run) {
+  if (!isAtCheckpoint(run) || run.current_floor <= run.last_banked_floor) return run;
+
+  const allPlayerIds = [run.player_id, run.guest_player_id, run.guest_player_id_2].filter(Boolean);
+  for (const pid of allPlayerIds) {
+    await db.query('UPDATE players SET dungeon_coins = dungeon_coins + $1 WHERE id = $2', [run.coins_earned, pid]);
+  }
+  const updated = await db.query(
+    `UPDATE player_tower_runs SET coins_earned = 0, last_banked_floor = $1 WHERE id = $2 RETURNING *`,
+    [run.current_floor, run.id]
+  );
+  return updated.rows[0];
 }
 
 async function rollVendorEventOffer(floorNumber) {
@@ -290,8 +342,9 @@ router.post('/start', async (req, res, next) => {
 // GET /api/player/:playerId/tower/run — estado de la corrida activa
 router.get('/run', async (req, res, next) => {
   try {
-    const run = await getActiveRun(req.playerId);
+    let run = await getActiveRun(req.playerId);
     if (!run) return res.json({ run: null });
+    run = await bankIfNewCheckpoint(run);
 
     const floorRow = await getFloor(run.current_floor);
     const session = run.current_session_id ? await combatEngine.fetchSessionState(run.current_session_id) : null;
@@ -299,7 +352,7 @@ router.get('/run', async (req, res, next) => {
     const pendingEvent = run.pending_event_id
       ? (await db.query('SELECT * FROM tower_room_events WHERE id = $1', [run.pending_event_id])).rows[0]
       : null;
-    res.json({ run, floor: floorRow, session, canControl, pendingEvent });
+    res.json({ run, floor: floorRow, session, canControl, pendingEvent, checkpoint: checkpointInfo(run) });
   } catch (err) {
     next(err);
   }
@@ -424,7 +477,7 @@ router.post('/vendor-event-buy', async (req, res, next) => {
     const playerRes = await db.query('SELECT dungeon_coins FROM players WHERE id = $1', [req.playerId]);
     const currentCoins = Number(playerRes.rows[0].dungeon_coins);
     if (currentCoins < price) {
-      return res.status(400).json({ error: `Monedas insuficientes (necesitás ${price}, tenés ${currentCoins})` });
+      return res.status(400).json({ error: `Monedas insuficientes (necesitas ${price}, tienes ${currentCoins})` });
     }
 
     await db.query('UPDATE players SET dungeon_coins = dungeon_coins - $1 WHERE id = $2', [price, req.playerId]);
@@ -466,7 +519,7 @@ router.post('/advance', async (req, res, next) => {
       return res.status(400).json({ error: 'Todavía hay una sala en curso' });
     }
     if (run.pending_event_id) {
-      return res.status(400).json({ error: 'Todavía tenés un evento pendiente por resolver en esta sala' });
+      return res.status(400).json({ error: 'Todavía tienes un evento pendiente por resolver en esta sala' });
     }
 
     const nextFloor = run.current_floor + 1;
@@ -524,6 +577,70 @@ router.post('/extract', async (req, res, next) => {
   }
 });
 
+const SETTLEMENT_HEAL_COST = 10;
+
+// POST /api/player/:playerId/tower/settlement/heal   body: { targetType: 'HERO' | 'NPC', npcId? }
+// Enfermera del asentamiento: cura al 100% (no gradual como /guild/heal) por 10 dungeon_coins
+// por cabeza, jugador o NPC, sin importar que tan golpeado estaba.
+router.post('/settlement/heal', async (req, res, next) => {
+  try {
+    const { targetType, npcId } = req.body || {};
+    if (!['HERO', 'NPC'].includes(targetType)) {
+      return res.status(400).json({ error: "targetType debe ser 'HERO' o 'NPC'" });
+    }
+
+    const run = await getActiveRun(req.playerId);
+    if (!run) return res.status(400).json({ error: 'No tienes una corrida de torre activa' });
+    if (!isAtCheckpoint(run)) {
+      return res.status(400).json({ error: 'Solo se puede curar en un asentamiento (Ciudad del Abismo)' });
+    }
+
+    const playerRes = await db.query('SELECT dungeon_coins FROM players WHERE id = $1', [req.playerId]);
+    const currentCoins = Number(playerRes.rows[0].dungeon_coins);
+    if (currentCoins < SETTLEMENT_HEAL_COST) {
+      return res.status(400).json({ error: `Necesitas ${SETTLEMENT_HEAL_COST} monedas de mazmorra (tienes ${currentCoins})` });
+    }
+
+    let healedState;
+    if (targetType === 'HERO') {
+      const updated = await db.query(
+        'UPDATE players SET hp = max_hp, mana = max_mana WHERE id = $1 RETURNING hp, max_hp, mana, max_mana',
+        [req.playerId]
+      );
+      healedState = updated.rows[0];
+    } else {
+      const npcCheck = await db.query(
+        'SELECT 1 FROM player_party WHERE player_id = $1 AND npc_id = $2',
+        [req.playerId, npcId]
+      );
+      if (!npcCheck.rows.length) return res.status(403).json({ error: 'Ese NPC no es de tu formación' });
+      const updated = await db.query(
+        'UPDATE player_npcs SET hp = max_hp, mana = max_mana WHERE id = $1 RETURNING hp, max_hp, mana, max_mana',
+        [npcId]
+      );
+      healedState = updated.rows[0];
+    }
+
+    const newCoinsRes = await db.query(
+      'UPDATE players SET dungeon_coins = dungeon_coins - $1 WHERE id = $2 RETURNING dungeon_coins',
+      [SETTLEMENT_HEAL_COST, req.playerId]
+    );
+
+    res.json({
+      healed: true,
+      targetType,
+      npcId: targetType === 'NPC' ? Number(npcId) : null,
+      hp: healedState.hp,
+      maxHp: healedState.max_hp,
+      mana: healedState.mana,
+      maxMana: healedState.max_mana,
+      dungeon_coins: newCoinsRes.rows[0].dungeon_coins,
+    });
+  } catch (err) {
+    next(err);
+  }
+});
+
 // GET /api/player/:playerId/tower/vendor — catálogo del vendedor de la torre
 router.get('/vendor', async (req, res, next) => {
   try {
@@ -573,6 +690,82 @@ router.post('/vendor/buy', async (req, res, next) => {
       bought: true,
       item: itemRes.rows[0].name,
       quantity,
+      cost: totalCost,
+      dungeon_coins: newCoins,
+    });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// GET /api/player/:playerId/tower/settlement/shop — catálogo fijo (no random) de los artesanos
+// del abismo, precio base escalado por profundidad (mismo criterio que vendorEventPrice). Usa
+// el piso de la corrida activa; sin corrida activa no hay profundidad que aplicar.
+router.get('/settlement/shop', async (req, res, next) => {
+  try {
+    const run = await getActiveRun(req.playerId);
+    const floorNumber = run ? run.current_floor : 1;
+    const mult = depthPriceMultiplier(floorNumber);
+
+    const playerRes = await db.query('SELECT dungeon_coins FROM players WHERE id = $1', [req.playerId]);
+    if (!playerRes.rows.length) return res.status(404).json({ error: 'Jugador no encontrado' });
+
+    const shopRes = await db.query(
+      `SELECT tss.id, tss.base_price, i.id AS item_id, i.code, i.name, i.description, i.item_type, i.rarity
+       FROM tower_settlement_shop tss
+       JOIN items i ON i.id = tss.item_id
+       ORDER BY tss.base_price`
+    );
+
+    res.json({
+      dungeon_coins: playerRes.rows[0].dungeon_coins,
+      floor: floorNumber,
+      shop: shopRes.rows.map((r) => ({
+        id: r.id,
+        itemId: r.item_id,
+        code: r.code,
+        name: r.name,
+        description: r.description,
+        itemType: r.item_type,
+        rarity: r.rarity,
+        price: Math.round(r.base_price * mult),
+      })),
+    });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// POST /api/player/:playerId/tower/settlement/shop/buy   body: { itemId, quantity? }
+router.post('/settlement/shop/buy', async (req, res, next) => {
+  try {
+    const itemId = Number(req.body?.itemId);
+    const qty = Math.max(1, Math.min(99, parseInt(req.body?.quantity) || 1));
+    if (!itemId) return res.status(400).json({ error: 'itemId requerido' });
+
+    const run = await getActiveRun(req.playerId);
+    const floorNumber = run ? run.current_floor : 1;
+    const mult = depthPriceMultiplier(floorNumber);
+
+    const shopRes = await db.query('SELECT base_price FROM tower_settlement_shop WHERE item_id = $1', [itemId]);
+    if (!shopRes.rows.length) return res.status(404).json({ error: 'Ítem no disponible en esta tienda' });
+    const totalCost = Math.round(shopRes.rows[0].base_price * mult) * qty;
+
+    const playerRes = await db.query('SELECT dungeon_coins FROM players WHERE id = $1', [req.playerId]);
+    if (!playerRes.rows.length) return res.status(404).json({ error: 'Jugador no encontrado' });
+    if (playerRes.rows[0].dungeon_coins < totalCost) {
+      return res.status(400).json({ error: `Monedas insuficientes (necesitas ${totalCost}, tienes ${playerRes.rows[0].dungeon_coins})` });
+    }
+
+    await db.query('UPDATE players SET dungeon_coins = dungeon_coins - $1 WHERE id = $2', [totalCost, req.playerId]);
+    await inventory.addItem(req.playerId, itemId, qty);
+
+    const newCoins = (await db.query('SELECT dungeon_coins FROM players WHERE id = $1', [req.playerId])).rows[0].dungeon_coins;
+    const itemRes = await db.query('SELECT name FROM items WHERE id = $1', [itemId]);
+    res.json({
+      bought: true,
+      item: itemRes.rows[0].name,
+      quantity: qty,
       cost: totalCost,
       dungeon_coins: newCoins,
     });

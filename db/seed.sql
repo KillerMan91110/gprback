@@ -21396,3 +21396,33 @@ FROM (VALUES
   ('RYN_OFFHAND', 'El elemento que uso cambia con mi humor. Hoy, por suerte para ti, estaba de buen humor.')
 ) AS v(code, description)
 WHERE i.code = v.code;
+
+-- ===== Ciudades del Abismo: asentamientos cada 15 pisos de la Torre =====
+-- docs/backend-spec-ciudad-del-abismo.md. Parte 2: banking automatico necesita saber
+-- si ese checkpoint puntual ya se banco, para no volver a bancar en cada GET /tower/run.
+ALTER TABLE player_tower_runs ADD COLUMN IF NOT EXISTS last_banked_floor INT NOT NULL DEFAULT 0;
+
+-- Parte 4: tienda de artesanos del abismo -- catalogo fijo (no random) con mejor rareza
+-- que tower_vendor_shop, precio base que se multiplica por profundidad al mostrar
+-- (mismo criterio que vendorEventPrice, ver routes/tower.js depthPriceMultiplier).
+CREATE TABLE IF NOT EXISTS tower_settlement_shop (
+  id SERIAL PRIMARY KEY,
+  item_id INT NOT NULL REFERENCES items(id),
+  base_price INT NOT NULL,
+  UNIQUE (item_id)
+);
+
+-- Cristal de Estabilidad: +15 puntos de exito para UN intento de /enchant (routes/players.js),
+-- se consume se gane o se pierda el encantamiento, igual que las piedras normales.
+INSERT INTO items (code, name, item_type, slot, rarity, class_id, required_level, is_craftable, obtain_method, description) VALUES
+('CRISTAL_ESTABILIDAD', 'Cristal de Estabilidad', 'CONSUMABLE', NULL, 'RARO', NULL, NULL, FALSE, 'Tienda de artesanos del abismo (asentamiento)', 'Un cristal minado en las profundidades que estabiliza un encantamiento: +15 de probabilidad de éxito para un solo intento. Se consume aunque el encantamiento falle.')
+ON CONFLICT (code) DO NOTHING;
+
+INSERT INTO tower_settlement_shop (item_id, base_price)
+SELECT i.id, v.base_price FROM items i JOIN (VALUES
+  ('CRISTAL_ESTABILIDAD', 50),
+  ('ELIXIR_DE_PODER_SUPREMO', 60),
+  ('ESENCIA_RESTAURADORA', 50),
+  ('HUEVO_EPICO', 80)
+) AS v(code, base_price) ON v.code = i.code
+ON CONFLICT (item_id) DO NOTHING;
