@@ -1452,6 +1452,32 @@ async function handleTowerSessionEnd(sessionId, status) {
   if (!run) return;
 
   if (status !== 'PLAYER_WON') {
+    // Ciudades del Abismo (docs/backend-spec-ciudad-del-abismo.md parte 5): si el grupo ya pasó
+    // por al menos un checkpoint, un wipe no termina la corrida — la devuelve al último
+    // asentamiento con todos revividos al 100%, en vez de perderla entera. Solo si nunca pasó
+    // por ningún checkpoint (last_banked_floor === 0) se comporta como antes.
+    if (run.last_banked_floor > 0) {
+      const allPlayerIds = [run.player_id, run.guest_player_id, run.guest_player_id_2].filter(Boolean);
+
+      // Revivir al 100% -- mismo criterio que la enfermera del asentamiento (parte 3): hp/mana
+      // de la columna cruda, no el efectivo con bonos de mascota/pasivas, para ser consistentes
+      // con como ya cura /tower/settlement/heal.
+      await db.query('UPDATE players SET hp = max_hp, mana = max_mana WHERE id = ANY($1::int[])', [allPlayerIds]);
+      await db.query(
+        `UPDATE player_npcs SET hp = max_hp, mana = max_mana
+         WHERE id IN (SELECT npc_id FROM player_party WHERE player_id = ANY($1::int[]))`,
+        [allPlayerIds]
+      );
+
+      await db.query(
+        `UPDATE player_tower_runs
+         SET current_floor = last_banked_floor, current_room = 1, coins_earned = 0, current_session_id = NULL
+         WHERE id = $1`,
+        [run.id]
+      );
+      return;
+    }
+
     await db.query(
       `UPDATE player_tower_runs SET status='WIPED', current_session_id=NULL, ended_at=now() WHERE id=$1`,
       [run.id]
