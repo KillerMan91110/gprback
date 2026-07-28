@@ -1215,3 +1215,12 @@ CREATE TABLE IF NOT EXISTS tower_settlement_invites (
   created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 CREATE INDEX IF NOT EXISTS idx_settlement_invites_guest ON tower_settlement_invites(guest_id);
+
+-- Parte 7: Cristal de Viaje -- memoria permanente de que asentamientos descubrio cada jugador,
+-- se llena sola desde bankIfNewCheckpoint (routes/tower.js parte 2).
+CREATE TABLE IF NOT EXISTS player_discovered_checkpoints (
+  player_id INT NOT NULL REFERENCES players(id) ON DELETE CASCADE,
+  floor     INT NOT NULL,
+  discovered_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  PRIMARY KEY (player_id, floor)
+);

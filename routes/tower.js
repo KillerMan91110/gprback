@@ -131,6 +131,12 @@ async function bankIfNewCheckpoint(run) {
   const allPlayerIds = [run.player_id, run.guest_player_id, run.guest_player_id_2].filter(Boolean);
   for (const pid of allPlayerIds) {
     await db.query('UPDATE players SET dungeon_coins = dungeon_coins + $1 WHERE id = $2', [run.coins_earned, pid]);
+    // Parte 7 (Cristal de Viaje): registra el descubrimiento de este asentamiento para todo el
+    // grupo, no solo el lider -- memoria permanente, no se borra aunque la corrida termine despues.
+    await db.query(
+      'INSERT INTO player_discovered_checkpoints(player_id, floor) VALUES ($1, $2) ON CONFLICT DO NOTHING',
+      [pid, run.current_floor]
+    );
   }
   const updated = await db.query(
     `UPDATE player_tower_runs SET coins_earned = 0, last_banked_floor = $1 WHERE id = $2 RETURNING *`,
@@ -928,6 +934,117 @@ router.post('/settlement/invite/:inviteId/accept', async (req, res, next) => {
       'INSERT INTO player_coop_group_members(group_id, player_id) VALUES ($1,$2), ($1,$3)',
       [group.rows[0].id, leaderId, guestId]
     );
+
+    res.json({ run: newRun, checkpoint: checkpointInfo(newRun) });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// ===== Parte 7: Cristal de Viaje (docs/backend-spec-ciudad-del-abismo.md) =====
+const TRAVEL_CRYSTAL_CODE = 'CRISTAL_VIAJE';
+
+// GET /api/player/:playerId/tower/discovered — asentamientos que este jugador ya descubrio
+router.get('/discovered', async (req, res, next) => {
+  try {
+    const rows = await db.query(
+      'SELECT floor FROM player_discovered_checkpoints WHERE player_id = $1 ORDER BY floor',
+      [req.playerId]
+    );
+    res.json(rows.rows.map((r) => ({
+      floor: r.floor,
+      name: `Ciudad del Abismo ${toRoman(r.floor / SETTLEMENT_FLOOR_INTERVAL)}`,
+    })));
+  } catch (err) {
+    next(err);
+  }
+});
+
+// POST /api/player/:playerId/tower/travel   body: { floor, difficulty?, coopPartnerIds? }
+// Viaje rapido solo desde la entrada (sin corrida activa) a un checkpoint ya descubierto por
+// quien tiene el cristal. Mismo mecanismo de "cerrar y crear pre-ubicada" que la parte 6.
+router.post('/travel', async (req, res, next) => {
+  try {
+    const floor = Number(req.body?.floor);
+    if (!floor) return res.status(400).json({ error: 'floor requerido' });
+    const difficulty = req.body?.difficulty !== undefined ? Number(req.body.difficulty) : 1;
+    if (!DIFFICULTIES[difficulty]) return res.status(400).json({ error: 'Dificultad inválida' });
+
+    const myRun = await getActiveRun(req.playerId);
+    if (myRun) {
+      return res.status(400).json({ error: 'Ya tienes una corrida de torre activa; extráela o termínala antes de viajar' });
+    }
+
+    const coopPartnerIds = Array.isArray(req.body?.coopPartnerIds)
+      ? [...new Set(req.body.coopPartnerIds.map(Number))].filter((id) => id !== req.playerId)
+      : [];
+    if (coopPartnerIds.length > 2) return res.status(400).json({ error: 'Máximo 2 compañeros' });
+
+    if (coopPartnerIds.length) {
+      const allPlayerIds = [req.playerId, ...coopPartnerIds];
+      const groupCheck = await db.query(
+        `SELECT gm.group_id FROM player_coop_group_members gm
+         WHERE gm.player_id = ANY($1::int[])
+         GROUP BY gm.group_id
+         HAVING COUNT(DISTINCT gm.player_id) = $2`,
+        [allPlayerIds, allPlayerIds.length]
+      );
+      if (!groupCheck.rows.length) {
+        return res.status(403).json({ error: 'No estás en el mismo grupo co-op que esos jugadores' });
+      }
+    }
+
+    const discoveredRes = await db.query(
+      'SELECT 1 FROM player_discovered_checkpoints WHERE player_id = $1 AND floor = $2',
+      [req.playerId, floor]
+    );
+    if (!discoveredRes.rows.length) {
+      return res.status(400).json({ error: 'Todavía no descubriste esa Ciudad del Abismo' });
+    }
+
+    const crystalRes = await db.query('SELECT id FROM items WHERE code = $1', [TRAVEL_CRYSTAL_CODE]);
+    if (!crystalRes.rows.length) return res.status(500).json({ error: 'Cristal de Viaje no configurado' });
+    const crystalId = crystalRes.rows[0].id;
+    const crystalQty = await inventory.getQuantity(req.playerId, crystalId);
+    if (crystalQty < 1) return res.status(400).json({ error: 'No tienes ningún Cristal de Viaje' });
+
+    // Validar el estado de los compañeros ANTES de mutar nada: si alguno esta en plena sala de
+    // combate no se lo puede teletransportar a mitad de pelea.
+    const partnerRuns = [];
+    for (const pid of coopPartnerIds) {
+      const partnerRun = await getActiveRun(pid);
+      if (partnerRun) {
+        if (partnerRun.current_session_id) {
+          return res.status(400).json({ error: 'Uno de tus compañeros tiene una sala de combate en curso, no se lo puede sumar al viaje ahora' });
+        }
+        partnerRuns.push(partnerRun);
+      }
+    }
+
+    // Recien aca se muta: cerrar (bancando lo que tuvieran) las corridas activas de los
+    // compañeros, consumir el cristal, y crear la corrida compartida nueva.
+    for (const partnerRun of partnerRuns) {
+      await closeRunAsExtracted(partnerRun);
+    }
+    await inventory.removeItem(req.playerId, crystalId, 1);
+
+    const newRunRes = await db.query(
+      `INSERT INTO player_tower_runs(player_id, guest_player_id, guest_player_id_2, difficulty, current_floor, current_room, coins_earned, last_banked_floor, status)
+       VALUES ($1, $2, $3, $4, $5, 1, 0, $5, 'IN_PROGRESS') RETURNING *`,
+      [req.playerId, coopPartnerIds[0] ?? null, coopPartnerIds[1] ?? null, difficulty, floor]
+    );
+    const newRun = newRunRes.rows[0];
+
+    // current_floor === last_banked_floor desde el arranque, asi que bankIfNewCheckpoint nunca
+    // se dispara para esta corrida -- hay que sumar el descubrimiento a mano para todos los que
+    // viajan (quien tiene el cristal ya lo tenia; los compañeros pueden ser nuevos ahi).
+    const allTravelerIds = [req.playerId, ...coopPartnerIds];
+    for (const pid of allTravelerIds) {
+      await db.query(
+        'INSERT INTO player_discovered_checkpoints(player_id, floor) VALUES ($1, $2) ON CONFLICT DO NOTHING',
+        [pid, floor]
+      );
+    }
 
     res.json({ run: newRun, checkpoint: checkpointInfo(newRun) });
   } catch (err) {

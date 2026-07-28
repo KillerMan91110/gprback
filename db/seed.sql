@@ -21439,3 +21439,21 @@ CREATE TABLE IF NOT EXISTS tower_settlement_invites (
   created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 CREATE INDEX IF NOT EXISTS idx_settlement_invites_guest ON tower_settlement_invites(guest_id);
+
+-- ===== Ciudades del Abismo parte 7: Cristal de Viaje =====
+-- docs/backend-spec-ciudad-del-abismo.md. Memoria permanente de que asentamientos descubrio
+-- cada jugador, se llena sola desde bankIfNewCheckpoint (routes/tower.js parte 2).
+CREATE TABLE IF NOT EXISTS player_discovered_checkpoints (
+  player_id INT NOT NULL REFERENCES players(id) ON DELETE CASCADE,
+  floor     INT NOT NULL,
+  discovered_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  PRIMARY KEY (player_id, floor)
+);
+
+INSERT INTO items (code, name, item_type, slot, rarity, class_id, required_level, is_craftable, obtain_method, description) VALUES
+('CRISTAL_VIAJE', 'Cristal de Viaje', 'CONSUMABLE', NULL, 'RARO', NULL, NULL, FALSE, 'Tienda de artesanos del abismo (asentamiento)', 'Un cristal que resuena con un asentamiento ya visitado: te transporta a él al instante desde la entrada del Abismo. Se consume al viajar.')
+ON CONFLICT (code) DO NOTHING;
+
+INSERT INTO tower_settlement_shop (item_id, base_price)
+SELECT i.id, 50 FROM items i WHERE i.code = 'CRISTAL_VIAJE'
+ON CONFLICT (item_id) DO NOTHING;
