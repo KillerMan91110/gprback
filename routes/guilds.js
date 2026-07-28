@@ -722,15 +722,16 @@ router.get('/:id/masters/:masterId/shop', async (req, res, next) => {
   }
 });
 
-// POST /api/guilds/:id/masters/:masterId/buy   body: { itemId, recipientPlayerId? } - compra con
-// ORO PERSONAL de quien compra (no oro de banco de gremio); si recipientPlayerId viene y difiere
-// de quien compra, es un regalo -- solo lider/oficial, y el item se valida contra la clase del
-// DESTINATARIO, no la de quien paga.
+// POST /api/guilds/:id/masters/:masterId/buy   body: { itemId, quantity?, recipientPlayerId? } -
+// compra con ORO PERSONAL de quien compra (no oro de banco de gremio); si recipientPlayerId
+// viene y difiere de quien compra, es un regalo -- solo lider/oficial, y el item se valida contra
+// la clase del DESTINATARIO, no la de quien paga.
 router.post('/:id/masters/:masterId/buy', async (req, res, next) => {
   try {
     const playerId = req.playerId;
     const { id: guildId, masterId } = req.params;
     const itemId = Number(req.body?.itemId);
+    const qty = Math.max(1, Math.min(99, parseInt(req.body?.quantity) || 1));
     const recipientPlayerId = req.body?.recipientPlayerId ? Number(req.body.recipientPlayerId) : playerId;
     if (!itemId) return res.status(400).json({ error: 'itemId requerido' });
 
@@ -777,16 +778,16 @@ router.post('/:id/masters/:masterId/buy', async (req, res, next) => {
       [masterId, itemId]
     );
     if (!shopItemRes.rows.length) return res.status(404).json({ error: 'Ítem no disponible en esta tienda' });
-    const price = shopItemRes.rows[0].price;
+    const price = shopItemRes.rows[0].price * qty;
 
     const goldRes = await db.query('SELECT gold FROM players WHERE id = $1', [playerId]);
     const currentGold = Number(goldRes.rows[0].gold);
     if (currentGold < price) return res.status(400).json({ error: `Oro insuficiente (necesitás ${price})` });
 
     await db.query('UPDATE players SET gold = gold - $1 WHERE id = $2', [price, playerId]);
-    await inventory.addItem(recipientPlayerId, itemId, 1);
+    await inventory.addItem(recipientPlayerId, itemId, qty);
 
-    res.json({ bought: true, gold: currentGold - price, recipientPlayerId });
+    res.json({ bought: true, quantity: qty, gold: currentGold - price, recipientPlayerId });
   } catch (error) {
     next(error);
   }

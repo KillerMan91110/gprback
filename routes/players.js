@@ -600,10 +600,11 @@ router.get('/:playerId/guild/shop', async (req, res, next) => {
   }
 });
 
-// POST /api/players/:playerId/guild/shop/buy { itemId }
+// POST /api/players/:playerId/guild/shop/buy { itemId, quantity? }
 router.post('/:playerId/guild/shop/buy', async (req, res, next) => {
   const { playerId } = req.params;
   const { itemId } = req.body;
+  const qty = Math.max(1, Math.min(99, parseInt(req.body.quantity) || 1));
 
   try {
     const itemResult = await db.query('SELECT * FROM items WHERE id = $1', [itemId]);
@@ -628,16 +629,16 @@ router.post('/:playerId/guild/shop/buy', async (req, res, next) => {
       }
     }
 
-    const cost = item.buy_price;
+    const cost = item.buy_price * qty;
     if (Number(player.gold) < cost) {
       return res.status(400).json({ error: `No tienes suficiente oro (necesitas ${cost})`, cost, gold: Number(player.gold) });
     }
 
     const newGold = Number(player.gold) - cost;
     await db.query('UPDATE players SET gold = $1, updated_at = now() WHERE id = $2', [newGold, playerId]);
-    await inventory.addItem(playerId, item.id, 1);
+    await inventory.addItem(playerId, item.id, qty);
 
-    res.json({ boughtItemId: item.id, name: item.name, cost, newGold });
+    res.json({ boughtItemId: item.id, name: item.name, quantity: qty, cost, newGold });
   } catch (error) {
     next(error);
   }
