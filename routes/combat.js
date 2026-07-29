@@ -1572,9 +1572,17 @@ async function finalizeSession(sessionId, status, participants) {
       const partySize = heroPs.length + npcPs.length;
       const splitXp = Math.floor(rewards.xp / partySize);
 
+      // Nivel promedio de los enemigos de ESTA pelea, para penalizar el XP si el jugador ya los
+      // superó de nivel (ver leveling.underLevelXpMult) — sin esto volver a pisos bajos de la
+      // Torre ya superados da el mismo XP integro que contenido a tu nivel.
+      const avgEnemyLevel = participants.enemy.length
+        ? participants.enemy.reduce((sum, e) => sum + (e.level || 0), 0) / participants.enemy.length
+        : 0;
+
       for (const hp of heroPs) {
         const heroXpMult = combatBonusMultipliers(heroGuildLevels.get(hp.player_id)).xp;
-        const heroXp = Math.round(splitXp * heroXpMult);
+        const levelMult = leveling.underLevelXpMult(hp.level, avgEnemyLevel);
+        const heroXp = Math.round(splitXp * heroXpMult * levelMult);
         const levelResult = await leveling.applyXpGain(hp.player_id, heroXp);
         if (levelResult && levelResult.leveledUp) {
           rewards.levelUps.push({ playerId: hp.player_id, newLevel: levelResult.newLevel });
@@ -1586,7 +1594,9 @@ async function finalizeSession(sessionId, status, participants) {
         }
       }
       for (const npc of npcPs) {
-        const npcLevelResult = await leveling.applyNpcXpGain(npc.npc_id, splitXp);
+        const levelMult = leveling.underLevelXpMult(npc.level, avgEnemyLevel);
+        const npcXp = Math.round(splitXp * levelMult);
+        const npcLevelResult = await leveling.applyNpcXpGain(npc.npc_id, npcXp);
         if (npcLevelResult && npcLevelResult.leveledUp) {
           rewards.levelUps.push({ npcId: npc.npc_id, npcName: npc.name, newLevel: npcLevelResult.newLevel });
         }
