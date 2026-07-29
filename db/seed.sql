@@ -22413,3 +22413,13 @@ FROM (VALUES
   ('VOLCAN_Q3_TITAN_FUEGO', 9656)
 ) AS v(code, xp_reward)
 WHERE q.code = v.code;
+
+-- ===== "Jefe derrotado" basado en kill real =====
+-- docs/backend-spec-jefe-derrotado-por-kill.md. Mirror de schema.sql (va despues de monsters).
+CREATE TABLE IF NOT EXISTS player_monster_kills (
+  player_id       INT NOT NULL REFERENCES players(id) ON DELETE CASCADE,
+  monster_id      INT NOT NULL REFERENCES monsters(id) ON DELETE CASCADE,
+  first_killed_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  PRIMARY KEY (player_id, monster_id)
+);
+CREATE INDEX IF NOT EXISTS idx_player_monster_kills_player_id ON player_monster_kills(player_id);

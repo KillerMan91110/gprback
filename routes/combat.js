@@ -306,6 +306,21 @@ async function recordMonsterEncounters(playerIds, enemyCombatants) {
   );
 }
 
+// "Jefe derrotado" basado en kill real (docs/backend-spec-jefe-derrotado-por-kill.md): a
+// diferencia de player_monster_encounters (se llena al ENTRAR en combate), esta solo se llena en
+// victoria -- se usa en GET /:playerId/zones para bossDefeated en vez de si completaste la misión.
+async function recordMonsterKills(playerIds, enemyCombatants) {
+  const ids = [...new Set(playerIds)].filter(Boolean);
+  const codes = [...new Set(enemyCombatants.map((e) => e.monster_code))];
+  if (!ids.length || !codes.length) return;
+  await db.query(
+    `INSERT INTO player_monster_kills (player_id, monster_id)
+     SELECT p, m.id FROM unnest($1::int[]) AS p, monsters m WHERE m.code = ANY($2::text[])
+     ON CONFLICT DO NOTHING`,
+    [ids, codes]
+  );
+}
+
 // Crea la sesion de combate y reclama player_active_combat_session para cada jugador humano
 // en la misma transaccion: player_id es PK ahi, asi que si alguno ya tiene una sesion activa
 // el INSERT choca contra la constraint, se hace ROLLBACK completo (ninguna sesion duplicada
@@ -1519,6 +1534,7 @@ async function finalizeSession(sessionId, status, participants) {
       for (const enemy of participants.enemy) {
         await questProgress.registerKill(heroP.player_id, enemy.monster_code);
       }
+      await recordMonsterKills(heroPs.map((hp) => hp.player_id), participants.enemy);
 
       const rankResult = await db.query('SELECT rank FROM players WHERE id = $1', [heroP.player_id]);
       const { xpBonusPercent, rewardBonusPercent } = await getRankBonuses(rankResult.rows[0].rank);

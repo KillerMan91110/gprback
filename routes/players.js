@@ -54,23 +54,28 @@ async function getUnlockedZoneIds(playerId, playerLevel) {
   const zonesResult = await db.query(
     'SELECT id, min_level FROM monster_zones WHERE is_tower_zone = FALSE ORDER BY min_level'
   );
-  const bossQuestsResult = await db.query(
-    "SELECT id, zone_id FROM quests WHERE is_boss_quest = TRUE AND quest_type = 'PRINCIPAL'"
+  // "Jefe derrotado" basado en kill real, no en mision completada (docs/backend-spec-jefe-
+  // derrotado-por-kill.md) — misma fuente que GET /:playerId/zones, para que una zona no
+  // aparezca "desbloqueada" ahi pero sus misiones sigan ocultas por esta funcion.
+  const bossMonstersResult = await db.query(
+    `SELECT q.zone_id, qo.monster_id
+     FROM quests q
+     JOIN quest_objectives qo ON qo.quest_id = q.id AND qo.objective_type = 'DEFEAT_BOSS'
+     WHERE q.is_boss_quest = TRUE AND q.quest_type = 'PRINCIPAL'`
   );
-  const bossQuestByZone = new Map(bossQuestsResult.rows.map((q) => [q.zone_id, q.id]));
+  const bossMonsterByZone = new Map(bossMonstersResult.rows.map((r) => [r.zone_id, r.monster_id]));
 
-  const completionsResult = await db.query(
-    `SELECT quest_id FROM player_quest_completions
-     WHERE player_id = $1 AND quest_id = ANY($2::int[])`,
-    [playerId, [...bossQuestByZone.values()]]
+  const killsResult = await db.query(
+    'SELECT monster_id FROM player_monster_kills WHERE player_id = $1',
+    [playerId]
   );
-  const completedQuestIds = new Set(completionsResult.rows.map((r) => r.quest_id));
+  const killedMonsterIds = new Set(killsResult.rows.map((r) => r.monster_id));
 
   let previousBossDefeated = true;
   const unlockedIds = new Set();
   for (const [index, zone] of zonesResult.rows.entries()) {
-    const bossQuestId = bossQuestByZone.get(zone.id) || null;
-    const bossDefeated = bossQuestId ? completedQuestIds.has(bossQuestId) : false;
+    const bossMonsterId = bossMonsterByZone.get(zone.id) || null;
+    const bossDefeated = bossMonsterId ? killedMonsterIds.has(bossMonsterId) : false;
     if (index === 0 || previousBossDefeated || playerLevel >= zone.min_level) {
       unlockedIds.add(zone.id);
     }
@@ -115,17 +120,22 @@ router.get('/:playerId/zones', async (req, res, next) => {
       'SELECT id, name, min_level, max_level, description FROM monster_zones WHERE is_tower_zone = FALSE ORDER BY min_level'
     );
 
-    const bossQuestsResult = await db.query(
-      "SELECT id, zone_id FROM quests WHERE is_boss_quest = TRUE"
+    // "Jefe derrotado" basado en kill real, no en mision completada (docs/backend-spec-jefe-
+    // derrotado-por-kill.md) — cuenta si lo mataste alguna vez, sea por mision o explorando
+    // libremente sin la mision aceptada.
+    const bossMonstersResult = await db.query(
+      `SELECT q.zone_id, qo.monster_id
+       FROM quests q
+       JOIN quest_objectives qo ON qo.quest_id = q.id AND qo.objective_type = 'DEFEAT_BOSS'
+       WHERE q.is_boss_quest = TRUE`
     );
-    const bossQuestByZone = new Map(bossQuestsResult.rows.map((q) => [q.zone_id, q.id]));
+    const bossMonsterByZone = new Map(bossMonstersResult.rows.map((r) => [r.zone_id, r.monster_id]));
 
-    const completionsResult = await db.query(
-      `SELECT quest_id FROM player_quest_completions
-       WHERE player_id = $1 AND quest_id = ANY($2::int[])`,
-      [playerId, [...bossQuestByZone.values()]]
+    const killsResult = await db.query(
+      'SELECT monster_id FROM player_monster_kills WHERE player_id = $1',
+      [playerId]
     );
-    const completedQuestIds = new Set(completionsResult.rows.map((r) => r.quest_id));
+    const killedMonsterIds = new Set(killsResult.rows.map((r) => r.monster_id));
 
     const craftUnlocksResult = await db.query(
       `SELECT zone_id, unlocked_at FROM player_zone_unlocks WHERE player_id = $1`,
@@ -141,8 +151,8 @@ router.get('/:playerId/zones', async (req, res, next) => {
 
     let previousBossDefeated = true;
     const zones = zonesResult.rows.map((zone, index) => {
-      const bossQuestId = bossQuestByZone.get(zone.id) || null;
-      const bossDefeated = bossQuestId ? completedQuestIds.has(bossQuestId) : false;
+      const bossMonsterId = bossMonsterByZone.get(zone.id) || null;
+      const bossDefeated = bossMonsterId ? killedMonsterIds.has(bossMonsterId) : false;
       const unlocked = index === 0 || previousBossDefeated || playerLevel >= zone.min_level;
       previousBossDefeated = bossDefeated;
 

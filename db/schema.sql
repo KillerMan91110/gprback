@@ -733,6 +733,15 @@ CREATE TABLE IF NOT EXISTS player_monster_encounters (
 );
 CREATE INDEX IF NOT EXISTS idx_player_monster_encounters_player_id ON player_monster_encounters(player_id);
 
+-- "Jefe derrotado" basado en kill real, no en mision completada (ver GET /:playerId/zones).
+CREATE TABLE IF NOT EXISTS player_monster_kills (
+  player_id       INT NOT NULL REFERENCES players(id) ON DELETE CASCADE,
+  monster_id      INT NOT NULL REFERENCES monsters(id) ON DELETE CASCADE,
+  first_killed_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  PRIMARY KEY (player_id, monster_id)
+);
+CREATE INDEX IF NOT EXISTS idx_player_monster_kills_player_id ON player_monster_kills(player_id);
+
 CREATE TABLE IF NOT EXISTS monster_skills (
   id                 SERIAL PRIMARY KEY,
   monster_id         INT NOT NULL REFERENCES monsters(id) ON DELETE CASCADE,
