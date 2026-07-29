@@ -21911,3 +21911,19 @@ FROM (VALUES
   ('SACERDOTE_PODER_DIVINO', 2502)
 ) AS v(code, xp_reward)
 WHERE q.code = v.code;
+-- ===== Tope de XP para bosses/raros de zona sobre-tuneados =====
+-- Algunos legendarios/minibosses de zonas tempranas quedaron muy por encima del costo de
+-- nivel al reescalar el XP (ej. Titan de la Pradera daba 213% de un nivel entero de un
+-- solo kill). Tope aplicado: RARE 8%, MINIBOSS 10%, LEGENDARY 30% del costo de ese nivel
+-- (1000*nivel, ver lib/leveling.js).
+UPDATE monsters AS m SET xp_reward = v.xp_reward
+FROM (VALUES
+  ('CHAMAN_OSCURO', 800),
+  ('CAPITAN_LOBOS', 1200),
+  ('LOBO_FEROZ', 800),
+  ('TITAN_PRADERA', 4500),
+  ('REY_MONTANA', 9000),
+  ('WORLD_BOSS_DEVORADOR_ESTRELLAS', 15000),
+  ('SENOR_ACANTILADO', 2700)
+) AS v(code, xp_reward)
+WHERE m.code = v.code;
