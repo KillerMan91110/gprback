@@ -125,6 +125,56 @@ router.get('/mine', async (req, res, next) => {
   } catch (error) { next(error); }
 });
 
+// GET /api/player/:playerId/market/history?itemId=X&enchantLevel=Y&qualityTier=Z
+// GET /api/player/:playerId/market/history?petId=X
+// Referencia de precio: últimas ventas concretadas de ese ítem (por calidad exacta) o de esa
+// especie de mascota (petId = pets.id, no player_pet_id — cada mascota puntual es única, lo que
+// importa es a cuánto se viene vendiendo la especie). Mutuamente excluyente, igual que al publicar.
+router.get('/history', async (req, res, next) => {
+  const { itemId, petId } = req.query;
+  const enchantLevel = parseInt(req.query.enchantLevel) || 0;
+  const qualityTier = parseInt(req.query.qualityTier) || 0;
+
+  if (itemId && petId) {
+    return res.status(400).json({ error: 'itemId y petId son mutuamente excluyentes' });
+  }
+  if (!itemId && !petId) {
+    return res.status(400).json({ error: 'Falta itemId o petId' });
+  }
+
+  try {
+    let result;
+    if (petId) {
+      result = await db.query(
+        `SELECT l.price_per_unit, l.currency, l.quantity, l.sold_at
+         FROM player_market_listings l
+         JOIN player_pets pp ON pp.id = l.player_pet_id
+         WHERE pp.pet_id = $1 AND l.status = 'SOLD'
+         ORDER BY l.sold_at DESC
+         LIMIT 20`,
+        [petId]
+      );
+    } else {
+      result = await db.query(
+        `SELECT price_per_unit, currency, quantity, sold_at
+         FROM player_market_listings
+         WHERE item_id = $1 AND enchant_level = $2 AND quality_tier = $3 AND status = 'SOLD'
+         ORDER BY sold_at DESC
+         LIMIT 20`,
+        [itemId, enchantLevel, qualityTier]
+      );
+    }
+    res.json({
+      sales: result.rows.map((r) => ({
+        pricePerUnit: r.price_per_unit,
+        currency: r.currency,
+        quantity: r.quantity,
+        soldAt: r.sold_at,
+      })),
+    });
+  } catch (error) { next(error); }
+});
+
 // POST /api/player/:playerId/market/listings
 // body (ítem):   { itemId, enchantLevel?, qualityTier?, quantity, pricePerUnit, currency? }
 // body (mascota): { playerPetId, pricePerUnit, currency? }
