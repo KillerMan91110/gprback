@@ -1023,6 +1023,21 @@ CREATE TABLE IF NOT EXISTS player_pets (
 );
 CREATE UNIQUE INDEX IF NOT EXISTS one_active_pet_per_player ON player_pets(player_id) WHERE is_active;
 
+-- Mercado multi-moneda + venta de mascotas: player_market_listings ya existe (línea ~974) pero
+-- referencia player_pets, que se crea recién acá arriba, por eso van como ALTER en vez de estar
+-- en el CREATE TABLE original.
+ALTER TABLE player_market_listings
+  ADD COLUMN IF NOT EXISTS currency TEXT NOT NULL DEFAULT 'GOLD'
+    CHECK (currency IN ('GOLD', 'DUNGEON_COINS', 'COSMIC_SHARDS'));
+ALTER TABLE player_market_listings ALTER COLUMN item_id DROP NOT NULL;
+ALTER TABLE player_market_listings ADD COLUMN IF NOT EXISTS player_pet_id INT REFERENCES player_pets(id);
+ALTER TABLE player_market_listings DROP CONSTRAINT IF EXISTS chk_listing_target;
+ALTER TABLE player_market_listings ADD CONSTRAINT chk_listing_target CHECK (
+  (item_id IS NOT NULL AND player_pet_id IS NULL) OR
+  (item_id IS NULL AND player_pet_id IS NOT NULL)
+);
+CREATE INDEX IF NOT EXISTS idx_market_listings_pet ON player_market_listings(player_pet_id) WHERE status = 'ACTIVE';
+
 CREATE TABLE IF NOT EXISTS player_incubator (
   player_id     INT PRIMARY KEY REFERENCES players(id) ON DELETE CASCADE,
   egg_item_id   INT NOT NULL REFERENCES items(id),

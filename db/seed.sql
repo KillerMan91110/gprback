@@ -21554,3 +21554,18 @@ ON CONFLICT (code) DO NOTHING;
 INSERT INTO tower_settlement_shop (item_id, base_price)
 SELECT i.id, 50 FROM items i WHERE i.code = 'CRISTAL_VIAJE'
 ON CONFLICT (item_id) DO NOTHING;
+
+-- ===== Mercado multi-moneda + venta de mascotas =====
+-- docs/backend-spec-mercado-multimoneda-mascotas.md. Mirror de lo agregado en schema.sql
+-- (después de player_pets, porque player_pet_id la referencia).
+ALTER TABLE player_market_listings
+  ADD COLUMN IF NOT EXISTS currency TEXT NOT NULL DEFAULT 'GOLD'
+    CHECK (currency IN ('GOLD', 'DUNGEON_COINS', 'COSMIC_SHARDS'));
+ALTER TABLE player_market_listings ALTER COLUMN item_id DROP NOT NULL;
+ALTER TABLE player_market_listings ADD COLUMN IF NOT EXISTS player_pet_id INT REFERENCES player_pets(id);
+ALTER TABLE player_market_listings DROP CONSTRAINT IF EXISTS chk_listing_target;
+ALTER TABLE player_market_listings ADD CONSTRAINT chk_listing_target CHECK (
+  (item_id IS NOT NULL AND player_pet_id IS NULL) OR
+  (item_id IS NULL AND player_pet_id IS NOT NULL)
+);
+CREATE INDEX IF NOT EXISTS idx_market_listings_pet ON player_market_listings(player_pet_id) WHERE status = 'ACTIVE';

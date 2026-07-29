@@ -34,6 +34,10 @@ router.get('/', async (req, res, next) => {
        FROM player_pets pp
        JOIN pets p ON p.id = pp.pet_id
        WHERE pp.player_id = $1
+         AND NOT EXISTS (
+           SELECT 1 FROM player_market_listings l
+           WHERE l.player_pet_id = pp.id AND l.status = 'ACTIVE'
+         )
        ORDER BY pp.is_active DESC, pp.id`,
       [playerId]
     );
