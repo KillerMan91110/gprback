@@ -266,6 +266,10 @@ playerRouter.get('/ready-status', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
+// Huevo Cosmico: en vez de ir al inventario, otorga directamente una mascota LEGENDARIO elegida
+// por el jugador (sin pasar por incubadora/RNG). Ver GET /shop/legendary-pets para el catalogo.
+const COSMIC_EGG_CODE = 'HUEVO_COSMICO';
+
 // GET /api/player/:playerId/worldboss/shop
 playerRouter.get('/shop', async (req, res, next) => {
   try {
@@ -280,17 +284,53 @@ playerRouter.get('/shop', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-// POST /api/player/:playerId/worldboss/shop/buy   body: { itemId, quantity? }
+// GET /api/player/:playerId/worldboss/shop/legendary-pets — catalogo para elegir al comprar el Huevo Cosmico
+playerRouter.get('/shop/legendary-pets', async (req, res, next) => {
+  try {
+    const pets = await db.query(
+      `SELECT p.id, p.code, p.name, p.description, e.name AS element
+       FROM pets p LEFT JOIN elements e ON e.id = p.element_id
+       WHERE p.rarity = 'LEGENDARIO' ORDER BY p.name`
+    );
+    res.json(pets.rows);
+  } catch (err) { next(err); }
+});
+
+// POST /api/player/:playerId/worldboss/shop/buy   body: { itemId, quantity?, petId? }
+// petId es obligatorio (y quantity se ignora, siempre 1) cuando itemId es el Huevo Cosmico.
 playerRouter.post('/shop/buy', async (req, res, next) => {
   try {
     const itemId = Number(req.body?.itemId);
     const quantity = Math.max(1, Number(req.body?.quantity) || 1);
     if (!itemId) return res.status(400).json({ error: 'itemId requerido' });
 
-    const shopRes = await db.query('SELECT price FROM world_boss_shop WHERE item_id = $1', [itemId]);
+    const shopRes = await db.query(
+      `SELECT wbs.price, i.code FROM world_boss_shop wbs JOIN items i ON i.id = wbs.item_id WHERE wbs.item_id = $1`,
+      [itemId]
+    );
     if (!shopRes.rows.length) return res.status(404).json({ error: 'Ítem no disponible en la tienda del World Boss' });
-    const totalCost = shopRes.rows[0].price * quantity;
+    const { price, code: itemCode } = shopRes.rows[0];
 
+    if (itemCode === COSMIC_EGG_CODE) {
+      const petId = Number(req.body?.petId);
+      if (!petId) return res.status(400).json({ error: 'petId requerido para el Huevo Cósmico' });
+      const petRes = await db.query(`SELECT id, name FROM pets WHERE id = $1 AND rarity = 'LEGENDARIO'`, [petId]);
+      if (!petRes.rows.length) return res.status(400).json({ error: 'Esa mascota no es una opción válida del Huevo Cósmico' });
+
+      const playerRes = await db.query('SELECT cosmic_shards FROM players WHERE id = $1', [req.playerId]);
+      if (!playerRes.rows.length) return res.status(404).json({ error: 'Jugador no encontrado' });
+      if (playerRes.rows[0].cosmic_shards < price) {
+        return res.status(400).json({ error: `Fragmentos insuficientes (necesitas ${price}, tienes ${playerRes.rows[0].cosmic_shards})` });
+      }
+
+      await db.query('UPDATE players SET cosmic_shards = cosmic_shards - $1 WHERE id = $2', [price, req.playerId]);
+      await db.query('INSERT INTO player_pets(player_id, pet_id) VALUES ($1, $2)', [req.playerId, petId]);
+
+      const newShards = (await db.query('SELECT cosmic_shards FROM players WHERE id = $1', [req.playerId])).rows[0].cosmic_shards;
+      return res.json({ bought: true, item: petRes.rows[0].name, quantity: 1, cost: price, cosmic_shards: newShards });
+    }
+
+    const totalCost = price * quantity;
     const playerRes = await db.query('SELECT cosmic_shards FROM players WHERE id = $1', [req.playerId]);
     if (!playerRes.rows.length) return res.status(404).json({ error: 'Jugador no encontrado' });
     if (playerRes.rows[0].cosmic_shards < totalCost) {

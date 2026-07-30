@@ -2851,6 +2851,10 @@ router.get('/:playerId/enchant/info', requireAuth, async (req, res, next) => {
 // gane o se pierda, mismo criterio que las piedras normales.
 const STABILITY_CRYSTAL_CODE = 'CRISTAL_ESTABILIDAD';
 const STABILITY_CRYSTAL_RATE_BONUS = 15;
+// Version mas fuerte, vendida en la tienda del World Boss (docs ya borrados, ver commit) — si el
+// jugador tiene ambos cristales y pide useCrystal, se prioriza el Mayor.
+const MAJOR_STABILITY_CRYSTAL_CODE = 'CRISTAL_ESTABILIDAD_MAYOR';
+const MAJOR_STABILITY_CRYSTAL_RATE_BONUS = 30;
 
 // POST /api/player/:playerId/enchant
 // body: { slot, useCrystal? }  — intenta encantar el ítem equipado en ese slot
@@ -2887,13 +2891,25 @@ router.post('/:playerId/enchant', requireAuth, async (req, res, next) => {
     }
 
     let crystalId = null;
+    let crystalBonus = 0;
     if (useCrystal) {
-      const crystalRes = await db.query('SELECT id FROM items WHERE code = $1', [STABILITY_CRYSTAL_CODE]);
-      if (!crystalRes.rows.length) return res.status(500).json({ error: 'Cristal de Estabilidad no configurado' });
-      crystalId = crystalRes.rows[0].id;
-      const crystalQty = await inventory.getQuantity(playerId, crystalId);
-      if (crystalQty < 1) {
-        return res.status(400).json({ error: 'No tienes ningún Cristal de Estabilidad' });
+      const [majorRes, regularRes] = await Promise.all([
+        db.query('SELECT id FROM items WHERE code = $1', [MAJOR_STABILITY_CRYSTAL_CODE]),
+        db.query('SELECT id FROM items WHERE code = $1', [STABILITY_CRYSTAL_CODE]),
+      ]);
+      const majorId = majorRes.rows[0]?.id ?? null;
+      const regularId = regularRes.rows[0]?.id ?? null;
+      const majorQty = majorId ? await inventory.getQuantity(playerId, majorId) : 0;
+      if (majorQty >= 1) {
+        crystalId = majorId;
+        crystalBonus = MAJOR_STABILITY_CRYSTAL_RATE_BONUS;
+      } else {
+        const regularQty = regularId ? await inventory.getQuantity(playerId, regularId) : 0;
+        if (regularQty < 1) {
+          return res.status(400).json({ error: 'No tienes ningún Cristal de Estabilidad' });
+        }
+        crystalId = regularId;
+        crystalBonus = STABILITY_CRYSTAL_RATE_BONUS;
       }
     }
 
@@ -2902,7 +2918,7 @@ router.post('/:playerId/enchant', requireAuth, async (req, res, next) => {
     await inventory.removeItem(playerId, stoneId, cost.qty);
     if (crystalId) await inventory.removeItem(playerId, crystalId, 1);
 
-    const effectiveRate = Math.min(100, cost.rate + (crystalId ? STABILITY_CRYSTAL_RATE_BONUS : 0));
+    const effectiveRate = Math.min(100, cost.rate + crystalBonus);
     const success = Math.random() * 100 < effectiveRate;
     if (success) {
       // Delta de HP si el ítem tiene bono de HP

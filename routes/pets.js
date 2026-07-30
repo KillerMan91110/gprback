@@ -16,6 +16,11 @@ const EGG_CODE_TO_RARITY = {
   HUEVO_RARO: 'RARO', HUEVO_EPICO: 'EPICO', HUEVO_LEGENDARIO: 'LEGENDARIO',
 };
 
+// Tienda del World Boss: sube el tope de nivel de UNA mascota puntual en vez de darle bond
+// normal — por eso se maneja aparte del calculo de bond_points/nivel de mas abajo.
+const TRANSCENDENCE_STONE_CODE = 'PIEDRA_TRASCENDENCIA';
+const TRANSCENDENCE_STONE_LEVEL_BONUS = 3;
+
 // GET /api/player/:playerId/pets
 router.get('/', async (req, res, next) => {
   try {
@@ -99,6 +104,10 @@ router.post('/:playerPetId/feed', async (req, res, next) => {
     if (!petRes.rows.length) return res.status(404).json({ error: 'Mascota no encontrada' });
     const pet = petRes.rows[0];
 
+    const itemRes = await db.query('SELECT code FROM items WHERE id = $1', [itemId]);
+    if (!itemRes.rows.length) return res.status(404).json({ error: 'Ítem no encontrado' });
+    const itemCode = itemRes.rows[0].code;
+
     const invRes = await db.query(
       'SELECT quantity FROM player_inventory WHERE player_id = $1 AND item_id = $2',
       [playerId, itemId]
@@ -116,9 +125,20 @@ router.post('/:playerPetId/feed', async (req, res, next) => {
       [playerId, itemId]
     );
 
+    if (itemCode === TRANSCENDENCE_STONE_CODE) {
+      const bump = TRANSCENDENCE_STONE_LEVEL_BONUS * Number(quantity);
+      const newLevel = pet.level + bump;
+      const newBonusMaxLevel = pet.bonus_max_level + bump;
+      await db.query(
+        'UPDATE player_pets SET level = $1, bonus_max_level = $2 WHERE id = $3',
+        [newLevel, newBonusMaxLevel, playerPetId]
+      );
+      return res.json({ level: newLevel, bonus_max_level: newBonusMaxLevel, leveled_up: true, transcended: true });
+    }
+
     const BOND_PER_ITEM = 10;
     const BOND_PER_LEVEL = 100;
-    const MAX_LEVEL = 20;
+    const MAX_LEVEL = 20 + pet.bonus_max_level;
     const gained = BOND_PER_ITEM * Number(quantity);
     const total = pet.bond_points + gained;
     const levelsGained = Math.min(MAX_LEVEL - pet.level, Math.floor(total / BOND_PER_LEVEL));

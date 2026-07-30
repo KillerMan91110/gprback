@@ -22423,3 +22423,41 @@ CREATE TABLE IF NOT EXISTS player_monster_kills (
   PRIMARY KEY (player_id, monster_id)
 );
 CREATE INDEX IF NOT EXISTS idx_player_monster_kills_player_id ON player_monster_kills(player_id);
+
+-- ===== Tienda del World Boss: 5 items nuevos =====
+-- Mirror de schema.sql (bonus_max_level va despues de player_pets).
+ALTER TABLE player_pets ADD COLUMN IF NOT EXISTS bonus_max_level INT NOT NULL DEFAULT 0;
+-- Sin esto el ON CONFLICT DO NOTHING de mas abajo no tiene target valido sobre item_id y un
+-- re-run duplica filas (paso real en produccion, ya corregido).
+CREATE UNIQUE INDEX IF NOT EXISTS world_boss_shop_item_id_key ON world_boss_shop(item_id);
+
+INSERT INTO items (code, name, item_type, slot, rarity, class_id, required_level, is_craftable, obtain_method, description) VALUES
+('CRISTAL_ESTABILIDAD_MAYOR', 'Cristal de Estabilidad Mayor', 'CONSUMABLE', NULL, 'EPICO', NULL, NULL, FALSE, 'Tienda del World Boss', 'Una version mas pura del cristal de estabilidad. Se usa al encantar (useCrystal): suma +30 puntos de exito a un solo intento. Se consume se gane o se pierda.'),
+('CRISTAL_RESURRECCION', 'Cristal de Resurreccion', 'CONSUMABLE', NULL, 'EPICO', NULL, NULL, FALSE, 'Tienda del World Boss', 'Revive a un aliado caido en combate al 40% de su HP maximo. Se consume al usarlo.'),
+('HUEVO_COSMICO', 'Huevo Cosmico', 'CONSUMABLE', NULL, 'LEGENDARIO', NULL, NULL, FALSE, 'Tienda del World Boss', 'Un huevo que resuena con el poder del World Boss. Al comprarlo elegis directamente que mascota LEGENDARIO se une a vos, sin pasar por la incubadora.'),
+('PIEDRA_TRASCENDENCIA', 'Piedra de Trascendencia', 'CONSUMABLE', NULL, 'LEGENDARIO', NULL, NULL, FALSE, 'Tienda del World Boss', 'Dasela de comer a una mascota: sube su nivel actual y su tope maximo en +3 (incluso si ya esta en el maximo).'),
+('TOMO_JUICIO_COSMICO', 'Tomo del Juicio Cosmico', 'CONSUMABLE', NULL, 'LEGENDARIO', NULL, NULL, FALSE, 'Tienda del World Boss', 'Ensena Juicio Cosmico, una habilidad ofensiva que cualquier clase puede aprender y usar.')
+ON CONFLICT (code) DO NOTHING;
+
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT id, 'REVIVE_HP_PERCENT', 40, TRUE FROM items WHERE code = 'CRISTAL_RESURRECCION'
+ON CONFLICT DO NOTHING;
+
+INSERT INTO skills (class_id, code, name, skill_type, damage_school, element_id, target_type, base_value, scaling_stat, scaling_multiplier, hits, mana_cost, is_passive, learn_method, description)
+VALUES (NULL, 'UNIVERSAL_JUICIO_COSMICO', 'Juicio Cosmico', 'ATAQUE', 'HIBRIDO', (SELECT id FROM elements WHERE code='COSMIC'), 'ENEMY', 400, 'HYBRID', 1.7, 1, 70, FALSE, 'ITEM', 'Un juicio cosmico cae sobre el enemigo, combinando fuerza fisica y poder magico por igual. Se aprende con el Tomo del Juicio Cosmico.')
+ON CONFLICT (code) DO NOTHING;
+
+INSERT INTO item_teaches_skill (item_id, skill_id)
+SELECT i.id, s.id FROM items i, skills s
+WHERE i.code = 'TOMO_JUICIO_COSMICO' AND s.code = 'UNIVERSAL_JUICIO_COSMICO'
+ON CONFLICT DO NOTHING;
+
+INSERT INTO world_boss_shop (item_id, price)
+SELECT id, v.price FROM items i JOIN (VALUES
+  ('CRISTAL_ESTABILIDAD_MAYOR', 500),
+  ('CRISTAL_RESURRECCION', 250),
+  ('TOMO_JUICIO_COSMICO', 5000),
+  ('PIEDRA_TRASCENDENCIA', 25000),
+  ('HUEVO_COSMICO', 50000)
+) AS v(code, price) ON i.code = v.code
+ON CONFLICT DO NOTHING;

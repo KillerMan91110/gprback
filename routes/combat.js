@@ -3504,6 +3504,13 @@ router.post('/sessions/:id/action', async (req, res, next) => {
       const itemNameResult = await db.query('SELECT name FROM items WHERE id = $1', [itemId]);
       const itemName = itemNameResult.rows[0] ? itemNameResult.rows[0].name : 'item';
 
+      // Cristal de Resurrección (docs ya borrados, ver commit): rechazar ANTES de consumir el
+      // item si el objetivo no está caído — perderlo sin efecto por apuntar mal sería muy caro.
+      const isRevive = bonuses.rows.some((b) => b.stat_code === 'REVIVE_HP_PERCENT');
+      if (isRevive && targetParticipant.hp > 0) {
+        return res.status(400).json({ error: `${targetParticipant.name} no está caído, no hace falta revivir.` });
+      }
+
       // Multiplicador por quality_tier del item crafteado con suerte
       const QUALITY_TIER_MULTIPLIER = [1.0, 1.15, 1.35, 1.60, 2.0];
       const qualityMult = QUALITY_TIER_MULTIPLIER[bestTier] ?? 1;
@@ -3512,10 +3519,14 @@ router.post('/sessions/:id/action', async (req, res, next) => {
       const BUFF_STAT_KEY = { BUFF_ATK: 'atk', BUFF_DEF: 'def', BUFF_MAG: 'mag', BUFF_SPD: 'spd' };
       let hpRestored = 0;
       let manaRestored = 0;
+      let revived = false;
       const buffParts = [];
       for (const bonus of bonuses.rows) {
         const amount = Math.round(Number(bonus.amount) * qualityMult);
-        if (bonus.stat_code === 'HOT' && bonus.duration_turns) {
+        if (bonus.stat_code === 'REVIVE_HP_PERCENT') {
+          targetParticipant.hp = Math.max(1, Math.round(targetParticipant.max_hp * amount / 100));
+          revived = true;
+        } else if (bonus.stat_code === 'HOT' && bonus.duration_turns) {
           // Regen por ronda con duración. quality_tier sube el % Y extiende 1 ronda por tier.
           const hotDuration = Number(bonus.duration_turns) + bestTier;
           await db.query(
@@ -3551,6 +3562,7 @@ router.post('/sessions/:id/action', async (req, res, next) => {
       }
 
       const effectParts = [];
+      if (revived) effectParts.push(`fue revivido con ${targetParticipant.hp} HP`);
       if (hpRestored > 0) effectParts.push(`recuperó ${hpRestored} HP`);
       if (manaRestored > 0) effectParts.push(`restauró ${manaRestored} Maná`);
       effectParts.push(...buffParts);

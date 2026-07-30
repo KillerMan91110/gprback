@@ -312,6 +312,9 @@ CREATE TABLE IF NOT EXISTS world_boss_shop (
   item_id INT NOT NULL REFERENCES items(id),
   price   INT NOT NULL
 );
+-- Unique en vez de solo PK(id): sin esto un ON CONFLICT DO NOTHING sobre item_id no tiene
+-- target valido y un re-run del seed duplica filas (paso real, corregido en produccion).
+CREATE UNIQUE INDEX IF NOT EXISTS world_boss_shop_item_id_key ON world_boss_shop(item_id);
 
 CREATE TABLE IF NOT EXISTS player_class_progress (
   player_id INT PRIMARY KEY REFERENCES players(id),
@@ -1031,6 +1034,9 @@ CREATE TABLE IF NOT EXISTS player_pets (
   hatched_at  TIMESTAMP NOT NULL DEFAULT now()
 );
 CREATE UNIQUE INDEX IF NOT EXISTS one_active_pet_per_player ON player_pets(player_id) WHERE is_active;
+
+-- Tienda del World Boss: cuanto sube la Piedra de Trascendencia el tope de 20 de ESA mascota.
+ALTER TABLE player_pets ADD COLUMN IF NOT EXISTS bonus_max_level INT NOT NULL DEFAULT 0;
 
 -- Mercado multi-moneda + venta de mascotas: player_market_listings ya existe (línea ~974) pero
 -- referencia player_pets, que se crea recién acá arriba, por eso van como ALTER en vez de estar
