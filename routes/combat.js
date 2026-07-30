@@ -2023,7 +2023,14 @@ async function advanceEnemyTurns(sessionId) {
           let elemModsByTargetId = {};
           if (skill.element_id) {
             const elemCode = await elements.getElementCodeById(skill.element_id);
-            const damageBonusPercent = await elements.getMonsterElementalDamageBonus(actor.monster_code, skill.element_id);
+            // Bug real: esto siempre llamaba a getMonsterElementalDamageBonus, que con
+            // actor.monster_code=null (cualquier jugador o NPC) siempre devuelve 0 — el bono
+            // elemental de clase (class_elemental_damage_bonus) nunca se aplicaba al atacar con
+            // una skill. Mismo patrón ya correcto que usa el otro branch de skills mas abajo
+            // (~línea 2906: getClassElementalDamageBonus + actor.elemental_damage_bonus).
+            const damageBonusPercent = actor.monster_code
+              ? await elements.getMonsterElementalDamageBonus(actor.monster_code, skill.element_id)
+              : (await elements.getClassElementalDamageBonus(actor.class_id, skill.element_id)) + Number(actor.elemental_damage_bonus || 0);
             for (const t of skillTargets) {
               const baseResist = t.monster_code
                 ? await elements.getMonsterElementResistance(t.monster_code, skill.element_id)
