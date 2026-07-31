@@ -2718,7 +2718,9 @@ router.post('/sessions/:id/action', async (req, res, next) => {
       }
 
       let attackBonusPercent = 0;
-      const isMagicAttack = (actor.mag || 0) > (actor.atk || 0);
+      // El basico de jugador/NPC ahora siempre es fisico (ver lib/combat.js resolveAttack) --
+      // esta categorizacion de bonos tiene que quedar consistente con esa regla.
+      const isMagicAttack = false;
       if (actor.player_id === req.playerId) {
         const playerBonuses = await achievements.getPlayerBonuses(req.playerId);
         attackBonusPercent += isMagicAttack ? playerBonuses.magicalDamage : playerBonuses.physicalDamage;
