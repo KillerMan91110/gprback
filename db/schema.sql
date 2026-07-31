@@ -856,6 +856,7 @@ CREATE TABLE IF NOT EXISTS player_npc_pool (
   hire_cost  INT NOT NULL,
   created_at TIMESTAMPTZ DEFAULT now()
 );
+CREATE INDEX IF NOT EXISTS idx_player_npc_pool_player_id ON player_npc_pool(player_id);
 
 CREATE TABLE IF NOT EXISTS player_party (
   id        SERIAL PRIMARY KEY,
@@ -998,6 +999,9 @@ CREATE TABLE IF NOT EXISTS player_market_listings (
 );
 CREATE INDEX IF NOT EXISTS idx_market_listings_active ON player_market_listings(item_id) WHERE status = 'ACTIVE';
 CREATE INDEX IF NOT EXISTS idx_market_listings_seller ON player_market_listings(seller_id);
+-- Soporta el browse principal (WHERE status='ACTIVE' ORDER BY created_at DESC) -- el indice
+-- parcial de arriba (idx_market_listings_active) solo ayuda a busquedas por item_id puntual.
+CREATE INDEX IF NOT EXISTS idx_market_listings_status_created ON player_market_listings(status, created_at DESC);
 
 CREATE TABLE IF NOT EXISTS combat_abandoned_players (
   session_id   INT NOT NULL REFERENCES combat_sessions(id) ON DELETE CASCADE,
@@ -1034,6 +1038,9 @@ CREATE TABLE IF NOT EXISTS player_pets (
   hatched_at  TIMESTAMP NOT NULL DEFAULT now()
 );
 CREATE UNIQUE INDEX IF NOT EXISTS one_active_pet_per_player ON player_pets(player_id) WHERE is_active;
+-- El indice de arriba es parcial (solo filas is_active); GET /pets y otras queries filtran por
+-- player_id sin ese predicado, asi que necesitan este tambien.
+CREATE INDEX IF NOT EXISTS idx_player_pets_player_id ON player_pets(player_id);
 
 -- Tienda del World Boss: cuanto sube la Piedra de Trascendencia el tope de 20 de ESA mascota.
 ALTER TABLE player_pets ADD COLUMN IF NOT EXISTS bonus_max_level INT NOT NULL DEFAULT 0;

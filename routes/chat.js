@@ -36,7 +36,7 @@ async function clearIfInactive(io, channel, guildId) {
 }
 
 // GET /api/player/:playerId/chat/:channel?afterId=0
-router.get('/:channel', async (req, res) => {
+router.get('/:channel', async (req, res, next) => {
   const channel = req.params.channel.toUpperCase();
   if (!VALID_CHANNELS.includes(channel)) {
     return res.status(400).json({ error: 'Canal inválido' });
@@ -102,13 +102,12 @@ router.get('/:channel', async (req, res) => {
 
     res.json({ messages: rows });
   } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: 'Error al obtener mensajes' });
+    next(err);
   }
 });
 
 // POST /api/player/:playerId/chat/:channel
-router.post('/:channel', async (req, res) => {
+router.post('/:channel', async (req, res, next) => {
   const channel = req.params.channel.toUpperCase();
   if (!VALID_CHANNELS.includes(channel)) {
     return res.status(400).json({ error: 'Canal inválido' });
@@ -142,8 +141,7 @@ router.post('/:channel', async (req, res) => {
 
     res.status(201).json({ message });
   } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: 'Error al enviar mensaje' });
+    next(err);
   }
 });
 

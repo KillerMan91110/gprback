@@ -1067,12 +1067,16 @@ router.post('/:id/bank/deposit', async (req, res, next) => {
       }
     }
 
-    const playerRes = await db.query('SELECT gold FROM players WHERE id = $1', [playerId]);
-    if (Number(playerRes.rows[0].gold) < amount) {
+    // UPDATE atomico con guard: evita el race de "leer oro, chequear, restar" en dos pasos
+    // (dos donaciones casi simultaneas podian pasar el chequeo con el mismo saldo leido y dejar
+    // el oro en negativo).
+    const spend = await db.query(
+      'UPDATE players SET gold = gold - $1 WHERE id = $2 AND gold >= $1 RETURNING gold',
+      [amount, playerId]
+    );
+    if (!spend.rows.length) {
       return res.status(400).json({ error: 'No tienes suficiente oro' });
     }
-
-    await db.query('UPDATE players SET gold = gold - $1 WHERE id = $2', [amount, playerId]);
     await db.query('UPDATE guilds SET bank_gold = bank_gold + $1 WHERE id = $2', [amount, guildId]);
     await db.query(
       `INSERT INTO guild_bank_transactions(guild_id, player_id, type, amount) VALUES ($1, $2, 'DEPOSIT', $3)`,
@@ -1142,11 +1146,15 @@ router.post('/:id/shop/buy', async (req, res, next) => {
     const item = itemRes.rows[0];
 
     const totalCost = item.buy_price * quantity;
-    if (Number(guild.bank_gold) < totalCost) {
+    // UPDATE atomico con guard: mismo criterio que artisan-shop/buy y bank/deposit, evita que
+    // dos compras casi simultaneas dejen bank_gold en negativo.
+    const spend = await db.query(
+      'UPDATE guilds SET bank_gold = bank_gold - $1 WHERE id = $2 AND bank_gold >= $1 RETURNING bank_gold',
+      [totalCost, guildId]
+    );
+    if (!spend.rows.length) {
       return res.status(400).json({ error: 'El banco del gremio no tiene oro suficiente' });
     }
-
-    await db.query('UPDATE guilds SET bank_gold = bank_gold - $1 WHERE id = $2', [totalCost, guildId]);
 
     const msgRes = await db.query(
       `INSERT INTO player_messages (sender_id, receiver_id, subject, body)

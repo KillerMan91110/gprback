@@ -5,7 +5,7 @@ const inventory = require('../lib/inventory');
 const leveling = require('../lib/leveling');
 const questProgress = require('../lib/questProgress');
 const achievements = require('../lib/achievements');
-const { getEquipmentBonuses, applyHpBonusDelta, getNpcEquipmentBonuses, applyNpcHpBonusDelta } = require('../lib/equipment');
+const { getEquipmentBonuses, applyHpBonusDelta, getNpcEquipmentBonuses, getNpcEquipmentBonusesBatch, applyNpcHpBonusDelta } = require('../lib/equipment');
 const { getClassPassiveBonuses } = require('../lib/passives');
 const evolution = require('../lib/evolution');
 const { fetchQuestDetail } = require('./quests');
@@ -680,11 +680,22 @@ router.post('/:playerId/guild/shop/sell', async (req, res, next) => {
     const unitPrice = item.buy_price !== null ? Math.round(item.buy_price / 2) : (SELL_PRICE_BY_RARITY[item.rarity] || 10);
     const total = unitPrice * qty;
 
-    await inventory.removeItem(playerId, itemId, qty, enchantLevel);
-    const updated = await db.query(
-      'UPDATE players SET gold = gold + $1, updated_at = now() WHERE id = $2 RETURNING gold',
-      [total, playerId]
-    );
+    const client = await db.pool.connect();
+    let updated;
+    try {
+      await client.query('BEGIN');
+      await inventory.removeItem(playerId, itemId, qty, enchantLevel, null, client);
+      updated = await client.query(
+        'UPDATE players SET gold = gold + $1, updated_at = now() WHERE id = $2 RETURNING gold',
+        [total, playerId]
+      );
+      await client.query('COMMIT');
+    } catch (e) {
+      await client.query('ROLLBACK');
+      throw e;
+    } finally {
+      client.release();
+    }
 
     res.json({ soldItemId: item.id, name: item.name, quantitySold: qty, goldGained: total, newGold: Number(updated.rows[0].gold) });
   } catch (error) {
@@ -825,12 +836,22 @@ router.post('/:playerId/inventory/use/:itemId', async (req, res, next) => {
       return res.json({ message: 'Ya conocías todas las recetas de este pergamino', alreadyLearned: true, learnedRecipes: [] });
     }
 
-    await inventory.removeItem(playerId, itemId, 1);
-    for (const r of newRecipes) {
-      await db.query(
-        'INSERT INTO player_learned_recipes(player_id, recipe_id) VALUES($1,$2) ON CONFLICT DO NOTHING',
-        [playerId, r.recipe_id]
-      );
+    const client = await db.pool.connect();
+    try {
+      await client.query('BEGIN');
+      await inventory.removeItem(playerId, itemId, 1, 0, null, client);
+      for (const r of newRecipes) {
+        await client.query(
+          'INSERT INTO player_learned_recipes(player_id, recipe_id) VALUES($1,$2) ON CONFLICT DO NOTHING',
+          [playerId, r.recipe_id]
+        );
+      }
+      await client.query('COMMIT');
+    } catch (e) {
+      await client.query('ROLLBACK');
+      throw e;
+    } finally {
+      client.release();
     }
 
     res.json({
@@ -944,34 +965,54 @@ router.post('/:playerId/equip', async (req, res, next) => {
     // (ej. equipar un arma a dos manos tambien libera el offhand).
     const bonusBefore = await getEquipmentBonuses(playerId);
 
-    const previous = await db.query(
-      `DELETE FROM player_equipment WHERE player_id = $1 AND slot = $2 RETURNING item_id, enchant_level, quality_tier`,
-      [playerId, item.slot]
-    );
-    if (previous.rows.length) {
-      await inventory.addItem(playerId, previous.rows[0].item_id, 1, previous.rows[0].enchant_level, previous.rows[0].quality_tier || 0);
-    }
+    // Todo el swap (desequipar lo viejo, sacar lo nuevo del inventario, equiparlo) en una sola
+    // transaccion -- antes cada paso confirmaba por separado, asi que un fallo a mitad de camino
+    // (ej. la insercion de player_equipment) podia dejar el item ya descontado del inventario
+    // sin haber quedado equipado, perdiendolo.
+    const client = await db.pool.connect();
+    let equipQualityTier;
+    try {
+      await client.query('BEGIN');
 
-    if (item.is_two_handed) {
-      const previousOffhand = await db.query(
-        `DELETE FROM player_equipment WHERE player_id = $1 AND slot = 'OFFHAND' RETURNING item_id, enchant_level, quality_tier`,
-        [playerId]
+      const previous = await client.query(
+        `DELETE FROM player_equipment WHERE player_id = $1 AND slot = $2 RETURNING item_id, enchant_level, quality_tier`,
+        [playerId, item.slot]
       );
-      if (previousOffhand.rows.length) {
-        await inventory.addItem(playerId, previousOffhand.rows[0].item_id, 1, previousOffhand.rows[0].enchant_level, previousOffhand.rows[0].quality_tier || 0);
+      if (previous.rows.length) {
+        await inventory.addItem(playerId, previous.rows[0].item_id, 1, previous.rows[0].enchant_level, previous.rows[0].quality_tier || 0, client);
       }
+
+      if (item.is_two_handed) {
+        const previousOffhand = await client.query(
+          `DELETE FROM player_equipment WHERE player_id = $1 AND slot = 'OFFHAND' RETURNING item_id, enchant_level, quality_tier`,
+          [playerId]
+        );
+        if (previousOffhand.rows.length) {
+          await inventory.addItem(playerId, previousOffhand.rows[0].item_id, 1, previousOffhand.rows[0].enchant_level, previousOffhand.rows[0].quality_tier || 0, client);
+        }
+      }
+
+      equipQualityTier = Number(requestedTier);
+      const hasIt = await inventory.getQuantity(playerId, itemId, enchantLevel, equipQualityTier);
+      if (hasIt < 1) {
+        await client.query('ROLLBACK');
+        return res.status(400).json({ error: 'No tienes ese item con esa rareza en tu inventario' });
+      }
+
+      await inventory.removeItem(playerId, itemId, 1, enchantLevel, equipQualityTier, client);
+      await client.query(
+        `INSERT INTO player_equipment(player_id, slot, item_id, enchant_level, quality_tier) VALUES ($1, $2, $3, $4, $5)
+         ON CONFLICT (player_id, slot) DO UPDATE SET item_id = EXCLUDED.item_id, enchant_level = EXCLUDED.enchant_level, quality_tier = EXCLUDED.quality_tier`,
+        [playerId, item.slot, itemId, enchantLevel, equipQualityTier]
+      );
+
+      await client.query('COMMIT');
+    } catch (e) {
+      await client.query('ROLLBACK');
+      throw e;
+    } finally {
+      client.release();
     }
-
-    const equipQualityTier = Number(requestedTier);
-    const hasIt = await inventory.getQuantity(playerId, itemId, enchantLevel, equipQualityTier);
-    if (hasIt < 1) return res.status(400).json({ error: 'No tienes ese item con esa rareza en tu inventario' });
-
-    await inventory.removeItem(playerId, itemId, 1, enchantLevel, equipQualityTier);
-    await db.query(
-      `INSERT INTO player_equipment(player_id, slot, item_id, enchant_level, quality_tier) VALUES ($1, $2, $3, $4, $5)
-       ON CONFLICT (player_id, slot) DO UPDATE SET item_id = EXCLUDED.item_id, enchant_level = EXCLUDED.enchant_level, quality_tier = EXCLUDED.quality_tier`,
-      [playerId, item.slot, itemId, enchantLevel, equipQualityTier]
-    );
 
     const bonusAfter = await getEquipmentBonuses(playerId);
     await applyHpBonusDelta(playerId, (bonusAfter.hp || 0) - (bonusBefore.hp || 0));
@@ -1638,20 +1679,33 @@ router.post('/:playerId/craft', async (req, res, next) => {
     }
     const success = successCount > 0 || failCount < qty;
 
-    // Ingredientes: los exitosos consumen cantidad completa, los fallidos consumen % según rareza.
-    for (const ingredient of ingredients.rows) {
-      const successCost = ingredient.quantity * successCount;
-      const failCost = calcFailLoss(ingredient.quantity * failCount, FAILURE_LOSS_PERCENT[recipe.rarity] ?? 0);
-      if (successCost + failCost > 0) await inventory.removeItem(playerId, ingredient.item_id, successCost + failCost);
-    }
-
-    // Agregar al inventario agrupado por tier
+    // Consumir ingredientes y entregar el resultado en una sola transaccion -- antes cada
+    // removeItem/addItem confirmaba por separado, asi que un fallo a mitad del loop podia dejar
+    // los ingredientes descontados sin haber entregado el item crafteado.
+    const client = await db.pool.connect();
     const results = [];
-    for (const [tier, count] of Object.entries(tierCounts)) {
-      const t = Number(tier);
-      const gained = recipe.result_quantity * count;
-      await inventory.addItem(playerId, recipe.result_item_id, gained, 0, t);
-      results.push({ qualityTier: t, quantity: gained, rarity: RARITY_NAMES[Math.min(baseRarityIdx + t, 4)] });
+    try {
+      await client.query('BEGIN');
+      // Ingredientes: los exitosos consumen cantidad completa, los fallidos consumen % según rareza.
+      for (const ingredient of ingredients.rows) {
+        const successCost = ingredient.quantity * successCount;
+        const failCost = calcFailLoss(ingredient.quantity * failCount, FAILURE_LOSS_PERCENT[recipe.rarity] ?? 0);
+        if (successCost + failCost > 0) await inventory.removeItem(playerId, ingredient.item_id, successCost + failCost, 0, null, client);
+      }
+
+      // Agregar al inventario agrupado por tier
+      for (const [tier, count] of Object.entries(tierCounts)) {
+        const t = Number(tier);
+        const gained = recipe.result_quantity * count;
+        await inventory.addItem(playerId, recipe.result_item_id, gained, 0, t, client);
+        results.push({ qualityTier: t, quantity: gained, rarity: RARITY_NAMES[Math.min(baseRarityIdx + t, 4)] });
+      }
+      await client.query('COMMIT');
+    } catch (e) {
+      await client.query('ROLLBACK');
+      throw e;
+    } finally {
+      client.release();
     }
 
     const totalGained = recipe.result_quantity * successCount;
@@ -1735,8 +1789,18 @@ router.post('/:playerId/use-item', async (req, res, next) => {
       if (already.rows.length) {
         return res.status(400).json({ error: `Ya conoces la habilidad "${skillName}".` });
       }
-      await db.query('INSERT INTO player_skills(player_id, skill_id) VALUES ($1, $2)', [playerId, skillId]);
-      await inventory.removeItem(playerId, itemId, 1, 0, bestTier);
+      const client = await db.pool.connect();
+      try {
+        await client.query('BEGIN');
+        await client.query('INSERT INTO player_skills(player_id, skill_id) VALUES ($1, $2)', [playerId, skillId]);
+        await inventory.removeItem(playerId, itemId, 1, 0, bestTier, client);
+        await client.query('COMMIT');
+      } catch (e) {
+        await client.query('ROLLBACK');
+        throw e;
+      } finally {
+        client.release();
+      }
       return res.json({
         message: `Aprendiste "${skillName}" con ${item.name}.`,
         learnedSkillId: skillId,
@@ -1793,12 +1857,22 @@ router.post('/:playerId/use-item', async (req, res, next) => {
       return res.status(400).json({ error: `${targetName} ya tiene el HP y Maná al máximo` });
     }
 
-    if (targetNpcId) {
-      await db.query('UPDATE player_npcs SET hp = $1, mana = $2 WHERE id = $3', [newHp, newMana, targetNpcId]);
-    } else {
-      await db.query('UPDATE players SET hp = $1, mana = $2, updated_at = now() WHERE id = $3', [newHp, newMana, playerId]);
+    const client = await db.pool.connect();
+    try {
+      await client.query('BEGIN');
+      if (targetNpcId) {
+        await client.query('UPDATE player_npcs SET hp = $1, mana = $2 WHERE id = $3', [newHp, newMana, targetNpcId]);
+      } else {
+        await client.query('UPDATE players SET hp = $1, mana = $2, updated_at = now() WHERE id = $3', [newHp, newMana, playerId]);
+      }
+      await inventory.removeItem(playerId, itemId, 1, 0, bestTier, client);
+      await client.query('COMMIT');
+    } catch (e) {
+      await client.query('ROLLBACK');
+      throw e;
+    } finally {
+      client.release();
     }
-    await inventory.removeItem(playerId, itemId, 1, 0, bestTier);
 
     // Construir mensaje descriptivo
     const effectDesc = applied.map((a) => {
@@ -1890,12 +1964,23 @@ router.post('/:playerId/dismantle', async (req, res, next) => {
       return res.status(400).json({ error: 'No puedes desmantelar un ítem equipado. Desequípalo primero.' });
     }
 
-    await inventory.removeItem(playerId, itemId, qty);
-
+    // Sacar el item y dar los materiales en una sola transaccion -- antes, si algo fallaba a
+    // mitad del loop de materiales, el item ya se habia descontado sin entregar el resto.
+    const client = await db.pool.connect();
     const gained = [];
-    for (const mat of materials) {
-      await inventory.addItem(playerId, mat.itemId, mat.quantity);
-      gained.push({ id: mat.itemId, name: mat.name, quantity: mat.quantity });
+    try {
+      await client.query('BEGIN');
+      await inventory.removeItem(playerId, itemId, qty, 0, null, client);
+      for (const mat of materials) {
+        await inventory.addItem(playerId, mat.itemId, mat.quantity, 0, 0, client);
+        gained.push({ id: mat.itemId, name: mat.name, quantity: mat.quantity });
+      }
+      await client.query('COMMIT');
+    } catch (e) {
+      await client.query('ROLLBACK');
+      throw e;
+    } finally {
+      client.release();
     }
 
     const itemNameRow = await db.query('SELECT name FROM items WHERE id = $1', [itemId]);
@@ -1918,6 +2003,36 @@ const NPC_POOL_SIZE = 5;
 const HIRE_COST_PER_LEVEL = 80;
 const PARTY_MAX_NPC_SLOTS = 2;
 const BENCH_CAP = 10;
+
+// Batched: agrupa por (class_id, level) para pasivas y por class_id para crit_damage base, asi
+// NPCs que comparten clase/nivel (frecuente en /party/pool y /bench) no repiten la misma query
+// una vez por NPC (antes era un Promise.all con 1 query de pasivas + 1 de critDamage POR NPC).
+async function getNpcCombatExtrasBatch(npcs) {
+  const passivesCache = new Map();
+  const critCache = new Map();
+  for (const n of npcs) {
+    const passivesKey = `${n.class_id}:${n.level}`;
+    if (!passivesCache.has(passivesKey)) passivesCache.set(passivesKey, getClassPassiveBonuses(n.class_id, n.level));
+    if (!critCache.has(n.class_id)) critCache.set(n.class_id, leveling.getClassBaseCritDamage(n.class_id));
+  }
+  const passivesKeys = [...passivesCache.keys()];
+  const critKeys = [...critCache.keys()];
+  const [passivesValues, critValues] = await Promise.all([
+    Promise.all(passivesCache.values()),
+    Promise.all(critCache.values()),
+  ]);
+  const passivesResolved = Object.fromEntries(passivesKeys.map((k, i) => [k, passivesValues[i]]));
+  const critResolved = Object.fromEntries(critKeys.map((k, i) => [k, critValues[i]]));
+
+  const result = {};
+  for (const n of npcs) {
+    result[n.id] = {
+      passives: passivesResolved[`${n.class_id}:${n.level}`],
+      baseCritDamage: critResolved[n.class_id],
+    };
+  }
+  return result;
+}
 const BASE_CLASS_IDS = [1, 2, 3, 4, 5];
 const NPC_NAMES = [
   'Aldric', 'Bravos', 'Caelum', 'Draven', 'Eriel', 'Faeron', 'Goreth', 'Hadrix',
@@ -2031,16 +2146,16 @@ router.get('/:playerId/party', async (req, res, next) => {
         : Promise.resolve({ rows: [] }),
     ]);
 
-    // Pasivos y equipo de cada NPC (son pocos en party, max 2)
+    // Pasivos/critDamage batcheados por (class_id, level) y equipo batcheado por npc_id, en vez
+    // de una query por NPC (ver getNpcCombatExtrasBatch más arriba).
     const npcDataMap = {};
-    await Promise.all(partyRes.rows.map(async (n) => {
-      const [passives, equip, baseCritDamage] = await Promise.all([
-        getClassPassiveBonuses(n.class_id, n.level),
-        getNpcEquipmentBonuses(n.id),
-        leveling.getClassBaseCritDamage(n.class_id),
-      ]);
-      npcDataMap[n.id] = { passives, equip, baseCritDamage };
-    }));
+    const [partyExtras, partyEquip] = await Promise.all([
+      getNpcCombatExtrasBatch(partyRes.rows),
+      getNpcEquipmentBonusesBatch(partyRes.rows.map((n) => n.id)),
+    ]);
+    for (const n of partyRes.rows) {
+      npcDataMap[n.id] = { passives: partyExtras[n.id].passives, equip: partyEquip[n.id], baseCritDamage: partyExtras[n.id].baseCritDamage };
+    }
 
     res.json({
       maxSlots: PARTY_MAX_NPC_SLOTS + 1,
@@ -2156,11 +2271,9 @@ router.get('/:playerId/party/pool', async (req, res, next) => {
     const classEvasionRes = await db.query('SELECT id, base_evasion FROM classes WHERE id = ANY($1)', [classIds]);
     const classEvasionMap = Object.fromEntries(classEvasionRes.rows.map((r) => [r.id, Number(r.base_evasion)]));
 
-    const npcs = await Promise.all(rows.map(async (n) => {
-      const [passives, baseCritDamage] = await Promise.all([
-        getClassPassiveBonuses(n.class_id, n.level),
-        leveling.getClassBaseCritDamage(n.class_id),
-      ]);
+    const poolExtras = await getNpcCombatExtrasBatch(rows);
+    const npcs = rows.map((n) => {
+      const { passives, baseCritDamage } = poolExtras[n.id];
       return {
         poolNpcId: n.id,
         name: n.name,
@@ -2173,7 +2286,7 @@ router.get('/:playerId/party/pool', async (req, res, next) => {
         critDamage: baseCritDamage + passives.crit_damage,
         hireCost: n.hire_cost,
       };
-    }));
+    });
     res.json({ refreshCost: NPC_REFRESH_COST, secondsUntilFreeRefresh, npcs });
   } catch (error) { next(error); }
 });
@@ -2218,11 +2331,9 @@ router.post('/:playerId/party/pool/refresh', async (req, res, next) => {
     const refreshClassIds = [...new Set(poolRes.rows.map((n) => n.class_id))];
     const refreshEvasionRes = await db.query('SELECT id, base_evasion FROM classes WHERE id = ANY($1)', [refreshClassIds]);
     const refreshEvasionMap = Object.fromEntries(refreshEvasionRes.rows.map((r) => [r.id, Number(r.base_evasion)]));
-    const npcs = await Promise.all(poolRes.rows.map(async (n) => {
-      const [passives, baseCritDamage] = await Promise.all([
-        getClassPassiveBonuses(n.class_id, n.level),
-        leveling.getClassBaseCritDamage(n.class_id),
-      ]);
+    const refreshExtras = await getNpcCombatExtrasBatch(poolRes.rows);
+    const npcs = poolRes.rows.map((n) => {
+      const { passives, baseCritDamage } = refreshExtras[n.id];
       return {
         poolNpcId: n.id,
         name: n.name,
@@ -2235,7 +2346,7 @@ router.post('/:playerId/party/pool/refresh', async (req, res, next) => {
         critDamage: baseCritDamage + passives.crit_damage,
         hireCost: n.hire_cost,
       };
-    }));
+    });
     res.json({ gold: Number(newGoldRes.rows[0].gold), refreshCost: NPC_REFRESH_COST, npcs });
   } catch (error) { next(error); }
 });
@@ -2337,19 +2448,20 @@ router.get('/:playerId/bench', async (req, res, next) => {
       : { rows: [] };
     const benchEvasionMap = Object.fromEntries(benchEvasionRes.rows.map((c) => [c.id, Number(c.base_evasion)]));
 
-    const members = await Promise.all(r.rows.map(async (n) => {
-      const [passives, equip, baseCritDamage] = await Promise.all([
-        getClassPassiveBonuses(n.class_id, n.level),
-        getNpcEquipmentBonuses(n.id),
-        leveling.getClassBaseCritDamage(n.class_id),
-      ]);
+    const [benchExtras, benchEquip] = await Promise.all([
+      getNpcCombatExtrasBatch(r.rows),
+      getNpcEquipmentBonusesBatch(r.rows.map((n) => n.id)),
+    ]);
+    const members = r.rows.map((n) => {
+      const { passives, baseCritDamage } = benchExtras[n.id];
+      const equip = benchEquip[n.id];
       return formatNpc(n, {
         benchRowId: n.bench_row_id,
         crit: Number(n.crit) + passives.crit_chance + (equip.crit_chance || 0),
         evasion: (benchEvasionMap[n.class_id] || 0) + passives.evasion + (equip.evasion || 0),
         critDamage: baseCritDamage + passives.crit_damage + (equip.crit_damage || 0),
       });
-    }));
+    });
     res.json({ cap: BENCH_CAP, count: r.rows.length, members });
   } catch (error) { next(error); }
 });
@@ -2686,33 +2798,50 @@ router.post('/:playerId/npcs/:npcId/equip', async (req, res, next) => {
 
     const bonusBefore = await getNpcEquipmentBonuses(npcId);
 
-    const previous = await db.query(
-      'DELETE FROM npc_equipment WHERE npc_id = $1 AND slot = $2 RETURNING item_id, enchant_level, quality_tier',
-      [npcId, item.slot]
-    );
-    if (previous.rows.length) {
-      await inventory.addItem(playerId, previous.rows[0].item_id, 1, previous.rows[0].enchant_level, previous.rows[0].quality_tier || 0);
-    }
-    if (item.is_two_handed) {
-      const prevOffhand = await db.query(
+    // Mismo criterio que el equip del heroe: todo el swap en una transaccion.
+    const client = await db.pool.connect();
+    let npcEquipQualityTier;
+    try {
+      await client.query('BEGIN');
+
+      const previous = await client.query(
         'DELETE FROM npc_equipment WHERE npc_id = $1 AND slot = $2 RETURNING item_id, enchant_level, quality_tier',
-        [npcId, 'OFFHAND']
+        [npcId, item.slot]
       );
-      if (prevOffhand.rows.length) {
-        await inventory.addItem(playerId, prevOffhand.rows[0].item_id, 1, prevOffhand.rows[0].enchant_level, prevOffhand.rows[0].quality_tier || 0);
+      if (previous.rows.length) {
+        await inventory.addItem(playerId, previous.rows[0].item_id, 1, previous.rows[0].enchant_level, previous.rows[0].quality_tier || 0, client);
       }
+      if (item.is_two_handed) {
+        const prevOffhand = await client.query(
+          'DELETE FROM npc_equipment WHERE npc_id = $1 AND slot = $2 RETURNING item_id, enchant_level, quality_tier',
+          [npcId, 'OFFHAND']
+        );
+        if (prevOffhand.rows.length) {
+          await inventory.addItem(playerId, prevOffhand.rows[0].item_id, 1, prevOffhand.rows[0].enchant_level, prevOffhand.rows[0].quality_tier || 0, client);
+        }
+      }
+
+      npcEquipQualityTier = Number(requestedTier);
+      const hasIt = await inventory.getQuantity(playerId, itemId, enchantLevel, npcEquipQualityTier);
+      if (hasIt < 1) {
+        await client.query('ROLLBACK');
+        return res.status(400).json({ error: 'No tienes ese item con esa rareza en tu inventario' });
+      }
+
+      await inventory.removeItem(playerId, itemId, 1, enchantLevel, npcEquipQualityTier, client);
+      await client.query(
+        `INSERT INTO npc_equipment(npc_id, slot, item_id, enchant_level, quality_tier) VALUES ($1, $2, $3, $4, $5)
+         ON CONFLICT (npc_id, slot) DO UPDATE SET item_id = EXCLUDED.item_id, enchant_level = EXCLUDED.enchant_level, quality_tier = EXCLUDED.quality_tier`,
+        [npcId, item.slot, itemId, enchantLevel, npcEquipQualityTier]
+      );
+
+      await client.query('COMMIT');
+    } catch (e) {
+      await client.query('ROLLBACK');
+      throw e;
+    } finally {
+      client.release();
     }
-
-    const npcEquipQualityTier = Number(requestedTier);
-    const hasIt = await inventory.getQuantity(playerId, itemId, enchantLevel, npcEquipQualityTier);
-    if (hasIt < 1) return res.status(400).json({ error: 'No tienes ese item con esa rareza en tu inventario' });
-
-    await inventory.removeItem(playerId, itemId, 1, enchantLevel, npcEquipQualityTier);
-    await db.query(
-      `INSERT INTO npc_equipment(npc_id, slot, item_id, enchant_level, quality_tier) VALUES ($1, $2, $3, $4, $5)
-       ON CONFLICT (npc_id, slot) DO UPDATE SET item_id = EXCLUDED.item_id, enchant_level = EXCLUDED.enchant_level, quality_tier = EXCLUDED.quality_tier`,
-      [npcId, item.slot, itemId, enchantLevel, npcEquipQualityTier]
-    );
 
     const bonusAfter = await getNpcEquipmentBonuses(npcId);
     await applyNpcHpBonusDelta(npcId, (bonusAfter.hp || 0) - (bonusBefore.hp || 0));
@@ -2913,26 +3042,45 @@ router.post('/:playerId/enchant', requireAuth, async (req, res, next) => {
       }
     }
 
-    // Consumir recursos (siempre, incluso si falla)
-    await db.query('UPDATE players SET gold = gold - $1 WHERE id = $2', [cost.gold, playerId]);
-    await inventory.removeItem(playerId, stoneId, cost.qty);
-    if (crystalId) await inventory.removeItem(playerId, crystalId, 1);
-
+    // Consumir recursos (siempre, incluso si falla) y aplicar el resultado en una sola
+    // transaccion -- antes cada paso confirmaba por separado, asi que un fallo a mitad de camino
+    // podia dejar el oro/materiales gastados sin haber subido el nivel (o viceversa).
     const effectiveRate = Math.min(100, cost.rate + crystalBonus);
     const success = Math.random() * 100 < effectiveRate;
-    if (success) {
-      // Delta de HP si el ítem tiene bono de HP
-      const hpBonus = await db.query(
-        `SELECT amount FROM item_stat_bonuses WHERE item_id = $1 AND stat_code = 'HP'`,
-        [itemId]
-      );
-      if (hpBonus.rows.length) {
-        const base = Number(hpBonus.rows[0].amount);
-        const oldBonus = Math.round(base * (1 + currentLevel * 0.05));
-        const newBonus = Math.round(base * (1 + (currentLevel + 1) * 0.05));
-        await applyHpBonusDelta(playerId, newBonus - oldBonus);
+    const client = await db.pool.connect();
+    try {
+      await client.query('BEGIN');
+      await client.query('UPDATE players SET gold = gold - $1 WHERE id = $2', [cost.gold, playerId]);
+      await inventory.removeItem(playerId, stoneId, cost.qty, 0, null, client);
+      if (crystalId) await inventory.removeItem(playerId, crystalId, 1, 0, null, client);
+
+      if (success) {
+        // Delta de HP si el ítem tiene bono de HP
+        const hpBonus = await client.query(
+          `SELECT amount FROM item_stat_bonuses WHERE item_id = $1 AND stat_code = 'HP'`,
+          [itemId]
+        );
+        if (hpBonus.rows.length) {
+          const base = Number(hpBonus.rows[0].amount);
+          const oldBonus = Math.round(base * (1 + currentLevel * 0.05));
+          const newBonus = Math.round(base * (1 + (currentLevel + 1) * 0.05));
+          const hpRes = await client.query('SELECT hp, max_hp FROM players WHERE id = $1', [playerId]);
+          const delta = newBonus - oldBonus;
+          const newMaxHp = Math.max(1, hpRes.rows[0].max_hp + delta);
+          const newHp = Math.max(0, Math.min(newMaxHp, hpRes.rows[0].hp + delta));
+          await client.query('UPDATE players SET hp = $1, max_hp = $2, updated_at = now() WHERE id = $3', [newHp, newMaxHp, playerId]);
+        }
+        await client.query('UPDATE player_equipment SET enchant_level = enchant_level + 1 WHERE id = $1', [equipId]);
       }
-      await db.query('UPDATE player_equipment SET enchant_level = enchant_level + 1 WHERE id = $1', [equipId]);
+      await client.query('COMMIT');
+    } catch (e) {
+      await client.query('ROLLBACK');
+      throw e;
+    } finally {
+      client.release();
+    }
+
+    if (success) {
       res.json({ success: true, message: `¡${itemName} mejorado a +${currentLevel + 1}!`, newLevel: currentLevel + 1 });
     } else {
       res.json({ success: false, message: `El encantamiento de ${itemName} falló. Los materiales se pierden.`, newLevel: currentLevel });
@@ -3011,25 +3159,44 @@ router.post('/:playerId/enchant/npc/:npcId', requireAuth, async (req, res, next)
       return res.status(400).json({ error: `Necesitas ${cost.qty}x ${cost.stone}. Tienes ${stoneQty}.` });
     }
 
-    await db.query('UPDATE players SET gold = gold - $1 WHERE id = $2', [cost.gold, playerId]);
-    await inventory.removeItem(playerId, stoneId, cost.qty);
-
     const success = Math.random() * 100 < cost.rate;
-    if (success) {
-      const hpBonus = await db.query(
-        `SELECT amount FROM item_stat_bonuses WHERE item_id = $1 AND stat_code = 'HP'`,
-        [itemId]
-      );
-      if (hpBonus.rows.length) {
-        const base = Number(hpBonus.rows[0].amount);
-        const oldBonus = Math.round(base * (1 + currentLevel * 0.05));
-        const newBonus = Math.round(base * (1 + (currentLevel + 1) * 0.05));
-        await applyNpcHpBonusDelta(npcId, newBonus - oldBonus);
+    const client = await db.pool.connect();
+    try {
+      await client.query('BEGIN');
+      await client.query('UPDATE players SET gold = gold - $1 WHERE id = $2', [cost.gold, playerId]);
+      await inventory.removeItem(playerId, stoneId, cost.qty, 0, null, client);
+
+      if (success) {
+        const hpBonus = await client.query(
+          `SELECT amount FROM item_stat_bonuses WHERE item_id = $1 AND stat_code = 'HP'`,
+          [itemId]
+        );
+        if (hpBonus.rows.length) {
+          const base = Number(hpBonus.rows[0].amount);
+          const oldBonus = Math.round(base * (1 + currentLevel * 0.05));
+          const newBonus = Math.round(base * (1 + (currentLevel + 1) * 0.05));
+          const delta = newBonus - oldBonus;
+          const npcHpRes = await client.query('SELECT hp, max_hp FROM player_npcs WHERE id = $1', [npcId]);
+          if (npcHpRes.rows.length) {
+            const newMaxHp = Math.max(1, npcHpRes.rows[0].max_hp + delta);
+            const newHp = Math.max(0, Math.min(newMaxHp, npcHpRes.rows[0].hp + delta));
+            await client.query('UPDATE player_npcs SET hp = $1, max_hp = $2 WHERE id = $3', [newHp, newMaxHp, npcId]);
+          }
+        }
+        await client.query(
+          'UPDATE npc_equipment SET enchant_level = enchant_level + 1 WHERE npc_id = $1 AND slot = $2',
+          [npcId, slot]
+        );
       }
-      await db.query(
-        'UPDATE npc_equipment SET enchant_level = enchant_level + 1 WHERE npc_id = $1 AND slot = $2',
-        [npcId, slot]
-      );
+      await client.query('COMMIT');
+    } catch (e) {
+      await client.query('ROLLBACK');
+      throw e;
+    } finally {
+      client.release();
+    }
+
+    if (success) {
       res.json({ success: true, message: `¡${itemName} mejorado a +${currentLevel + 1}!`, newLevel: currentLevel + 1 });
     } else {
       res.json({ success: false, message: `El encantamiento de ${itemName} falló. Los materiales se pierden.`, newLevel: currentLevel });
@@ -3093,12 +3260,17 @@ router.post('/:playerId/artisan-shop/buy', requireAuth, async (req, res, next) =
     const { price, item_id: itemId, name } = shopRow.rows[0];
     const totalCost = price * qty;
 
-    const playerRow = await db.query('SELECT gold FROM players WHERE id = $1', [playerId]);
-    if (playerRow.rows[0].gold < totalCost) {
-      return res.status(400).json({ error: `Necesitas ${totalCost} de oro. Tienes ${playerRow.rows[0].gold}.` });
+    // UPDATE atomico con guard: evita el race de "leer oro, chequear, restar" en dos pasos
+    // (dos compras casi simultaneas podian pasar el chequeo con el mismo saldo leido y dejar
+    // el oro en negativo).
+    const spend = await db.query(
+      'UPDATE players SET gold = gold - $1 WHERE id = $2 AND gold >= $1 RETURNING gold',
+      [totalCost, playerId]
+    );
+    if (!spend.rows.length) {
+      const currentGold = (await db.query('SELECT gold FROM players WHERE id = $1', [playerId])).rows[0]?.gold ?? 0;
+      return res.status(400).json({ error: `Necesitas ${totalCost} de oro. Tienes ${currentGold}.` });
     }
-
-    await db.query('UPDATE players SET gold = gold - $1 WHERE id = $2', [totalCost, playerId]);
     await inventory.addItem(playerId, itemId, qty);
 
     res.json({ success: true, message: `Compraste ${qty}x ${name} por ${totalCost} de oro.`, goldSpent: totalCost });
@@ -3136,8 +3308,18 @@ router.post('/:playerId/artisan-shop/sell', requireAuth, async (req, res, next) 
     }
 
     const totalEarned = sellPrice * qty;
-    await inventory.removeItem(playerId, itemId, qty, enchantLevel);
-    await db.query('UPDATE players SET gold = gold + $1 WHERE id = $2', [totalEarned, playerId]);
+    const client = await db.pool.connect();
+    try {
+      await client.query('BEGIN');
+      await inventory.removeItem(playerId, itemId, qty, enchantLevel, null, client);
+      await client.query('UPDATE players SET gold = gold + $1 WHERE id = $2', [totalEarned, playerId]);
+      await client.query('COMMIT');
+    } catch (e) {
+      await client.query('ROLLBACK');
+      throw e;
+    } finally {
+      client.release();
+    }
 
     res.json({ success: true, message: `Vendiste ${qty}x ${name} por ${totalEarned} de oro.`, goldEarned: totalEarned });
   } catch (error) { next(error); }

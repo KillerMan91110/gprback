@@ -333,29 +333,41 @@ router.post('/messages', async (req, res, next) => {
       }
     }
 
-    // Descontar oro
-    if (gold > 0) await db.query('UPDATE players SET gold = gold - $1 WHERE id = $2', [gold, playerId]);
+    // Descontar oro/items y crear el mensaje con lo adjunto en una sola transaccion -- antes,
+    // si la creacion del mensaje fallaba a mitad de camino, el remitente perdia el oro/items sin
+    // que se haya mandado nada.
+    const client = await db.pool.connect();
+    let messageId;
+    try {
+      await client.query('BEGIN');
 
-    // Descontar items del inventario
-    for (const it of items) {
-      await inventory.removeItem(playerId, it.itemId, it.quantity || 1, it.enchantLevel || 0, it.qualityTier ?? 0);
-    }
+      if (gold > 0) await client.query('UPDATE players SET gold = gold - $1 WHERE id = $2', [gold, playerId]);
 
-    // Crear mensaje
-    const msgRes = await db.query(
-      `INSERT INTO player_messages (sender_id, receiver_id, subject, body, gold_amount)
-       VALUES ($1, $2, $3, $4, $5) RETURNING id`,
-      [playerId, receiverId, subject.trim(), body.trim(), gold]
-    );
-    const messageId = msgRes.rows[0].id;
+      for (const it of items) {
+        await inventory.removeItem(playerId, it.itemId, it.quantity || 1, it.enchantLevel || 0, it.qualityTier ?? 0, client);
+      }
 
-    // Adjuntar items
-    for (const it of items) {
-      await db.query(
-        `INSERT INTO player_message_items (message_id, item_id, quantity, enchant_level, quality_tier)
-         VALUES ($1, $2, $3, $4, $5)`,
-        [messageId, it.itemId, it.quantity || 1, it.enchantLevel || 0, it.qualityTier ?? 0]
+      const msgRes = await client.query(
+        `INSERT INTO player_messages (sender_id, receiver_id, subject, body, gold_amount)
+         VALUES ($1, $2, $3, $4, $5) RETURNING id`,
+        [playerId, receiverId, subject.trim(), body.trim(), gold]
       );
+      messageId = msgRes.rows[0].id;
+
+      for (const it of items) {
+        await client.query(
+          `INSERT INTO player_message_items (message_id, item_id, quantity, enchant_level, quality_tier)
+           VALUES ($1, $2, $3, $4, $5)`,
+          [messageId, it.itemId, it.quantity || 1, it.enchantLevel || 0, it.qualityTier ?? 0]
+        );
+      }
+
+      await client.query('COMMIT');
+    } catch (e) {
+      await client.query('ROLLBACK');
+      throw e;
+    } finally {
+      client.release();
     }
 
     res.status(201).json({ message: 'Mensaje enviado', messageId });
@@ -376,21 +388,33 @@ router.post('/messages/:messageId/claim', async (req, res, next) => {
 
     const claimed = [];
 
-    // Reclamar oro
-    if (msg.gold_amount > 0 && !msg.gold_claimed) {
-      await db.query('UPDATE players SET gold = gold + $1 WHERE id = $2', [msg.gold_amount, playerId]);
-      await db.query('UPDATE player_messages SET gold_claimed = TRUE WHERE id = $1', [messageId]);
-      claimed.push(`${msg.gold_amount} oro`);
+    // Reclamar oro: UPDATE atomico con guard sobre gold_claimed en vez de leer-y-despues-escribir
+    // -- dos clicks casi simultaneos ya no pueden reclamar el mismo oro dos veces, porque el
+    // segundo UPDATE no encuentra ninguna fila con gold_claimed=FALSE para tocar.
+    if (msg.gold_amount > 0) {
+      const goldClaim = await db.query(
+        'UPDATE player_messages SET gold_claimed = TRUE WHERE id = $1 AND gold_claimed = FALSE RETURNING gold_amount',
+        [messageId]
+      );
+      if (goldClaim.rows.length) {
+        await db.query('UPDATE players SET gold = gold + $1 WHERE id = $2', [goldClaim.rows[0].gold_amount, playerId]);
+        claimed.push(`${goldClaim.rows[0].gold_amount} oro`);
+      }
     }
 
-    // Reclamar items no reclamados
+    // Reclamar items no reclamados: mismo criterio, un UPDATE atomico por fila antes de otorgar
+    // el item -- si dos requests llegan a la vez, solo uno gana la fila.
     const unclaimedItems = await db.query(
       `SELECT * FROM player_message_items WHERE message_id = $1 AND claimed = FALSE`,
       [messageId]
     );
     for (const it of unclaimedItems.rows) {
+      const itemClaim = await db.query(
+        'UPDATE player_message_items SET claimed = TRUE WHERE id = $1 AND claimed = FALSE RETURNING id',
+        [it.id]
+      );
+      if (!itemClaim.rows.length) continue;
       await inventory.addItem(playerId, it.item_id, it.quantity, it.enchant_level, it.quality_tier);
-      await db.query('UPDATE player_message_items SET claimed = TRUE WHERE id = $1', [it.id]);
       const itemRes = await db.query('SELECT name FROM items WHERE id = $1', [it.item_id]);
       claimed.push(`${it.quantity}x ${itemRes.rows[0]?.name}`);
     }

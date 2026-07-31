@@ -985,9 +985,12 @@ app.use((req, res) => {
 
 app.use((err, req, res, next) => {
   console.error(err.stack);
+  // err.message se filtraba siempre al cliente, sin importar el entorno -- puede traer detalle
+  // interno de Postgres (nombres de tabla/columna, fragmentos de query). Solo se expone fuera de
+  // produccion, para no perder informacion util en desarrollo.
   res.status(500).json({
     error: 'Error interno del servidor',
-    message: err.message
+    ...(process.env.NODE_ENV !== 'production' && { message: err.message }),
   });
 });
 

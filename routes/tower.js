@@ -1026,24 +1026,37 @@ router.post('/travel', async (req, res, next) => {
     for (const partnerRun of partnerRuns) {
       await closeRunAsExtracted(partnerRun);
     }
-    await inventory.removeItem(req.playerId, crystalId, 1);
+    // Consumir el cristal y crear la corrida nueva en una sola transaccion -- antes, si la
+    // insercion de la corrida fallaba, el cristal ya se habia descontado sin haber viajado.
+    const client = await db.pool.connect();
+    let newRun;
+    try {
+      await client.query('BEGIN');
+      await inventory.removeItem(req.playerId, crystalId, 1, 0, null, client);
 
-    const newRunRes = await db.query(
-      `INSERT INTO player_tower_runs(player_id, guest_player_id, guest_player_id_2, difficulty, current_floor, current_room, coins_earned, last_banked_floor, status)
-       VALUES ($1, $2, $3, $4, $5, 1, 0, $5, 'IN_PROGRESS') RETURNING *`,
-      [req.playerId, coopPartnerIds[0] ?? null, coopPartnerIds[1] ?? null, difficulty, floor]
-    );
-    const newRun = newRunRes.rows[0];
-
-    // current_floor === last_banked_floor desde el arranque, asi que bankIfNewCheckpoint nunca
-    // se dispara para esta corrida -- hay que sumar el descubrimiento a mano para todos los que
-    // viajan (quien tiene el cristal ya lo tenia; los compañeros pueden ser nuevos ahi).
-    const allTravelerIds = [req.playerId, ...coopPartnerIds];
-    for (const pid of allTravelerIds) {
-      await db.query(
-        'INSERT INTO player_discovered_checkpoints(player_id, floor) VALUES ($1, $2) ON CONFLICT DO NOTHING',
-        [pid, floor]
+      const newRunRes = await client.query(
+        `INSERT INTO player_tower_runs(player_id, guest_player_id, guest_player_id_2, difficulty, current_floor, current_room, coins_earned, last_banked_floor, status)
+         VALUES ($1, $2, $3, $4, $5, 1, 0, $5, 'IN_PROGRESS') RETURNING *`,
+        [req.playerId, coopPartnerIds[0] ?? null, coopPartnerIds[1] ?? null, difficulty, floor]
       );
+      newRun = newRunRes.rows[0];
+
+      // current_floor === last_banked_floor desde el arranque, asi que bankIfNewCheckpoint nunca
+      // se dispara para esta corrida -- hay que sumar el descubrimiento a mano para todos los que
+      // viajan (quien tiene el cristal ya lo tenia; los compañeros pueden ser nuevos ahi).
+      const allTravelerIds = [req.playerId, ...coopPartnerIds];
+      for (const pid of allTravelerIds) {
+        await client.query(
+          'INSERT INTO player_discovered_checkpoints(player_id, floor) VALUES ($1, $2) ON CONFLICT DO NOTHING',
+          [pid, floor]
+        );
+      }
+      await client.query('COMMIT');
+    } catch (e) {
+      await client.query('ROLLBACK');
+      throw e;
+    } finally {
+      client.release();
     }
 
     res.json({ run: newRun, checkpoint: checkpointInfo(newRun) });

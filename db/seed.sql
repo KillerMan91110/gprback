@@ -22461,3 +22461,9 @@ SELECT id, v.price FROM items i JOIN (VALUES
   ('HUEVO_COSMICO', 50000)
 ) AS v(code, price) ON i.code = v.code
 ON CONFLICT DO NOTHING;
+
+-- ===== Auditoria del front: indices faltantes en columnas calientes =====
+-- Mirror de schema.sql.
+CREATE INDEX IF NOT EXISTS idx_player_pets_player_id ON player_pets(player_id);
+CREATE INDEX IF NOT EXISTS idx_player_npc_pool_player_id ON player_npc_pool(player_id);
+CREATE INDEX IF NOT EXISTS idx_market_listings_status_created ON player_market_listings(status, created_at DESC);
