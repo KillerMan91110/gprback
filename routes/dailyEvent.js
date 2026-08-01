@@ -63,6 +63,23 @@ router.get('/', async (req, res, next) => {
       };
     }
 
+    // Preview del XP/oro que da matar al/los monstruo/s en sí (no el bono fijo del catálogo de
+    // arriba), calculado exactamente igual que /enter para que coincida con lo que va a pasar de
+    // verdad: mismo hydrateMonsters + applyForcedRarityAndMutation, sin sortear nada nuevo. No
+    // replica bonos posteriores del pipeline de victoria (rango, logros, xp_rate de clase) — es un
+    // preview base, no el número final exacto.
+    const playerRes = await db.query('SELECT level FROM players WHERE id = $1', [req.playerId]);
+    const previewLevel = playerRes.rows[0]?.level;
+    let previewXp = 0;
+    let previewGold = 0;
+    if (previewLevel) {
+      const monsterSpecs = entry.monster_codes.map((code) => ({ code, level: previewLevel }));
+      const previewMonsters = await combatEngine.hydrateMonsters(monsterSpecs);
+      for (const m of previewMonsters) combatEngine.applyForcedRarityAndMutation(m, entry.forced_rarity, entry.forced_mutation);
+      previewXp = previewMonsters.reduce((sum, m) => sum + m.xp_reward, 0);
+      previewGold = previewMonsters.reduce((sum, m) => sum + m.gold_reward, 0);
+    }
+
     res.json({
       code: entry.code,
       name: entry.name,
@@ -75,6 +92,8 @@ router.get('/', async (req, res, next) => {
       goldReward: entry.gold_reward,
       dungeonCoinsReward: entry.dungeon_coins_reward,
       bonusMaterial,
+      previewXp,
+      previewGold,
     });
   } catch (err) { next(err); }
 });
