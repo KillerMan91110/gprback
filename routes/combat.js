@@ -279,8 +279,12 @@ async function hydrateMonsters(monsterSpecs) {
       crit_damage: statRaw('crit_damage', monster.base_crit_damage),
       evasion: statRaw('evasion', monster.base_evasion),
       // XP y oro escalan linealmente desde min_spawn_level (+0%) hasta max_spawn_level (+50%).
-      xp_reward: Math.round(monster.xp_reward * (1 + (levelRange > 0 ? (level - monster.min_spawn_level) / levelRange : 0) * 0.5)),
-      gold_reward: Math.round(monster.gold_reward * (1 + (levelRange > 0 ? (level - monster.min_spawn_level) / levelRange : 0) * 0.5)),
+      // spawnRatio se clampea en 0 (nunca negativo): si "level" queda por debajo de min_spawn_level
+      // (ej. World Boss o Evento del Día escalando a un jugador de nivel bajo contra un monstruo
+      // cuyo min_spawn_level real es mucho más alto), la extrapolación lineal sin clamp se iba a
+      // valores muy negativos y el "reward" terminaba drenando oro/xp real del jugador al ganar.
+      xp_reward: Math.round(monster.xp_reward * (1 + Math.max(0, levelRange > 0 ? (level - monster.min_spawn_level) / levelRange : 0) * 0.5)),
+      gold_reward: Math.round(monster.gold_reward * (1 + Math.max(0, levelRange > 0 ? (level - monster.min_spawn_level) / levelRange : 0) * 0.5)),
       level,
     });
   }
@@ -1254,6 +1258,32 @@ function applyEncounterRarity(enemy) {
   }
 }
 
+// Evento del Día (docs/backend-spec-evento-del-dia.md): misma escala de stats/recompensa/mutación
+// que applyEncounterRarity de arriba, pero sin sorteo — la plantilla del día ya trae el tier y la
+// mutación fijos (si tiene), así que se aplican directo en vez de tirar rollEncounterRarity().
+function applyForcedRarityAndMutation(enemy, forcedRarity, forcedMutation) {
+  const mult = ENCOUNTER_RARITY_STAT_MULT[forcedRarity];
+  if (mult && mult !== 1) {
+    enemy.hp = Math.round(enemy.hp * mult); enemy.max_hp = enemy.hp;
+    enemy.atk = Math.round(enemy.atk * mult);
+    enemy.def = Math.round(enemy.def * mult);
+    enemy.mag = Math.round(enemy.mag * mult);
+    enemy.magic_def = Math.round(enemy.magic_def * mult);
+    enemy.spd = Math.round(enemy.spd * mult);
+  }
+  const rewardMult = ENCOUNTER_RARITY_REWARD_MULT[forcedRarity];
+  if (rewardMult && rewardMult !== 1) {
+    enemy.gold_reward = Math.round(enemy.gold_reward * rewardMult);
+    enemy.xp_reward = Math.round(enemy.xp_reward * rewardMult);
+  }
+  enemy.name = `${enemy.name} · ${ENCOUNTER_RARITY_LABEL[forcedRarity] || forcedRarity}`;
+  enemy.encounter_rarity = forcedRarity;
+  if (forcedMutation && MUTATIONS[forcedMutation]) {
+    MUTATIONS[forcedMutation].apply(enemy);
+    enemy.name = `${enemy.name} ${MUTATIONS[forcedMutation].label}`;
+  }
+}
+
 // Eventos narrativos de sala (docs/backend-spec-abismo-eventos-narrativos.md): antes de que una
 // sala sea combate garantizado, una ruleta pesada por Luck decide si en vez es un evento con 2
 // opciones. Luck alta => menos trampas, más de todo lo bueno; luck baja => al revés, tope +/-40
@@ -1682,8 +1712,44 @@ async function finalizeSession(sessionId, status, participants) {
 
   await handleTowerSessionEnd(sessionId, status);
   await handleWorldBossFinalize(sessionId, status, participants);
+  await handleDailyEventFinalize(sessionId, status, participants);
 
   return rewards;
+}
+
+// Evento del Día (docs/backend-spec-evento-del-dia.md): recompensa fija del catálogo de hoy (oro,
+// monedas de mazmorra, material bonus con probabilidad) para cada héroe real que ganó, ADEMÁS de
+// lo que ya reparte el bloque normal de arriba (xp/oro/drops propios del/los monstruo/s). El
+// material bonus se sortea una sola vez por sesión y se replica a todos los héroes si sale,
+// mismo criterio que itemsDropped más arriba (no un roll independiente por jugador).
+async function handleDailyEventFinalize(sessionId, status, participants) {
+  if (status !== 'PLAYER_WON') return;
+  const sessRes = await db.query('SELECT daily_event_code FROM combat_sessions WHERE id = $1', [sessionId]);
+  const code = sessRes.rows[0]?.daily_event_code;
+  if (!code) return;
+
+  const entryRes = await db.query('SELECT * FROM daily_event_catalog WHERE code = $1', [code]);
+  const entry = entryRes.rows[0];
+  if (!entry) return;
+
+  const abandonedRes = await db.query('SELECT player_id FROM combat_abandoned_players WHERE session_id = $1', [sessionId]);
+  const abandonedIds = abandonedRes.rows.map((r) => r.player_id);
+  const heroIds = participants.player.filter((p) => p.player_id && !abandonedIds.includes(p.player_id)).map((p) => p.player_id);
+  if (!heroIds.length) return;
+
+  let materialItemId = null;
+  if (entry.bonus_material_item_code && Math.random() * 100 < entry.bonus_material_chance_percent) {
+    const itemRes = await db.query('SELECT id FROM items WHERE code = $1', [entry.bonus_material_item_code]);
+    materialItemId = itemRes.rows[0]?.id ?? null;
+  }
+
+  for (const playerId of heroIds) {
+    await db.query(
+      'UPDATE players SET gold = gold + $1, dungeon_coins = dungeon_coins + $2 WHERE id = $3',
+      [entry.gold_reward, entry.dungeon_coins_reward, playerId]
+    );
+    if (materialItemId) await inventory.addItem(playerId, materialItemId, entry.bonus_material_quantity || 1);
+  }
 }
 
 // World Boss (docs/backend-spec-world-boss.md sección 4): si esta sesión es un clon de World
@@ -3651,3 +3717,4 @@ module.exports.WORLD_BOSS_MIN_LEVEL_TO_ENTER = WORLD_BOSS_MIN_LEVEL_TO_ENTER;
 module.exports.advanceTowerRoomOrFloor = advanceTowerRoomOrFloor;
 module.exports.handleTowerSessionEnd = handleTowerSessionEnd;
 module.exports.TOWER_EVENT_TRAP_DAMAGE_PERCENT = TOWER_EVENT_TRAP_DAMAGE_PERCENT;
+module.exports.applyForcedRarityAndMutation = applyForcedRarityAndMutation;

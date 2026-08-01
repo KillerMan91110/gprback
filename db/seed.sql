@@ -22520,3 +22520,50 @@ ON CONFLICT (day_number) DO UPDATE SET
   reward_type = EXCLUDED.reward_type,
   item_code = EXCLUDED.item_code,
   quantity = EXCLUDED.quantity;
+
+-- ===== Evento del Dia (encuentro especial rotativo) =====
+-- docs/backend-spec-evento-del-dia.md. Mirror de schema.sql.
+CREATE TABLE IF NOT EXISTS player_daily_event (
+  player_id         INT PRIMARY KEY REFERENCES players(id) ON DELETE CASCADE,
+  attempts_used      INT NOT NULL DEFAULT 0,
+  last_attempt_date  DATE
+);
+
+CREATE TABLE IF NOT EXISTS daily_event_catalog (
+  rotation_index    INT PRIMARY KEY,
+  code              TEXT NOT NULL UNIQUE,
+  name              TEXT NOT NULL,
+  flavor_text       TEXT,
+  monster_codes     TEXT[] NOT NULL,
+  forced_rarity     TEXT NOT NULL CHECK (forced_rarity IN ('ELITE', 'MINI_JEFE', 'JEFE')),
+  forced_mutation   TEXT CHECK (forced_mutation IN ('FRENETICO', 'GIGANTE', 'DORADO', 'CORRUPTO')),
+  gold_reward       INT NOT NULL,
+  dungeon_coins_reward INT NOT NULL,
+  bonus_material_item_code TEXT REFERENCES items(code),
+  bonus_material_chance_percent INT NOT NULL DEFAULT 0,
+  bonus_material_quantity INT NOT NULL DEFAULT 0
+);
+
+ALTER TABLE combat_sessions ADD COLUMN IF NOT EXISTS daily_event_code TEXT REFERENCES daily_event_catalog(code);
+
+-- Material bonus: uno tematico por plantilla (drop propio de su monstruo insignia), probable pero
+-- no garantizado. Oro/monedas deliberadamente chicos (5 entradas/dia posibles) frente a los 200-800
+-- de un dia de recompensa diaria (una sola vez).
+INSERT INTO daily_event_catalog (rotation_index, code, name, flavor_text, monster_codes, forced_rarity, forced_mutation, gold_reward, dungeon_coins_reward, bonus_material_item_code, bonus_material_chance_percent, bonus_material_quantity) VALUES
+(0, 'INVASION_GOBLIN',   'Invasión Goblin',      'Una banda de goblins saqueadores cruzó la frontera de la Pradera Dorada.', ARRAY['GOBLIN_SAQUEADOR','GOBLIN_SAQUEADOR','GOBLIN_SAQUEADOR'],       'ELITE',     NULL,        80,  3, 'OREJA_DE_GOBLIN',        40, 2),
+(1, 'PLAGA_ARACNIDOS',   'Plaga de Arácnidos',   'Arañas venenosas y ratas de alcantarilla se multiplican sin control.',    ARRAY['ARANA_VENENOSA','ARANA_VENENOSA','RATA_ALCANTARILLA'],          'ELITE',     'FRENETICO', 90,  3, 'VENENO_DE_ARANA',        40, 2),
+(2, 'CACERIA_DRAGONES',  'Cacería de Dragones',  'Un dragón menor corrupto por el Volcán Rojo acecha cerca del cráter.',    ARRAY['DRAGON_MENOR_CORRUPTO'],                                         'MINI_JEFE', NULL,        150, 5, 'ESCAMA_DRAGON_CORRUPTO', 30, 1),
+(3, 'PORTAL_DEMONIACO',  'Portal Demoníaco',     'Un portal se abrió en las Catacumbas y de él emergió un demonio de lava.', ARRAY['DEMONIO_LAVA'],                                                 'JEFE',      'CORRUPTO',  250, 8, 'CUERNO_DEMONIO_LAVA',    25, 1),
+(4, 'GUARDIAN_REBELDE',  'Guardián Rebelde',     'Un guardián ancestral y su centinela de piedra se rebelaron contra las Ruinas.', ARRAY['GUARDIAN_ANCESTRAL','CENTINELA_PIEDRA'],                 'MINI_JEFE', 'GIGANTE',   150, 5, 'FRAGMENTO_DE_PODER',     30, 1)
+ON CONFLICT (rotation_index) DO UPDATE SET
+  code = EXCLUDED.code,
+  name = EXCLUDED.name,
+  flavor_text = EXCLUDED.flavor_text,
+  monster_codes = EXCLUDED.monster_codes,
+  forced_rarity = EXCLUDED.forced_rarity,
+  forced_mutation = EXCLUDED.forced_mutation,
+  gold_reward = EXCLUDED.gold_reward,
+  dungeon_coins_reward = EXCLUDED.dungeon_coins_reward,
+  bonus_material_item_code = EXCLUDED.bonus_material_item_code,
+  bonus_material_chance_percent = EXCLUDED.bonus_material_chance_percent,
+  bonus_material_quantity = EXCLUDED.bonus_material_quantity;

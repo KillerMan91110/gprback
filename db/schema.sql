@@ -1279,3 +1279,32 @@ CREATE TABLE IF NOT EXISTS daily_reward_catalog (
   quantity    INT NOT NULL,
   CHECK ((reward_type = 'ITEM') = (item_code IS NOT NULL))
 );
+
+-- Evento del Dia (docs/backend-spec-evento-del-dia.md): encuentro especial rotativo, igual para
+-- todos los jugadores el mismo dia (rotacion deterministica por fecha calendario UTC, ver
+-- routes/dailyEvent.js), tope de 5 entradas por jugador por dia. Rareza/mutacion forzada reusa
+-- ENCOUNTER_RARITY_STAT_MULT/MUTATIONS de El Abismo (routes/combat.js) sin sortear.
+CREATE TABLE IF NOT EXISTS player_daily_event (
+  player_id         INT PRIMARY KEY REFERENCES players(id) ON DELETE CASCADE,
+  attempts_used      INT NOT NULL DEFAULT 0,
+  last_attempt_date  DATE
+);
+
+CREATE TABLE IF NOT EXISTS daily_event_catalog (
+  rotation_index    INT PRIMARY KEY,
+  code              TEXT NOT NULL UNIQUE,
+  name              TEXT NOT NULL,
+  flavor_text       TEXT,
+  monster_codes     TEXT[] NOT NULL,
+  forced_rarity     TEXT NOT NULL CHECK (forced_rarity IN ('ELITE', 'MINI_JEFE', 'JEFE')),
+  forced_mutation   TEXT CHECK (forced_mutation IN ('FRENETICO', 'GIGANTE', 'DORADO', 'CORRUPTO')),
+  gold_reward       INT NOT NULL,
+  dungeon_coins_reward INT NOT NULL,
+  bonus_material_item_code TEXT REFERENCES items(code),
+  bonus_material_chance_percent INT NOT NULL DEFAULT 0,
+  bonus_material_quantity INT NOT NULL DEFAULT 0
+);
+
+-- Marca de sesion (mismo patron que world_boss_event_id): que sesiones de combate son un intento
+-- del Evento del Dia, para que finalizeSession sepa entregar la recompensa fija del catalogo.
+ALTER TABLE combat_sessions ADD COLUMN IF NOT EXISTS daily_event_code TEXT REFERENCES daily_event_catalog(code);
