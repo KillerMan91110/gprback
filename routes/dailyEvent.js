@@ -53,6 +53,16 @@ router.get('/', async (req, res, next) => {
     );
     const attemptsUsed = stateRes.rows[0].attempts_used;
 
+    let bonusMaterial = null;
+    if (entry.bonus_material_item_code) {
+      const itemRes = await db.query('SELECT name FROM items WHERE code = $1', [entry.bonus_material_item_code]);
+      bonusMaterial = {
+        itemName: itemRes.rows[0]?.name ?? entry.bonus_material_item_code,
+        quantity: entry.bonus_material_quantity,
+        chancePercent: entry.bonus_material_chance_percent,
+      };
+    }
+
     res.json({
       code: entry.code,
       name: entry.name,
@@ -62,6 +72,9 @@ router.get('/', async (req, res, next) => {
       attemptsUsed,
       attemptsMax: DAILY_EVENT_MAX_ATTEMPTS,
       canEnter: attemptsUsed < DAILY_EVENT_MAX_ATTEMPTS,
+      goldReward: entry.gold_reward,
+      dungeonCoinsReward: entry.dungeon_coins_reward,
+      bonusMaterial,
     });
   } catch (err) { next(err); }
 });
