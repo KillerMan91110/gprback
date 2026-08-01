@@ -254,8 +254,21 @@ async function hydrateMonsters(monsterSpecs) {
     const stat = (key, fallback) => (low ? Math.round(interpolateStat(level, low, high, key)) : fallback);
     const statRaw = (key, fallback) => (low ? interpolateStat(level, low, high, key) : fallback);
 
-    const hp = stat('hp', monster.base_hp);
+    // Si "level" (el nivel de quien entra) cae por debajo del min_spawn_level real del monstruo,
+    // low/high de arriba quedan clavados en la fila de min_spawn_level (el piso mas bajo cargado) y
+    // stat()/statRaw() devuelven esas stats TAL CUAL, sin importar que tan lejos este el nivel
+    // pedido — un nivel 1 contra un dragon cuyo piso real es 38 recibia las stats completas de
+    // nivel 38 y moria de un golpe (ver World Boss / Evento del Día, que escalan al nivel de quien
+    // entra sin importar el piso natural del monstruo elegido). belowFloorRatio achica ademas
+    // proporcionalmente al nivel real pedido; en 1 si level >= min_spawn_level (caso normal, no
+    // cambia nada de lo que ya habia).
+    const belowFloorRatio = (monster.min_spawn_level > 0 && level < monster.min_spawn_level)
+      ? level / monster.min_spawn_level
+      : 1;
+
+    const hp = Math.max(1, Math.round(stat('hp', monster.base_hp) * belowFloorRatio));
     const levelRange = monster.max_spawn_level - monster.min_spawn_level;
+    const spawnRatio = Math.max(0, levelRange > 0 ? (level - monster.min_spawn_level) / levelRange : 0);
 
     combatants.push({
       side: 'ENEMY',
@@ -270,21 +283,19 @@ async function hydrateMonsters(monsterSpecs) {
       max_hp: hp,
       mana: level * 10,
       max_mana: level * 10,
-      atk: stat('atk', monster.base_atk),
-      mag: stat('magic_atk', monster.base_magic_atk),
-      def: stat('def', monster.base_def),
-      magic_def: stat('magic_def', monster.base_magic_def),
-      spd: stat('spd', monster.base_spd),
+      atk: Math.round(stat('atk', monster.base_atk) * belowFloorRatio),
+      mag: Math.round(stat('magic_atk', monster.base_magic_atk) * belowFloorRatio),
+      def: Math.round(stat('def', monster.base_def) * belowFloorRatio),
+      magic_def: Math.round(stat('magic_def', monster.base_magic_def) * belowFloorRatio),
+      spd: Math.round(stat('spd', monster.base_spd) * belowFloorRatio),
       crit_chance: statRaw('crit_chance', monster.base_crit_chance),
       crit_damage: statRaw('crit_damage', monster.base_crit_damage),
       evasion: statRaw('evasion', monster.base_evasion),
-      // XP y oro escalan linealmente desde min_spawn_level (+0%) hasta max_spawn_level (+50%).
-      // spawnRatio se clampea en 0 (nunca negativo): si "level" queda por debajo de min_spawn_level
-      // (ej. World Boss o Evento del Día escalando a un jugador de nivel bajo contra un monstruo
-      // cuyo min_spawn_level real es mucho más alto), la extrapolación lineal sin clamp se iba a
-      // valores muy negativos y el "reward" terminaba drenando oro/xp real del jugador al ganar.
-      xp_reward: Math.round(monster.xp_reward * (1 + Math.max(0, levelRange > 0 ? (level - monster.min_spawn_level) / levelRange : 0) * 0.5)),
-      gold_reward: Math.round(monster.gold_reward * (1 + Math.max(0, levelRange > 0 ? (level - monster.min_spawn_level) / levelRange : 0) * 0.5)),
+      // XP y oro escalan linealmente desde min_spawn_level (+0%) hasta max_spawn_level (+50%), y
+      // ademas por belowFloorRatio (una version achicada del monstruo da recompensa achicada, no
+      // la recompensa completa de su piso natural).
+      xp_reward: Math.round(monster.xp_reward * belowFloorRatio * (1 + spawnRatio * 0.5)),
+      gold_reward: Math.round(monster.gold_reward * belowFloorRatio * (1 + spawnRatio * 0.5)),
       level,
     });
   }
