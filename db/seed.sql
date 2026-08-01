@@ -22467,3 +22467,56 @@ ON CONFLICT DO NOTHING;
 CREATE INDEX IF NOT EXISTS idx_player_pets_player_id ON player_pets(player_id);
 CREATE INDEX IF NOT EXISTS idx_player_npc_pool_player_id ON player_npc_pool(player_id);
 CREATE INDEX IF NOT EXISTS idx_market_listings_status_created ON player_market_listings(status, created_at DESC);
+
+-- ===== Recompensa diaria / racha de login =====
+-- docs/backend-spec-recompensa-diaria.md. Mirror de schema.sql (va despues de players/items).
+CREATE TABLE IF NOT EXISTS player_daily_reward (
+  player_id       INT PRIMARY KEY REFERENCES players(id) ON DELETE CASCADE,
+  current_day     INT NOT NULL DEFAULT 0 CHECK (current_day BETWEEN 0 AND 28),
+  last_claim_date DATE
+);
+
+CREATE TABLE IF NOT EXISTS daily_reward_catalog (
+  day_number  INT PRIMARY KEY CHECK (day_number BETWEEN 1 AND 28),
+  reward_type TEXT NOT NULL CHECK (reward_type IN ('GOLD', 'DUNGEON_COINS', 'COSMIC_SHARDS', 'ITEM')),
+  item_code   TEXT REFERENCES items(code),
+  quantity    INT NOT NULL,
+  CHECK ((reward_type = 'ITEM') = (item_code IS NOT NULL))
+);
+
+-- Dia 7: Huevo Raro en vez del Cristal de Viaje que proponia el spec original -- ese cristal
+-- exige haber descubierto un checkpoint de piso 15+ (~nivel 44) para poder usarse, algo
+-- irrealista a los 7 dias de cuenta; el huevo no tiene ningun requisito.
+INSERT INTO daily_reward_catalog (day_number, reward_type, item_code, quantity) VALUES
+(1,  'GOLD',           NULL,                      200),
+(2,  'GOLD',           NULL,                      250),
+(3,  'ITEM',           'POCION_DE_VIDA_MENOR',    5),
+(4,  'GOLD',           NULL,                      300),
+(5,  'DUNGEON_COINS',  NULL,                      10),
+(6,  'GOLD',           NULL,                      350),
+(7,  'ITEM',           'HUEVO_RARO',              1),
+(8,  'GOLD',           NULL,                      400),
+(9,  'ITEM',           'ELIXIR_DE_REGENERACION',  3),
+(10, 'DUNGEON_COINS',  NULL,                      15),
+(11, 'GOLD',           NULL,                      450),
+(12, 'ITEM',           'ESENCIA_RESTAURADORA',    3),
+(13, 'GOLD',           NULL,                      500),
+(14, 'COSMIC_SHARDS',  NULL,                      25),
+(15, 'GOLD',           NULL,                      550),
+(16, 'ITEM',           'CRISTAL_ESTABILIDAD',     1),
+(17, 'DUNGEON_COINS',  NULL,                      20),
+(18, 'GOLD',           NULL,                      600),
+(19, 'ITEM',           'ELIXIR_DE_REGENERACION',  5),
+(20, 'GOLD',           NULL,                      650),
+(21, 'COSMIC_SHARDS',  NULL,                      50),
+(22, 'GOLD',           NULL,                      700),
+(23, 'DUNGEON_COINS',  NULL,                      25),
+(24, 'ITEM',           'CRISTAL_ESTABILIDAD',     2),
+(25, 'GOLD',           NULL,                      750),
+(26, 'DUNGEON_COINS',  NULL,                      30),
+(27, 'GOLD',           NULL,                      800),
+(28, 'ITEM',           'HUEVO_LEGENDARIO',        1)
+ON CONFLICT (day_number) DO UPDATE SET
+  reward_type = EXCLUDED.reward_type,
+  item_code = EXCLUDED.item_code,
+  quantity = EXCLUDED.quantity;

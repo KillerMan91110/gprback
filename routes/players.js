@@ -3454,4 +3454,113 @@ router.get('/:playerId/stats/breakdown', requireAuth, async (req, res, next) => 
   } catch (error) { next(error); }
 });
 
+// ─── RECOMPENSA DIARIA / RACHA DE LOGIN (docs/backend-spec-recompensa-diaria.md) ──────────────
+// Por fecha de calendario UTC, no ventana rodante de 24h: se usa (now() AT TIME ZONE 'UTC')::date
+// en vez de CURRENT_DATE crudo, para no depender de la config de timezone de la sesion.
+
+// GET /api/player/:playerId/daily-reward
+router.get('/:playerId/daily-reward', requireAuth, requireSelf, async (req, res, next) => {
+  const { playerId } = req.params;
+  try {
+    await db.query('INSERT INTO player_daily_reward(player_id) VALUES ($1) ON CONFLICT DO NOTHING', [playerId]);
+    const stateRes = await db.query(
+      `SELECT current_day,
+              (last_claim_date = (now() AT TIME ZONE 'UTC')::date) AS claimed_today,
+              (last_claim_date = (now() AT TIME ZONE 'UTC')::date - 1) AS claimed_yesterday
+       FROM player_daily_reward WHERE player_id = $1`,
+      [playerId]
+    );
+    const { current_day: currentDay, claimed_today: claimedToday, claimed_yesterday: claimedYesterday } = stateRes.rows[0];
+    const nextClaimDay = claimedYesterday ? (currentDay % 28) + 1 : (claimedToday ? currentDay : 1);
+
+    const catalogRes = await db.query(
+      `SELECT c.day_number, c.reward_type, c.item_code, i.name AS item_name, c.quantity
+       FROM daily_reward_catalog c LEFT JOIN items i ON i.code = c.item_code
+       ORDER BY c.day_number`
+    );
+
+    res.json({
+      currentDay,
+      claimedToday,
+      nextClaimDay,
+      calendar: catalogRes.rows.map((r) => ({
+        day: r.day_number,
+        rewardType: r.reward_type,
+        itemCode: r.item_code,
+        itemName: r.item_name,
+        quantity: r.quantity,
+      })),
+    });
+  } catch (error) { next(error); }
+});
+
+// POST /api/player/:playerId/daily-reward/claim
+router.post('/:playerId/daily-reward/claim', requireAuth, requireSelf, async (req, res, next) => {
+  const { playerId } = req.params;
+  const client = await db.pool.connect();
+  try {
+    await client.query('BEGIN');
+    await client.query('INSERT INTO player_daily_reward(player_id) VALUES ($1) ON CONFLICT DO NOTHING', [playerId]);
+    const stateRes = await client.query(
+      `SELECT current_day,
+              (last_claim_date = (now() AT TIME ZONE 'UTC')::date) AS claimed_today,
+              (last_claim_date = (now() AT TIME ZONE 'UTC')::date - 1) AS claimed_yesterday
+       FROM player_daily_reward WHERE player_id = $1 FOR UPDATE`,
+      [playerId]
+    );
+    const { current_day: previousDay, claimed_today: claimedToday, claimed_yesterday: claimedYesterday } = stateRes.rows[0];
+
+    if (claimedToday) {
+      await client.query('ROLLBACK');
+      return res.status(400).json({ error: 'Ya reclamaste la recompensa de hoy.' });
+    }
+
+    const dayToGive = claimedYesterday ? (previousDay % 28) + 1 : 1;
+    const streakBroken = dayToGive === 1 && previousDay !== 0 && previousDay !== 28;
+
+    const rewardRes = await client.query(
+      'SELECT reward_type, item_code, quantity FROM daily_reward_catalog WHERE day_number = $1',
+      [dayToGive]
+    );
+    const reward = rewardRes.rows[0];
+
+    if (reward.reward_type === 'GOLD') {
+      await client.query('UPDATE players SET gold = gold + $1 WHERE id = $2', [reward.quantity, playerId]);
+    } else if (reward.reward_type === 'DUNGEON_COINS') {
+      await client.query('UPDATE players SET dungeon_coins = dungeon_coins + $1 WHERE id = $2', [reward.quantity, playerId]);
+    } else if (reward.reward_type === 'COSMIC_SHARDS') {
+      await client.query('UPDATE players SET cosmic_shards = cosmic_shards + $1 WHERE id = $2', [reward.quantity, playerId]);
+    } else {
+      const itemRow = await client.query('SELECT id, name FROM items WHERE code = $1', [reward.item_code]);
+      await inventory.addItem(playerId, itemRow.rows[0].id, reward.quantity, 0, 0, client);
+    }
+
+    await client.query(
+      'UPDATE player_daily_reward SET current_day = $1, last_claim_date = (now() AT TIME ZONE \'UTC\')::date WHERE player_id = $2',
+      [dayToGive, playerId]
+    );
+
+    await client.query('COMMIT');
+
+    let itemName = null;
+    if (reward.reward_type === 'ITEM') {
+      itemName = (await db.query('SELECT name FROM items WHERE code = $1', [reward.item_code])).rows[0]?.name ?? null;
+    }
+
+    res.json({
+      day: dayToGive,
+      rewardType: reward.reward_type,
+      itemName,
+      quantity: reward.quantity,
+      streakBroken,
+      currentDay: dayToGive,
+    });
+  } catch (error) {
+    await client.query('ROLLBACK');
+    next(error);
+  } finally {
+    client.release();
+  }
+});
+
 module.exports = router;

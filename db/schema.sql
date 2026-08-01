@@ -1263,3 +1263,19 @@ CREATE TABLE IF NOT EXISTS player_discovered_checkpoints (
   discovered_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   PRIMARY KEY (player_id, floor)
 );
+
+-- Recompensa diaria / racha de login (docs/backend-spec-recompensa-diaria.md). Calendario de 28
+-- dias por fecha calendario UTC, no ventana rodante -- ver routes/players.js.
+CREATE TABLE IF NOT EXISTS player_daily_reward (
+  player_id       INT PRIMARY KEY REFERENCES players(id) ON DELETE CASCADE,
+  current_day     INT NOT NULL DEFAULT 0 CHECK (current_day BETWEEN 0 AND 28),
+  last_claim_date DATE
+);
+
+CREATE TABLE IF NOT EXISTS daily_reward_catalog (
+  day_number  INT PRIMARY KEY CHECK (day_number BETWEEN 1 AND 28),
+  reward_type TEXT NOT NULL CHECK (reward_type IN ('GOLD', 'DUNGEON_COINS', 'COSMIC_SHARDS', 'ITEM')),
+  item_code   TEXT REFERENCES items(code),
+  quantity    INT NOT NULL,
+  CHECK ((reward_type = 'ITEM') = (item_code IS NOT NULL))
+);
