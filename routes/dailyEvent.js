@@ -10,6 +10,7 @@ const express = require('express');
 const db = require('../db/db');
 const { requireAuth, requireSelf } = require('../lib/auth');
 const combatEngine = require('./combat');
+const dailyEventBonus = require('../lib/dailyEventBonus');
 
 const router = express.Router({ mergeParams: true });
 router.use(requireAuth);
@@ -76,8 +77,11 @@ router.get('/', async (req, res, next) => {
       const monsterSpecs = entry.monster_codes.map((code) => ({ code, level: previewLevel }));
       const previewMonsters = await combatEngine.hydrateMonsters(monsterSpecs);
       for (const m of previewMonsters) combatEngine.applyForcedRarityAndMutation(m, entry.forced_rarity, entry.forced_mutation);
-      previewXp = previewMonsters.reduce((sum, m) => sum + m.xp_reward, 0);
-      previewGold = previewMonsters.reduce((sum, m) => sum + m.gold_reward, 0);
+      // + bono de nivel bajo (degradé hasta nivel 15, ver lib/dailyEventBonus): sin esto el
+      // preview no coincidiría con lo que realmente entrega handleDailyEventFinalize al ganar.
+      const bonus = dailyEventBonus.lowLevelBonus(previewLevel);
+      previewXp = previewMonsters.reduce((sum, m) => sum + m.xp_reward, 0) + bonus.xp;
+      previewGold = previewMonsters.reduce((sum, m) => sum + m.gold_reward, 0) + bonus.gold;
     }
 
     res.json({

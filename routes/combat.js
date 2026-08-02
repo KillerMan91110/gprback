@@ -15,6 +15,7 @@ const { applyGuildXp, getGuildLevelsForPlayers, combatBonusMultipliers } = requi
 const pets = require('../lib/pets');
 const { incrementCounter, markCounterCodeSeen, getCounter } = require('../lib/counters');
 const { applyInnateTrigger, applyLiveInnateModifiers, getInnateForClass, getSkillModifier, getTargetDamageBonus } = require('../lib/innates');
+const dailyEventBonus = require('../lib/dailyEventBonus');
 
 // Enriquece `target` con datos que PASSIVE_CONDITIONAL "por target" necesita (categoría de
 // monstruo, si es jefe, si ya se enfrentó ese tipo antes en este combate) y arma el Set de
@@ -1732,7 +1733,9 @@ async function finalizeSession(sessionId, status, participants) {
 // monedas de mazmorra, material bonus con probabilidad) para cada héroe real que ganó, ADEMÁS de
 // lo que ya reparte el bloque normal de arriba (xp/oro/drops propios del/los monstruo/s). El
 // material bonus se sortea una sola vez por sesión y se replica a todos los héroes si sale,
-// mismo criterio que itemsDropped más arriba (no un roll independiente por jugador).
+// mismo criterio que itemsDropped más arriba (no un roll independiente por jugador). También suma
+// el bono de nivel bajo (degradé, ver lib/dailyEventBonus) por héroe segun SU propio nivel, ya que
+// el oro/xp escalado del bloque normal sale muy chico para niveles bajos.
 async function handleDailyEventFinalize(sessionId, status, participants) {
   if (status !== 'PLAYER_WON') return;
   const sessRes = await db.query('SELECT daily_event_code FROM combat_sessions WHERE id = $1', [sessionId]);
@@ -1745,8 +1748,8 @@ async function handleDailyEventFinalize(sessionId, status, participants) {
 
   const abandonedRes = await db.query('SELECT player_id FROM combat_abandoned_players WHERE session_id = $1', [sessionId]);
   const abandonedIds = abandonedRes.rows.map((r) => r.player_id);
-  const heroIds = participants.player.filter((p) => p.player_id && !abandonedIds.includes(p.player_id)).map((p) => p.player_id);
-  if (!heroIds.length) return;
+  const heroes = participants.player.filter((p) => p.player_id && !abandonedIds.includes(p.player_id));
+  if (!heroes.length) return;
 
   let materialItemId = null;
   if (entry.bonus_material_item_code && Math.random() * 100 < entry.bonus_material_chance_percent) {
@@ -1754,12 +1757,14 @@ async function handleDailyEventFinalize(sessionId, status, participants) {
     materialItemId = itemRes.rows[0]?.id ?? null;
   }
 
-  for (const playerId of heroIds) {
+  for (const hero of heroes) {
+    const bonus = dailyEventBonus.lowLevelBonus(hero.level);
     await db.query(
       'UPDATE players SET gold = gold + $1, dungeon_coins = dungeon_coins + $2 WHERE id = $3',
-      [entry.gold_reward, entry.dungeon_coins_reward, playerId]
+      [entry.gold_reward + bonus.gold, entry.dungeon_coins_reward, hero.player_id]
     );
-    if (materialItemId) await inventory.addItem(playerId, materialItemId, entry.bonus_material_quantity || 1);
+    if (bonus.xp > 0) await leveling.applyXpGain(hero.player_id, bonus.xp);
+    if (materialItemId) await inventory.addItem(hero.player_id, materialItemId, entry.bonus_material_quantity || 1);
   }
 }
 
