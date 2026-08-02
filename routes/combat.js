@@ -1724,7 +1724,21 @@ async function finalizeSession(sessionId, status, participants) {
 
   await handleTowerSessionEnd(sessionId, status);
   await handleWorldBossFinalize(sessionId, status, participants);
-  await handleDailyEventFinalize(sessionId, status, participants);
+  // El extra del Evento del Día (oro/monedas/xp fijos del catálogo + bono de nivel bajo + material)
+  // se escribe directo a la DB adentro de handleDailyEventFinalize, pero eso NO alcanza al `rewards`
+  // que esta función devuelve — y `rewards` es justo lo que el handler manda de vuelta al front
+  // (`res.json({ ...state, rewards })`), así que sin este merge el front nunca lo ve en la pantalla
+  // de victoria aunque el oro/xp sí haya llegado de verdad a la cuenta del jugador (bug reportado:
+  // docs/backend-spec-evento-del-dia-preview-no-coincide.md). dailyEventExtra representa al héroe
+  // "líder" (heroes[0], el mismo que ya es la referencia implícita del resto de `rewards`), no la
+  // suma de todo el grupo co-op.
+  const dailyEventExtra = await handleDailyEventFinalize(sessionId, status, participants);
+  if (dailyEventExtra && rewards) {
+    rewards.gold += dailyEventExtra.extraGold;
+    rewards.xp += dailyEventExtra.extraXp;
+    rewards.dungeonCoins = (rewards.dungeonCoins || 0) + dailyEventExtra.extraDungeonCoins;
+    if (dailyEventExtra.bonusMaterial) rewards.bonusMaterial = dailyEventExtra.bonusMaterial;
+  }
 
   return rewards;
 }
@@ -1735,37 +1749,52 @@ async function finalizeSession(sessionId, status, participants) {
 // material bonus se sortea una sola vez por sesión y se replica a todos los héroes si sale,
 // mismo criterio que itemsDropped más arriba (no un roll independiente por jugador). También suma
 // el bono de nivel bajo (degradé, ver lib/dailyEventBonus) por héroe segun SU propio nivel, ya que
-// el oro/xp escalado del bloque normal sale muy chico para niveles bajos.
+// el oro/xp escalado del bloque normal sale muy chico para niveles bajos. Devuelve el resumen del
+// héroe líder (heroes[0]) para que finalizeSession lo pueda sumar al `rewards` que ve el front.
 async function handleDailyEventFinalize(sessionId, status, participants) {
-  if (status !== 'PLAYER_WON') return;
+  if (status !== 'PLAYER_WON') return null;
   const sessRes = await db.query('SELECT daily_event_code FROM combat_sessions WHERE id = $1', [sessionId]);
   const code = sessRes.rows[0]?.daily_event_code;
-  if (!code) return;
+  if (!code) return null;
 
   const entryRes = await db.query('SELECT * FROM daily_event_catalog WHERE code = $1', [code]);
   const entry = entryRes.rows[0];
-  if (!entry) return;
+  if (!entry) return null;
 
   const abandonedRes = await db.query('SELECT player_id FROM combat_abandoned_players WHERE session_id = $1', [sessionId]);
   const abandonedIds = abandonedRes.rows.map((r) => r.player_id);
   const heroes = participants.player.filter((p) => p.player_id && !abandonedIds.includes(p.player_id));
-  if (!heroes.length) return;
+  if (!heroes.length) return null;
 
   let materialItemId = null;
+  let materialName = null;
   if (entry.bonus_material_item_code && Math.random() * 100 < entry.bonus_material_chance_percent) {
-    const itemRes = await db.query('SELECT id FROM items WHERE code = $1', [entry.bonus_material_item_code]);
+    const itemRes = await db.query('SELECT id, name FROM items WHERE code = $1', [entry.bonus_material_item_code]);
     materialItemId = itemRes.rows[0]?.id ?? null;
+    materialName = itemRes.rows[0]?.name ?? null;
   }
 
+  let leaderSummary = null;
   for (const hero of heroes) {
     const bonus = dailyEventBonus.lowLevelBonus(hero.level);
+    const heroExtraGold = entry.gold_reward + bonus.gold;
     await db.query(
       'UPDATE players SET gold = gold + $1, dungeon_coins = dungeon_coins + $2 WHERE id = $3',
-      [entry.gold_reward + bonus.gold, entry.dungeon_coins_reward, hero.player_id]
+      [heroExtraGold, entry.dungeon_coins_reward, hero.player_id]
     );
     if (bonus.xp > 0) await leveling.applyXpGain(hero.player_id, bonus.xp);
     if (materialItemId) await inventory.addItem(hero.player_id, materialItemId, entry.bonus_material_quantity || 1);
+
+    if (!leaderSummary) {
+      leaderSummary = {
+        extraGold: heroExtraGold,
+        extraDungeonCoins: entry.dungeon_coins_reward,
+        extraXp: bonus.xp,
+        bonusMaterial: materialItemId ? { itemName: materialName, quantity: entry.bonus_material_quantity } : null,
+      };
+    }
   }
+  return leaderSummary;
 }
 
 // World Boss (docs/backend-spec-world-boss.md sección 4): si esta sesión es un clon de World
