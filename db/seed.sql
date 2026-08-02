@@ -22567,3 +22567,31 @@ ON CONFLICT (rotation_index) DO UPDATE SET
   bonus_material_item_code = EXCLUDED.bonus_material_item_code,
   bonus_material_chance_percent = EXCLUDED.bonus_material_chance_percent,
   bonus_material_quantity = EXCLUDED.bonus_material_quantity;
+
+-- ===== Leyendas (5 personajes jugables controlados por el sistema) =====
+-- Ver lib/legendScheduler.js. Mismo camino que un registro real (stats base de su clase, oro
+-- inicial 2500), marcadas is_bot=TRUE despues. password_hash es un hash bcrypt valido pero de una
+-- contraseña aleatoria descartada -- nadie puede loguearse con estas cuentas.
+ALTER TABLE players ADD COLUMN IF NOT EXISTS is_bot BOOLEAN NOT NULL DEFAULT FALSE;
+
+INSERT INTO players (email, password_hash, nickname, current_class_id, hp, max_hp, mana, max_mana, atk, def, mag, magic_def, spd, crit, gold, is_bot)
+SELECT 'kael@legend.gprback.internal', '$2b$10$TfKBMUKOReE8CLZNTKPkauMWwSIQhedMo0or9ZpI6jvjsUoYxffVW', 'Kael', c.id, c.base_hp, c.base_hp, c.base_mana, c.base_mana, c.base_atk, c.base_def, c.base_mag, c.base_magic_def, c.base_spd, c.base_crit_chance, 2500, TRUE
+FROM classes c WHERE c.code = 'GUERRERO'
+UNION ALL
+SELECT 'elyndor@legend.gprback.internal', '$2b$10$.y0J0YGK1auyPuW39Yw6uee6gDjvoPLQ4C06wWQiKIwsD4LSasNrC', 'Elyndor', c.id, c.base_hp, c.base_hp, c.base_mana, c.base_mana, c.base_atk, c.base_def, c.base_mag, c.base_magic_def, c.base_spd, c.base_crit_chance, 2500, TRUE
+FROM classes c WHERE c.code = 'MAGO'
+UNION ALL
+SELECT 'sylvan@legend.gprback.internal', '$2b$10$RMDt/VAQcklu/0ysFe9uUuBd053vrb.B9NKVSN59giz41i4BsV2KS', 'Sylvan', c.id, c.base_hp, c.base_hp, c.base_mana, c.base_mana, c.base_atk, c.base_def, c.base_mag, c.base_magic_def, c.base_spd, c.base_crit_chance, 2500, TRUE
+FROM classes c WHERE c.code = 'ARQUERO'
+UNION ALL
+SELECT 'vorak@legend.gprback.internal', '$2b$10$jj7h5obkb1OcguIEZSkMxOLKhVfs7DAcjdqOfa2x9KykJLJV5mdfe', 'Vorak', c.id, c.base_hp, c.base_hp, c.base_mana, c.base_mana, c.base_atk, c.base_def, c.base_mag, c.base_magic_def, c.base_spd, c.base_crit_chance, 2500, TRUE
+FROM classes c WHERE c.code = 'PICARO'
+UNION ALL
+SELECT 'luminus@legend.gprback.internal', '$2b$10$4rCGMkAYCJ4CkWIs8OjZ5eYWRA0WiE5qwZTsb40f50DITaHd6MGoe', 'Luminus', c.id, c.base_hp, c.base_hp, c.base_mana, c.base_mana, c.base_atk, c.base_def, c.base_mag, c.base_magic_def, c.base_spd, c.base_crit_chance, 2500, TRUE
+FROM classes c WHERE c.code = 'SACERDOTE'
+ON CONFLICT (nickname) DO NOTHING;
+
+INSERT INTO player_zone_unlocks(player_id, zone_id)
+SELECT p.id, z.id FROM players p, monster_zones z
+WHERE p.is_bot = TRUE AND z.name = 'Pradera Dorada'
+ON CONFLICT DO NOTHING;

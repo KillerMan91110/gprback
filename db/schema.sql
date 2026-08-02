@@ -1308,3 +1308,8 @@ CREATE TABLE IF NOT EXISTS daily_event_catalog (
 -- Marca de sesion (mismo patron que world_boss_event_id): que sesiones de combate son un intento
 -- del Evento del Dia, para que finalizeSession sepa entregar la recompensa fija del catalogo.
 ALTER TABLE combat_sessions ADD COLUMN IF NOT EXISTS daily_event_code TEXT REFERENCES daily_event_catalog(code);
+
+-- "Leyendas" (ver lib/legendScheduler.js): 5 personajes jugables (uno por clase base) controlados
+-- por el sistema en vez de por una persona -- filas normales de players, is_bot solo identifica
+-- cuales procesa el scheduler. No cambia nada de como el resto del codigo trata a un jugador.
+ALTER TABLE players ADD COLUMN IF NOT EXISTS is_bot BOOLEAN NOT NULL DEFAULT FALSE;

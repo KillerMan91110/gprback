@@ -30,6 +30,7 @@ const chatRouter = require('./routes/chat');
 const { globalRouter: worldBossGlobalRouter, playerRouter: worldBossPlayerRouter } = require('./routes/worldboss');
 const dailyEventRouter = require('./routes/dailyEvent');
 const { tickWorldBossSchedule } = require('./lib/worldBossScheduler');
+const { tickLegendSchedule, LEGEND_TICK_INTERVAL_MS } = require('./lib/legendScheduler');
 const { getActivePetBonuses } = require('./lib/pets');
 
 // Origenes permitidos para CORS (front en Vercel + eventuales dominios propios), separados por
@@ -136,6 +137,11 @@ app.use('/api/player/:playerId/daily-event', dailyEventRouter);
 // duración.
 tickWorldBossSchedule().catch(console.error);
 setInterval(() => { tickWorldBossSchedule().catch(console.error); }, 60 * 1000);
+
+// Leyendas (5 personajes jugables controlados por el sistema, ver lib/legendScheduler.js): una
+// tarea por leyenda cada LEGEND_TICK_INTERVAL_MS, mismo patrón que el World Boss de arriba.
+tickLegendSchedule().catch(console.error);
+setInterval(() => { tickLegendSchedule().catch(console.error); }, LEGEND_TICK_INTERVAL_MS);
 
 // ========== RUTAS DE PRUEBA ==========
 
