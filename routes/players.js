@@ -552,6 +552,68 @@ router.post('/:playerId/guild/learn-skill', async (req, res, next) => {
   }
 });
 
+// POST /api/players/:playerId/npcs/:npcId/learn-skill { skillId }
+// Igual que guild/learn-skill pero para un NPC del grupo -- el NPC no tiene oro propio (lo paga el
+// jugador) ni hace quests propias (el requisito QUEST se revisa contra las misiones YA completadas
+// por el jugador dueño, mismo criterio que para su propio héroe).
+router.post('/:playerId/npcs/:npcId/learn-skill', async (req, res, next) => {
+  const { playerId, npcId } = req.params;
+  const { skillId } = req.body;
+
+  try {
+    const [skillResult, npcResult, playerResult] = await Promise.all([
+      db.query('SELECT * FROM skills WHERE id = $1', [skillId]),
+      db.query('SELECT id, class_id FROM player_npcs WHERE id = $1 AND player_id = $2', [npcId, playerId]),
+      db.query('SELECT gold FROM players WHERE id = $1', [playerId]),
+    ]);
+    if (!skillResult.rows.length) return res.status(404).json({ error: 'Skill no encontrada' });
+    if (!npcResult.rows.length) return res.status(404).json({ error: 'NPC no encontrado en tu grupo' });
+    const skill = skillResult.rows[0];
+    const npc = npcResult.rows[0];
+    const player = playerResult.rows[0];
+
+    const classChain = await evolution.getClassAncestorChain(npc.class_id);
+    if (!classChain.includes(skill.class_id)) {
+      return res.status(400).json({ error: 'Esa skill no es de la clase de este NPC' });
+    }
+    if (!['GOLD', 'QUEST'].includes(skill.learn_method)) {
+      return res.status(400).json({ error: 'Esa skill no se puede aprender en el gremio' });
+    }
+
+    const already = await db.query('SELECT 1 FROM npc_skills WHERE npc_id = $1 AND skill_id = $2', [npcId, skillId]);
+    if (already.rows.length) {
+      return res.status(400).json({ error: 'Ese NPC ya aprendió esa skill' });
+    }
+
+    if (skill.learn_method === 'QUEST') {
+      const questCompleted = await db.query(
+        `SELECT 1 FROM quests q
+         JOIN player_quest_completions pqc ON pqc.quest_id = q.id AND pqc.player_id = $1
+         WHERE q.name = $2`,
+        [playerId, skill.learn_requirement_text]
+      );
+      if (!questCompleted.rows.length) {
+        return res.status(400).json({ error: `Primero debes completar la misión: ${skill.learn_requirement_text}` });
+      }
+      await db.query('INSERT INTO npc_skills(npc_id, skill_id) VALUES ($1, $2)', [npcId, skillId]);
+      return res.json({ learnedSkillId: skill.id, name: skill.name, cost: 0, newGold: Number(player.gold) });
+    }
+
+    const cost = skill.learn_gold_cost;
+    if (Number(player.gold) < cost) {
+      return res.status(400).json({ error: `No tienes suficiente oro (necesitas ${cost})`, cost, gold: Number(player.gold) });
+    }
+
+    const newGold = Number(player.gold) - cost;
+    await db.query('UPDATE players SET gold = $1, updated_at = now() WHERE id = $2', [newGold, playerId]);
+    await db.query('INSERT INTO npc_skills(npc_id, skill_id) VALUES ($1, $2)', [npcId, skillId]);
+
+    res.json({ learnedSkillId: skill.id, name: skill.name, cost, newGold });
+  } catch (error) {
+    next(error);
+  }
+});
+
 // Precio de venta al gremio para CUALQUIER item del inventario (no solo el set inicial),
 // segun su rareza. No es columna de la tabla porque aplica a todos los items, no solo a
 // los que tienen buy_price (que son solo el set "Pradera" que vende cada maestro).
