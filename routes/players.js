@@ -42,8 +42,12 @@ function calcFailLoss(quantity, lossPercent) {
   return lost;
 }
 
-// Costo de curarse en el gremio: oro por punto de HP recuperado.
-const GUILD_HEAL_GOLD_PER_HP = 1;
+// Costo de curarse en el gremio: oro por punto de HP/mana recuperado. 0.5 = 2 puntos por cada
+// oro (antes 1 punto por oro) -- a niveles altos, curar de 0 al grupo entero (heroe + NPCs, HP y
+// mana) llegaba a costar 600-800+ oro contra un ingreso de ~80 oro por victoria en zona 1, asi
+// que una mala racha borraba de un saque lo ganado en 7-10 peleas. calcHeal ya soporta un valor
+// no entero (Math.floor(gold / GUILD_HEAL_GOLD_PER_HP) funciona igual con 0.5).
+const GUILD_HEAL_GOLD_PER_HP = 0.5;
 
 const EQUIPMENT_SLOTS = ['WEAPON', 'OFFHAND', 'HELMET', 'ARMOR', 'GLOVES', 'BOOTS', 'ACCESSORY'];
 
