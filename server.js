@@ -477,7 +477,7 @@ app.get('/api/leaderboard/guilds', async (req, res, next) => {
 app.get('/api/leaderboard', async (req, res, next) => {
   try {
     const result = await db.query(
-      `SELECT p.nickname, p.level, p.xp, c.name AS class_name, p.rank
+      `SELECT p.id, p.nickname, p.level, p.xp, c.name AS class_name, p.rank
        FROM players p
        JOIN classes c ON c.id = COALESCE(p.evolution_class_id, p.current_class_id)
        ORDER BY p.level DESC, p.xp DESC
@@ -485,6 +485,7 @@ app.get('/api/leaderboard', async (req, res, next) => {
     );
     res.json(result.rows.map((r, i) => ({
       position: i + 1,
+      playerId: r.id,
       nickname: r.nickname,
       level: r.level,
       className: r.class_name,
@@ -499,7 +500,7 @@ app.get('/api/leaderboard', async (req, res, next) => {
 app.get('/api/leaderboard/wealth', async (req, res, next) => {
   try {
     const result = await db.query(
-      `SELECT p.nickname, p.level, p.gold, c.name AS class_name
+      `SELECT p.id, p.nickname, p.level, p.gold, c.name AS class_name
        FROM players p
        JOIN classes c ON c.id = COALESCE(p.evolution_class_id, p.current_class_id)
        ORDER BY p.gold DESC
@@ -507,6 +508,7 @@ app.get('/api/leaderboard/wealth', async (req, res, next) => {
     );
     res.json(result.rows.map((r, i) => ({
       position: i + 1,
+      playerId: r.id,
       nickname: r.nickname,
       level: r.level,
       gold: r.gold,

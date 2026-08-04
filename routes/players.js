@@ -13,6 +13,7 @@ const { requireAuth, requireSelf } = require('../lib/auth');
 const { getActivePetBonuses } = require('../lib/pets');
 const { incrementCounter } = require('../lib/counters');
 const { applyInnateTrigger } = require('../lib/innates');
+const { getPlayerGuildRow } = require('../lib/guilds');
 
 const router = express.Router();
 
@@ -973,6 +974,100 @@ router.get('/:playerId/equipment', async (req, res, next) => {
     });
 
     res.json(equipment);
+  } catch (error) {
+    next(error);
+  }
+});
+
+// GET /api/players/:playerId/inspect/:targetId
+// Perfil de solo lectura de CUALQUIER jugador (docs/backend-spec-inspeccionar-jugador.md) --
+// mismo criterio que friends/search: nada de esto es privado hoy (ya se puede buscar nickname/
+// nivel/clase de cualquiera sin ser amigos), así que cualquier jugador autenticado puede
+// inspeccionar a cualquier otro. No expone email, inventario no equipado, ni mensajería.
+// :playerId es quien pide (requireSelf ya lo valida a nivel router), :targetId es a quien mira.
+router.get('/:playerId/inspect/:targetId', async (req, res, next) => {
+  const { targetId } = req.params;
+  try {
+    const playerResult = await db.query(
+      `SELECT p.nickname, p.level, p.rank, p.created_at, p.hp, p.atk, p.def, p.mag, p.magic_def, p.spd, p.crit,
+              p.combat_wins, p.combat_losses, p.boss_kills,
+              c.name AS class_name
+       FROM players p
+       JOIN classes c ON c.id = COALESCE(p.evolution_class_id, p.current_class_id)
+       WHERE p.id = $1`,
+      [targetId]
+    );
+    if (!playerResult.rows.length) return res.status(404).json({ error: 'Jugador no encontrado' });
+    const player = playerResult.rows[0];
+
+    const [equipResult, guild, npcsResult] = await Promise.all([
+      db.query(
+        `SELECT pe.slot, i.name AS item_name, i.rarity, pe.enchant_level, pe.quality_tier
+         FROM player_equipment pe JOIN items i ON i.id = pe.item_id
+         WHERE pe.player_id = $1 ORDER BY pe.slot`,
+        [targetId]
+      ),
+      getPlayerGuildRow(targetId),
+      db.query(
+        `SELECT pn.id, pn.name, pn.level, c.name AS class_name
+         FROM player_party pp JOIN player_npcs pn ON pn.id = pp.npc_id
+         JOIN classes c ON c.id = pn.class_id
+         WHERE pp.player_id = $1 ORDER BY pp.slot`,
+        [targetId]
+      ),
+    ]);
+
+    const npcIds = npcsResult.rows.map((n) => n.id);
+    const npcEquipResult = npcIds.length
+      ? await db.query(
+          `SELECT ne.npc_id, ne.slot, i.name AS item_name, i.rarity
+           FROM npc_equipment ne JOIN items i ON i.id = ne.item_id
+           WHERE ne.npc_id = ANY($1::int[])`,
+          [npcIds]
+        )
+      : { rows: [] };
+    const npcEquipByNpc = {};
+    for (const row of npcEquipResult.rows) {
+      (npcEquipByNpc[row.npc_id] = npcEquipByNpc[row.npc_id] || []).push({
+        slot: row.slot, itemName: row.item_name, rarity: row.rarity,
+      });
+    }
+
+    res.json({
+      nickname: player.nickname,
+      level: player.level,
+      className: player.class_name,
+      rank: player.rank,
+      createdAt: player.created_at,
+      stats: {
+        hp: player.hp,
+        atk: player.atk,
+        def: player.def,
+        mag: player.mag,
+        magicDef: player.magic_def,
+        spd: player.spd,
+        crit: Number(player.crit),
+      },
+      general: {
+        combatWins: player.combat_wins,
+        combatLosses: player.combat_losses,
+        bossKills: player.boss_kills,
+      },
+      equipment: equipResult.rows.map((r) => ({
+        slot: r.slot,
+        itemName: r.item_name,
+        rarity: r.rarity,
+        enchantLevel: r.enchant_level,
+        qualityTier: r.quality_tier,
+      })),
+      guild: guild ? { name: guild.name, role: guild.role } : null,
+      companions: npcsResult.rows.map((n) => ({
+        name: n.name,
+        className: n.class_name,
+        level: n.level,
+        equipment: npcEquipByNpc[n.id] || [],
+      })),
+    });
   } catch (error) {
     next(error);
   }
