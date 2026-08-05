@@ -1000,7 +1000,7 @@ router.get('/:playerId/inspect/:targetId', async (req, res, next) => {
     if (!playerResult.rows.length) return res.status(404).json({ error: 'Jugador no encontrado' });
     const player = playerResult.rows[0];
 
-    const [equipResult, guild, npcsResult] = await Promise.all([
+    const [equipResult, guild, npcsResult, bonus] = await Promise.all([
       db.query(
         `SELECT pe.slot, i.name AS item_name, i.rarity, pe.enchant_level, pe.quality_tier
          FROM player_equipment pe JOIN items i ON i.id = pe.item_id
@@ -1015,6 +1015,7 @@ router.get('/:playerId/inspect/:targetId', async (req, res, next) => {
          WHERE pp.player_id = $1 ORDER BY pp.slot`,
         [targetId]
       ),
+      getEquipmentBonuses(targetId),
     ]);
 
     const npcIds = npcsResult.rows.map((n) => n.id);
@@ -1040,13 +1041,13 @@ router.get('/:playerId/inspect/:targetId', async (req, res, next) => {
       rank: player.rank,
       createdAt: player.created_at,
       stats: {
-        hp: player.hp,
-        atk: player.atk,
-        def: player.def,
-        mag: player.mag,
-        magicDef: player.magic_def,
-        spd: player.spd,
-        crit: Number(player.crit),
+        hp: player.hp, // ya incluye el bono de equipo (persistido, ver lib/equipment.js)
+        atk: player.atk + (bonus.atk || 0),
+        def: player.def + (bonus.def || 0),
+        mag: player.mag + (bonus.mag || 0),
+        magicDef: player.magic_def + (bonus.magic_def || 0),
+        spd: player.spd + (bonus.spd || 0),
+        crit: Number(player.crit) + (bonus.crit_chance || 0),
       },
       general: {
         combatWins: player.combat_wins,
