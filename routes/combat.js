@@ -1551,6 +1551,13 @@ async function finalizeSession(sessionId, status, participants) {
   await db.query('UPDATE combat_sessions SET status = $1, updated_at = now() WHERE id = $2', [status, sessionId]);
   await db.query('DELETE FROM combat_participant_buffs WHERE session_id = $1', [sessionId]);
 
+  // World Boss (500.000 HP) es un ENEMY_WON garantizado para un grupo normal -- eso es a
+  // proposito (igual reparte cosmic_shards por el daño hecho, ver handleWorldBossFinalize),
+  // no una derrota real del héroe. No debe sumar a combat_losses ni contar como una pelea
+  // perdida de verdad.
+  const sessRow = await db.query('SELECT world_boss_event_id FROM combat_sessions WHERE id = $1', [sessionId]);
+  const isWorldBoss = !!sessRow.rows[0]?.world_boss_event_id;
+
   let rewards = null;
   if (status === 'PLAYER_WON') {
     rewards = participants.enemy.reduce(
@@ -1696,7 +1703,7 @@ async function finalizeSession(sessionId, status, participants) {
       }
     } else {
       for (const hp of heroPs) {
-        if (status === 'ENEMY_WON') {
+        if (status === 'ENEMY_WON' && !isWorldBoss) {
           await db.query(
             'UPDATE players SET hp = $1, mana = $2, combat_losses = combat_losses + 1, updated_at = now() WHERE id = $3',
             [hp.hp, hp.mana, hp.player_id]
