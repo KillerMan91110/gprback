@@ -30,7 +30,7 @@ const chatRouter = require('./routes/chat');
 const { globalRouter: worldBossGlobalRouter, playerRouter: worldBossPlayerRouter } = require('./routes/worldboss');
 const dailyEventRouter = require('./routes/dailyEvent');
 const { tickWorldBossSchedule } = require('./lib/worldBossScheduler');
-const { startLegendSchedule } = require('./lib/legendScheduler');
+const { startLegendSchedule, setIo: setLegendSchedulerIo } = require('./lib/legendScheduler');
 const { getActivePetBonuses } = require('./lib/pets');
 
 // Origenes permitidos para CORS (front en Vercel + eventuales dominios propios), separados por
@@ -91,6 +91,7 @@ io.on('connection', (socket) => {
 });
 
 app.set('io', io);
+setLegendSchedulerIo(io); // asi las respuestas de chat de las leyendas (ver legendScheduler.js) tambien emiten en vivo por socket, no solo al refrescar
 
 // Middleware
 app.use(helmet());
