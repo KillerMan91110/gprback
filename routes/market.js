@@ -297,13 +297,24 @@ router.delete('/listings/:id', async (req, res, next) => {
   }
 });
 
-// POST /api/player/:playerId/market/listings/:id/buy
+// POST /api/player/:playerId/market/listings/:id/buy   body: { quantity? }
 // El punto más delicado de todo el feature: si dos jugadores compran el mismo listing a la
 // vez, SELECT ... FOR UPDATE serializa el acceso, así el segundo espera y luego ve status
 // ya en SOLD (chequeo explícito abajo) en lugar de vender el mismo stack/mascota dos veces.
+//
+// `quantity` es opcional -- sin mandarlo, compra la publicación ENTERA (comportamiento
+// original, así ningún caller viejo se rompe). Si se manda y es MENOR a lo publicado, compra
+// solo esa cantidad: la publicación original se achica y sigue ACTIVE, y se inserta una fila
+// aparte con status SOLD (mismo patrón que una venta completa) para que el historial de precios
+// (GET /market/history) siga viendo esa venta parcial. Las mascotas son siempre 1 unidad
+// indivisible, `quantity` no aplica ahí.
 router.post('/listings/:id/buy', async (req, res, next) => {
   const { playerId, id } = req.params;
   const buyerId = Number(playerId);
+  const requestedQuantity = req.body.quantity !== undefined ? parseInt(req.body.quantity, 10) : null;
+  if (requestedQuantity !== null && (!Number.isInteger(requestedQuantity) || requestedQuantity <= 0)) {
+    return res.status(400).json({ error: 'quantity debe ser un entero mayor a 0' });
+  }
   const client = await db.pool.connect();
   try {
     await client.query('BEGIN');
@@ -331,7 +342,12 @@ router.post('/listings/:id/buy', async (req, res, next) => {
       return res.status(400).json({ error: 'No puedes comprar tu propia publicación' });
     }
 
-    const total = Number(listing.price_per_unit) * listing.quantity;
+    const buyQuantity = (listing.item_id && requestedQuantity !== null)
+      ? Math.min(requestedQuantity, listing.quantity)
+      : listing.quantity;
+    const isPartial = buyQuantity < listing.quantity;
+
+    const total = Number(listing.price_per_unit) * buyQuantity;
     const currencyColumn = CURRENCY_COLUMN[listing.currency];
     const buyerRow = await client.query(`SELECT ${currencyColumn} AS balance FROM players WHERE id = $1 FOR UPDATE`, [buyerId]);
     if (Number(buyerRow.rows[0].balance) < total) {
@@ -342,16 +358,25 @@ router.post('/listings/:id/buy', async (req, res, next) => {
     const fee = Math.floor(total * MARKET_FEE_PERCENT / 100);
     const sellerProceeds = total - fee;
 
-    await client.query(
-      `UPDATE player_market_listings SET status = 'SOLD', buyer_id = $1, sold_at = now() WHERE id = $2`,
-      [buyerId, id]
-    );
+    if (isPartial) {
+      await client.query(`UPDATE player_market_listings SET quantity = quantity - $1 WHERE id = $2`, [buyQuantity, id]);
+      await client.query(
+        `INSERT INTO player_market_listings(seller_id, item_id, enchant_level, quality_tier, quantity, price_per_unit, currency, status, buyer_id, sold_at)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,'SOLD',$8,now())`,
+        [listing.seller_id, listing.item_id, listing.enchant_level, listing.quality_tier, buyQuantity, listing.price_per_unit, listing.currency, buyerId]
+      );
+    } else {
+      await client.query(
+        `UPDATE player_market_listings SET status = 'SOLD', buyer_id = $1, sold_at = now() WHERE id = $2`,
+        [buyerId, id]
+      );
+    }
     await client.query(`UPDATE players SET ${currencyColumn} = ${currencyColumn} - $1 WHERE id = $2`, [total, buyerId]);
     await client.query(`UPDATE players SET ${currencyColumn} = ${currencyColumn} + $1 WHERE id = $2`, [sellerProceeds, listing.seller_id]);
 
     let itemName;
     if (listing.item_id) {
-      await inventory.addItem(buyerId, listing.item_id, listing.quantity, listing.enchant_level, listing.quality_tier, client);
+      await inventory.addItem(buyerId, listing.item_id, buyQuantity, listing.enchant_level, listing.quality_tier, client);
       itemName = listing.item_name;
     } else {
       await client.query('UPDATE player_pets SET player_id = $1, is_active = FALSE WHERE id = $2', [buyerId, listing.player_pet_id]);
@@ -361,7 +386,7 @@ router.post('/listings/:id/buy', async (req, res, next) => {
     await client.query('COMMIT');
     res.json({
       success: true,
-      message: `Compraste ${listing.item_id ? listing.quantity + 'x ' : ''}${itemName} por ${total} ${CURRENCY_LABEL[listing.currency]}.`,
+      message: `Compraste ${listing.item_id ? buyQuantity + 'x ' : ''}${itemName} por ${total} ${CURRENCY_LABEL[listing.currency]}.`,
       totalPaid: total,
       itemName,
     });
