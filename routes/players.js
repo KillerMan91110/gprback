@@ -1550,8 +1550,9 @@ router.post('/:playerId/quests/:questId/complete', async (req, res, next) => {
 
 // DELETE /api/player/:playerId/quests/:questId/abandon
 // Abandona una quest activa: borra el registro de player_active_quests y limpia el progreso
-// de objetivos. No se puede abandonar una quest de jefe PRINCIPAL porque desbloquea la zona
-// siguiente (aceptarla de nuevo pierde el progreso, pero no bloquea el juego).
+// de objetivos. El desbloqueo de zona depende de player_monster_kills (kill real, ver
+// getUnlockedZoneIds más arriba), no de esta quest, así que también se puede abandonar la
+// de jefe PRINCIPAL sin trabar el avance.
 router.delete('/:playerId/quests/:questId/abandon', async (req, res, next) => {
   const { playerId, questId } = req.params;
   try {
@@ -1564,15 +1565,11 @@ router.delete('/:playerId/quests/:questId/abandon', async (req, res, next) => {
     }
 
     const questResult = await db.query(
-      'SELECT name, is_boss_quest, quest_type FROM quests WHERE id = $1',
+      'SELECT name FROM quests WHERE id = $1',
       [questId]
     );
     if (!questResult.rows.length) return res.status(404).json({ error: 'Quest no encontrada' });
     const quest = questResult.rows[0];
-
-    if (quest.is_boss_quest && quest.quest_type === 'PRINCIPAL') {
-      return res.status(400).json({ error: 'No puedes abandonar la quest de jefe principal — es necesaria para desbloquear la siguiente zona' });
-    }
 
     await db.query('DELETE FROM player_active_quests WHERE player_id = $1 AND quest_id = $2', [playerId, questId]);
     await questProgress.clearProgressForQuest(playerId, questId);
