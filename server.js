@@ -31,6 +31,7 @@ const { globalRouter: worldBossGlobalRouter, playerRouter: worldBossPlayerRouter
 const dailyEventRouter = require('./routes/dailyEvent');
 const { tickWorldBossSchedule } = require('./lib/worldBossScheduler');
 const { startLegendSchedule, setIo: setLegendSchedulerIo } = require('./lib/legendScheduler');
+const { restockPotions } = require('./lib/marketRestock');
 const { getActivePetBonuses } = require('./lib/pets');
 
 // Origenes permitidos para CORS (front en Vercel + eventuales dominios propios), separados por
@@ -138,6 +139,12 @@ app.use('/api/player/:playerId/daily-event', dailyEventRouter);
 // duración.
 tickWorldBossSchedule().catch(console.error);
 setInterval(() => { tickWorldBossSchedule().catch(console.error); }, 60 * 1000);
+
+// Mercado: "Mercader del Reino" (lib/marketRestock.js) repone pociones de vida/maná a 500 oro
+// c/u cuando le quedan 5 o menos, hasta volver a 15 -- pedido explícito del usuario para que
+// comprar pociones con oro sea una alternativa real a farmear las hierbas de crafteo.
+restockPotions().catch(console.error);
+setInterval(() => { restockPotions().catch(console.error); }, 5 * 60 * 1000);
 
 // Leyendas (5 personajes jugables controlados por el sistema, ver lib/legendScheduler.js): cada
 // una corre su propio bucle independiente (tick, esperar 1 min, tick de nuevo...), no un
