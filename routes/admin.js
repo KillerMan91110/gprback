@@ -216,4 +216,142 @@ router.delete('/monsters/:id/scalings/:level', async (req, res, next) => {
   } catch (error) { next(error); }
 });
 
+// ---------- Panel de admin: equipo (items.item_type = 'EQUIPMENT') ----------
+// Pedido explícito del usuario: poder editar cualquier ítem de equipo (arma/offhand/armadura/etc)
+// sin pasar por mí -- clase/rareza/nivel requerido/dos manos/precio/etc, más sus bonos de stat.
+// `class_id` puede apuntar a una evolución (evolves_to_class_id de class_evolutions), no solo a una
+// de las 5 clases base -- no hay una tabla separada "evoluciones", cada evolución es OTRA fila de
+// `classes`, encadenada por class_evolutions. Por eso el front arma 2 dropdowns (clase raíz +
+// evolución de esa rama) con `classes` y `evolutions` de este mismo GET, en vez de un solo select.
+const ITEM_COLUMNS = {
+  name: 'name', slot: 'slot', isTwoHanded: 'is_two_handed', rarity: 'rarity',
+  classId: 'class_id', requiredLevel: 'required_level', isCraftable: 'is_craftable',
+  obtainMethod: 'obtain_method', buyPrice: 'buy_price', description: 'description',
+};
+
+function mapItemRow(i) {
+  return {
+    id: i.id, code: i.code, name: i.name, slot: i.slot, isTwoHanded: i.is_two_handed,
+    rarity: i.rarity, classId: i.class_id, className: i.class_name ?? undefined,
+    requiredLevel: i.required_level, isCraftable: i.is_craftable,
+    obtainMethod: i.obtain_method, buyPrice: i.buy_price, description: i.description,
+  };
+}
+function mapStatBonusRow(b) {
+  return {
+    id: b.id, statCode: b.stat_code, amount: Number(b.amount), isPercent: b.is_percent,
+    description: b.description, durationTurns: b.duration_turns,
+  };
+}
+
+// GET /api/admin/items?slot=<opcional> -- sin slot devuelve TODO el equipo del juego (varios
+// cientos de filas entre las 7 zonas), por eso el front navega filtrando por slot como filtro
+// principal (no hay zone_id en items, a diferencia de monsters).
+router.get('/items', async (req, res, next) => {
+  try {
+    const { slot } = req.query;
+    const itemsRes = await db.query(
+      `SELECT i.*, c.name AS class_name FROM items i LEFT JOIN classes c ON c.id = i.class_id
+       WHERE i.item_type = 'EQUIPMENT' ${slot ? 'AND i.slot = $1' : ''}
+       ORDER BY i.rarity, i.name`,
+      slot ? [slot] : []
+    );
+
+    const itemIds = itemsRes.rows.map((i) => i.id);
+    const bonusesRes = itemIds.length
+      ? await db.query(`SELECT * FROM item_stat_bonuses WHERE item_id = ANY($1::int[]) ORDER BY id`, [itemIds])
+      : { rows: [] };
+    const bonusesByItem = new Map();
+    for (const b of bonusesRes.rows) {
+      if (!bonusesByItem.has(b.item_id)) bonusesByItem.set(b.item_id, []);
+      bonusesByItem.get(b.item_id).push(mapStatBonusRow(b));
+    }
+
+    const classesRes = await db.query('SELECT id, code, name FROM classes ORDER BY id');
+    const evolutionsRes = await db.query('SELECT class_id, evolves_to_class_id FROM class_evolutions');
+
+    res.json({
+      classes: classesRes.rows,
+      evolutions: evolutionsRes.rows.map((e) => ({ classId: e.class_id, evolvesToClassId: e.evolves_to_class_id })),
+      items: itemsRes.rows.map((i) => ({ ...mapItemRow(i), statBonuses: bonusesByItem.get(i.id) || [] })),
+    });
+  } catch (error) { next(error); }
+});
+
+// PATCH /api/admin/items/:id -- body: cualquier subconjunto de ITEM_COLUMNS (camelCase).
+// Ojo: cambiar slot/isTwoHanded de un ítem que YA está equipado en player_equipment/npc_equipment
+// no reacomoda esas filas (guardan su propio slot al momento de equipar) -- puede dejar equipo
+// puesto bajo un slot que ya no coincide con items.slot. Uso consciente, sin guardas automáticas.
+router.patch('/items/:id', async (req, res, next) => {
+  try {
+    const sets = [];
+    const params = [];
+    for (const [key, column] of Object.entries(ITEM_COLUMNS)) {
+      if (req.body[key] === undefined) continue;
+      params.push(req.body[key]);
+      sets.push(`${column} = $${params.length}`);
+    }
+    if (!sets.length) return res.status(400).json({ error: 'Nada para actualizar' });
+
+    params.push(req.params.id);
+    const result = await db.query(
+      `UPDATE items SET ${sets.join(', ')} WHERE id = $${params.length} AND item_type = 'EQUIPMENT' RETURNING *`,
+      params
+    );
+    if (!result.rows.length) return res.status(404).json({ error: 'Ítem no encontrado' });
+    res.json(mapItemRow(result.rows[0]));
+  } catch (error) { next(error); }
+});
+
+// POST /api/admin/items/:id/stat-bonuses -- crea un bono nuevo. body: { statCode, amount, isPercent?, durationTurns? }
+// stat_code es TEXT libre (sin tabla de enum, mismo criterio que skill_effects) -- el admin escribe
+// el código tal cual lo esperan el motor de combate/legendScheduler (ver STAT_WEIGHT ahí).
+router.post('/items/:id/stat-bonuses', async (req, res, next) => {
+  try {
+    const { statCode, amount, isPercent = false, durationTurns = null } = req.body;
+    if (!statCode || amount === undefined) return res.status(400).json({ error: 'statCode y amount son requeridos' });
+    const result = await db.query(
+      `INSERT INTO item_stat_bonuses(item_id, stat_code, amount, is_percent, duration_turns)
+       VALUES ($1,$2,$3,$4,$5) RETURNING *`,
+      [req.params.id, statCode, amount, isPercent, durationTurns]
+    );
+    res.json(mapStatBonusRow(result.rows[0]));
+  } catch (error) { next(error); }
+});
+
+// PUT /api/admin/items/:id/stat-bonuses/:bonusId -- edita un bono existente. body: subset de
+// { statCode, amount, isPercent, durationTurns }.
+router.put('/items/:id/stat-bonuses/:bonusId', async (req, res, next) => {
+  try {
+    const { statCode, amount, isPercent, durationTurns } = req.body;
+    const sets = [];
+    const params = [];
+    if (statCode !== undefined) { params.push(statCode); sets.push(`stat_code = $${params.length}`); }
+    if (amount !== undefined) { params.push(amount); sets.push(`amount = $${params.length}`); }
+    if (isPercent !== undefined) { params.push(isPercent); sets.push(`is_percent = $${params.length}`); }
+    if (durationTurns !== undefined) { params.push(durationTurns); sets.push(`duration_turns = $${params.length}`); }
+    if (!sets.length) return res.status(400).json({ error: 'Nada para actualizar' });
+
+    params.push(req.params.bonusId, req.params.id);
+    const result = await db.query(
+      `UPDATE item_stat_bonuses SET ${sets.join(', ')} WHERE id = $${params.length - 1} AND item_id = $${params.length} RETURNING *`,
+      params
+    );
+    if (!result.rows.length) return res.status(404).json({ error: 'Bono no encontrado' });
+    res.json(mapStatBonusRow(result.rows[0]));
+  } catch (error) { next(error); }
+});
+
+// DELETE /api/admin/items/:id/stat-bonuses/:bonusId
+router.delete('/items/:id/stat-bonuses/:bonusId', async (req, res, next) => {
+  try {
+    const result = await db.query(
+      `DELETE FROM item_stat_bonuses WHERE id = $1 AND item_id = $2 RETURNING id`,
+      [req.params.bonusId, req.params.id]
+    );
+    if (!result.rows.length) return res.status(404).json({ error: 'Bono no encontrado' });
+    res.json({ deleted: true });
+  } catch (error) { next(error); }
+});
+
 module.exports = router;
