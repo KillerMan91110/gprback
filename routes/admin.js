@@ -15,6 +15,7 @@ const express = require('express');
 const router = express.Router();
 const db = require('../db/db');
 const { requireAuth } = require('../lib/auth');
+const { computeStatsAtLevel } = require('../lib/leveling');
 
 // Cuentas con permiso de admin -- juego de un solo desarrollador (Marco, id 1), pero
 // configurable por env sin tener que tocar código si alguna vez hace falta sumar otra.
@@ -351,6 +352,59 @@ router.delete('/items/:id/stat-bonuses/:bonusId', async (req, res, next) => {
     );
     if (!result.rows.length) return res.status(404).json({ error: 'Bono no encontrado' });
     res.json({ deleted: true });
+  } catch (error) { next(error); }
+});
+
+// ---------- Panel de admin: visor de stats por clase base, nivel 1 a 100 ----------
+// Pedido explícito del usuario: ver de un vistazo cómo escalan las 5 clases base (sin evolucionar)
+// a lo largo de todos los niveles, para poder comparar/balancear. Reusa computeStatsAtLevel
+// (lib/leveling.js), la misma función pura que ya usa el motor real al subir de nivel -- así el
+// visor nunca se desincroniza de cómo se calculan las stats de verdad, no es una copia paralela de
+// la fórmula. Cada class_id (base o evolución) tiene sus propias filas en class_growths cubriendo
+// 1-100 de punta a punta (confirmado: no hay huecos que rellenar encadenando evoluciones acá).
+// Evasión y daño crítico no tienen columna de crecimiento por nivel (quedan fijos en base_*), por
+// eso van aparte en `class`, no repetidos en cada fila de `levels`.
+const BASE_CLASS_IDS = [1, 2, 3, 4, 5]; // Guerrero, Mago, Arquero, Pícaro, Sacerdote
+
+router.get('/class-stats', async (req, res, next) => {
+  try {
+    const classesRes = await db.query(
+      'SELECT id, code, name FROM classes WHERE id = ANY($1::int[]) ORDER BY id', [BASE_CLASS_IDS]
+    );
+
+    const classId = Number(req.query.classId) || BASE_CLASS_IDS[0];
+    if (!BASE_CLASS_IDS.includes(classId)) {
+      return res.status(400).json({ error: 'classId debe ser una de las 5 clases base' });
+    }
+
+    const classRow = (await db.query(
+      `SELECT id, name, base_hp, base_atk, base_def, base_mag, base_magic_def, base_spd,
+              base_mana, base_crit_chance, base_crit_damage, base_evasion
+       FROM classes WHERE id = $1`,
+      [classId]
+    )).rows[0];
+    const growthRows = (await db.query(
+      `SELECT level_from, level_to, hp_per_level, atk_per_level, def_per_level, mag_per_level,
+              magic_def_per_level, spd_per_level, mana_per_level
+       FROM class_growths WHERE class_id = $1 ORDER BY level_from`,
+      [classId]
+    )).rows;
+
+    const levels = [];
+    for (let level = 1; level <= 100; level += 1) {
+      levels.push({ level, ...computeStatsAtLevel(classRow, growthRows, level) });
+    }
+
+    res.json({
+      classes: classesRes.rows,
+      class: {
+        id: classRow.id,
+        name: classRow.name,
+        baseEvasion: Number(classRow.base_evasion),
+        baseCritDamage: Number(classRow.base_crit_damage),
+      },
+      levels,
+    });
   } catch (error) { next(error); }
 });
 
