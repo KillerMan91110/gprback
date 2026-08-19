@@ -984,14 +984,17 @@ CREATE TABLE IF NOT EXISTS player_coop_group_messages (
 );
 CREATE INDEX IF NOT EXISTS idx_coop_group_messages_group ON player_coop_group_messages(group_id, id);
 
+-- item_id es NULL cuando la publicacion es de una mascota (player_pet_id) en su lugar --
+-- chk_listing_target obliga a que sea exactamente uno de los dos, nunca ambos ni ninguno.
 CREATE TABLE IF NOT EXISTS player_market_listings (
   id             SERIAL PRIMARY KEY,
   seller_id      INT NOT NULL REFERENCES players(id) ON DELETE CASCADE,
-  item_id        INT NOT NULL REFERENCES items(id),
+  item_id        INT REFERENCES items(id),
   enchant_level  INT NOT NULL DEFAULT 0,
   quality_tier   SMALLINT NOT NULL DEFAULT 0,
   quantity       INT NOT NULL CHECK (quantity > 0),
   price_per_unit BIGINT NOT NULL CHECK (price_per_unit > 0),
+  currency       TEXT NOT NULL DEFAULT 'GOLD' CHECK (currency IN ('GOLD', 'DUNGEON_COINS', 'COSMIC_SHARDS')),
   status         TEXT NOT NULL DEFAULT 'ACTIVE' CHECK (status IN ('ACTIVE','SOLD','CANCELLED')),
   buyer_id       INT REFERENCES players(id),
   created_at     TIMESTAMPTZ NOT NULL DEFAULT now(),
@@ -1044,6 +1047,16 @@ CREATE INDEX IF NOT EXISTS idx_player_pets_player_id ON player_pets(player_id);
 
 -- Tienda del World Boss: cuanto sube la Piedra de Trascendencia el tope de 20 de ESA mascota.
 ALTER TABLE player_pets ADD COLUMN IF NOT EXISTS bonus_max_level INT NOT NULL DEFAULT 0;
+
+-- Mercado multi-moneda + venta de mascotas. player_pet_id va despues de player_pets porque la
+-- referencia -- item_id ya quedo NULLABLE en su CREATE TABLE (arriba) para esto mismo.
+ALTER TABLE player_market_listings ADD COLUMN IF NOT EXISTS player_pet_id INT REFERENCES player_pets(id);
+ALTER TABLE player_market_listings DROP CONSTRAINT IF EXISTS chk_listing_target;
+ALTER TABLE player_market_listings ADD CONSTRAINT chk_listing_target CHECK (
+  (item_id IS NOT NULL AND player_pet_id IS NULL) OR
+  (item_id IS NULL AND player_pet_id IS NOT NULL)
+);
+CREATE INDEX IF NOT EXISTS idx_market_listings_pet ON player_market_listings(player_pet_id) WHERE status = 'ACTIVE';
 
 -- Mercado multi-moneda + venta de mascotas: player_market_listings ya existe (línea ~974) pero
 -- referencia player_pets, que se crea recién acá arriba, por eso van como ALTER en vez de estar
