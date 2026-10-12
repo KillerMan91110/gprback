@@ -10,6 +10,7 @@ const elements = require('../lib/elements');
 const { getRankBonuses, applyPercentBonus } = require('../lib/ranks');
 const questProgress = require('../lib/questProgress');
 const achievements = require('../lib/achievements');
+const aurelia = require('../lib/aurelia');
 const { requireAuth } = require('../lib/auth');
 const { applyGuildXp, getGuildLevelsForPlayers, combatBonusMultipliers } = require('../lib/guilds');
 const pets = require('../lib/pets');
@@ -1797,10 +1798,13 @@ async function finalizeSession(sessionId, status, participants) {
       for (const hp of heroPs) {
         const heroXpMult = combatBonusMultipliers(heroGuildLevels.get(hp.player_id)).xp;
         const levelMult = leveling.underLevelXpMult(hp.level, avgEnemyLevel);
-        const heroXp = Math.round(splitXp * heroXpMult * levelMult);
+        // bendición del Pilar de Aethra (ofrenda en Aurelia): +5% / +10% en el festival
+        const blessMult = await aurelia.xpBlessingMult(hp.player_id);
+        const heroXp = Math.round(splitXp * heroXpMult * levelMult * blessMult);
         const levelResult = await leveling.applyXpGain(hp.player_id, heroXp);
         if (levelResult && levelResult.leveledUp) {
           rewards.levelUps.push({ playerId: hp.player_id, newLevel: levelResult.newLevel });
+          aurelia.announceLevelUp(hp.player_id, levelResult.newLevel);
         }
         if (hp !== heroP) {
           for (const enemy of participants.enemy) {

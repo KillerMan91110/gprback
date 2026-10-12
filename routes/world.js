@@ -3,6 +3,8 @@ const db = require('../db/db');
 const { requireAuth, requireSelf } = require('../lib/auth');
 const inventory = require('../lib/inventory');
 const { nodesOf, NODE_TYPES, findNode, rollLoot, spotFor } = require('../lib/worldNodes');
+const { spendCurrency } = require('../lib/currency');
+const aurelia = require('../lib/aurelia');
 
 // Mundo 2D: recursos que se recolectan caminando (ver lib/worldNodes.js)
 const router = express.Router({ mergeParams: true });
@@ -80,6 +82,78 @@ router.post('/nodes/:nodeId/gather', async (req, res, next) => {
     // cuando reaparezca lo hará en otro de sus sitios
     const spot = spotFor(req.playerId, req.params.nodeId, node.spots, claim.rows[0].gathered_at);
     res.json({ node: req.params.nodeId, type: node.type, items, gold, readyAt: readyAt.toISOString(), spot });
+  } catch (err) { next(err); }
+});
+
+// ---------------------------------------------------------------- Aurelia
+// GET /world/ofrenda — estado de la bendición del Pilar de Aethra
+router.get('/ofrenda', async (req, res, next) => {
+  try {
+    await aurelia.ensureTables();
+    const r = await db.query('SELECT bonus, expires_at, offered_day = CURRENT_DATE AS today FROM player_blessings WHERE player_id = $1', [req.playerId]);
+    const b = r.rows[0];
+    res.json({
+      cost: aurelia.OFRENDA_COST, festival: aurelia.isFestival(),
+      active: !!b && new Date(b.expires_at) > new Date(), bonus: b ? Number(b.bonus) : 0, expiresAt: b?.expires_at ?? null,
+      offeredToday: !!b?.today,
+    });
+  } catch (err) { next(err); }
+});
+
+// POST /world/ofrenda — una ofrenda al día: cobra el oro y da la bendición (+XP en combate)
+router.post('/ofrenda', async (req, res, next) => {
+  try {
+    await aurelia.ensureTables();
+    const festival = aurelia.isFestival();
+    const { bonus, minutes } = aurelia.blessingFor(festival);
+    const done = await db.query('SELECT 1 FROM player_blessings WHERE player_id = $1 AND offered_day = CURRENT_DATE', [req.playerId]);
+    if (done.rows.length) return res.status(400).json({ error: 'Ya hiciste tu ofrenda de hoy. Vuelve mañana.' });
+    const gold = await spendCurrency(req.playerId, 'gold', aurelia.OFRENDA_COST);
+    if (gold == null) return res.status(400).json({ error: `Necesitas ${aurelia.OFRENDA_COST} de oro para la ofrenda` });
+    const r = await db.query(
+      `INSERT INTO player_blessings (player_id, bonus, expires_at, offered_day)
+       VALUES ($1, $2, now() + ($3 || ' minutes')::interval, CURRENT_DATE)
+       ON CONFLICT (player_id) DO UPDATE SET bonus = $2, expires_at = now() + ($3 || ' minutes')::interval, offered_day = CURRENT_DATE
+       RETURNING bonus, expires_at`,
+      [req.playerId, bonus, String(minutes)]
+    );
+    res.json({ cost: aurelia.OFRENDA_COST, festival, active: true, bonus: Number(r.rows[0].bonus), expiresAt: r.rows[0].expires_at, offeredToday: true, gold });
+  } catch (err) { next(err); }
+});
+
+// GET /world/libro — libro de visitas de El Grifo Dorado (las últimas firmas)
+router.get('/libro', async (req, res, next) => {
+  try {
+    await aurelia.ensureTables();
+    const r = await db.query(
+      `SELECT g.id, g.text, g.created_at, p.nickname, p.level FROM world_guestbook g JOIN players p ON p.id = g.player_id
+       ORDER BY g.id DESC LIMIT 40`
+    );
+    res.json(r.rows);
+  } catch (err) { next(err); }
+});
+
+// POST /world/libro { text } — una firma cada 10 minutos por jugador
+router.post('/libro', async (req, res, next) => {
+  const text = String(req.body?.text ?? '').replace(/[\u0000-\u001f]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 160);
+  if (!text) return res.status(400).json({ error: 'Escribe algo para firmar' });
+  try {
+    await aurelia.ensureTables();
+    const last = await db.query("SELECT 1 FROM world_guestbook WHERE player_id = $1 AND created_at > now() - interval '10 minutes'", [req.playerId]);
+    if (last.rows.length) return res.status(400).json({ error: 'Ya firmaste hace poco. Espera unos minutos.' });
+    await db.query('INSERT INTO world_guestbook (player_id, text) VALUES ($1, $2)', [req.playerId, text]);
+    res.status(201).json({ ok: true });
+  } catch (err) { next(err); }
+});
+
+// POST /world/viaje { destino } — la diligencia de Gaspar (cobra el pasaje y dice dónde te deja)
+router.post('/viaje', async (req, res, next) => {
+  const dest = aurelia.DESTINOS[req.body?.destino];
+  if (!dest) return res.status(400).json({ error: 'Destino desconocido' });
+  try {
+    const gold = await spendCurrency(req.playerId, 'gold', aurelia.VIAJE_COST);
+    if (gold == null) return res.status(400).json({ error: `El pasaje cuesta ${aurelia.VIAJE_COST} de oro` });
+    res.json({ ok: true, gold, ...dest });
   } catch (err) { next(err); }
 });
 

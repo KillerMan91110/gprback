@@ -23,6 +23,7 @@ const combatRouter = require('./routes/combat');
 const guildsRouter = require('./routes/guilds');
 const socialRouter = require('./routes/social');
 const socialHubRouter = require('./routes/socialHub');
+const { currentNews } = require('./lib/aurelia');
 const coopRouter = require('./routes/coop');
 const marketRouter = require('./routes/market');
 const petsRouter = require('./routes/pets');
@@ -130,6 +131,8 @@ app.use('/api/ranks', ranksRouter);
 app.use('/api/player', playerRouter);
 app.use('/api/combat', combatRouter);
 app.use('/api/guilds', guildsRouter);
+// noticias que pregona el pregonero de Aurelia (públicas)
+app.get('/api/world/noticias', (req, res) => res.json(currentNews()));
 // ventana Social del mundo 2D (notas, favoritos, lazos, estado, elogios)
 app.use('/api/player/:playerId/social', socialHubRouter);
 app.use('/api/player/:playerId/friends', socialRouter);
