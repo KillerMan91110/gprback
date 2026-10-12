@@ -1326,3 +1326,11 @@ ALTER TABLE combat_sessions ADD COLUMN IF NOT EXISTS daily_event_code TEXT REFER
 -- por el sistema en vez de por una persona -- filas normales de players, is_bot solo identifica
 -- cuales procesa el scheduler. No cambia nada de como el resto del codigo trata a un jugador.
 ALTER TABLE players ADD COLUMN IF NOT EXISTS is_bot BOOLEAN NOT NULL DEFAULT FALSE;
+
+-- Mundo 2D: cuándo recolectó cada jugador cada recurso del mapa (lib/worldNodes.js)
+CREATE TABLE IF NOT EXISTS world_node_gathers (
+  player_id   INTEGER NOT NULL REFERENCES players(id) ON DELETE CASCADE,
+  node_id     TEXT    NOT NULL,
+  gathered_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  PRIMARY KEY (player_id, node_id)
+);

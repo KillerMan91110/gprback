@@ -30,6 +30,7 @@ const chatRouter = require('./routes/chat');
 const adminRouter = require('./routes/admin');
 const { globalRouter: worldBossGlobalRouter, playerRouter: worldBossPlayerRouter } = require('./routes/worldboss');
 const dailyEventRouter = require('./routes/dailyEvent');
+const worldRouter = require('./routes/world');
 const { tickWorldBossSchedule } = require('./lib/worldBossScheduler');
 const { startLegendSchedule, setIo: setLegendSchedulerIo } = require('./lib/legendScheduler');
 const { restockPotions } = require('./lib/marketRestock');
@@ -135,6 +136,7 @@ app.use('/api/admin', adminRouter);
 app.use('/api/worldboss', worldBossGlobalRouter);
 app.use('/api/player/:playerId/worldboss', worldBossPlayerRouter);
 app.use('/api/player/:playerId/daily-event', dailyEventRouter);
+app.use('/api/player/:playerId/world', worldRouter);
 
 // Ciclo automático del World Boss (docs/backend-followup-world-boss-cycle-ready.md): 3hs activo,
 // 1h de pausa, para siempre. No hace falta cron de sistema, el server ya es un proceso de larga

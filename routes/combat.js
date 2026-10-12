@@ -1032,6 +1032,105 @@ async function applyStatModBuff(sessionId, target, effect, isDebuff, descParts, 
   }
 }
 
+// ─── Romper (estilo Octopath) ───────────────────────────────────────────────────────────────
+// Cada monstruo tiene un escudo según su rareza. Cada golpe que recibe de un jugador le quita 1
+// punto (2 si es su debilidad elemental; las habilidades de varios golpes quitan por golpe).
+// Al llegar a 0 queda ROTO: pierde su turno en esta ronda y en la siguiente y recibe +50% de daño
+// (buff DAMAGE_TAKEN); al terminar se le restaura el escudo. Escudo y rotura se guardan como filas
+// especiales de combat_participant_buffs (SHIELD con el valor actual, BREAK con las rondas).
+// Los jefes (MINIBOSS/LEGENDARY) además entran en FURIA una vez al bajar de la mitad de vida.
+const SHIELD_BY_RARITY = { COMMON: 3, RARE: 4, MINIBOSS: 5, LEGENDARY: 7 };
+const BREAK_DAMAGE_BONUS = 50;
+const FURY_ATK_PERCENT = 30;
+let monsterRarityCache = null;
+
+async function getMonsterRarities() {
+  if (!monsterRarityCache) {
+    const r = await db.query('SELECT code, rarity FROM monsters');
+    monsterRarityCache = Object.fromEntries(r.rows.map((m) => [m.code, m.rarity]));
+  }
+  return monsterRarityCache;
+}
+
+async function maxShieldOf(p) {
+  if (!p.monster_code || p.monster_code.startsWith(WORLD_BOSS_CODE_PREFIX) || p.is_summon) return 0;
+  const rarities = await getMonsterRarities();
+  return SHIELD_BY_RARITY[rarities[p.monster_code]] ?? 3;
+}
+
+async function applyBreakAndFury(sessionId, round, actor, participants, hpBefore, body) {
+  if (actor.side !== 'PLAYER') return;
+  let elementId = actor.imbued_element_id ?? null;
+  let hits = 1;
+  if (body.action === 'SKILL' && body.skillId) {
+    const sk = (await db.query('SELECT element_id, hits FROM skills WHERE id = $1', [body.skillId])).rows[0];
+    elementId = sk?.element_id ?? null;
+    hits = Math.max(1, Number(sk?.hits) || 1);
+  } else if (body.action !== 'ATTACK') {
+    return;
+  }
+  const rarities = await getMonsterRarities();
+  for (const enemy of participants.enemy) {
+    const before = hpBefore.get(enemy.id);
+    if (before == null || enemy.hp >= before) continue;
+    // furia del jefe: una sola vez por combate al bajar de la mitad
+    if (['MINIBOSS', 'LEGENDARY'].includes(rarities[enemy.monster_code]) && enemy.hp > 0 && enemy.hp <= enemy.max_hp / 2) {
+      const fury = await db.query("SELECT 1 FROM combat_participant_buffs WHERE participant_id = $1 AND stat_code = 'FURY'", [enemy.id]);
+      if (!fury.rows.length) {
+        const extra = Math.round(Number(enemy.atk) * FURY_ATK_PERCENT / 100);
+        applyStatDelta(enemy, 'ATK', extra);
+        await persistParticipant(enemy);
+        await db.query(
+          "INSERT INTO combat_participant_buffs(session_id,participant_id,stat_code,applied_flat,rounds_remaining,is_debuff,skill_id) VALUES($1,$2,'FURY',$3,9999,FALSE,NULL)",
+          [sessionId, enemy.id, extra]
+        );
+        await insertLog(sessionId, round, {
+          actorId: actor.id, targetId: enemy.id, action: 'SKILL',
+          description: `¡${enemy.name} entra en furia! Su ataque aumenta un ${FURY_ATK_PERCENT}%.`,
+        });
+      }
+    }
+    if (enemy.hp <= 0) continue;
+    const max = await maxShieldOf(enemy);
+    if (!max) continue;
+    const broken = await db.query("SELECT 1 FROM combat_participant_buffs WHERE participant_id = $1 AND stat_code = 'BREAK'", [enemy.id]);
+    if (broken.rows.length) continue;
+    let weak = false;
+    if (elementId) {
+      const res = await db.query(
+        `SELECT mer.resistance_percent FROM monster_element_resistances mer
+         JOIN monsters m ON m.id = mer.monster_id WHERE m.code = $1 AND mer.element_id = $2`,
+        [enemy.monster_code, elementId]
+      );
+      weak = Number(res.rows[0]?.resistance_percent ?? 0) < 0;
+    }
+    const row = (await db.query("SELECT id, applied_flat FROM combat_participant_buffs WHERE participant_id = $1 AND stat_code = 'SHIELD'", [enemy.id])).rows[0];
+    const current = row ? Number(row.applied_flat) : max;
+    const next = Math.max(0, current - (weak ? 2 : 1) * hits);
+    if (row) await db.query('UPDATE combat_participant_buffs SET applied_flat = $1 WHERE id = $2', [next, row.id]);
+    else {
+      await db.query(
+        "INSERT INTO combat_participant_buffs(session_id,participant_id,stat_code,applied_flat,rounds_remaining,is_debuff,skill_id) VALUES($1,$2,'SHIELD',$3,9999,FALSE,NULL)",
+        [sessionId, enemy.id, next]
+      );
+    }
+    if (next === 0) {
+      // ¡roto! pierde lo que le quedaba de esta ronda y la siguiente, y recibe más daño
+      enemy.has_acted_this_round = true;
+      await persistParticipant(enemy);
+      await db.query(
+        `INSERT INTO combat_participant_buffs(session_id,participant_id,stat_code,applied_flat,rounds_remaining,is_debuff,skill_id)
+         VALUES($1,$2,'BREAK',0,2,TRUE,NULL), ($1,$2,'DAMAGE_TAKEN',$3,2,TRUE,NULL)`,
+        [sessionId, enemy.id, BREAK_DAMAGE_BONUS]
+      );
+      await insertLog(sessionId, round, {
+        actorId: actor.id, targetId: enemy.id, action: 'SKILL',
+        description: `¡${enemy.name} ha sido ROTO! Pierde su turno y recibe más daño.`,
+      });
+    }
+  }
+}
+
 async function getLastActingSide(sessionId, round) {
   const result = await db.query(
     `SELECT cp.side FROM combat_log cl
@@ -1110,7 +1209,11 @@ async function startNewRound(sessionId, participants) {
           p.imbued_element_id = null;
           p.imbued_damage_bonus = 0;
           await persistParticipant(p);
-        } else if (buff.stat_code.startsWith('RESIST_') || buff.stat_code === 'DOT' || buff.stat_code === 'NO_DAMAGE' || buff.stat_code === 'DAMAGE_TAKEN' || buff.stat_code === 'HOT') {
+        } else if (buff.stat_code === 'BREAK') {
+          // se recupera de la rotura: escudo lleno otra vez
+          const max = await maxShieldOf(p);
+          await db.query("UPDATE combat_participant_buffs SET applied_flat = $1 WHERE participant_id = $2 AND stat_code = 'SHIELD'", [max, p.id]);
+        } else if (buff.stat_code.startsWith('RESIST_') || buff.stat_code === 'DOT' || buff.stat_code === 'NO_DAMAGE' || buff.stat_code === 'DAMAGE_TAKEN' || buff.stat_code === 'HOT' || buff.stat_code === 'SHIELD' || buff.stat_code === 'FURY') {
           // Solo borrar la fila: estos efectos no tienen stat persistido que revertir
         } else {
           applyStatDelta(p, buff.stat_code, -Number(buff.applied_flat));
@@ -1160,6 +1263,16 @@ async function startNewRound(sessionId, participants) {
         p.hp = Math.min(Number(p.max_hp), p.hp + heal);
         await db.query('UPDATE combat_participants SET hp = $1 WHERE id = $2', [p.hp, p.id]);
       }
+    }
+  }
+
+  // Los que siguen ROTOS no actúan en esta ronda
+  const brokenRows = await db.query("SELECT participant_id FROM combat_participant_buffs WHERE session_id = $1 AND stat_code = 'BREAK'", [sessionId]);
+  for (const row of brokenRows.rows) {
+    const p = participants.all.find((x) => x.id === row.participant_id);
+    if (p && p.hp > 0) {
+      p.has_acted_this_round = true;
+      await db.query('UPDATE combat_participants SET has_acted_this_round = TRUE WHERE id = $1', [p.id]);
     }
   }
 
@@ -2376,7 +2489,13 @@ async function fetchSessionState(sessionId) {
     [sessionId]
   );
   const effectsById = {};
+  const shieldRow = {};
+  const brokenIds = new Set();
   for (const b of buffRes.rows) {
+    if (b.stat_code === 'SHIELD') { shieldRow[b.participant_id] = Number(b.applied_flat); continue; }
+    if (b.stat_code === 'BREAK') { brokenIds.add(b.participant_id); continue; }
+    // el +50% de daño de la rotura ya se ve como "ROTO" en el cliente
+    if (b.stat_code === 'DAMAGE_TAKEN' && brokenIds.has(b.participant_id) && Number(b.applied_flat) === BREAK_DAMAGE_BONUS) continue;
     (effectsById[b.participant_id] ??= []).push({
       code: b.stat_code,
       amount: Number(b.applied_flat),
@@ -2396,6 +2515,12 @@ async function fetchSessionState(sessionId) {
     resistances: p.monster_code ? (resistByMonster[p.monster_code] ?? {}) : undefined,
     effects: effectsById[p.id] ?? [],
   }));
+  // escudo de Romper de cada monstruo: { current, max, broken }
+  for (const p of enrichedParticipants) {
+    if (p.side !== 'ENEMY') continue;
+    const max = await maxShieldOf(p);
+    if (max) p.shield = { current: shieldRow[p.id] ?? max, max, broken: brokenIds.has(p.id) };
+  }
 
   return {
     session: sessionResult.rows[0],
@@ -2789,6 +2914,8 @@ router.post('/sessions/:id/action', async (req, res, next) => {
     if (side !== 'PLAYER') {
       return res.status(400).json({ error: 'No es el turno del jugador' });
     }
+    // vida de cada enemigo antes de actuar: para saber a quién le pegó (Romper / Furia)
+    const hpBeforeAction = new Map(participants.enemy.map((p) => [p.id, p.hp]));
 
     const expectedActor = combat.nextActor(participants.player);
     const actor = participants.player.find((p) => p.id === Number(participantId));
@@ -3806,6 +3933,7 @@ router.post('/sessions/:id/action', async (req, res, next) => {
     actor.has_acted_this_round = !actor.grants_extra_action;
     await persistParticipant(actor);
     await insertLog(sessionId, session.current_round, logEntry);
+    await applyBreakAndFury(sessionId, session.current_round, actor, participants, hpBeforeAction, req.body);
 
     // Bonus action del invocado: si el actor tiene un invocado activo, ataca automaticamente
     await execSummonBonusAttack(sessionId, actor.id, session.current_round, participants);
