@@ -8,6 +8,7 @@ const { requireAuth, requireSelf } = require('../lib/auth');
 const combatEngine = require('./combat');
 const inventory = require('../lib/inventory');
 const { incrementCounter } = require('../lib/counters');
+const { spendCurrency, withTransaction, parseQuantity } = require('../lib/currency');
 
 router.use(requireAuth);
 router.use(requireSelf);
@@ -497,10 +498,22 @@ router.post('/vendor-event-buy', async (req, res, next) => {
       return res.status(400).json({ error: `Monedas insuficientes (necesitas ${price}, tienes ${currentCoins})` });
     }
 
-    await db.query('UPDATE players SET dungeon_coins = dungeon_coins - $1 WHERE id = $2', [price, req.playerId]);
-    await inventory.addItem(req.playerId, item.id, 1);
+    // Cobro + item + consumir el evento en una sola transaccion. El "consumir" chequea que el
+    // evento siga pendiente: dos clicks simultaneos podian comprar dos veces del mismo vendedor
+    // y avanzar la sala dos veces.
+    const purchase = await withTransaction(async (client) => {
+      const claimed = await client.query(
+        'UPDATE player_tower_runs SET pending_event_id = NULL WHERE id = $1 AND pending_event_id = $2 RETURNING id',
+        [run.id, run.pending_event_id]
+      );
+      if (!claimed.rows.length) return { abort: true, status: 409, error: 'Este vendedor ya no está disponible' };
+      const balance = await spendCurrency(req.playerId, 'dungeon_coins', price, client);
+      if (balance === null) return { abort: true, status: 400, error: `Monedas insuficientes (necesitas ${price})` };
+      await inventory.addItem(req.playerId, item.id, 1, 0, 0, client);
+      return { balance };
+    });
+    if (purchase.abort) return res.status(purchase.status).json({ error: purchase.error });
 
-    await db.query('UPDATE player_tower_runs SET pending_event_id = NULL WHERE id = $1', [run.id]);
     const floorRow = await getFloor(run.current_floor);
     await combatEngine.advanceTowerRoomOrFloor(run, floorRow);
 
@@ -509,12 +522,11 @@ router.post('/vendor-event-buy', async (req, res, next) => {
     const pendingEvent = updatedRun.pending_event_id
       ? (await db.query('SELECT * FROM tower_room_events WHERE id = $1', [updatedRun.pending_event_id])).rows[0]
       : null;
-    const newCoins = currentCoins - price;
 
     res.json({
       message: `Compraste: ${item.name} por ${price} monedas de mazmorra.`,
       bought: { itemId: item.id, name: item.name, price },
-      dungeon_coins: newCoins,
+      dungeon_coins: purchase.balance,
       run: updatedRun,
       session,
       pendingEvent,
@@ -684,7 +696,7 @@ router.get('/vendor', async (req, res, next) => {
 router.post('/vendor/buy', async (req, res, next) => {
   try {
     const itemId = Number(req.body?.itemId);
-    const quantity = Math.max(1, Number(req.body?.quantity) || 1);
+    const quantity = parseQuantity(req.body?.quantity);
     if (!itemId) return res.status(400).json({ error: 'itemId requerido' });
 
     const shopRes = await db.query('SELECT price FROM tower_vendor_shop WHERE item_id = $1', [itemId]);
@@ -698,10 +710,13 @@ router.post('/vendor/buy', async (req, res, next) => {
       return res.status(400).json({ error: `Monedas insuficientes (necesitas ${totalCost}, tienes ${playerRes.rows[0].dungeon_coins})` });
     }
 
-    await db.query('UPDATE players SET dungeon_coins = dungeon_coins - $1 WHERE id = $2', [totalCost, req.playerId]);
-    await inventory.addItem(req.playerId, itemId, quantity);
+    const newCoins = await withTransaction(async (client) => {
+      const balance = await spendCurrency(req.playerId, 'dungeon_coins', totalCost, client);
+      if (balance !== null) await inventory.addItem(req.playerId, itemId, quantity, 0, 0, client);
+      return balance;
+    });
+    if (newCoins === null) return res.status(400).json({ error: `Monedas insuficientes (necesitas ${totalCost})` });
 
-    const newCoins = (await db.query('SELECT dungeon_coins FROM players WHERE id = $1', [req.playerId])).rows[0].dungeon_coins;
     const itemRes = await db.query('SELECT name FROM items WHERE id = $1', [itemId]);
     res.json({
       bought: true,
@@ -774,10 +789,13 @@ router.post('/settlement/shop/buy', async (req, res, next) => {
       return res.status(400).json({ error: `Monedas insuficientes (necesitas ${totalCost}, tienes ${playerRes.rows[0].dungeon_coins})` });
     }
 
-    await db.query('UPDATE players SET dungeon_coins = dungeon_coins - $1 WHERE id = $2', [totalCost, req.playerId]);
-    await inventory.addItem(req.playerId, itemId, qty);
+    const newCoins = await withTransaction(async (client) => {
+      const balance = await spendCurrency(req.playerId, 'dungeon_coins', totalCost, client);
+      if (balance !== null) await inventory.addItem(req.playerId, itemId, qty, 0, 0, client);
+      return balance;
+    });
+    if (newCoins === null) return res.status(400).json({ error: `Monedas insuficientes (necesitas ${totalCost})` });
 
-    const newCoins = (await db.query('SELECT dungeon_coins FROM players WHERE id = $1', [req.playerId])).rows[0].dungeon_coins;
     const itemRes = await db.query('SELECT name FROM items WHERE id = $1', [itemId]);
     res.json({
       bought: true,

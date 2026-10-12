@@ -2,6 +2,7 @@ const express = require('express');
 const db = require('../db/db');
 const { requireAuth, requireSelf } = require('../lib/auth');
 const { getActivePetBonuses } = require('../lib/pets');
+const { parseQuantity } = require('../lib/currency');
 
 const router = express.Router({ mergeParams: true });
 router.use(requireAuth);
@@ -94,7 +95,10 @@ router.post('/:playerPetId/deactivate', async (req, res, next) => {
 router.post('/:playerPetId/feed', async (req, res, next) => {
   try {
     const { playerId, playerPetId } = req.params;
-    const { itemId, quantity = 1 } = req.body;
+    const { itemId } = req.body;
+    // Entero >= 1: con una cantidad negativa el chequeo de stock pasaba y el UPDATE de abajo
+    // SUMABA ese item al inventario (duplicaba cualquier item que tuvieras al menos 1).
+    const quantity = parseQuantity(req.body.quantity, 9999);
     if (!itemId) return res.status(400).json({ error: 'Falta itemId' });
 
     const petRes = await db.query(
@@ -116,10 +120,15 @@ router.post('/:playerPetId/feed', async (req, res, next) => {
       return res.status(400).json({ error: 'No tienes suficiente cantidad de ese item' });
     }
 
-    await db.query(
-      'UPDATE player_inventory SET quantity = quantity - $1 WHERE player_id = $2 AND item_id = $3',
+    // Guard en el propio UPDATE: dos alimentaciones simultaneas podian pasar el chequeo de
+    // arriba con el mismo stock leido.
+    const consumed = await db.query(
+      'UPDATE player_inventory SET quantity = quantity - $1 WHERE player_id = $2 AND item_id = $3 AND quantity >= $1 RETURNING id',
       [quantity, playerId, itemId]
     );
+    if (!consumed.rows.length) {
+      return res.status(400).json({ error: 'No tienes suficiente cantidad de ese item' });
+    }
     await db.query(
       'DELETE FROM player_inventory WHERE player_id = $1 AND item_id = $2 AND quantity <= 0',
       [playerId, itemId]

@@ -1087,6 +1087,12 @@ async function startNewRound(sessionId, participants) {
       await checkOnceForCombatSave(p);
       await db.query('UPDATE combat_participants SET hp = $1 WHERE id = $2', [p.hp, p.id]);
       await markNearDeathIfLow(p);
+      // queda en el registro para que el cliente muestre el daño del veneno (actor = objetivo).
+      // Va en la ronda que termina: getLastActingSide mira la ronda nueva y no debe contarlo.
+      await insertLog(sessionId, newRound - 1, {
+        actorId: p.id, targetId: p.id, action: 'SKILL', damage: dotDmg, hp_after: p.hp,
+        description: `${p.name} sufre ${dotDmg} de daño por veneno.`,
+      });
     }
   }
 
@@ -1133,8 +1139,15 @@ async function startNewRound(sessionId, participants) {
       const p = participants.all.find((x) => x.id === hot.participant_id);
       if (p && p.hp > 0) {
         const healAmt = Math.max(1, Math.round(Number(p.max_hp) * Number(hot.applied_flat) / 100));
+        const before = p.hp;
         p.hp = Math.min(Number(p.max_hp), p.hp + healAmt);
         await db.query('UPDATE combat_participants SET hp = $1 WHERE id = $2', [p.hp, p.id]);
+        if (p.hp > before) {
+          await insertLog(sessionId, newRound - 1, {
+            actorId: p.id, targetId: p.id, action: 'SKILL', heal: p.hp - before, hp_after: p.hp,
+            description: `${p.name} recupera ${p.hp - before} PV por regeneración.`,
+          });
+        }
       }
     }
   }
@@ -2293,6 +2306,16 @@ async function advanceEnemyTurns(sessionId) {
   throw new Error('Combate excedió el límite de turnos automáticos');
 }
 
+// id -> code de la tabla elements (9 filas fijas): se lee una vez y queda en memoria.
+let elementCodesCache = null;
+async function getElementCodes() {
+  if (!elementCodesCache) {
+    const res = await db.query('SELECT id, code FROM elements');
+    elementCodesCache = Object.fromEntries(res.rows.map((r) => [r.id, r.code]));
+  }
+  return elementCodesCache;
+}
+
 async function fetchSessionState(sessionId) {
   const sessionResult = await db.query('SELECT * FROM combat_sessions WHERE id = $1', [sessionId]);
   if (!sessionResult.rows.length) return null;
@@ -2324,11 +2347,54 @@ async function fetchSessionState(sessionId) {
     }
   }
 
+  // Elemento de cada combatiente y resistencias/debilidades de los monstruos (porcentaje negativo =
+  // debilidad), para que el front pueda mostrarlas como el "Break" de Octopath y colorear los golpes.
+  const elementCodes = await getElementCodes();
+  const monsterCodes = [...new Set(participants.all.map((p) => p.monster_code).filter(Boolean))];
+  const resistByMonster = {};
+  if (monsterCodes.length) {
+    const resRes = await db.query(
+      `SELECT m.code AS monster_code, e.code AS element_code, mer.resistance_percent
+       FROM monster_element_resistances mer
+       JOIN monsters m ON m.id = mer.monster_id
+       JOIN elements e ON e.id = mer.element_id
+       WHERE m.code = ANY($1::text[]) AND mer.resistance_percent <> 0`,
+      [monsterCodes]
+    );
+    for (const r of resRes.rows) {
+      (resistByMonster[r.monster_code] ??= {})[r.element_code] = Number(r.resistance_percent);
+    }
+  }
+
+  // Estados activos (venenos, mejoras, maldiciones, invisibilidad…) para mostrarlos en combate
+  const buffRes = await db.query(
+    `SELECT b.participant_id, b.stat_code, b.applied_flat, b.rounds_remaining, b.is_debuff, s.name AS skill_name
+     FROM combat_participant_buffs b
+     LEFT JOIN skills s ON s.id = b.skill_id
+     WHERE b.session_id = $1
+     ORDER BY b.id`,
+    [sessionId]
+  );
+  const effectsById = {};
+  for (const b of buffRes.rows) {
+    (effectsById[b.participant_id] ??= []).push({
+      code: b.stat_code,
+      amount: Number(b.applied_flat),
+      rounds: b.rounds_remaining,
+      debuff: b.is_debuff,
+      source: b.skill_name ?? null,
+    });
+  }
+
   const enrichedParticipants = participants.all.map((p) => ({
     ...p,
     is_ai_controlled: abandonedIds.includes(p.player_id ?? p.owner_player_id),
     // World Boss: el nivel real no se expone al jugador (ver hydrateMonsters, mismo criterio).
     level: p.monster_code?.startsWith(WORLD_BOSS_CODE_PREFIX) ? null : p.level,
+    element_code: elementCodes[p.element_id] ?? null,
+    imbued_element_code: elementCodes[p.imbued_element_id] ?? null,
+    resistances: p.monster_code ? (resistByMonster[p.monster_code] ?? {}) : undefined,
+    effects: effectsById[p.id] ?? [],
   }));
 
   return {
@@ -2415,9 +2481,24 @@ router.post('/zones/:zoneId/explore', async (req, res, next) => {
       [zone.id, partyIds]
     );
 
+    // Mundo 2D: si chocaste contra un monstruo visible del mapa (leadMonsterCode), ese
+    // monstruo encabeza el combate y los aliados salen de su misma rareza (o COMMON).
+    // Los jefes del mapa usan su guarida (POST /sessions), así que aquí solo se aceptan
+    // monstruos COMMON/RARE de esta zona.
+    let lead = null;
+    if (typeof req.body?.leadMonsterCode === 'string') {
+      const leadRes = await db.query(
+        `SELECT code, min_spawn_level, max_spawn_level, rarity
+         FROM monsters
+         WHERE zone_id = $1 AND code = $2 AND rarity IN ('COMMON', 'RARE')`,
+        [zone.id, req.body.leadMonsterCode]
+      );
+      lead = leadRes.rows[0] || null;
+    }
+
     // Decide rareza del encuentro: LEGENDARY 5%, MINIBOSS 10%, RARE 25%, COMMON 60%
     const roll = Math.random() * 100;
-    let targetRarity = forcedBoss.rows.length
+    let targetRarity = lead ? lead.rarity : forcedBoss.rows.length
       ? forcedBoss.rows[0].rarity
       : roll < 5 ? 'LEGENDARY' : roll < 15 ? 'MINIBOSS' : roll < 40 ? 'RARE' : 'COMMON';
 
@@ -2440,12 +2521,12 @@ router.post('/zones/:zoneId/explore', async (req, res, next) => {
       );
     }
 
-    if (!eligible.rows.length) {
+    if (!eligible.rows.length && !lead) {
       return res.status(400).json({ error: 'No hay monstruos disponibles en esta zona para tu nivel' });
     }
 
     // Cantidad de monstruos según rareza y tamaño de formación
-    const actualRarity = eligible.rows[0].rarity;
+    const actualRarity = lead ? lead.rarity : eligible.rows[0].rarity;
     let monsterCount;
     if (actualRarity === 'LEGENDARY' || actualRarity === 'MINIBOSS') {
       monsterCount = 1;
@@ -2459,9 +2540,10 @@ router.post('/zones/:zoneId/explore', async (req, res, next) => {
     // Elige monstruos aleatorios con nivel dentro del rango válido
     const monsterSpecs = [];
     for (let i = 0; i < monsterCount; i++) {
-      const m = eligible.rows[Math.floor(Math.random() * eligible.rows.length)];
+      const pool = eligible.rows.length ? eligible.rows : [lead];
+      const m = i === 0 && lead ? lead : pool[Math.floor(Math.random() * pool.length)];
       const lo = Math.max(m.min_spawn_level, minMonsterLevel);
-      const hi = Math.min(m.max_spawn_level, maxMonsterLevel);
+      const hi = Math.max(lo, Math.min(m.max_spawn_level, maxMonsterLevel));
       const level = lo + Math.floor(Math.random() * (hi - lo + 1));
       monsterSpecs.push({ code: m.code, level });
     }

@@ -2,6 +2,7 @@ const express = require('express');
 const db = require('../db/db');
 const { rankAtLeast, getRankForReputation, getRankBonuses, applyPercentBonus } = require('../lib/ranks');
 const inventory = require('../lib/inventory');
+const { spendCurrency, withTransaction, learnSkillForGold } = require('../lib/currency');
 const leveling = require('../lib/leveling');
 const questProgress = require('../lib/questProgress');
 const achievements = require('../lib/achievements');
@@ -313,8 +314,9 @@ router.get('/:playerId/skills', async (req, res, next) => {
 
     const skillsResult = await db.query(
       `SELECT s.id, s.code, s.name, s.skill_type, s.damage_school, s.target_type, s.mana_cost,
-              s.hits, s.description
+              s.hits, s.description, e.code AS element_code
        FROM skills s
+       LEFT JOIN elements e ON e.id = s.element_id
        WHERE s.is_passive = FALSE AND s.skill_type != 'PASIVA'
          AND (s.class_id = ANY($1::int[]) OR s.class_id IS NULL)
          AND (
@@ -333,6 +335,7 @@ router.get('/:playerId/skills', async (req, res, next) => {
         name: s.name,
         skillType: s.skill_type,
         damageSchool: s.damage_school,
+        elementCode: s.element_code,
         targetType: s.target_type,
         manaCost: s.mana_cost,
         hits: s.hits,
@@ -434,8 +437,10 @@ router.get('/:playerId/class-skills', async (req, res, next) => {
 
     res.json(skillsRes.rows.map((s) => ({
       id: s.id,
+      code: s.code,
       name: s.name,
       skillType: s.skill_type,
+      damageSchool: s.damage_school,
       isPassive: s.is_passive,
       learnMethod: s.learn_method,
       learnLevel: s.learn_level,
@@ -553,11 +558,12 @@ router.post('/:playerId/guild/learn-skill', async (req, res, next) => {
       return res.status(400).json({ error: `No tienes suficiente oro (necesitas ${cost})`, cost, gold: Number(player.gold) });
     }
 
-    const newGold = Number(player.gold) - cost;
-    await db.query('UPDATE players SET gold = $1, updated_at = now() WHERE id = $2', [newGold, playerId]);
-    await db.query('INSERT INTO player_skills(player_id, skill_id) VALUES ($1, $2)', [playerId, skillId]);
+    const learned = await learnSkillForGold(playerId, cost, {
+      table: 'player_skills', ownerColumn: 'player_id', ownerId: playerId, skillId,
+    });
+    if (learned.abort) return res.status(learned.status).json({ error: learned.error, cost });
 
-    res.json({ learnedSkillId: skill.id, name: skill.name, cost, newGold });
+    res.json({ learnedSkillId: skill.id, name: skill.name, cost, newGold: learned.balance });
   } catch (error) {
     next(error);
   }
@@ -615,11 +621,12 @@ router.post('/:playerId/npcs/:npcId/learn-skill', async (req, res, next) => {
       return res.status(400).json({ error: `No tienes suficiente oro (necesitas ${cost})`, cost, gold: Number(player.gold) });
     }
 
-    const newGold = Number(player.gold) - cost;
-    await db.query('UPDATE players SET gold = $1, updated_at = now() WHERE id = $2', [newGold, playerId]);
-    await db.query('INSERT INTO npc_skills(npc_id, skill_id) VALUES ($1, $2)', [npcId, skillId]);
+    const learned = await learnSkillForGold(playerId, cost, {
+      table: 'npc_skills', ownerColumn: 'npc_id', ownerId: npcId, skillId,
+    });
+    if (learned.abort) return res.status(learned.status).json({ error: learned.error, cost });
 
-    res.json({ learnedSkillId: skill.id, name: skill.name, cost, newGold });
+    res.json({ learnedSkillId: skill.id, name: skill.name, cost, newGold: learned.balance });
   } catch (error) {
     next(error);
   }
@@ -717,9 +724,12 @@ router.post('/:playerId/guild/shop/buy', async (req, res, next) => {
       return res.status(400).json({ error: `No tienes suficiente oro (necesitas ${cost})`, cost, gold: Number(player.gold) });
     }
 
-    const newGold = Number(player.gold) - cost;
-    await db.query('UPDATE players SET gold = $1, updated_at = now() WHERE id = $2', [newGold, playerId]);
-    await inventory.addItem(playerId, item.id, qty);
+    const newGold = await withTransaction(async (client) => {
+      const balance = await spendCurrency(playerId, 'gold', cost, client);
+      if (balance !== null) await inventory.addItem(playerId, item.id, qty, 0, 0, client);
+      return balance;
+    });
+    if (newGold === null) return res.status(400).json({ error: `No tienes suficiente oro (necesitas ${cost})`, cost });
 
     res.json({ boughtItemId: item.id, name: item.name, quantity: qty, cost, newGold });
   } catch (error) {
@@ -1676,7 +1686,7 @@ router.get('/:playerId/craft/available', async (req, res, next) => {
               cr.rarity, cr.success_rate_percent, cr.artisan_name, cr.description,
               cr.scroll_item_id, si.name AS scroll_item_name,
               cr.required_class_id, c.name AS required_class_name, c.code AS required_class_code,
-              i.item_type AS result_item_type
+              i.item_type AS result_item_type, i.id AS result_item_id, i.slot AS result_slot
        FROM crafting_recipes cr
        JOIN items i ON i.id = cr.result_item_id
        LEFT JOIN items si ON si.id = cr.scroll_item_id
@@ -1715,6 +1725,8 @@ router.get('/:playerId/craft/available', async (req, res, next) => {
         resultName: recipe.result_name,
         resultQuantity: recipe.result_quantity,
         resultType: recipe.result_item_type,
+        resultItemId: recipe.result_item_id,
+        resultSlot: recipe.result_slot,
         rarity: recipe.rarity,
         successRate: Number(recipe.success_rate_percent),
         artisanName: recipe.artisan_name,
@@ -3064,9 +3076,9 @@ router.get('/:playerId/npcs/:npcId/skills', async (req, res, next) => {
     const npc = npcRes.rows[0];
 
     const skillsRes = await db.query(
-      `SELECT s.id, s.name, s.skill_type, s.description, s.mana_cost, s.target_type,
+      `SELECT s.id, s.code, s.name, s.skill_type, s.damage_school, s.description, s.mana_cost, s.target_type,
               s.learn_level, s.base_value, s.scaling_stat, s.scaling_multiplier, s.hits,
-              s.element_id, e.name AS element_name,
+              s.element_id, e.name AS element_name, e.code AS element_code,
               (s.skill_type IN ('ATAQUE', 'CURACION', 'BUFF', 'DEBUFF', 'ESPECIAL', 'ESTADO_ALTERADO') AND NOT s.is_passive) AS supported_in_combat
        FROM skills s
        LEFT JOIN elements e ON e.id = s.element_id
@@ -3093,6 +3105,7 @@ router.get('/:playerId/npcs/:npcId/skills', async (req, res, next) => {
       hits: s.hits,
       elementId: s.element_id,
       elementName: s.element_name,
+      elementCode: s.element_code,
       supportedInCombat: s.supported_in_combat,
     })));
   } catch (error) { next(error); }

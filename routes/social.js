@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router({ mergeParams: true });
 const db = require('../db/db');
 const inventory = require('../lib/inventory');
+const { spendCurrency } = require('../lib/currency');
 const { requireAuth, requireSelf } = require('../lib/auth');
 
 router.use(requireAuth);
@@ -341,7 +342,10 @@ router.post('/messages', async (req, res, next) => {
     try {
       await client.query('BEGIN');
 
-      if (gold > 0) await client.query('UPDATE players SET gold = gold - $1 WHERE id = $2', [gold, playerId]);
+      if (gold > 0 && (await spendCurrency(playerId, 'gold', gold, client)) === null) {
+        await client.query('ROLLBACK');
+        return res.status(400).json({ error: 'No tienes suficiente oro' });
+      }
 
       for (const it of items) {
         await inventory.removeItem(playerId, it.itemId, it.quantity || 1, it.enchantLevel || 0, it.qualityTier ?? 0, client);

@@ -8,6 +8,7 @@ const express = require('express');
 const db = require('../db/db');
 const { requireAuth, requireSelf } = require('../lib/auth');
 const inventory = require('../lib/inventory');
+const { spendCurrency, withTransaction, parseQuantity } = require('../lib/currency');
 const combatEngine = require('./combat');
 
 const globalRouter = express.Router();
@@ -301,7 +302,7 @@ playerRouter.get('/shop/legendary-pets', async (req, res, next) => {
 playerRouter.post('/shop/buy', async (req, res, next) => {
   try {
     const itemId = Number(req.body?.itemId);
-    const quantity = Math.max(1, Number(req.body?.quantity) || 1);
+    const quantity = parseQuantity(req.body?.quantity);
     if (!itemId) return res.status(400).json({ error: 'itemId requerido' });
 
     const shopRes = await db.query(
@@ -323,10 +324,12 @@ playerRouter.post('/shop/buy', async (req, res, next) => {
         return res.status(400).json({ error: `Fragmentos insuficientes (necesitas ${price}, tienes ${playerRes.rows[0].cosmic_shards})` });
       }
 
-      await db.query('UPDATE players SET cosmic_shards = cosmic_shards - $1 WHERE id = $2', [price, req.playerId]);
-      await db.query('INSERT INTO player_pets(player_id, pet_id) VALUES ($1, $2)', [req.playerId, petId]);
-
-      const newShards = (await db.query('SELECT cosmic_shards FROM players WHERE id = $1', [req.playerId])).rows[0].cosmic_shards;
+      const newShards = await withTransaction(async (client) => {
+        const balance = await spendCurrency(req.playerId, 'cosmic_shards', price, client);
+        if (balance !== null) await client.query('INSERT INTO player_pets(player_id, pet_id) VALUES ($1, $2)', [req.playerId, petId]);
+        return balance;
+      });
+      if (newShards === null) return res.status(400).json({ error: `Fragmentos insuficientes (necesitas ${price})` });
       return res.json({ bought: true, item: petRes.rows[0].name, quantity: 1, cost: price, cosmic_shards: newShards });
     }
 
@@ -337,10 +340,13 @@ playerRouter.post('/shop/buy', async (req, res, next) => {
       return res.status(400).json({ error: `Fragmentos insuficientes (necesitas ${totalCost}, tienes ${playerRes.rows[0].cosmic_shards})` });
     }
 
-    await db.query('UPDATE players SET cosmic_shards = cosmic_shards - $1 WHERE id = $2', [totalCost, req.playerId]);
-    await inventory.addItem(req.playerId, itemId, quantity);
+    const newShards = await withTransaction(async (client) => {
+      const balance = await spendCurrency(req.playerId, 'cosmic_shards', totalCost, client);
+      if (balance !== null) await inventory.addItem(req.playerId, itemId, quantity, 0, 0, client);
+      return balance;
+    });
+    if (newShards === null) return res.status(400).json({ error: `Fragmentos insuficientes (necesitas ${totalCost})` });
 
-    const newShards = (await db.query('SELECT cosmic_shards FROM players WHERE id = $1', [req.playerId])).rows[0].cosmic_shards;
     const itemRes = await db.query('SELECT name FROM items WHERE id = $1', [itemId]);
     res.json({ bought: true, item: itemRes.rows[0].name, quantity, cost: totalCost, cosmic_shards: newShards });
   } catch (err) { next(err); }

@@ -6,6 +6,7 @@ const {
   GUILD_EMBLEMS, GUILD_COLORS,
 } = require('../lib/guilds');
 const inventory = require('../lib/inventory');
+const { spendCurrency, withTransaction, learnSkillForGold } = require('../lib/currency');
 const { getClassAncestorChain } = require('../lib/evolution');
 
 const router = express.Router();
@@ -784,10 +785,14 @@ router.post('/:id/masters/:masterId/buy', async (req, res, next) => {
     const currentGold = Number(goldRes.rows[0].gold);
     if (currentGold < price) return res.status(400).json({ error: `Oro insuficiente (necesitas ${price})` });
 
-    await db.query('UPDATE players SET gold = gold - $1 WHERE id = $2', [price, playerId]);
-    await inventory.addItem(recipientPlayerId, itemId, qty);
+    const newGold = await withTransaction(async (client) => {
+      const balance = await spendCurrency(playerId, 'gold', price, client);
+      if (balance !== null) await inventory.addItem(recipientPlayerId, itemId, qty, 0, 0, client);
+      return balance;
+    });
+    if (newGold === null) return res.status(400).json({ error: `Oro insuficiente (necesitas ${price})` });
 
-    res.json({ bought: true, quantity: qty, gold: currentGold - price, recipientPlayerId });
+    res.json({ bought: true, quantity: qty, gold: newGold, recipientPlayerId });
   } catch (error) {
     next(error);
   }
@@ -921,11 +926,12 @@ router.post('/:id/masters/:masterId/learn-skill', async (req, res, next) => {
       return res.status(400).json({ error: `No tienes suficiente oro (necesitas ${cost})`, cost, gold: Number(player.gold) });
     }
 
-    const newGold = Number(player.gold) - cost;
-    await db.query('UPDATE players SET gold = $1, updated_at = now() WHERE id = $2', [newGold, playerId]);
-    await db.query('INSERT INTO player_skills(player_id, skill_id) VALUES ($1, $2)', [playerId, skillId]);
+    const learned = await learnSkillForGold(playerId, cost, {
+      table: 'player_skills', ownerColumn: 'player_id', ownerId: playerId, skillId,
+    });
+    if (learned.abort) return res.status(learned.status).json({ error: learned.error, cost });
 
-    res.json({ learnedSkillId: skill.id, name: skill.name, cost, newGold });
+    res.json({ learnedSkillId: skill.id, name: skill.name, cost, newGold: learned.balance });
   } catch (error) {
     next(error);
   }
