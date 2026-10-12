@@ -216,6 +216,17 @@ async function hydratePartyNpcs(playerId, ownerPlayerId = null, slotLimit = null
   }));
 }
 
+// "3-6" → { min: 3, max: 6 }; "15" → { min: 15, max: 15 }; recortado al rango de la zona.
+function parseLevelRange(text, zoneMin, zoneMax) {
+  const m = /^\s*(\d+)\s*(?:-\s*(\d+))?\s*$/.exec(String(text ?? ''));
+  if (!m) return null;
+  const a = Number(m[1]);
+  const b = m[2] ? Number(m[2]) : a;
+  const min = Math.max(zoneMin, Math.min(a, b));
+  const max = Math.min(zoneMax, Math.max(a, b));
+  return min <= max ? { min, max } : null;
+}
+
 // Interpola linealmente un stat entre las dos filas de monster_level_scalings que rodean al
 // nivel pedido (normalmente solo hay 2 filas guardadas: min_spawn_level y max_spawn_level).
 function interpolateStat(level, low, high, key) {
@@ -251,6 +262,13 @@ async function hydrateMonsters(monsterSpecs) {
     }
     if (!low) low = high;
     if (!high) high = low;
+    // Mundo 2D: las subzonas peligrosas suben a los monstruos por encima de su nivel máximo
+    // cargado (un lobo común en las Tierras Heridas, nivel 12): en vez de quedarse con las stats
+    // del techo, se sigue la misma recta de las dos últimas filas.
+    if (spec.extrapolate && rows.length >= 2 && level > rows[rows.length - 1].level) {
+      low = rows[rows.length - 2];
+      high = rows[rows.length - 1];
+    }
 
     const stat = (key, fallback) => (low ? Math.round(interpolateStat(level, low, high, key)) : fallback);
     const statRaw = (key, fallback) => (low ? interpolateStat(level, low, high, key) : fallback);
@@ -360,9 +378,15 @@ async function createCombatSessionWithClaim(insertSessionFn, playerIds) {
          AND pacs.player_id = ANY($1::int[])
          AND (
            cs.status != 'IN_PROGRESS'
-           OR NOT EXISTS (
-             SELECT 1 FROM combat_participants cp
-             WHERE cp.session_id = cs.id AND (cp.player_id = pacs.player_id OR cp.owner_player_id = pacs.player_id)
+           OR (
+             -- una sesión recién creada todavía no tiene participantes (los inserta el mismo
+             -- request justo después del claim): sin este margen, dos pedidos casi simultáneos
+             -- se borraban el claim uno al otro y quedaban DOS combates abiertos
+             cs.created_at < now() - interval '30 seconds'
+             AND NOT EXISTS (
+               SELECT 1 FROM combat_participants cp
+               WHERE cp.session_id = cs.id AND (cp.player_id = pacs.player_id OR cp.owner_player_id = pacs.player_id)
+             )
            )
          )`,
       [ids]
@@ -2582,8 +2606,13 @@ router.post('/zones/:zoneId/explore', async (req, res, next) => {
     const formationSize = 1 + parseInt(npc_count, 10);
     const maxFormationLevel = Math.max(parseInt(hero_level, 10), parseInt(max_npc_level, 10));
 
-    const minMonsterLevel = zone.min_level;
-    const maxMonsterLevel = Math.min(maxFormationLevel + 1, zone.max_level);
+    // Mundo 2D: el combate empezó en una subzona con su rango de niveles ("3-6", "15"), como en
+    // un MMO: los monstruos salen de ese rango, sin importar el nivel de quien pelea. Siempre
+    // dentro del rango de la zona. Sin subzona (página de exploración), como antes: hasta tu
+    // nivel +1.
+    const areaRange = parseLevelRange(req.body?.areaLevels, zone.min_level, zone.max_level);
+    const minMonsterLevel = areaRange ? areaRange.min : zone.min_level;
+    const maxMonsterLevel = areaRange ? areaRange.max : Math.min(maxFormationLevel + 1, zone.max_level);
 
     // Si tú o algún compañero de grupo tiene una quest de jefe de esta zona aceptada y
     // todavía no la entregó, ESE jefe aparece garantizado (no depende del roll de rareza).
@@ -2645,6 +2674,14 @@ router.post('/zones/:zoneId/explore', async (req, res, next) => {
         [zone.id, maxMonsterLevel, minMonsterLevel]
       );
     }
+    // Subzona más alta que los monstruos comunes de la zona: salen igual, subidos de nivel
+    if (!eligible.rows.length && areaRange) {
+      eligible = await db.query(
+        `SELECT code, min_spawn_level, max_spawn_level, rarity
+         FROM monsters WHERE zone_id = $1 AND rarity IN ('COMMON', 'RARE')`,
+        [zone.id]
+      );
+    }
 
     if (!eligible.rows.length && !lead) {
       return res.status(400).json({ error: 'No hay monstruos disponibles en esta zona para tu nivel' });
@@ -2667,10 +2704,15 @@ router.post('/zones/:zoneId/explore', async (req, res, next) => {
     for (let i = 0; i < monsterCount; i++) {
       const pool = eligible.rows.length ? eligible.rows : [lead];
       const m = i === 0 && lead ? lead : pool[Math.floor(Math.random() * pool.length)];
-      const lo = Math.max(m.min_spawn_level, minMonsterLevel);
-      const hi = Math.max(lo, Math.min(m.max_spawn_level, maxMonsterLevel));
+      let lo = Math.max(m.min_spawn_level, minMonsterLevel);
+      let hi = Math.max(lo, Math.min(m.max_spawn_level, maxMonsterLevel));
+      // en una subzona manda su rango: si el monstruo no llega (o se pasa), se ajusta a él
+      if (areaRange && (m.min_spawn_level > maxMonsterLevel || m.max_spawn_level < minMonsterLevel)) {
+        lo = minMonsterLevel;
+        hi = maxMonsterLevel;
+      }
       const level = lo + Math.floor(Math.random() * (hi - lo + 1));
-      monsterSpecs.push({ code: m.code, level });
+      monsterSpecs.push({ code: m.code, level, extrapolate: !!areaRange });
     }
 
     for (const pid of [req.playerId, ...coopPartnerIds]) {

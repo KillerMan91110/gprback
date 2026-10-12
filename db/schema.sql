@@ -1334,3 +1334,38 @@ CREATE TABLE IF NOT EXISTS world_node_gathers (
   gathered_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   PRIMARY KEY (player_id, node_id)
 );
+
+-- Ventana Social del mundo 2D (lib/socialHub.js, routes/socialHub.js)
+-- mensaje de estado ("¿Qué estás haciendo?")
+CREATE TABLE IF NOT EXISTS player_social (
+  player_id   INTEGER PRIMARY KEY REFERENCES players(id) ON DELETE CASCADE,
+  status_text VARCHAR(80) NOT NULL DEFAULT '',
+  updated_at  TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+-- nota privada y favorito que cada jugador le pone a cada amigo
+CREATE TABLE IF NOT EXISTS friend_notes (
+  player_id INTEGER NOT NULL REFERENCES players(id) ON DELETE CASCADE,
+  friend_id INTEGER NOT NULL REFERENCES players(id) ON DELETE CASCADE,
+  note      VARCHAR(120) NOT NULL DEFAULT '',
+  favorite  BOOLEAN NOT NULL DEFAULT FALSE,
+  PRIMARY KEY (player_id, friend_id)
+);
+-- lazos de amistad: minutos que dos amigos pasaron juntos en el mapa (a_id < b_id)
+CREATE TABLE IF NOT EXISTS friend_bonds (
+  a_id           INTEGER NOT NULL REFERENCES players(id) ON DELETE CASCADE,
+  b_id           INTEGER NOT NULL REFERENCES players(id) ON DELETE CASCADE,
+  points         INTEGER NOT NULL DEFAULT 0,
+  last_together  TIMESTAMPTZ,
+  PRIMARY KEY (a_id, b_id),
+  CHECK (a_id < b_id)
+);
+-- elogios: uno por jugador elogiado y por día
+CREATE TABLE IF NOT EXISTS player_commends (
+  id        SERIAL PRIMARY KEY,
+  from_id   INTEGER NOT NULL REFERENCES players(id) ON DELETE CASCADE,
+  to_id     INTEGER NOT NULL REFERENCES players(id) ON DELETE CASCADE,
+  kind      VARCHAR(10) NOT NULL CHECK (kind IN ('valiente', 'amable', 'guia')),
+  day       DATE NOT NULL DEFAULT CURRENT_DATE,
+  UNIQUE (from_id, to_id, day),
+  CHECK (from_id <> to_id)
+);

@@ -1,0 +1,96 @@
+{
+ "1": {
+  "setas_robleviejo": {
+   "tipo": "setas",
+   "sitios": 3
+  },
+  "tronco_robleviejo": {
+   "tipo": "tronco",
+   "sitios": 3
+  },
+  "nido_robleviejo": {
+   "tipo": "nido",
+   "sitios": 2
+  },
+  "mineral_loma": {
+   "tipo": "mineral",
+   "sitios": 3
+  },
+  "cofre_bosque": {
+   "tipo": "cofre",
+   "sitios": 2
+  },
+  "hierba_camino": {
+   "tipo": "hierba",
+   "sitios": 3
+  },
+  "hierba_robleviejo": {
+   "tipo": "hierba",
+   "sitios": 3
+  },
+  "hierba_lago": {
+   "tipo": "hierba",
+   "sitios": 3
+  },
+  "cofre_lago": {
+   "tipo": "cofre",
+   "sitios": 2
+  },
+  "nido_lago": {
+   "tipo": "nido",
+   "sitios": 2
+  },
+  "hierba_campos": {
+   "tipo": "hierba",
+   "sitios": 3
+  },
+  "mineral_molino": {
+   "tipo": "mineral",
+   "sitios": 3
+  },
+  "hierba_este": {
+   "tipo": "hierba",
+   "sitios": 3
+  },
+  "flor_lago": {
+   "tipo": "flor_luz",
+   "sitios": 2
+  },
+  "setas_manada": {
+   "tipo": "setas",
+   "sitios": 3
+  },
+  "mineral_este": {
+   "tipo": "mineral",
+   "sitios": 3
+  },
+  "hierba_sur": {
+   "tipo": "hierba",
+   "sitios": 3
+  },
+  "restos_ruinas": {
+   "tipo": "restos",
+   "sitios": 3
+  },
+  "flor_piedras": {
+   "tipo": "flor_luz",
+   "sitios": 2
+  },
+  "tronco_bosque_sur": {
+   "tipo": "tronco",
+   "sitios": 3
+  },
+  "cofre_heridas": {
+   "tipo": "cofre",
+   "sitios": 2
+  },
+  "mineral_heridas": {
+   "tipo": "mineral",
+   "sitios": 3
+  },
+  "restos_heridas": {
+   "tipo": "restos",
+   "sitios": 3
+  }
+ }
+}

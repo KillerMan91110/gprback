@@ -22,6 +22,7 @@ const playerRouter = require('./routes/players');
 const combatRouter = require('./routes/combat');
 const guildsRouter = require('./routes/guilds');
 const socialRouter = require('./routes/social');
+const socialHubRouter = require('./routes/socialHub');
 const coopRouter = require('./routes/coop');
 const marketRouter = require('./routes/market');
 const petsRouter = require('./routes/pets');
@@ -33,6 +34,7 @@ const dailyEventRouter = require('./routes/dailyEvent');
 const worldRouter = require('./routes/world');
 const { tickWorldBossSchedule } = require('./lib/worldBossScheduler');
 const { startLegendSchedule, setIo: setLegendSchedulerIo } = require('./lib/legendScheduler');
+const { attachWorldPresence } = require('./lib/worldPresence');
 const { restockPotions } = require('./lib/marketRestock');
 const { getActivePetBonuses } = require('./lib/pets');
 
@@ -93,6 +95,9 @@ io.on('connection', (socket) => {
   });
 });
 
+// mundo 2D: ver a los demás jugadores, globitos de chat, gestos, emojis y susurros
+attachWorldPresence(io);
+
 app.set('io', io);
 setLegendSchedulerIo(io); // asi las respuestas de chat de las leyendas (ver legendScheduler.js) tambien emiten en vivo por socket, no solo al refrescar
 
@@ -125,6 +130,8 @@ app.use('/api/ranks', ranksRouter);
 app.use('/api/player', playerRouter);
 app.use('/api/combat', combatRouter);
 app.use('/api/guilds', guildsRouter);
+// ventana Social del mundo 2D (notas, favoritos, lazos, estado, elogios)
+app.use('/api/player/:playerId/social', socialHubRouter);
 app.use('/api/player/:playerId/friends', socialRouter);
 app.use('/api/player/:playerId', socialRouter);
 app.use('/api/player/:playerId/coop', coopRouter);

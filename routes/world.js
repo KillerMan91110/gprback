@@ -2,7 +2,7 @@ const express = require('express');
 const db = require('../db/db');
 const { requireAuth, requireSelf } = require('../lib/auth');
 const inventory = require('../lib/inventory');
-const { NODES, NODE_TYPES, findNode, rollLoot, spotFor } = require('../lib/worldNodes');
+const { nodesOf, NODE_TYPES, findNode, rollLoot, spotFor } = require('../lib/worldNodes');
 
 // Mundo 2D: recursos que se recolectan caminando (ver lib/worldNodes.js)
 const router = express.Router({ mergeParams: true });
@@ -27,7 +27,7 @@ router.get('/nodes', async (req, res, next) => {
   try {
     await ensureTable();
     const zone = Number(req.query.zone) || 1;
-    const nodes = NODES[zone] ?? {};
+    const nodes = nodesOf(zone);
     const rows = await db.query(
       'SELECT node_id, gathered_at FROM world_node_gathers WHERE player_id = $1 AND node_id = ANY($2::text[])',
       [req.playerId, Object.keys(nodes)]
