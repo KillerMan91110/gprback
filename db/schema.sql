@@ -1442,3 +1442,11 @@ ALTER TABLE player_market_listings DROP CONSTRAINT IF EXISTS chk_listing_target;
 ALTER TABLE player_market_listings ADD CONSTRAINT chk_listing_target CHECK (
   (item_id IS NOT NULL)::int + (player_pet_id IS NOT NULL)::int + (card_monster_id IS NOT NULL)::int = 1
 );
+
+-- Piedra de regreso del mundo 2D: a qué Estatua del Viajero está vinculada y cuándo se usó por
+-- última vez (20 min de recarga). La crea también lib/piedraRegreso.js la primera vez.
+CREATE TABLE IF NOT EXISTS player_hearthstones (
+  player_id  INTEGER PRIMARY KEY REFERENCES players(id) ON DELETE CASCADE,
+  vinculo    TEXT NOT NULL DEFAULT 'aurelia',
+  used_at    TIMESTAMPTZ
+);

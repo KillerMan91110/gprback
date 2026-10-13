@@ -1,6 +1,7 @@
 const express = require('express');
 const db = require('../db/db');
 const { hashPassword, verifyPassword, signToken, requireAuth } = require('../lib/auth');
+const piedra = require('../lib/piedraRegreso');
 
 const router = express.Router();
 
@@ -55,6 +56,11 @@ router.post('/register', async (req, res, next) => {
     );
 
     const player = result.rows[0];
+
+    // Todo aventurero nuevo recibe su piedra de regreso, vinculada a la estatua de la capital
+    // donde empieza (Aurelia). Si fallara no impide crear la cuenta: sin fila, la piedra igual
+    // lleva a Aurelia (ver lib/piedraRegreso.js).
+    await piedra.vincular(player.id, piedra.VINCULO_INICIAL).catch(() => {});
 
     // Pradera Dorada desbloqueada desde el inicio para todos los jugadores nuevos.
     await db.query(

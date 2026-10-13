@@ -5,6 +5,7 @@ const inventory = require('../lib/inventory');
 const { nodesOf, NODE_TYPES, findNode, rollLoot, spotFor } = require('../lib/worldNodes');
 const { spendCurrency } = require('../lib/currency');
 const aurelia = require('../lib/aurelia');
+const piedra = require('../lib/piedraRegreso');
 
 // Mundo 2D: recursos que se recolectan caminando (ver lib/worldNodes.js)
 const router = express.Router({ mergeParams: true });
@@ -175,6 +176,36 @@ router.post('/revivir', async (req, res, next) => {
     if (!upd.rows.length) return res.json({ revived: false, goldLost: 0 });
     await db.query('UPDATE player_npcs SET hp = CEIL(max_hp * 0.5)::int WHERE player_id = $1 AND hp <= 0', [req.playerId]);
     res.json({ revived: true, goldLost: lost, hp: upd.rows[0].hp, maxHp: upd.rows[0].max_hp, gold: upd.rows[0].gold });
+  } catch (err) { next(err); }
+});
+
+// ---------------------------------------------------------------- piedra de regreso
+// GET /world/piedra — a qué estatua está vinculada y cuándo vuelve a estar lista
+router.get('/piedra', async (req, res, next) => {
+  try {
+    res.json(await piedra.get(req.playerId));
+  } catch (err) { next(err); }
+});
+
+// POST /world/piedra/vincular { vinculo } — vincula la piedra a la estatua de una ciudad grande
+router.post('/piedra/vincular', async (req, res, next) => {
+  const vinculo = String(req.body?.vinculo ?? '');
+  if (!piedra.VINCULOS[vinculo]) return res.status(400).json({ error: 'Aquí no hay ninguna Estatua del Viajero' });
+  try {
+    res.json(await piedra.vincular(req.playerId, vinculo));
+  } catch (err) { next(err); }
+});
+
+// POST /world/piedra/usar — gasta la carga (20 min de recarga) y dice adónde te lleva
+router.post('/piedra/usar', async (req, res, next) => {
+  try {
+    const r = await piedra.usar(req.playerId);
+    if (!r) {
+      const st = await piedra.get(req.playerId);
+      const min = st.readyAt ? Math.max(1, Math.ceil((new Date(st.readyAt).getTime() - Date.now()) / 60000)) : 1;
+      return res.status(409).json({ error: `La piedra todavía no tiene fuerza. Le falta${min === 1 ? '' : 'n'} ${min} min.`, ...st });
+    }
+    res.json(r);
   } catch (err) { next(err); }
 });
 

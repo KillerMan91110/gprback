@@ -165,22 +165,25 @@ router.post('/', async (req, res, next) => {
     const existing = await getPlayerGuildRow(playerId);
     if (existing) return res.status(409).json({ error: 'Ya perteneces a un gremio' });
 
-    const playerRes = await db.query('SELECT gold FROM players WHERE id = $1', [playerId]);
-    if (!playerRes.rows.length) return res.status(404).json({ error: 'Jugador no encontrado' });
-    if (Number(playerRes.rows[0].gold) < GUILD_CREATE_COST) {
-      return res.status(400).json({ error: `Se necesitan ${GUILD_CREATE_COST.toLocaleString()} de oro para crear un gremio` });
-    }
-
-    await db.query('UPDATE players SET gold = gold - $1 WHERE id = $2', [GUILD_CREATE_COST, playerId]);
-    const guildRes = await db.query(
-      `INSERT INTO guilds(name, description, leader_id, type) VALUES($1, $2, $3, $4) RETURNING id`,
-      [name.trim(), description?.trim() || null, playerId, type]
-    );
-    const guildId = guildRes.rows[0].id;
-    await db.query(
-      `INSERT INTO guild_members(guild_id, player_id, role) VALUES($1, $2, 'LEADER')`,
-      [guildId, playerId]
-    );
+    // cobro y creación en una sola transacción: si el nombre ya existe (o algo falla) no se
+    // pierde el oro, y dos clics seguidos no pueden cobrar dos veces
+    const created = await withTransaction(async (client) => {
+      const balance = await spendCurrency(playerId, 'gold', GUILD_CREATE_COST, client);
+      if (balance === null) {
+        return { abort: true, status: 400, error: `Se necesitan ${GUILD_CREATE_COST.toLocaleString()} de oro para crear un gremio` };
+      }
+      const guildRes = await client.query(
+        `INSERT INTO guilds(name, description, leader_id, type) VALUES($1, $2, $3, $4) RETURNING id`,
+        [name.trim(), description?.trim() || null, playerId, type]
+      );
+      await client.query(
+        `INSERT INTO guild_members(guild_id, player_id, role) VALUES($1, $2, 'LEADER')`,
+        [guildRes.rows[0].id, playerId]
+      );
+      return { guildId: guildRes.rows[0].id };
+    });
+    if (created.abort) return res.status(created.status).json({ error: created.error });
+    const { guildId } = created;
 
     res.status(201).json({ id: guildId, name: name.trim(), message: 'Gremio creado exitosamente' });
   } catch (error) {
