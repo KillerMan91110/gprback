@@ -263,6 +263,9 @@ router.post('/piedra/vincular', async (req, res, next) => {
 router.post('/piedra/usar', async (req, res, next) => {
   try {
     const r = await piedra.usar(req.playerId);
+    if (r?.sinVincular) {
+      return res.status(409).json({ error: `Tu piedra todavía no está vinculada. Vincúlala en la Estatua del Viajero de ${r.estatua.nombre} (${r.estatua.lugar}).`, ...r });
+    }
     if (!r) {
       const st = await piedra.get(req.playerId);
       const min = st.readyAt ? Math.max(1, Math.ceil((new Date(st.readyAt).getTime() - Date.now()) / 60000)) : 1;

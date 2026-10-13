@@ -59,7 +59,7 @@ router.post('/combate', async (req, res, next) => {
     const sessionId = sess.rows[0].id;
     await combatEngine.insertParticipants(sessionId, [...aliveHeroes, ...npcs, ...enemies]);
     if (plan.target === 'jefe') await cripta.initBoss(sessionId);
-    await combatEngine.notifyLeftOut(req, leftOut).catch(() => {});
+    await combatEngine.notifyLeftOut(req, leftOut, sessionId).catch(() => {});
     await combatEngine.advanceEnemyTurns(sessionId);
     const state = await combatEngine.fetchSessionState(sessionId);
     const io = req.app.get('io');

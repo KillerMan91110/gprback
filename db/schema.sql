@@ -1578,3 +1578,7 @@ CREATE TABLE IF NOT EXISTS player_crypt_runs (
   updated_at   TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 ALTER TABLE combat_sessions ADD COLUMN IF NOT EXISTS crypt_target TEXT;
+
+-- Piedra de regreso: la del aventurero nuevo empieza sin vincular (vinculo NULL)
+ALTER TABLE player_hearthstones ALTER COLUMN vinculo DROP NOT NULL;
+ALTER TABLE player_hearthstones ALTER COLUMN vinculo DROP DEFAULT;

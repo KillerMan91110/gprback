@@ -2,7 +2,7 @@ const express = require('express');
 const router = express.Router({ mergeParams: true });
 const db = require('../db/db');
 const { requireAuth, requireSelf } = require('../lib/auth');
-const { positionOf } = require('../lib/worldPresence');
+const { positionOf, isConnected } = require('../lib/worldPresence');
 
 router.use(requireAuth);
 router.use(requireSelf);
@@ -220,10 +220,12 @@ router.get('/party', async (req, res, next) => {
        ORDER BY gm.joined_at`,
       [group.id, playerId]
     );
+    // conectado = tiene el juego abierto ahora mismo (socket), no solo "pidió algo hace poco"
+    const io = req.app.get('io');
     res.json({
       groupId: group.id,
       isLeader: group.leader_id === Number(playerId),
-      members: membersRes.rows,
+      members: membersRes.rows.map((m) => ({ ...m, online: isConnected(io, m.id) })),
     });
   } catch (error) { next(error); }
 });

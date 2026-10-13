@@ -358,6 +358,8 @@ async function worldGroupPartners(playerId, left = []) {
     const p = positionOf(pid);
     // los que se quedan afuera reciben un aviso (lejos, en otra zona o ya peleando)
     if (!p || p.zone !== me.zone || Math.hypot(p.x - me.x, p.y - me.y) > WORLD_GROUP_PX) { left.push({ pid, why: 'lejos' }); continue; }
+    // está mirando el combate de otro (modo espectador): es intangible, no entra
+    if (p.state === 'observando') { left.push({ pid, why: 'observando' }); continue; }
     // sigue dentro de otra pelea abierta (peleando, o caído mirando cómo termina): no se lo suma.
     // Si ya se fue de ella (salir caído), está libre.
     const busy = await db.query(
@@ -374,12 +376,12 @@ async function worldGroupPartners(playerId, left = []) {
 }
 
 // avisa a los del grupo que no entraron al combate (estaban lejos u ocupados)
-async function notifyLeftOut(req, leftOut) {
+async function notifyLeftOut(req, leftOut, sessionId = null) {
   if (!leftOut?.length) return;
   const io = req.app.get('io');
   const who = await db.query('SELECT nickname FROM players WHERE id = $1', [req.playerId]);
   for (const { pid, why } of leftOut) {
-    io?.to(`player:${pid}`).emit('coop:battle-missed', { leaderName: who.rows[0]?.nickname, why });
+    io?.to(`player:${pid}`).emit('coop:battle-missed', { leaderName: who.rows[0]?.nickname, leaderId: req.playerId, sessionId, why });
   }
 }
 
@@ -2777,7 +2779,7 @@ router.post('/zones/:zoneId/explore', async (req, res, next) => {
       await advanceEnemyTurns(sessionId);
       const state = await fetchSessionState(sessionId);
       emitCombatUpdate(req, sessionId, state);
-      await notifyLeftOut(req, leftOut);
+      await notifyLeftOut(req, leftOut, sessionId);
       // los compañeros del mundo entran al mismo combate al instante
       if (req.body?.worldGroup === true) {
         const who = await db.query('SELECT nickname FROM players WHERE id = $1', [req.playerId]);
@@ -2815,7 +2817,7 @@ router.post('/zones/:zoneId/explore', async (req, res, next) => {
 
     const state = await fetchSessionState(sessionId);
     emitCombatUpdate(req, sessionId, state);
-    await notifyLeftOut(req, leftOut);
+    await notifyLeftOut(req, leftOut, sessionId);
     res.status(201).json(state);
   } catch (err) {
     if (err.isActiveCombatConflict) return res.status(400).json({ error: err.message });
@@ -2956,6 +2958,143 @@ router.get('/sessions/active', async (req, res, next) => {
 });
 
 // GET /api/combat/sessions/:id
+// ---------------------------------------------------------------- refuerzos
+// Mundo 2D: un compañero de grupo empezó un combate y no entraste porque estabas lejos. Si te
+// acercas (REINFORCE_PX) y eliges "Unirse a la batalla" en su menú, entras a su combate ya
+// empezado. Solo entra tu héroe (no tu compañero NPC) y llega con su turno de esta ronda ya gastado:
+// la pelea sigue en el mismo turno en que estaba y tú actúas desde la ronda siguiente. Los que
+// ya pelean ven el aviso "¡Tus refuerzos están llegando!" y a tu héroe entrar caminando.
+const REINFORCE_SIDE_MAX = 4;
+const REINFORCE_PX = 10 * 32; // unas 10 casillas: lo tienes a la vista
+
+// POST /api/combat/reinforce/:targetId — unirse al combate de ese compañero de grupo
+router.post('/reinforce/:targetId', async (req, res, next) => {
+  try {
+    const targetId = Number(req.params.targetId);
+    if (!targetId || targetId === req.playerId) return res.status(400).json({ error: 'Elige a un compañero de tu grupo' });
+    const sameGroup = await db.query(
+      `SELECT 1 FROM player_coop_group_members a
+       JOIN player_coop_group_members b ON b.group_id = a.group_id
+       WHERE a.player_id = $1 AND b.player_id = $2`,
+      [req.playerId, targetId]
+    );
+    if (!sameGroup.rows.length) return res.status(403).json({ error: 'Solo puedes ayudar a los de tu grupo' });
+    if (await hasActiveCombatSession(req.playerId) || await hasAbandonedActiveSession(req.playerId)) {
+      return res.status(409).json({ error: 'Termina tu combate antes de unirte a otro' });
+    }
+    // los dos en el mundo y en la misma zona (lejos sí, pero no en otra parte del continente)
+    const me = positionOf(req.playerId);
+    const ally = positionOf(targetId);
+    if (!me || !ally) return res.status(409).json({ error: 'Tu compañero ya no está en el mundo' });
+    if (me.zone !== ally.zone) return res.status(409).json({ error: 'Tu compañero pelea en otra zona' });
+    if (Math.hypot(me.x - ally.x, me.y - ally.y) > REINFORCE_PX) {
+      const n = await db.query('SELECT nickname FROM players WHERE id = $1', [targetId]);
+      return res.status(409).json({ error: `Acércate a ${n.rows[0]?.nickname ?? 'tu compañero'} para unirte a su batalla` });
+    }
+
+    const s = await db.query(
+      `SELECT cs.* FROM combat_participants cp
+       JOIN combat_sessions cs ON cs.id = cp.session_id
+       WHERE cp.player_id = $1 AND cs.status = 'IN_PROGRESS'
+         AND NOT EXISTS (SELECT 1 FROM combat_abandoned_players cap WHERE cap.session_id = cs.id AND cap.player_id = $1)
+       ORDER BY cs.id DESC LIMIT 1`,
+      [targetId]
+    );
+    const session = s.rows[0];
+    if (!session) return res.status(404).json({ error: 'Ese combate ya terminó' });
+    // eventos con reglas propias: jefe mundial, cacería mítica, evento diario
+    if (session.world_boss_event_id || session.mythic_hunt_id || session.daily_event_code) {
+      return res.status(409).json({ error: 'A ese combate no se puede entrar a mitad' });
+    }
+    const sessionId = session.id;
+    const parts = await loadParticipants(sessionId);
+    if (parts.player.some((p) => p.player_id === req.playerId)) return res.status(409).json({ error: 'Ya estás en ese combate' });
+    const sideNow = parts.player.filter((p) => p.hp > 0 && !p.is_summon).length;
+    if (sideNow >= REINFORCE_SIDE_MAX) return res.status(409).json({ error: 'Ese combate ya está lleno' });
+
+    const [hero] = await hydratePlayers([req.playerId]);
+    if (!hero || hero.hp <= 0) return res.status(400).json({ error: 'Estás sin fuerzas: cúrate antes de pelear' });
+
+    // reclamar el combate (como al empezar uno): si justo empezaste otro, choca y no entra
+    try {
+      await db.query('INSERT INTO player_active_combat_session(player_id, session_id) VALUES ($1, $2)', [req.playerId, sessionId]);
+    } catch (err) {
+      if (err.code === '23505') return res.status(409).json({ error: 'Termina tu combate antes de unirte a otro' });
+      throw err;
+    }
+    const [joined] = await insertParticipants(sessionId, [hero]);
+    // llega con el turno de esta ronda ya gastado: la pelea sigue donde estaba
+    await db.query('UPDATE combat_participants SET has_acted_this_round = TRUE WHERE id = $1', [joined.id]);
+    await db.query(
+      `UPDATE combat_sessions SET
+         guest_player_id = CASE WHEN guest_player_id IS NULL THEN $2 ELSE guest_player_id END,
+         guest_player_id_2 = CASE WHEN guest_player_id IS NOT NULL AND guest_player_id_2 IS NULL AND guest_player_id <> $2 THEN $2 ELSE guest_player_id_2 END,
+         updated_at = now()
+       WHERE id = $1`,
+      [sessionId, req.playerId]
+    );
+    await recordMonsterEncounters([req.playerId], parts.enemy);
+    // (si nadie había actuado aún en la ronda, la velocidad del grupo cambió: que resuelva el
+    // turno de los monstruos si ahora les toca)
+    await advanceEnemyTurns(sessionId);
+    const state = await fetchSessionState(sessionId);
+    const reinforcement = { playerId: req.playerId, participantId: joined.id, name: hero.name };
+    emitCombatUpdate(req, sessionId, { ...state, reinforcement });
+    res.status(201).json({ ...state, reinforcement, zoneId: null });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// ---------------------------------------------------------------- modo espectador
+// Mirar el combate de otro jugador del mundo 2D (amigo o desconocido). Solo se mira: el que
+// observa no actúa, no gana nada y la pelea no avanza por él (no se llama a advanceEnemyTurns).
+// Recibe las novedades por el socket (combat:join + combat:update) y, por si se pierde alguna,
+// pregunta cada pocos segundos con GET /watch/session/:id.
+
+// GET /api/combat/watch/:targetId — el combate abierto en el que pelea ese jugador
+router.get('/watch/:targetId', async (req, res, next) => {
+  try {
+    const targetId = Number(req.params.targetId);
+    if (!targetId || targetId === req.playerId) return res.status(400).json({ error: 'Elige a otro jugador' });
+    // quien mira no puede estar peleando a la vez
+    const mine = await db.query(
+      `SELECT 1 FROM combat_participants cp JOIN combat_sessions cs ON cs.id = cp.session_id
+       WHERE cp.player_id = $1 AND cs.status = 'IN_PROGRESS'
+         AND NOT EXISTS (SELECT 1 FROM combat_abandoned_players cap WHERE cap.session_id = cs.id AND cap.player_id = $1)
+       LIMIT 1`,
+      [req.playerId]
+    );
+    if (mine.rows.length) return res.status(409).json({ error: 'Termina tu combate antes de mirar otro' });
+    const s = await db.query(
+      `SELECT cs.id, p.nickname FROM combat_participants cp
+       JOIN combat_sessions cs ON cs.id = cp.session_id
+       JOIN players p ON p.id = cp.player_id
+       WHERE cp.player_id = $1 AND cs.status = 'IN_PROGRESS'
+         AND NOT EXISTS (SELECT 1 FROM combat_abandoned_players cap WHERE cap.session_id = cs.id AND cap.player_id = $1)
+       ORDER BY cs.id DESC LIMIT 1`,
+      [targetId]
+    );
+    if (!s.rows.length) return res.status(404).json({ error: 'Ese jugador no está peleando ahora' });
+    const state = await fetchSessionState(s.rows[0].id);
+    res.json({ ...state, watching: { targetId, name: s.rows[0].nickname } });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// GET /api/combat/watch/session/:id — estado de un combate que estás mirando (también cuando
+// ya terminó, para saber cómo acabó)
+router.get('/watch/session/:id', async (req, res, next) => {
+  try {
+    const ok = await db.query('SELECT 1 FROM combat_sessions WHERE id = $1', [req.params.id]);
+    if (!ok.rows.length) return res.status(404).json({ error: 'Ese combate ya no existe' });
+    res.json(await fetchSessionState(req.params.id));
+  } catch (error) {
+    next(error);
+  }
+});
+
 router.get('/sessions/:id', async (req, res, next) => {
   try {
     const ownershipRes = await db.query(
