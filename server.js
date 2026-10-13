@@ -168,6 +168,8 @@ app.use('/api/admin', adminRouter);
 app.use('/api/worldboss', worldBossGlobalRouter);
 app.use('/api/player/:playerId/worldboss', worldBossPlayerRouter);
 app.use('/api/player/:playerId/daily-event', dailyEventRouter);
+// la Cripta del Vigía (antes que /world para que no la tape)
+app.use('/api/player/:playerId/world/cripta', require('./routes/cripta'));
 app.use('/api/player/:playerId/world', worldRouter);
 app.use('/api/player/:playerId/puestos', puestosRouter);
 

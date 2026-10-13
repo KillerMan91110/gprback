@@ -1566,3 +1566,15 @@ CREATE TABLE IF NOT EXISTS player_wanderer_buys (
   qty       INTEGER NOT NULL DEFAULT 0,
   PRIMARY KEY (player_id, day, offer)
 );
+
+-- La Cripta del Vigía (lib/cripta.js también la crea sola): recorrido de cada jugador y a qué
+-- guardián o jefe corresponde cada combate. Los monstruos los inserta lib/cripta.js.
+CREATE TABLE IF NOT EXISTS player_crypt_runs (
+  player_id    INTEGER PRIMARY KEY REFERENCES players(id) ON DELETE CASCADE,
+  braziers     SMALLINT NOT NULL DEFAULT 0,
+  guardians    TEXT[] NOT NULL DEFAULT '{}',
+  clears       INTEGER NOT NULL DEFAULT 0,
+  chest_at     TIMESTAMPTZ,
+  updated_at   TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+ALTER TABLE combat_sessions ADD COLUMN IF NOT EXISTS crypt_target TEXT;

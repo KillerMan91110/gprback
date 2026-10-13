@@ -13,6 +13,7 @@ const achievements = require('../lib/achievements');
 const aurelia = require('../lib/aurelia');
 const coleccion = require('../lib/coleccion');
 const mythic = require('../lib/mythic');
+const cripta = require('../lib/cripta');
 const huntRewards = require('../lib/huntRewards');
 const eventos = require('../lib/eventos');
 const { handleWorldBossFinalize, handleDailyEventFinalize, WORLD_BOSS_CODE_PREFIX } = require('../lib/eventFinalize');
@@ -1131,7 +1132,10 @@ const BREAK_DAMAGE_BONUS = 50;
 const FURY_ATK_PERCENT = 30;
 let monsterRarityCache = null;
 
-async function getMonsterRarities() {
+async function getMonsterRarities(code = null) {
+  // un monstruo que se agregó después de llenar la caché (p. ej. los de la cripta, que se crean
+  // la primera vez que se usan) obliga a recargarla
+  if (monsterRarityCache && code && !(code in monsterRarityCache)) monsterRarityCache = null;
   if (!monsterRarityCache) {
     const r = await db.query('SELECT code, rarity FROM monsters');
     monsterRarityCache = Object.fromEntries(r.rows.map((m) => [m.code, m.rarity]));
@@ -1141,7 +1145,7 @@ async function getMonsterRarities() {
 
 async function maxShieldOf(p) {
   if (!p.monster_code || p.monster_code.startsWith(WORLD_BOSS_CODE_PREFIX) || p.is_summon) return 0;
-  const rarities = await getMonsterRarities();
+  const rarities = await getMonsterRarities(p.monster_code);
   return SHIELD_BY_RARITY[rarities[p.monster_code]] ?? 3;
 }
 
@@ -1156,7 +1160,7 @@ async function applyBreakAndFury(sessionId, round, actor, participants, hpBefore
   } else if (body.action !== 'ATTACK') {
     return;
   }
-  const rarities = await getMonsterRarities();
+  const rarities = await getMonsterRarities(participants.enemy[0]?.monster_code);
   for (const enemy of participants.enemy) {
     const before = hpBefore.get(enemy.id);
     if (before == null || enemy.hp >= before) continue;
@@ -1183,7 +1187,11 @@ async function applyBreakAndFury(sessionId, round, actor, participants, hpBefore
     const broken = await db.query("SELECT 1 FROM combat_participant_buffs WHERE participant_id = $1 AND stat_code = 'BREAK'", [enemy.id]);
     if (broken.rows.length) continue;
     let weak = false;
-    if (elementId) {
+    // el Vigía de la cripta cambia de debilidad (lib/cripta.js): manda la de este momento
+    const forcedWeak = enemy.monster_code === cripta.BOSS_CODE ? await cripta.weakElementOf(enemy.id) : null;
+    if (forcedWeak != null) {
+      weak = elementId === forcedWeak;
+    } else if (elementId) {
       const res = await db.query(
         `SELECT mer.resistance_percent FROM monster_element_resistances mer
          JOIN monsters m ON m.id = mer.monster_id WHERE m.code = $1 AND mer.element_id = $2`,
@@ -1300,6 +1308,7 @@ async function startNewRound(sessionId, participants) {
           // se recupera de la rotura: escudo lleno otra vez
           const max = await maxShieldOf(p);
           await db.query("UPDATE combat_participant_buffs SET applied_flat = $1 WHERE participant_id = $2 AND stat_code = 'SHIELD'", [max, p.id]);
+          await cripta.onBreakEnd(sessionId, p, newRound - 1, insertLog);
         } else if (buff.stat_code.startsWith('RESIST_') || buff.stat_code === 'DOT' || buff.stat_code === 'NO_DAMAGE' || buff.stat_code === 'DAMAGE_TAKEN' || buff.stat_code === 'HOT' || buff.stat_code === 'SHIELD' || buff.stat_code === 'FURY') {
           // Solo borrar la fila: estos efectos no tienen stat persistido que revertir
         } else {
@@ -1961,6 +1970,9 @@ async function finalizeSession(sessionId, status, participants) {
   // jefe mítico: resta la vida compartida (también si huiste) y reparte si cayó
   const mythicSummary = await mythic.handleFinalize(sessionId, participants).catch((err) => { console.error('[mythic] finalize', err.message); return null; });
   if (mythicSummary && rewards) rewards.mythic = mythicSummary;
+  // cripta del Vigía: guardianes vencidos, puerta y cofre del jefe
+  const cryptSummary = await cripta.handleFinalize(sessionId, status, participants, aurelia.addNews).catch((err) => { console.error('[cripta] finalize', err.message); return null; });
+  if (cryptSummary && rewards) rewards.crypt = cryptSummary;
   // El extra del Evento del Día (oro/monedas/xp fijos del catálogo + bono de nivel bajo + material)
   // se escribe directo a la DB adentro de handleDailyEventFinalize, pero eso NO alcanza al `rewards`
   // que esta función devuelve — y `rewards` es justo lo que el handler manda de vuelta al front
@@ -2067,6 +2079,8 @@ async function advanceEnemyTurns(sessionId) {
       await resolveTrapActivation(sessionId, round, actor, participants);
       continue;
     }
+    // el Vigía de la cripta: marca a un héroe con su faro y al turno siguiente le dispara
+    if (await cripta.bossTurn({ sessionId, round, actor, participants, persistParticipant, insertLog, markNearDeathIfLow })) continue;
     if (round === 1) {
       await applyInnateTrigger('ON_COMBAT_START', { actor, target: null, allies: [], enemies: [] });
     }
@@ -2468,9 +2482,13 @@ async function fetchSessionState(sessionId) {
   const effectsById = {};
   const shieldRow = {};
   const brokenIds = new Set();
+  const weakNow = {};
   for (const b of buffRes.rows) {
     if (b.stat_code === 'SHIELD') { shieldRow[b.participant_id] = Number(b.applied_flat); continue; }
     if (b.stat_code === 'BREAK') { brokenIds.add(b.participant_id); continue; }
+    // contadores internos del Vigía (la debilidad se ve en sus resistencias)
+    if (b.stat_code === 'WEAK_ELEM') { weakNow[b.participant_id] = Number(b.applied_flat); continue; }
+    if (b.stat_code === 'FARO_N') continue;
     // el +50% de daño de la rotura ya se ve como "ROTO" en el cliente
     if (b.stat_code === 'DAMAGE_TAKEN' && brokenIds.has(b.participant_id) && Number(b.applied_flat) === BREAK_DAMAGE_BONUS) continue;
     (effectsById[b.participant_id] ??= []).push({
@@ -2489,7 +2507,11 @@ async function fetchSessionState(sessionId) {
     level: p.monster_code?.startsWith(WORLD_BOSS_CODE_PREFIX) ? null : p.level,
     element_code: elementCodes[p.element_id] ?? null,
     imbued_element_code: elementCodes[p.imbued_element_id] ?? null,
-    resistances: p.monster_code ? (resistByMonster[p.monster_code] ?? {}) : undefined,
+    resistances: p.monster_code
+      ? (weakNow[p.id] != null
+        ? { ...Object.fromEntries(Object.entries(resistByMonster[p.monster_code] ?? {}).filter(([, v]) => v > 0)), [cripta.ELEMENT_CODE[weakNow[p.id]]]: -50 }
+        : (resistByMonster[p.monster_code] ?? {}))
+      : undefined,
     effects: effectsById[p.id] ?? [],
   }));
   // escudo de Romper de cada monstruo: { current, max, broken }
@@ -2796,6 +2818,10 @@ router.post('/sessions', async (req, res, next) => {
   // el jefe mítico solo se enfrenta por su cacería, y sus esbirros solo existen mientras está suelto
   if (monsters.some((m) => coleccion.isMythic(m?.code))) {
     return res.status(400).json({ error: 'Al jefe mítico solo se lo enfrenta durante su cacería' });
+  }
+  // los de la cripta solo se pelean allá abajo (routes/cripta.js)
+  if (monsters.some((m) => cripta.isCryptMonster(m?.code))) {
+    return res.status(400).json({ error: 'Esos guardianes solo se enfrentan en la Cripta del Vigía' });
   }
   if (monsters.some((m) => m?.code === mythic.MINION_CODE) && !(await mythic.activeHunt())) {
     return res.status(400).json({ error: 'Los lobos espectrales ya se desvanecieron' });
@@ -4060,6 +4086,8 @@ module.exports.hasActiveCombatSession = hasActiveCombatSession;
 module.exports.buildTowerRoom = buildTowerRoom;
 module.exports.resolveInfiniteFloor = resolveInfiniteFloor;
 module.exports.createCombatSessionWithClaim = createCombatSessionWithClaim;
+module.exports.worldGroupPartners = worldGroupPartners;
+module.exports.notifyLeftOut = notifyLeftOut;
 module.exports.WORLD_BOSS_CODE_PREFIX = WORLD_BOSS_CODE_PREFIX;
 module.exports.WORLD_BOSS_ATTEMPT_COOLDOWN_SECONDS = WORLD_BOSS_ATTEMPT_COOLDOWN_SECONDS;
 module.exports.WORLD_BOSS_MIN_LEVEL_TO_ENTER = WORLD_BOSS_MIN_LEVEL_TO_ENTER;

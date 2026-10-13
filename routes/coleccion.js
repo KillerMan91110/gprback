@@ -6,6 +6,7 @@ const { requireAuth, requireSelf } = require('../lib/auth');
 const { withTransaction } = require('../lib/currency');
 const col = require('../lib/coleccion');
 const mythic = require('../lib/mythic');
+const cripta = require('../lib/cripta');
 const combatEngine = require('./combat');
 
 const router = express.Router({ mergeParams: true });
@@ -38,14 +39,15 @@ router.get('/bestiario', async (req, res, next) => {
   try {
     await col.ensureTables();
     await mythic.ensureTables();
+    await cripta.ensureTables();
     const pid = req.playerId;
     const [zones, mons, kills, seen, drops, cards, charms, points] = await Promise.all([
       db.query('SELECT id, name, min_level, max_level FROM monster_zones WHERE is_tower_zone = FALSE ORDER BY min_level'),
       db.query(
         `SELECT m.*, e.name AS element FROM monsters m LEFT JOIN elements e ON e.id = m.element_id
-         WHERE m.zone_id IN (SELECT id FROM monster_zones WHERE is_tower_zone = FALSE) OR m.code LIKE $1 OR m.code = $2
+         WHERE m.zone_id IN (SELECT id FROM monster_zones WHERE is_tower_zone = FALSE) OR m.code LIKE $1 OR m.code = $2 OR m.code = ANY($3::text[])
          ORDER BY m.base_level, m.id`,
-        [`${col.MYTHIC_PREFIX}%`, mythic.MINION_CODE]
+        [`${col.MYTHIC_PREFIX}%`, mythic.MINION_CODE, cripta.CODES]
       ),
       db.query('SELECT monster_id, kills, completed FROM player_bestiary WHERE player_id = $1', [pid]),
       db.query('SELECT monster_id FROM player_monster_encounters WHERE player_id = $1', [pid]),
@@ -66,6 +68,8 @@ router.get('/bestiario', async (req, res, next) => {
     }
     const cardQty = new Map(cards.rows.map((r) => [r.monster_id, r.quantity]));
     const mythicZone = Object.fromEntries(Object.values(mythic.MITICOS).flatMap((d) => [[d.code, d.zoneId], [mythic.MINION_CODE, d.zoneId]]));
+    // los de la cripta (sin zona en la base) se ven con la Pradera, que es donde está la cripta
+    for (const c of cripta.CODES) mythicZone[c] = 1;
 
     const list = mons.rows.map((m) => {
       const rarity = col.rarityOf(m);
