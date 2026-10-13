@@ -149,6 +149,10 @@ app.use('/api/guilds', guildsRouter);
 app.get('/api/world/noticias', (req, res) => res.json(currentNews()));
 // estado del jefe mítico (público: cuenta de la zona, si está suelto, dónde y su vida)
 app.get('/api/world/mitico', async (req, res, next) => { try { res.json(await mythic.publicState()); } catch (err) { next(err); } });
+// calendario de eventos del mundo 2D (público): activos ahora y los próximos 7 días
+app.get('/api/world/eventos', (req, res) => res.json(require('./lib/eventos').calendar()));
+// ranking semanal de cazadores de jefes míticos (público)
+app.get('/api/world/cazadores', async (req, res, next) => { try { res.json(await mythic.weeklyHunters()); } catch (err) { next(err); } });
 // colección del cazador: bestiario, amuletos, cartas y el intento contra el jefe mítico
 app.use('/api/player/:playerId/coleccion', coleccionRouter);
 // ventana Social del mundo 2D (notas, favoritos, lazos, estado, elogios)

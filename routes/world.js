@@ -5,6 +5,9 @@ const inventory = require('../lib/inventory');
 const { nodesOf, NODE_TYPES, findNode, rollLoot, spotFor } = require('../lib/worldNodes');
 const { spendCurrency } = require('../lib/currency');
 const aurelia = require('../lib/aurelia');
+const guia = require('../lib/guia');
+const exploracion = require('../lib/exploracion');
+const eventos = require('../lib/eventos');
 const piedra = require('../lib/piedraRegreso');
 const guildContracts = require('../lib/guildContracts');
 const { lejosDe } = require('../lib/cercania');
@@ -152,6 +155,60 @@ router.post('/libro', async (req, res, next) => {
 });
 
 // POST /world/viaje { destino } — la diligencia de Gaspar (cobra el pasaje y dice dónde te deja)
+// Exploración (lib/exploracion.js): niebla del mapa, subzonas descubiertas y cofres secretos
+// GET  /api/player/:playerId/world/mapa                 todo lo explorado (por zona) y secretos abiertos
+// POST /api/player/:playerId/world/mapa/celdas          { zona, celdas (base64) } suma lo recorrido
+// POST /api/player/:playerId/world/mapa/descubrir       { zona, subzona } primera visita (da XP)
+// POST /api/player/:playerId/world/secreto              { id } abre un cofre secreto (una vez)
+router.get('/mapa', async (req, res, next) => {
+  try { res.json(await exploracion.state(req.playerId)); } catch (err) { next(err); }
+});
+router.post('/mapa/celdas', async (req, res, next) => {
+  try {
+    const r = await exploracion.saveCells(req.playerId, req.body?.zona, req.body?.celdas);
+    if (!r) return res.status(400).json({ error: 'Datos de exploración inválidos' });
+    res.json(r);
+  } catch (err) { next(err); }
+});
+router.post('/mapa/descubrir', async (req, res, next) => {
+  try { res.json(await exploracion.discover(req.playerId, String(req.body?.zona ?? ''), String(req.body?.subzona ?? ''))); } catch (err) { next(err); }
+});
+router.post('/secreto', async (req, res, next) => {
+  try {
+    const r = await exploracion.openSecret(req.playerId, String(req.body?.id ?? ''));
+    if (r.error) return res.status(400).json(r);
+    res.json(r);
+  } catch (err) { next(err); }
+});
+
+// Mercader ambulante (lib/eventos.js): miércoles y sábados de 18 a 21 en la plaza de Aurelia
+// GET  /api/player/:playerId/world/ambulante           ofertas de hoy (y cuántas te quedan)
+// POST /api/player/:playerId/world/ambulante/comprar   { oferta }
+router.get('/ambulante', async (req, res, next) => {
+  try { res.json(await eventos.offers(req.playerId)); } catch (err) { next(err); }
+});
+router.post('/ambulante/comprar', async (req, res, next) => {
+  try {
+    const r = await eventos.buy(req.playerId, String(req.body?.oferta ?? ''));
+    if (r.error) return res.status(400).json(r);
+    res.json(r);
+  } catch (err) { next(err); }
+});
+
+// Guía del aventurero (lib/guia.js): la primera hora del jugador, paso a paso
+// GET  /api/player/:playerId/world/guia           estado (paso actual, ventanas encendidas)
+// POST /api/player/:playerId/world/guia/avanzar   { paso } — si es el paso actual, avanza y paga
+// POST /api/player/:playerId/world/guia/saltar    termina la guía (se enciende toda la barra)
+router.get('/guia', async (req, res, next) => {
+  try { res.json(await guia.state(req.playerId)); } catch (err) { next(err); }
+});
+router.post('/guia/avanzar', async (req, res, next) => {
+  try { res.json(await guia.advance(req.playerId, String(req.body?.paso ?? ''))); } catch (err) { next(err); }
+});
+router.post('/guia/saltar', async (req, res, next) => {
+  try { res.json(await guia.skip(req.playerId)); } catch (err) { next(err); }
+});
+
 // POST /api/player/:playerId/world/revivir — caíste en el mundo 2D: despiertas en tu refugio (el
 // Pilar o la última fogata) con la mitad de la vida y del maná, igual tus compañeros caídos, y
 // pierdes un 5% del oro (como mucho 100 por nivel). Solo si de verdad estás en 0.

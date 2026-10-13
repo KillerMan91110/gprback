@@ -1537,3 +1537,32 @@ CREATE TABLE IF NOT EXISTS economy_gold_log (
 );
 CREATE INDEX IF NOT EXISTS idx_economy_gold_log_at ON economy_gold_log(at);
 ALTER TABLE economy_gold_log ADD COLUMN IF NOT EXISTS sistema BOOLEAN NOT NULL DEFAULT FALSE;
+-- Guía del aventurero (lib/guia.js): paso actual de la primera hora en el mundo 2D
+CREATE TABLE IF NOT EXISTS player_guide (
+  player_id   INTEGER PRIMARY KEY REFERENCES players(id) ON DELETE CASCADE,
+  step        SMALLINT NOT NULL DEFAULT 0,
+  progressive BOOLEAN NOT NULL DEFAULT FALSE,
+  started_at  TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+-- Exploración del mundo 2D (lib/exploracion.js): niebla del mapa, subzonas descubiertas y cofres secretos
+CREATE TABLE IF NOT EXISTS player_exploration (
+  player_id INTEGER NOT NULL REFERENCES players(id) ON DELETE CASCADE,
+  zone_dir  TEXT NOT NULL,
+  cells     TEXT NOT NULL DEFAULT '',
+  subzones  TEXT[] NOT NULL DEFAULT '{}',
+  PRIMARY KEY (player_id, zone_dir)
+);
+CREATE TABLE IF NOT EXISTS player_secrets (
+  player_id INTEGER NOT NULL REFERENCES players(id) ON DELETE CASCADE,
+  secret_id TEXT NOT NULL,
+  opened_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  PRIMARY KEY (player_id, secret_id)
+);
+-- Mercader ambulante (lib/eventos.js): cuántas compras de cada oferta hizo cada jugador por día
+CREATE TABLE IF NOT EXISTS player_wanderer_buys (
+  player_id INTEGER NOT NULL REFERENCES players(id) ON DELETE CASCADE,
+  day       TEXT NOT NULL,
+  offer     TEXT NOT NULL,
+  qty       INTEGER NOT NULL DEFAULT 0,
+  PRIMARY KEY (player_id, day, offer)
+);
