@@ -2,10 +2,13 @@ const express = require('express');
 const router = express.Router({ mergeParams: true });
 const db = require('../db/db');
 const inventory = require('../lib/inventory');
+const coleccion = require('../lib/coleccion');
 const { requireAuth, requireSelf } = require('../lib/auth');
 
 router.use(requireAuth);
 router.use(requireSelf);
+// las cartas de monstruo (lib/coleccion.js) agregan una columna a las publicaciones
+router.use((req, res, next) => { coleccion.ensureTables().then(() => next(), next); });
 
 // Comisión que se cobra al vendedor en cada venta concretada: saca de circulación esa moneda
 // (sink), si no la economía solo suma oro/monedas de combate/quests sin ningún costo real.
@@ -25,7 +28,7 @@ const PET_BONUSES_SUBQUERY = `(
 function mapListingRow(r) {
   const base = {
     id: r.id,
-    type: r.item_id ? 'ITEM' : 'PET',
+    type: r.item_id ? 'ITEM' : r.card_monster_id ? 'CARD' : 'PET',
     currency: r.currency,
     quantity: r.quantity,
     price_per_unit: r.price_per_unit,
@@ -37,7 +40,10 @@ function mapListingRow(r) {
   if ('is_mine' in r) base.is_mine = r.is_mine;
   if (r.status) { base.status = r.status; base.buyer_id = r.buyer_id; base.buyer_nickname = r.buyer_nickname; base.sold_at = r.sold_at; }
 
-  if (r.item_id) {
+  if (r.card_monster_id) {
+    const m = { code: r.card_code, rarity: r.card_rarity, category: r.card_category };
+    base.card = { monsterId: r.card_monster_id, code: r.card_code, name: r.card_name, rarity: coleccion.rarityOf(m), ...coleccion.cardOf(m) };
+  } else if (r.item_id) {
     base.item = {
       id: r.item_id, code: r.item_code, name: r.item_name, item_type: r.item_type,
       slot: r.slot, rarity: r.item_rarity, required_level: r.required_level,
@@ -62,7 +68,7 @@ router.get('/listings', async (req, res, next) => {
 
   if (search) {
     params.push(`%${search}%`);
-    conditions.push(`i.name ILIKE $${params.length}`);
+    conditions.push(`COALESCE(i.name, 'Carta de ' || mc.name) ILIKE $${params.length}`);
   }
   if (rarity) {
     params.push(rarity);
@@ -84,9 +90,11 @@ router.get('/listings', async (req, res, next) => {
               i.rarity AS item_rarity, i.required_level, l.enchant_level, l.quality_tier,
               l.player_pet_id, pt.code AS pet_code, pt.name AS pet_name, pt.rarity AS pet_rarity,
               pt.description AS pet_description, pp.level AS pet_level, pp.bond_points AS pet_bond_points,
-              ${PET_BONUSES_SUBQUERY} AS pet_bonuses
+              ${PET_BONUSES_SUBQUERY} AS pet_bonuses,
+              l.card_monster_id, mc.code AS card_code, mc.name AS card_name, mc.rarity AS card_rarity, mc.category AS card_category
        FROM player_market_listings l
        LEFT JOIN items i ON i.id = l.item_id
+       LEFT JOIN monsters mc ON mc.id = l.card_monster_id
        LEFT JOIN player_pets pp ON pp.id = l.player_pet_id
        LEFT JOIN pets pt ON pt.id = pp.pet_id
        JOIN players p ON p.id = l.seller_id
@@ -110,9 +118,11 @@ router.get('/mine', async (req, res, next) => {
               i.rarity AS item_rarity, i.required_level, l.enchant_level, l.quality_tier,
               l.player_pet_id, pt.code AS pet_code, pt.name AS pet_name, pt.rarity AS pet_rarity,
               pt.description AS pet_description, pp.level AS pet_level, pp.bond_points AS pet_bond_points,
-              ${PET_BONUSES_SUBQUERY} AS pet_bonuses
+              ${PET_BONUSES_SUBQUERY} AS pet_bonuses,
+              l.card_monster_id, mc.code AS card_code, mc.name AS card_name, mc.rarity AS card_rarity, mc.category AS card_category
        FROM player_market_listings l
        LEFT JOIN items i ON i.id = l.item_id
+       LEFT JOIN monsters mc ON mc.id = l.card_monster_id
        LEFT JOIN player_pets pp ON pp.id = l.player_pet_id
        LEFT JOIN pets pt ON pt.id = pp.pet_id
        LEFT JOIN players pb ON pb.id = l.buyer_id
@@ -131,7 +141,17 @@ router.get('/mine', async (req, res, next) => {
 // especie de mascota (petId = pets.id, no player_pet_id — cada mascota puntual es única, lo que
 // importa es a cuánto se viene vendiendo la especie). Mutuamente excluyente, igual que al publicar.
 router.get('/history', async (req, res, next) => {
-  const { itemId, petId } = req.query;
+  const { itemId, petId, cardId } = req.query;
+  if (cardId) {
+    try {
+      const r = await db.query(
+        `SELECT price_per_unit, currency, quantity, sold_at FROM player_market_listings
+         WHERE card_monster_id = $1 AND status = 'SOLD' ORDER BY sold_at DESC LIMIT 20`,
+        [cardId]
+      );
+      return res.json({ sales: r.rows.map((x) => ({ pricePerUnit: x.price_per_unit, currency: x.currency, quantity: x.quantity, soldAt: x.sold_at })) });
+    } catch (error) { return next(error); }
+  }
   const enchantLevel = parseInt(req.query.enchantLevel) || 0;
   const qualityTier = parseInt(req.query.qualityTier) || 0;
 
@@ -181,11 +201,39 @@ router.get('/history', async (req, res, next) => {
 router.post('/listings', async (req, res, next) => {
   const { playerId } = req.params;
   const { itemId, playerPetId, enchantLevel = 0, qualityTier = 0, currency = 'GOLD' } = req.body;
+  const cardMonsterId = Number(req.body.cardMonsterId) || null;
   const pricePerUnit = parseInt(req.body.pricePerUnit);
 
   if (!CURRENCY_COLUMN[currency]) return res.status(400).json({ error: 'Moneda inválida' });
   if (!pricePerUnit || pricePerUnit <= 0) {
     return res.status(400).json({ error: 'pricePerUnit (mayor a 0) es requerido' });
+  }
+  // carta de monstruo: sale del álbum (las engarzadas no se pueden vender sin quitarlas antes)
+  if (cardMonsterId) {
+    if (itemId || playerPetId) return res.status(400).json({ error: 'Una publicación es de un ítem, una mascota o una carta' });
+    const quantity = parseInt(req.body.quantity) || 1;
+    if (quantity <= 0) return res.status(400).json({ error: 'quantity (mayor a 0) es requerido' });
+    const client = await db.pool.connect();
+    try {
+      await client.query('BEGIN');
+      const take = await client.query(
+        `UPDATE player_cards SET quantity = quantity - $3 WHERE player_id = $1 AND monster_id = $2 AND quantity >= $3
+         RETURNING (SELECT name FROM monsters WHERE id = $2) AS name`,
+        [playerId, cardMonsterId, quantity]
+      );
+      if (!take.rows.length) {
+        await client.query('ROLLBACK');
+        return res.status(400).json({ error: 'No tienes tantas copias de esa carta en el álbum' });
+      }
+      const ins = await client.query(
+        `INSERT INTO player_market_listings(seller_id, card_monster_id, quantity, price_per_unit, currency)
+         VALUES ($1,$2,$3,$4,$5) RETURNING id`,
+        [playerId, cardMonsterId, quantity, pricePerUnit, currency]
+      );
+      await client.query('COMMIT');
+      return res.json({ success: true, listingId: ins.rows[0].id, message: `Publicaste ${quantity}x Carta de ${take.rows[0].name} a ${pricePerUnit} ${CURRENCY_LABEL[currency]} c/u.` });
+    } catch (e) { await client.query('ROLLBACK'); return next(e); }
+    finally { client.release(); }
   }
   if (itemId && playerPetId) {
     return res.status(400).json({ error: 'No puedes publicar un ítem y una mascota en la misma publicación' });
@@ -273,7 +321,7 @@ router.delete('/listings/:id', async (req, res, next) => {
     const listingRes = await client.query(
       `UPDATE player_market_listings SET status = 'CANCELLED'
        WHERE id = $1 AND seller_id = $2 AND status = 'ACTIVE'
-       RETURNING item_id, enchant_level, quality_tier, quantity`,
+       RETURNING item_id, card_monster_id, enchant_level, quality_tier, quantity`,
       [id, playerId]
     );
     if (!listingRes.rows.length) {
@@ -284,10 +332,12 @@ router.delete('/listings/:id', async (req, res, next) => {
     if (listing.item_id) {
       await inventory.addItem(playerId, listing.item_id, listing.quantity, listing.enchant_level, listing.quality_tier, client);
     }
+    if (listing.card_monster_id) await coleccion.giveCard(playerId, listing.card_monster_id, listing.quantity, client);
     await client.query('COMMIT');
     res.json({
       success: true,
-      message: listing.item_id ? 'Publicación cancelada, ítem devuelto a tu inventario.' : 'Publicación cancelada.',
+      message: listing.item_id ? 'Publicación cancelada, ítem devuelto a tu inventario.'
+        : listing.card_monster_id ? 'Publicación cancelada, la carta volvió a tu álbum.' : 'Publicación cancelada.',
     });
   } catch (error) {
     await client.query('ROLLBACK');
@@ -319,9 +369,10 @@ router.post('/listings/:id/buy', async (req, res, next) => {
   try {
     await client.query('BEGIN');
     const listingRes = await client.query(
-      `SELECT l.*, i.name AS item_name, pt.name AS pet_name
+      `SELECT l.*, i.name AS item_name, pt.name AS pet_name, mc.name AS card_name
        FROM player_market_listings l
        LEFT JOIN items i ON i.id = l.item_id
+       LEFT JOIN monsters mc ON mc.id = l.card_monster_id
        LEFT JOIN player_pets pp ON pp.id = l.player_pet_id
        LEFT JOIN pets pt ON pt.id = pp.pet_id
        WHERE l.id = $1
@@ -342,7 +393,7 @@ router.post('/listings/:id/buy', async (req, res, next) => {
       return res.status(400).json({ error: 'No puedes comprar tu propia publicación' });
     }
 
-    const buyQuantity = (listing.item_id && requestedQuantity !== null)
+    const buyQuantity = ((listing.item_id || listing.card_monster_id) && requestedQuantity !== null)
       ? Math.min(requestedQuantity, listing.quantity)
       : listing.quantity;
     const isPartial = buyQuantity < listing.quantity;
@@ -361,9 +412,9 @@ router.post('/listings/:id/buy', async (req, res, next) => {
     if (isPartial) {
       await client.query(`UPDATE player_market_listings SET quantity = quantity - $1 WHERE id = $2`, [buyQuantity, id]);
       await client.query(
-        `INSERT INTO player_market_listings(seller_id, item_id, enchant_level, quality_tier, quantity, price_per_unit, currency, status, buyer_id, sold_at)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,'SOLD',$8,now())`,
-        [listing.seller_id, listing.item_id, listing.enchant_level, listing.quality_tier, buyQuantity, listing.price_per_unit, listing.currency, buyerId]
+        `INSERT INTO player_market_listings(seller_id, item_id, card_monster_id, enchant_level, quality_tier, quantity, price_per_unit, currency, status, buyer_id, sold_at)
+         VALUES ($1,$2,$9,$3,$4,$5,$6,$7,'SOLD',$8,now())`,
+        [listing.seller_id, listing.item_id, listing.enchant_level, listing.quality_tier, buyQuantity, listing.price_per_unit, listing.currency, buyerId, listing.card_monster_id]
       );
     } else {
       await client.query(
@@ -375,7 +426,10 @@ router.post('/listings/:id/buy', async (req, res, next) => {
     await client.query(`UPDATE players SET ${currencyColumn} = ${currencyColumn} + $1 WHERE id = $2`, [sellerProceeds, listing.seller_id]);
 
     let itemName;
-    if (listing.item_id) {
+    if (listing.card_monster_id) {
+      await coleccion.giveCard(buyerId, listing.card_monster_id, buyQuantity, client);
+      itemName = `Carta de ${listing.card_name}`;
+    } else if (listing.item_id) {
       await inventory.addItem(buyerId, listing.item_id, buyQuantity, listing.enchant_level, listing.quality_tier, client);
       itemName = listing.item_name;
     } else {
@@ -386,7 +440,7 @@ router.post('/listings/:id/buy', async (req, res, next) => {
     await client.query('COMMIT');
     res.json({
       success: true,
-      message: `Compraste ${listing.item_id ? buyQuantity + 'x ' : ''}${itemName} por ${total} ${CURRENCY_LABEL[listing.currency]}.`,
+      message: `Compraste ${listing.item_id || listing.card_monster_id ? buyQuantity + 'x ' : ''}${itemName} por ${total} ${CURRENCY_LABEL[listing.currency]}.`,
       totalPaid: total,
       itemName,
     });

@@ -147,6 +147,37 @@ router.post('/libro', async (req, res, next) => {
 });
 
 // POST /world/viaje { destino } — la diligencia de Gaspar (cobra el pasaje y dice dónde te deja)
+// POST /api/player/:playerId/world/revivir — caíste en el mundo 2D: despiertas en tu refugio (el
+// Pilar o la última fogata) con la mitad de la vida y del maná, igual tus compañeros caídos, y
+// pierdes un 5% del oro (como mucho 100 por nivel). Solo si de verdad estás en 0.
+const REVIVE_GOLD_PCT = 0.05;
+router.post('/revivir', async (req, res, next) => {
+  try {
+    const r = await db.query('SELECT hp, gold, level FROM players WHERE id = $1', [req.playerId]);
+    const p = r.rows[0];
+    if (!p) return res.status(404).json({ error: 'Jugador no encontrado' });
+    if (p.hp > 0) return res.json({ revived: false, goldLost: 0 });
+    // caer contra el jefe mítico es parte de la cacería: no cuesta oro
+    const last = await db.query(
+      `SELECT cs.mythic_hunt_id, cs.world_boss_event_id FROM combat_sessions cs
+       JOIN combat_participants cp ON cp.session_id = cs.id
+       WHERE cp.player_id = $1 ORDER BY cs.id DESC LIMIT 1`,
+      [req.playerId]
+    );
+    const huntFall = !!(last.rows[0]?.mythic_hunt_id || last.rows[0]?.world_boss_event_id);
+    const lost = huntFall ? 0 : Math.min(Math.floor(Number(p.gold) * REVIVE_GOLD_PCT), 100 * p.level);
+    const upd = await db.query(
+      `UPDATE players SET hp = CEIL(max_hp * 0.5)::int, mana = GREATEST(mana, CEIL(max_mana * 0.5)::int),
+         gold = GREATEST(0, gold - $2), updated_at = now()
+       WHERE id = $1 AND hp <= 0 RETURNING hp, max_hp, gold`,
+      [req.playerId, lost]
+    );
+    if (!upd.rows.length) return res.json({ revived: false, goldLost: 0 });
+    await db.query('UPDATE player_npcs SET hp = CEIL(max_hp * 0.5)::int WHERE player_id = $1 AND hp <= 0', [req.playerId]);
+    res.json({ revived: true, goldLost: lost, hp: upd.rows[0].hp, maxHp: upd.rows[0].max_hp, gold: upd.rows[0].gold });
+  } catch (err) { next(err); }
+});
+
 router.post('/viaje', async (req, res, next) => {
   const dest = aurelia.DESTINOS[req.body?.destino];
   if (!dest) return res.status(400).json({ error: 'Destino desconocido' });

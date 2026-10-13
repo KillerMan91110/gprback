@@ -23,7 +23,9 @@ const combatRouter = require('./routes/combat');
 const guildsRouter = require('./routes/guilds');
 const socialRouter = require('./routes/social');
 const socialHubRouter = require('./routes/socialHub');
-const { currentNews } = require('./lib/aurelia');
+const { currentNews, addNews } = require('./lib/aurelia');
+const coleccionRouter = require('./routes/coleccion');
+const mythic = require('./lib/mythic');
 const coopRouter = require('./routes/coop');
 const marketRouter = require('./routes/market');
 const petsRouter = require('./routes/pets');
@@ -98,6 +100,8 @@ io.on('connection', (socket) => {
 
 // mundo 2D: ver a los demás jugadores, globitos de chat, gestos, emojis y susurros
 attachWorldPresence(io);
+// jefe mítico de zona: revisa cada 30 s si aparece o se va, y avisa por socket
+mythic.start(io, addNews);
 
 app.set('io', io);
 setLegendSchedulerIo(io); // asi las respuestas de chat de las leyendas (ver legendScheduler.js) tambien emiten en vivo por socket, no solo al refrescar
@@ -133,6 +137,10 @@ app.use('/api/combat', combatRouter);
 app.use('/api/guilds', guildsRouter);
 // noticias que pregona el pregonero de Aurelia (públicas)
 app.get('/api/world/noticias', (req, res) => res.json(currentNews()));
+// estado del jefe mítico (público: cuenta de la zona, si está suelto, dónde y su vida)
+app.get('/api/world/mitico', async (req, res, next) => { try { res.json(await mythic.publicState()); } catch (err) { next(err); } });
+// colección del cazador: bestiario, amuletos, cartas y el intento contra el jefe mítico
+app.use('/api/player/:playerId/coleccion', coleccionRouter);
 // ventana Social del mundo 2D (notas, favoritos, lazos, estado, elogios)
 app.use('/api/player/:playerId/social', socialHubRouter);
 app.use('/api/player/:playerId/friends', socialRouter);

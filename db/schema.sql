@@ -1369,3 +1369,76 @@ CREATE TABLE IF NOT EXISTS player_commends (
   UNIQUE (from_id, to_id, day),
   CHECK (from_id <> to_id)
 );
+
+-- ============================================================================
+-- Colección del cazador (lib/coleccion.js) y jefe mítico de zona (lib/mythic.js).
+-- Se crean solas la primera vez que se usan; quedan acá para instalaciones nuevas.
+-- ============================================================================
+CREATE TABLE IF NOT EXISTS player_bestiary (
+  player_id  INTEGER NOT NULL REFERENCES players(id) ON DELETE CASCADE,
+  monster_id INTEGER NOT NULL REFERENCES monsters(id) ON DELETE CASCADE,
+  kills      INTEGER NOT NULL DEFAULT 0,
+  completed  BOOLEAN NOT NULL DEFAULT FALSE,
+  PRIMARY KEY (player_id, monster_id)
+);
+CREATE TABLE IF NOT EXISTS player_charm_points (
+  player_id INTEGER PRIMARY KEY REFERENCES players(id) ON DELETE CASCADE,
+  earned    INTEGER NOT NULL DEFAULT 0,
+  spent     INTEGER NOT NULL DEFAULT 0
+);
+CREATE TABLE IF NOT EXISTS player_charms (
+  player_id INTEGER NOT NULL REFERENCES players(id) ON DELETE CASCADE,
+  code      TEXT NOT NULL,
+  level     SMALLINT NOT NULL DEFAULT 0,
+  PRIMARY KEY (player_id, code)
+);
+CREATE TABLE IF NOT EXISTS player_cards (
+  player_id  INTEGER NOT NULL REFERENCES players(id) ON DELETE CASCADE,
+  monster_id INTEGER NOT NULL REFERENCES monsters(id) ON DELETE CASCADE,
+  quantity   INTEGER NOT NULL DEFAULT 0,
+  first_at   TIMESTAMPTZ NOT NULL DEFAULT now(),
+  PRIMARY KEY (player_id, monster_id)
+);
+CREATE TABLE IF NOT EXISTS player_card_sockets (
+  player_id  INTEGER NOT NULL REFERENCES players(id) ON DELETE CASCADE,
+  slot       TEXT NOT NULL CHECK (slot IN ('WEAPON', 'OFFHAND', 'HELMET', 'ARMOR', 'GLOVES', 'BOOTS', 'ACCESSORY')),
+  monster_id INTEGER NOT NULL REFERENCES monsters(id) ON DELETE CASCADE,
+  PRIMARY KEY (player_id, slot)
+);
+CREATE TABLE IF NOT EXISTS mythic_zone_progress (
+  zone_id INTEGER PRIMARY KEY,
+  kills   INTEGER NOT NULL DEFAULT 0
+);
+CREATE TABLE IF NOT EXISTS mythic_hunts (
+  id           SERIAL PRIMARY KEY,
+  zone_id      INTEGER NOT NULL,
+  monster_code TEXT NOT NULL,
+  spot_name    TEXT NOT NULL,
+  spot_x       INTEGER NOT NULL,
+  spot_y       INTEGER NOT NULL,
+  max_hp       INTEGER NOT NULL,
+  hp_remaining INTEGER NOT NULL,
+  status       TEXT NOT NULL DEFAULT 'ACTIVE',
+  started_at   TIMESTAMPTZ NOT NULL DEFAULT now(),
+  ends_at      TIMESTAMPTZ NOT NULL,
+  closed_at    TIMESTAMPTZ,
+  killed_by    INTEGER REFERENCES players(id) ON DELETE SET NULL
+);
+CREATE TABLE IF NOT EXISTS mythic_hunt_damage (
+  hunt_id         INTEGER NOT NULL REFERENCES mythic_hunts(id) ON DELETE CASCADE,
+  player_id       INTEGER NOT NULL REFERENCES players(id) ON DELETE CASCADE,
+  total_damage    INTEGER NOT NULL DEFAULT 0,
+  last_attempt_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  PRIMARY KEY (hunt_id, player_id)
+);
+ALTER TABLE combat_sessions ADD COLUMN IF NOT EXISTS mythic_hunt_id INTEGER;
+-- fases del jefe mítico (aullido, huida, luna roja) y esbirros cazados (le bajan la defensa)
+ALTER TABLE mythic_hunts ADD COLUMN IF NOT EXISTS phase SMALLINT NOT NULL DEFAULT 0;
+ALTER TABLE mythic_hunts ADD COLUMN IF NOT EXISTS minion_kills INTEGER NOT NULL DEFAULT 0;
+CREATE UNIQUE INDEX IF NOT EXISTS uq_mythic_hunts_active ON mythic_hunts ((status)) WHERE status = 'ACTIVE';
+-- las cartas de monstruo también se venden en el mercado (una publicación es de un ítem, una mascota o una carta)
+ALTER TABLE player_market_listings ADD COLUMN IF NOT EXISTS card_monster_id INTEGER REFERENCES monsters(id);
+ALTER TABLE player_market_listings DROP CONSTRAINT IF EXISTS chk_listing_target;
+ALTER TABLE player_market_listings ADD CONSTRAINT chk_listing_target CHECK (
+  (item_id IS NOT NULL)::int + (player_pet_id IS NOT NULL)::int + (card_monster_id IS NOT NULL)::int = 1
+);

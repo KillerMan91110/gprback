@@ -11,6 +11,9 @@ const { getRankBonuses, applyPercentBonus } = require('../lib/ranks');
 const questProgress = require('../lib/questProgress');
 const achievements = require('../lib/achievements');
 const aurelia = require('../lib/aurelia');
+const coleccion = require('../lib/coleccion');
+const mythic = require('../lib/mythic');
+const huntRewards = require('../lib/huntRewards');
 const { requireAuth } = require('../lib/auth');
 const { applyGuildXp, getGuildLevelsForPlayers, combatBonusMultipliers } = require('../lib/guilds');
 const pets = require('../lib/pets');
@@ -123,11 +126,12 @@ async function hydratePlayers(playerIds) {
     // getClassAncestorChain) — p.class_id, usado abajo, sigue siendo solo la clase EFECTIVA, es
     // lo que el motor de innatas/combate necesita para saber "qué clase es ahora".
     const classChain = await getClassAncestorChain(p.class_id);
-    const [bonus, passives, baseCritDamage, petB] = await Promise.all([
+    const [bonus, passives, baseCritDamage, petB, util] = await Promise.all([
       getEquipmentBonuses(p.id),
       getClassPassiveBonuses(classChain, p.level),
       leveling.getClassBaseCritDamage(p.class_id),
       pets.getActivePetBonuses(p.id),
+      coleccion.utilityBonuses(p.id),
     ]);
 
     const playerMaxHp = Math.round(p.max_hp * (1 + passives.hp / 100)) + petB.hp;
@@ -155,7 +159,8 @@ async function hydratePlayers(playerIds) {
       physical_damage_bonus: passives.physical_damage,
       elemental_damage_bonus: passives.elemental_damage,
       heal_bonus: passives.heal_bonus + petB.heal_bonus,
-      damage_reduction: petB.damage_reduction,
+      // cartas de Aguante (lib/coleccion.js): menos daño recibido, nunca más ataque
+      damage_reduction: petB.damage_reduction + (util.guard || 0),
       npc_id: null,
       class_id: p.class_id,
       level: p.level,
@@ -1706,8 +1711,9 @@ async function finalizeSession(sessionId, status, participants) {
   // proposito (igual reparte cosmic_shards por el daño hecho, ver handleWorldBossFinalize),
   // no una derrota real del héroe. No debe sumar a combat_losses ni contar como una pelea
   // perdida de verdad.
-  const sessRow = await db.query('SELECT world_boss_event_id FROM combat_sessions WHERE id = $1', [sessionId]);
-  const isWorldBoss = !!sessRow.rows[0]?.world_boss_event_id;
+  const sessRow = await db.query('SELECT world_boss_event_id, mythic_hunt_id FROM combat_sessions WHERE id = $1', [sessionId]);
+  // el jefe mítico (lib/mythic.js) tampoco cuenta como derrota: es un intento contra vida compartida
+  const isWorldBoss = !!sessRow.rows[0]?.world_boss_event_id || !!sessRow.rows[0]?.mythic_hunt_id;
 
   let rewards = null;
   if (status === 'PLAYER_WON') {
@@ -1735,6 +1741,10 @@ async function finalizeSession(sessionId, status, participants) {
         await questProgress.registerKill(heroP.player_id, enemy.monster_code);
       }
       await recordMonsterKills(heroPs.map((hp) => hp.player_id), participants.enemy);
+      // Colección y jefe mítico (lib/huntRewards.js): bestiario, cuenta de la zona, esbirros y
+      // los bonos de utilidad de cada héroe (amuletos + cartas engarzadas)
+      const { bestiaryEvents, utilBy } = await huntRewards.beforeRewards(heroPs, participants.enemy);
+      const leaderUtil = utilBy.get(heroP.player_id);
 
       const rankResult = await db.query('SELECT rank FROM players WHERE id = $1', [heroP.player_id]);
       const { xpBonusPercent, rewardBonusPercent } = await getRankBonuses(rankResult.rows[0].rank);
@@ -1756,7 +1766,7 @@ async function finalizeSession(sessionId, status, participants) {
       rewards.xp   = applyPercentBonus(applyPercentBonus(applyPercentBonus(applyPercentBonus(rewards.xp,   xpBonusPercent),     combatAchBonuses.xpEarned),   heroPassives.xp_bonus),   heroPetBonuses.xp_percent);
       const heroLuckRow = await db.query('SELECT luck FROM players WHERE id = $1', [heroP.player_id]);
       const heroLuck = Number(heroLuckRow.rows[0]?.luck || 0);
-      rewards.itemsDropped = await rollMonsterDrops(participants.enemy, heroPassives.drop_rate_bonus + heroLuck + heroPetBonuses.drop_rate_percent);
+      rewards.itemsDropped = await rollMonsterDrops(participants.enemy, heroPassives.drop_rate_bonus + heroLuck + heroPetBonuses.drop_rate_percent + leaderUtil.drop);
 
       // Co-op: oro dividido en partes iguales entre todos los héroes (1 a 3).
       const goldPerHero = Math.floor(rewards.gold / heroPs.length);
@@ -1773,7 +1783,7 @@ async function finalizeSession(sessionId, status, participants) {
 
       for (const hp of heroPs) {
         const heroGoldMult = combatBonusMultipliers(heroGuildLevels.get(hp.player_id)).gold;
-        let heroGold = Math.round(goldPerHero * heroGoldMult);
+        let heroGold = Math.round(goldPerHero * heroGoldMult * (1 + (utilBy.get(hp.player_id)?.gold || 0) / 100));
         const victoryInnate = await applyInnateTrigger('ON_VICTORY_REWARD', { actor: hp, target: null, allies: [], enemies: [] });
         if (victoryInnate?.stat_code === 'GOLD') {
           heroGold = Math.round(heroGold * (1 + Number(victoryInnate.percent_amount || 0) / 100));
@@ -1783,6 +1793,8 @@ async function finalizeSession(sessionId, status, participants) {
           [hp.hp, hp.mana, heroGold, hp.player_id]
         );
         if (hadNearDeath) await incrementCounter(hp.player_id, 'COMBATES_LIMITE_SOBREVIVIDOS');
+        // Respiro / Serenidad: recupera un poco de vida y maná al ganar
+        await coleccion.applyVictoryRecovery(hp.player_id, utilBy.get(hp.player_id));
       }
 
       const partySize = heroPs.length + npcPs.length;
@@ -1800,7 +1812,8 @@ async function finalizeSession(sessionId, status, participants) {
         const levelMult = leveling.underLevelXpMult(hp.level, avgEnemyLevel);
         // bendición del Pilar de Aethra (ofrenda en Aurelia): +5% / +10% en el festival
         const blessMult = await aurelia.xpBlessingMult(hp.player_id);
-        const heroXp = Math.round(splitXp * heroXpMult * levelMult * blessMult);
+        const utilXpMult = 1 + (utilBy.get(hp.player_id)?.xp || 0) / 100;
+        const heroXp = Math.round(splitXp * heroXpMult * levelMult * blessMult * utilXpMult);
         const levelResult = await leveling.applyXpGain(hp.player_id, heroXp);
         if (levelResult && levelResult.leveledUp) {
           rewards.levelUps.push({ playerId: hp.player_id, newLevel: levelResult.newLevel });
@@ -1826,6 +1839,9 @@ async function finalizeSession(sessionId, status, participants) {
           await inventory.addItem(hp.player_id, drop.itemId, drop.quantity);
         }
       }
+
+      // cartas de monstruo (tirada propia de cada héroe) y resumen del bestiario
+      await huntRewards.afterRewards({ heroPs, heroP, enemies: participants.enemy, utilBy, bestiaryEvents, rewards });
 
       const monsterCodes = participants.enemy.map((e) => e.monster_code).filter(Boolean);
       if (monsterCodes.length) {
@@ -1885,6 +1901,9 @@ async function finalizeSession(sessionId, status, participants) {
 
   await handleTowerSessionEnd(sessionId, status);
   await handleWorldBossFinalize(sessionId, status, participants);
+  // jefe mítico: resta la vida compartida (también si huiste) y reparte si cayó
+  const mythicSummary = await mythic.handleFinalize(sessionId, participants).catch((err) => { console.error('[mythic] finalize', err.message); return null; });
+  if (mythicSummary && rewards) rewards.mythic = mythicSummary;
   // El extra del Evento del Día (oro/monedas/xp fijos del catálogo + bono de nivel bajo + material)
   // se escribe directo a la DB adentro de handleDailyEventFinalize, pero eso NO alcanza al `rewards`
   // que esta función devuelve — y `rewards` es justo lo que el handler manda de vuelta al front
@@ -2815,6 +2834,13 @@ router.post('/sessions', async (req, res, next) => {
 
   if (!Array.isArray(monsters) || monsters.length < 1 || monsters.length > 3) {
     return res.status(400).json({ error: 'monsters debe tener entre 1 y 3 (formato: { code, level })' });
+  }
+  // el jefe mítico solo se enfrenta por su cacería, y sus esbirros solo existen mientras está suelto
+  if (monsters.some((m) => coleccion.isMythic(m?.code))) {
+    return res.status(400).json({ error: 'Al jefe mítico solo se lo enfrenta durante su cacería' });
+  }
+  if (monsters.some((m) => m?.code === mythic.MINION_CODE) && !(await mythic.activeHunt())) {
+    return res.status(400).json({ error: 'Los lobos espectrales ya se desvanecieron' });
   }
 
   try {
