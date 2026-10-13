@@ -2500,6 +2500,21 @@ async function fetchSessionState(sessionId) {
     });
   }
 
+  // lo que lleva puesto cada héroe (arma, mano secundaria y armadura): el combate dibuja esa
+  // arma y pinta la ropa con el color del set (gpr/src/game/gear.js)
+  const heroIds = participants.player.map((p) => p.player_id).filter(Boolean);
+  const gearBy = {};
+  if (heroIds.length) {
+    const gr = await db.query(
+      `SELECT pe.player_id, pe.slot, i.code, i.name, i.rarity, i.class_id FROM player_equipment pe JOIN items i ON i.id = pe.item_id
+       WHERE pe.player_id = ANY($1::int[]) AND pe.slot IN ('WEAPON', 'OFFHAND', 'ARMOR')`,
+      [heroIds]
+    );
+    for (const r of gr.rows) {
+      (gearBy[r.player_id] ??= {})[r.slot.toLowerCase()] = { code: r.code, name: r.name, rarity: r.rarity, class_id: r.class_id, slot: r.slot, item_type: 'EQUIPMENT' };
+    }
+  }
+
   const enrichedParticipants = participants.all.map((p) => ({
     ...p,
     is_ai_controlled: abandonedIds.includes(p.player_id ?? p.owner_player_id),
@@ -2513,6 +2528,7 @@ async function fetchSessionState(sessionId) {
         : (resistByMonster[p.monster_code] ?? {}))
       : undefined,
     effects: effectsById[p.id] ?? [],
+    gear: p.player_id ? (gearBy[p.player_id] ?? {}) : undefined,
   }));
   // escudo de Romper de cada monstruo: { current, max, broken }
   for (const p of enrichedParticipants) {
