@@ -4,6 +4,9 @@ node_modules/
 # Variables de entorno (credenciales)
 .env
 
+# Contraseñas de las cuentas de prueba locales (solo en esta PC)
+docs/cuentas_prueba_local.md
+
 # Entornos Python
 .venv/
 .venv-1/
