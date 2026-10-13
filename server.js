@@ -188,7 +188,13 @@ setInterval(() => { restockPotions().catch(console.error); }, 5 * 60 * 1000);
 // Leyendas (5 personajes jugables controlados por el sistema, ver lib/legendScheduler.js): cada
 // una corre su propio bucle independiente (tick, esperar 1 min, tick de nuevo...), no un
 // setInterval compartido como el World Boss de arriba -- se arranca una sola vez.
-startLegendSchedule().catch(console.error);
+// LEYENDAS_APAGADAS=1 las deja quietas (por ejemplo en un servidor chico, para ahorrar memoria y
+// consultas a la base): no juegan, no pelean ni chatean, pero siguen existiendo en el ranking.
+if (process.env.LEYENDAS_APAGADAS === '1') {
+  console.log('[leyendas] apagadas (LEYENDAS_APAGADAS=1)');
+} else {
+  startLegendSchedule().catch(console.error);
+}
 
 // ========== RUTAS DE PRUEBA ==========
 
