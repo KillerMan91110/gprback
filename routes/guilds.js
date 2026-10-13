@@ -8,6 +8,8 @@ const {
 const inventory = require('../lib/inventory');
 const { spendCurrency, withTransaction, learnSkillForGold } = require('../lib/currency');
 const { getClassAncestorChain } = require('../lib/evolution');
+const { requireNear } = require('../lib/cercania');
+const guildContracts = require('../lib/guildContracts');
 
 const router = express.Router();
 router.use(requireAuth);
@@ -149,8 +151,8 @@ router.get('/:id', async (req, res, next) => {
   }
 });
 
-// POST /api/guilds - crear gremio (cuesta 50.000 de oro)
-router.post('/', async (req, res, next) => {
+// POST /api/guilds - crear gremio (cuesta 50.000 de oro), en persona con Oswin
+router.post('/', requireNear('registro'), async (req, res, next) => {
   try {
     const playerId = req.playerId;
     const { name, description, type = 'OPEN' } = req.body;
@@ -193,7 +195,7 @@ router.post('/', async (req, res, next) => {
 });
 
 // POST /api/guilds/:id/join - unirse a un gremio abierto
-router.post('/:id/join', async (req, res, next) => {
+router.post('/:id/join', requireNear('registro'), async (req, res, next) => {
   try {
     const playerId = req.playerId;
 
@@ -446,7 +448,7 @@ router.delete('/:id', async (req, res, next) => {
 });
 
 // POST /api/guilds/:id/request - solicitar unirse a un gremio CLOSED
-router.post('/:id/request', async (req, res, next) => {
+router.post('/:id/request', requireNear('registro'), async (req, res, next) => {
   try {
     const playerId = req.playerId;
 
@@ -1041,6 +1043,15 @@ router.get('/:id/bank', async (req, res, next) => {
 });
 
 // POST /api/guilds/:id/bank/deposit - donar oro propio al banco (1x/día, requiere nivel >= 2)
+// GET /api/guilds/:id/contracts — encargos de esta semana del gremio (solo miembros)
+router.get('/:id/contracts', async (req, res, next) => {
+  try {
+    const member = await db.query('SELECT 1 FROM guild_members WHERE guild_id = $1 AND player_id = $2', [req.params.id, req.playerId]);
+    if (!member.rows.length) return res.status(403).json({ error: 'No eres miembro de este gremio' });
+    res.json(await guildContracts.listFor(Number(req.params.id)));
+  } catch (err) { next(err); }
+});
+
 router.post('/:id/bank/deposit', async (req, res, next) => {
   try {
     const playerId = req.playerId;
@@ -1092,6 +1103,7 @@ router.post('/:id/bank/deposit', async (req, res, next) => {
       [guildId, playerId, amount]
     );
     await logGuildActivity(guildId, 'DONATION', playerId, null, { amount });
+    await guildContracts.addProgress(Number(guildId), 'donar', amount, playerId);
 
     res.json({ message: `Donaste ${amount.toLocaleString()} de oro al banco del gremio` });
   } catch (error) {

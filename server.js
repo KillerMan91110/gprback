@@ -38,6 +38,11 @@ const worldRouter = require('./routes/world');
 const { tickWorldBossSchedule } = require('./lib/worldBossScheduler');
 const { startLegendSchedule, setIo: setLegendSchedulerIo } = require('./lib/legendScheduler');
 const { attachWorldPresence } = require('./lib/worldPresence');
+const { attachTrade } = require('./lib/trade');
+const { startCorreoJobs } = require('./lib/correo');
+const { startEconomia } = require('./lib/economia');
+const { startPuestos } = require('./lib/puestos');
+const puestosRouter = require('./routes/puestos');
 const { restockPotions } = require('./lib/marketRestock');
 const { getActivePetBonuses } = require('./lib/pets');
 
@@ -100,6 +105,11 @@ io.on('connection', (socket) => {
 
 // mundo 2D: ver a los demás jugadores, globitos de chat, gestos, emojis y susurros
 attachWorldPresence(io);
+// comercio directo entre jugadores del mundo 2D (ventana de comercio, ver lib/trade.js)
+attachTrade(io);
+startCorreoJobs(io);
+startEconomia();
+startPuestos(io);
 // jefe mítico de zona: revisa cada 30 s si aparece o se va, y avisa por socket
 mythic.start(io, addNews);
 
@@ -155,6 +165,7 @@ app.use('/api/worldboss', worldBossGlobalRouter);
 app.use('/api/player/:playerId/worldboss', worldBossPlayerRouter);
 app.use('/api/player/:playerId/daily-event', dailyEventRouter);
 app.use('/api/player/:playerId/world', worldRouter);
+app.use('/api/player/:playerId/puestos', puestosRouter);
 
 // Ciclo automático del World Boss (docs/backend-followup-world-boss-cycle-ready.md): 3hs activo,
 // 1h de pausa, para siempre. No hace falta cron de sistema, el server ya es un proceso de larga
@@ -483,7 +494,7 @@ app.get('/api/classes/:id/elementals', async (req, res, next) => {
 app.get('/api/leaderboard/guilds', async (req, res, next) => {
   try {
     const result = await db.query(
-      `SELECT g.id, g.name, g.level, g.xp, g.type,
+      `SELECT g.id, g.name, g.level, g.xp, g.type, g.emblem, g.color,
               COUNT(gm.player_id)::int AS member_count
        FROM guilds g
        LEFT JOIN guild_members gm ON gm.guild_id = g.id
@@ -497,6 +508,9 @@ app.get('/api/leaderboard/guilds', async (req, res, next) => {
       name: r.name,
       level: r.level,
       type: r.type,
+      // emblema y color: el estandarte del gremio campeón en Aurelia los muestra
+      emblem: r.emblem,
+      color: r.color,
       memberCount: r.member_count,
     })));
   } catch (error) { next(error); }
@@ -1024,6 +1038,8 @@ app.use((req, res) => {
 });
 
 app.use((err, req, res, next) => {
+  // errores pensados para el jugador (p. ej. "no tienes suficientes objetos" de lib/inventory.js)
+  if (err.expose && err.status) return res.status(err.status).json({ error: err.message });
   console.error(err.stack);
   // err.message se filtraba siempre al cliente, sin importar el entorno -- puede traer detalle
   // interno de Postgres (nombres de tabla/columna, fragmentos de query). Solo se expone fuera de

@@ -6,6 +6,8 @@ const { nodesOf, NODE_TYPES, findNode, rollLoot, spotFor } = require('../lib/wor
 const { spendCurrency } = require('../lib/currency');
 const aurelia = require('../lib/aurelia');
 const piedra = require('../lib/piedraRegreso');
+const guildContracts = require('../lib/guildContracts');
+const { lejosDe } = require('../lib/cercania');
 
 // Mundo 2D: recursos que se recolectan caminando (ver lib/worldNodes.js)
 const router = express.Router({ mergeParams: true });
@@ -78,6 +80,8 @@ router.post('/nodes/:nodeId/gather', async (req, res, next) => {
       }
     }
     if (gold) await db.query('UPDATE players SET gold = gold + $1 WHERE id = $2', [gold, req.playerId]);
+    // encargo semanal del gremio "Provisiones para el gremio" (si lo tiene esta semana)
+    guildContracts.addProgressFor(req.playerId, 'recolectar', 1);
 
     const readyAt = new Date(new Date(claim.rows[0].gathered_at).getTime() + node.def.respawnSeconds * 1000);
     // cuando reaparezca lo hará en otro de sus sitios
@@ -191,6 +195,8 @@ router.get('/piedra', async (req, res, next) => {
 router.post('/piedra/vincular', async (req, res, next) => {
   const vinculo = String(req.body?.vinculo ?? '');
   if (!piedra.VINCULOS[vinculo]) return res.status(400).json({ error: 'Aquí no hay ninguna Estatua del Viajero' });
+  const lejos = lejosDe(req.playerId, [`estatua_${vinculo}`]);
+  if (lejos) return res.status(403).json({ error: lejos, lejos: true });
   try {
     res.json(await piedra.vincular(req.playerId, vinculo));
   } catch (err) { next(err); }
@@ -212,6 +218,9 @@ router.post('/piedra/usar', async (req, res, next) => {
 router.post('/viaje', async (req, res, next) => {
   const dest = aurelia.DESTINOS[req.body?.destino];
   if (!dest) return res.status(400).json({ error: 'Destino desconocido' });
+  // se sube a la diligencia donde está Gaspar: en la capital para ir a la aldea y al revés
+  const lejos = lejosDe(req.playerId, [req.body.destino === 'aldea' ? 'gaspar_aurelia' : 'gaspar_aldea']);
+  if (lejos) return res.status(403).json({ error: lejos, lejos: true });
   try {
     const gold = await spendCurrency(req.playerId, 'gold', aurelia.VIAJE_COST);
     if (gold == null) return res.status(400).json({ error: `El pasaje cuesta ${aurelia.VIAJE_COST} de oro` });

@@ -15,6 +15,9 @@ const { getActivePetBonuses } = require('../lib/pets');
 const { incrementCounter } = require('../lib/counters');
 const { applyInnateTrigger } = require('../lib/innates');
 const { getPlayerGuildRow } = require('../lib/guilds');
+// servicios de la ciudad: hay que estar junto a quien los ofrece (ver lib/cercania.js)
+const { requireNear } = require('../lib/cercania');
+const npcSell = require('../lib/npcSell');
 
 const router = express.Router();
 
@@ -509,7 +512,7 @@ router.get('/:playerId/guild/skills', async (req, res, next) => {
 });
 
 // POST /api/players/:playerId/guild/learn-skill { skillId }
-router.post('/:playerId/guild/learn-skill', async (req, res, next) => {
+router.post('/:playerId/guild/learn-skill', requireNear('maestros'), async (req, res, next) => {
   const { playerId } = req.params;
   const { skillId } = req.body;
 
@@ -573,7 +576,7 @@ router.post('/:playerId/guild/learn-skill', async (req, res, next) => {
 // Igual que guild/learn-skill pero para un NPC del grupo -- el NPC no tiene oro propio (lo paga el
 // jugador) ni hace quests propias (el requisito QUEST se revisa contra las misiones YA completadas
 // por el jugador dueño, mismo criterio que para su propio héroe).
-router.post('/:playerId/npcs/:npcId/learn-skill', async (req, res, next) => {
+router.post('/:playerId/npcs/:npcId/learn-skill', requireNear('maestros'), async (req, res, next) => {
   const { playerId, npcId } = req.params;
   const { skillId } = req.body;
 
@@ -632,16 +635,7 @@ router.post('/:playerId/npcs/:npcId/learn-skill', async (req, res, next) => {
   }
 });
 
-// Precio de venta al gremio para CUALQUIER item del inventario (no solo el set inicial),
-// segun su rareza. No es columna de la tabla porque aplica a todos los items, no solo a
-// los que tienen buy_price (que son solo el set "Pradera" que vende cada maestro).
-const SELL_PRICE_BY_RARITY = {
-  COMUN: 20,
-  POCO_COMUN: 50,
-  RARO: 120,
-  EPICO: 300,
-  LEGENDARIO: 700,
-};
+// Precio de venta al gremio para CUALQUIER item del inventario: ver lib/npcSell.js (masterPrice).
 
 // GET /api/players/:playerId/guild/shop?classId=N
 // Tienda del maestro de gremio: vende solo el set basico de nivel 1 de su clase (items con
@@ -691,17 +685,16 @@ router.get('/:playerId/guild/shop', async (req, res, next) => {
 });
 
 // POST /api/players/:playerId/guild/shop/buy { itemId, quantity? }
-router.post('/:playerId/guild/shop/buy', async (req, res, next) => {
+router.post('/:playerId/guild/shop/buy', requireNear('maestros'), async (req, res, next) => {
   const { playerId } = req.params;
   const { itemId } = req.body;
   const qty = Math.max(1, Math.min(99, parseInt(req.body.quantity) || 1));
 
   try {
-    const itemResult = await db.query('SELECT * FROM items WHERE id = $1', [itemId]);
-    if (!itemResult.rows.length) {
+    const item = await npcSell.itemForSale(itemId);
+    if (!item) {
       return res.status(404).json({ error: 'Item no encontrado' });
     }
-    const item = itemResult.rows[0];
     if (item.buy_price === null) {
       return res.status(400).json({ error: 'Ese item no está a la venta' });
     }
@@ -740,7 +733,7 @@ router.post('/:playerId/guild/shop/buy', async (req, res, next) => {
 // POST /api/players/:playerId/guild/shop/sell { itemId, quantity, enchantLevel? }
 // Solo opera contra player_inventory (lo no equipado): un item equipado nunca aparece ahi,
 // asi que no hace falta validacion extra para evitar vender lo que tienes puesto.
-router.post('/:playerId/guild/shop/sell', async (req, res, next) => {
+router.post('/:playerId/guild/shop/sell', requireNear('maestros'), async (req, res, next) => {
   const { playerId } = req.params;
   const { itemId, quantity, enchantLevel = 0 } = req.body;
   const qty = Number(quantity) || 1;
@@ -759,8 +752,9 @@ router.post('/:playerId/guild/shop/sell', async (req, res, next) => {
 
     // La venta siempre es la mitad del precio de compra (buy_price) cuando el item se vende
     // en algun gremio. Para items que no estan a la venta en ninguna tienda (drops, etc.) no
-    // hay "costo" que reducir a la mitad, asi que se usa la tabla por rareza como respaldo.
-    const unitPrice = item.buy_price !== null ? Math.round(item.buy_price / 2) : (SELL_PRICE_BY_RARITY[item.rarity] || 10);
+    // hay "costo" que reducir a la mitad, asi que se usa la tabla por rareza como respaldo. Nunca
+    // más de la mitad de lo que cuesta en otra tienda de oro (ver lib/npcSell.js).
+    const unitPrice = npcSell.masterPrice(item);
     const total = unitPrice * qty;
 
     const client = await db.pool.connect();
@@ -863,7 +857,7 @@ router.get('/:playerId/inventory', async (req, res, next) => {
     const result = await db.query(
       `SELECT pi.id AS inventory_id, pi.item_id, pi.enchant_level, pi.quality_tier, pi.quantity,
               i.code, i.name, i.item_type, i.slot, i.rarity, i.class_id,
-              i.required_level, i.is_two_handed,
+              i.required_level, i.is_two_handed, i.buy_price, ${npcSell.SELL_CAP_SQL} AS sell_cap,
               (EXISTS (SELECT 1 FROM crafting_recipes cr2 WHERE cr2.scroll_item_id = i.id)) AS is_scroll,
               (
                 EXISTS (SELECT 1 FROM crafting_recipes cr2 WHERE cr2.scroll_item_id = i.id)
@@ -886,6 +880,9 @@ router.get('/:playerId/inventory', async (req, res, next) => {
     res.json(result.rows.map((r) => ({
       ...r,
       effective_rarity: RARITY_NAMES[Math.min(RARITY_NAMES.indexOf(r.rarity) + r.quality_tier, 4)] ?? r.rarity,
+      // lo que te pagan los NPC (null = el artesano no lo compra)
+      sell_artisan: npcSell.artisanPrice(r),
+      sell_master: npcSell.masterPrice(r),
     })));
   } catch (error) {
     next(error);
@@ -1001,7 +998,7 @@ router.get('/:playerId/inspect/:targetId', async (req, res, next) => {
     const playerResult = await db.query(
       `SELECT p.nickname, p.level, p.rank, p.created_at, p.hp, p.atk, p.def, p.mag, p.magic_def, p.spd, p.crit,
               p.combat_wins, p.combat_losses, p.boss_kills,
-              c.name AS class_name
+              c.name AS class_name, c.code AS class_code
        FROM players p
        JOIN classes c ON c.id = COALESCE(p.evolution_class_id, p.current_class_id)
        WHERE p.id = $1`,
@@ -1010,9 +1007,9 @@ router.get('/:playerId/inspect/:targetId', async (req, res, next) => {
     if (!playerResult.rows.length) return res.status(404).json({ error: 'Jugador no encontrado' });
     const player = playerResult.rows[0];
 
-    const [equipResult, guild, npcsResult, bonus] = await Promise.all([
+    const [equipResult, guild, npcsResult, bonus, petRes, achRes, bestRes] = await Promise.all([
       db.query(
-        `SELECT pe.slot, i.name AS item_name, i.rarity, pe.enchant_level, pe.quality_tier
+        `SELECT pe.slot, pe.item_id, i.name AS item_name, i.rarity, pe.enchant_level, pe.quality_tier
          FROM player_equipment pe JOIN items i ON i.id = pe.item_id
          WHERE pe.player_id = $1 ORDER BY pe.slot`,
         [targetId]
@@ -1026,6 +1023,15 @@ router.get('/:playerId/inspect/:targetId', async (req, res, next) => {
         [targetId]
       ),
       getEquipmentBonuses(targetId),
+      // lo que se ve al inspeccionar en el mundo: mascota que lo acompaña, logros y bestiario
+      db.query(
+        `SELECT pt.name, pt.rarity, pp.level FROM player_pets pp JOIN pets pt ON pt.id = pp.pet_id
+         WHERE pp.player_id = $1 AND pp.is_active LIMIT 1`,
+        [targetId]
+      ),
+      db.query('SELECT count(*)::int AS n FROM player_achievements WHERE player_id = $1', [targetId]),
+      db.query('SELECT count(*)::int AS fichas, count(*) FILTER (WHERE completed)::int AS dominadas FROM player_bestiary WHERE player_id = $1', [targetId])
+        .catch(() => ({ rows: [{ fichas: 0, dominadas: 0 }] })),
     ]);
 
     const npcIds = npcsResult.rows.map((n) => n.id);
@@ -1064,14 +1070,19 @@ router.get('/:playerId/inspect/:targetId', async (req, res, next) => {
         combatLosses: player.combat_losses,
         bossKills: player.boss_kills,
       },
+      classCode: player.class_code,
+      pet: petRes.rows[0] ? { name: petRes.rows[0].name, rarity: petRes.rows[0].rarity, level: petRes.rows[0].level } : null,
+      achievements: achRes.rows[0].n,
+      bestiary: { fichas: bestRes.rows[0].fichas, dominadas: bestRes.rows[0].dominadas },
       equipment: equipResult.rows.map((r) => ({
         slot: r.slot,
+        itemId: r.item_id,
         itemName: r.item_name,
         rarity: r.rarity,
         enchantLevel: r.enchant_level,
         qualityTier: r.quality_tier,
       })),
-      guild: guild ? { name: guild.name, role: guild.role } : null,
+      guild: guild ? { name: guild.name, role: guild.role, level: guild.level, emblem: guild.emblem, color: guild.color } : null,
       companions: npcsResult.rows.map((n) => ({
         name: n.name,
         className: n.class_name,
@@ -1747,7 +1758,7 @@ router.get('/:playerId/craft/available', async (req, res, next) => {
 
 // POST /api/players/:playerId/craft
 // body: { recipeCode, quantity? }  — quantity por defecto 1, máx 99
-router.post('/:playerId/craft', async (req, res, next) => {
+router.post('/:playerId/craft', requireNear('taller'), async (req, res, next) => {
   const { playerId } = req.params;
   const { recipeCode } = req.body;
   const qty = Math.max(1, Math.min(99, parseInt(req.body.quantity) || 1));
@@ -2080,7 +2091,7 @@ router.post('/:playerId/use-item', async (req, res, next) => {
 
 // Primero busca override manual en dismantle_recipes; si no hay entrada, deriva los materiales
 // de crafting_recipe_ingredients con 50% de retorno (mínimo 1 por material).
-router.post('/:playerId/dismantle', async (req, res, next) => {
+router.post('/:playerId/dismantle', requireNear('taller'), async (req, res, next) => {
   const { playerId } = req.params;
   const { itemId } = req.body;
   const qty = Math.max(1, Math.min(99, parseInt(req.body.quantity) || 1));
@@ -2531,7 +2542,7 @@ router.post('/:playerId/party/pool/refresh', async (req, res, next) => {
 // POST /api/player/:playerId/party/hire/:poolNpcId
 // Contrata un NPC del pool. Crea una entidad en player_npcs; si hay slot libre va al grupo
 // activo, si el grupo está lleno va al banco (siempre que el banco no supere BENCH_CAP).
-router.post('/:playerId/party/hire/:poolNpcId', async (req, res, next) => {
+router.post('/:playerId/party/hire/:poolNpcId', requireNear('registro'), async (req, res, next) => {
   const { playerId, poolNpcId } = req.params;
   try {
     const [playerRes, npcRes, partyRes, benchRes] = await Promise.all([
@@ -3384,7 +3395,6 @@ router.post('/:playerId/enchant/npc/:npcId', requireAuth, async (req, res, next)
 
 // ─── ARTISAN SHOP ─────────────────────────────────────────────────────────────
 
-const SELL_BY_RARITY = { COMUN: 25, POCO_COMUN: 75, RARO: 200, EPICO: 600, LEGENDARIO: 2500 };
 
 // GET /api/player/:playerId/artisan-shop
 // Devuelve todos los artesanos con su inventario y cuánto tiene el jugador de cada ítem.
@@ -3420,7 +3430,7 @@ router.get('/:playerId/artisan-shop', requireAuth, async (req, res, next) => {
 
 // POST /api/player/:playerId/artisan-shop/buy
 // body: { artisanCode, itemCode, quantity? }
-router.post('/:playerId/artisan-shop/buy', requireAuth, async (req, res, next) => {
+router.post('/:playerId/artisan-shop/buy', requireAuth, requireNear('artesanos'), async (req, res, next) => {
   const { playerId } = req.params;
   const { artisanCode, itemCode } = req.body;
   const qty = Math.max(1, Math.min(99, parseInt(req.body.quantity) || 1));
@@ -3457,18 +3467,19 @@ router.post('/:playerId/artisan-shop/buy', requireAuth, async (req, res, next) =
 
 // POST /api/player/:playerId/artisan-shop/sell
 // body: { itemId, quantity?, enchantLevel? }  — vende ítems del inventario a precio fijo por rareza
-router.post('/:playerId/artisan-shop/sell', requireAuth, async (req, res, next) => {
+router.post('/:playerId/artisan-shop/sell', requireAuth, requireNear('artesanos'), async (req, res, next) => {
   const { playerId } = req.params;
   const { itemId, enchantLevel = 0 } = req.body;
   const qty = Math.max(1, Math.min(99, parseInt(req.body.quantity) || 1));
 
   if (!itemId) return res.status(400).json({ error: 'itemId es requerido' });
   try {
-    const itemRow = await db.query('SELECT id, name, rarity, item_type FROM items WHERE id = $1', [itemId]);
-    if (!itemRow.rows.length) return res.status(404).json({ error: 'Ítem no encontrado' });
+    const itemRow = await npcSell.itemForSale(itemId);
+    if (!itemRow) return res.status(404).json({ error: 'Ítem no encontrado' });
 
-    const { name, rarity, item_type } = itemRow.rows[0];
-    const sellPrice = SELL_BY_RARITY[rarity];
+    const { name, item_type } = itemRow;
+    // precio fijo por rareza, pero nunca más de la mitad de lo que cuesta en una tienda de oro
+    const sellPrice = npcSell.artisanPrice(itemRow);
     if (!sellPrice) return res.status(400).json({ error: 'Este ítem no se puede vender' });
 
     const have = await inventory.getQuantity(playerId, itemId, enchantLevel);

@@ -408,4 +408,12 @@ router.get('/class-stats', async (req, res, next) => {
   } catch (error) { next(error); }
 });
 
+// GET /api/admin/economia?dias=14 — oro en circulación, entradas/salidas por día (ver lib/economia.js)
+router.get('/economia', async (req, res, next) => {
+  try {
+    const dias = Math.max(1, Math.min(90, Number(req.query.dias) || 14));
+    res.json(await require('../lib/economia').report(dias));
+  } catch (error) { next(error); }
+});
+
 module.exports = router;

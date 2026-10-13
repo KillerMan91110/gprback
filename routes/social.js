@@ -4,6 +4,8 @@ const db = require('../db/db');
 const inventory = require('../lib/inventory');
 const { spendCurrency } = require('../lib/currency');
 const { requireAuth, requireSelf } = require('../lib/auth');
+const correo = require('../lib/correo');
+const { lejosDe, SERVICIOS } = require('../lib/cercania');
 
 router.use(requireAuth);
 router.use(requireSelf);
@@ -204,10 +206,12 @@ router.get('/messages/unread-count', async (req, res, next) => {
 router.get('/messages/inbox', async (req, res, next) => {
   const { playerId } = req.params;
   try {
+    await correo.ensureTables();
     const result = await db.query(
       `SELECT pm.id, pm.subject, pm.body, pm.read, pm.gold_amount, pm.gold_claimed,
               pm.created_at, pm.expires_at,
-              p.id AS sender_id, p.nickname AS sender_nickname,
+              p.id AS sender_id, COALESCE(p.nickname, pm.sender_name, 'Correo del Reino') AS sender_nickname,
+              (pm.sender_id IS NULL) AS from_system,
               EXISTS (
                 SELECT 1 FROM player_message_items pmi WHERE pmi.message_id = pm.id AND pmi.claimed = FALSE
               ) AS has_unclaimed_items
@@ -271,7 +275,7 @@ router.get('/messages/:messageId', async (req, res, next) => {
   const { playerId, messageId } = req.params;
   try {
     const result = await db.query(
-      `SELECT pm.*, p.nickname AS sender_nickname
+      `SELECT pm.*, COALESCE(p.nickname, pm.sender_name, 'Correo del Reino') AS sender_nickname
        FROM player_messages pm
        LEFT JOIN players p ON p.id = pm.sender_id
        WHERE pm.id = $1
@@ -283,10 +287,13 @@ router.get('/messages/:messageId', async (req, res, next) => {
     const msg = result.rows[0];
 
     const items = await db.query(
-      `SELECT pmi.id, pmi.item_id, i.name AS item_name, i.rarity, pmi.quantity,
+      `SELECT pmi.id, pmi.item_id, pmi.monster_id,
+              COALESCE(i.name, 'Carta de ' || m.name) AS item_name, i.rarity, i.item_type, i.slot,
+              m.rarity AS card_rarity, m.code AS card_code, pmi.quantity,
               pmi.enchant_level, pmi.quality_tier, pmi.claimed
        FROM player_message_items pmi
-       JOIN items i ON i.id = pmi.item_id
+       LEFT JOIN items i ON i.id = pmi.item_id
+       LEFT JOIN monsters m ON m.id = pmi.monster_id
        WHERE pmi.message_id = $1`,
       [messageId]
     );
@@ -300,72 +307,93 @@ router.get('/messages/:messageId', async (req, res, next) => {
 });
 
 // POST /api/player/:playerId/messages
-// Enviar mensaje. body: { receiverId, subject, body, goldAmount?, items?: [{itemId, quantity, enchantLevel?, qualityTier?}] }
-// Solo entre amigos. El oro e items se descuentan del remitente al enviar.
+// Enviar carta. body: { receiverId | receiverName, subject, body, goldAmount?,
+//   items?: [{itemId, quantity, enchantLevel?, qualityTier?}], cards?: [{monsterId, quantity}] }
+// Solo texto a un amigo: desde cualquier lado y gratis. Con oro/objetos/cartas, o a alguien que no
+// es tu amigo: desde un buzón y pagando el franqueo (ver lib/correo.js).
 router.post('/messages', async (req, res, next) => {
   const { playerId } = req.params;
-  const { receiverId, subject = '', body = '', goldAmount = 0, items = [] } = req.body;
-  if (!receiverId) return res.status(400).json({ error: 'Falta receiverId' });
-  if (Number(receiverId) === Number(playerId)) return res.status(400).json({ error: 'No puedes enviarte mensajes a ti mismo' });
-  if (!subject.trim() && !body.trim() && goldAmount <= 0 && items.length === 0) {
-    return res.status(400).json({ error: 'El mensaje no puede estar vacío' });
-  }
+  const { receiverId, receiverName, subject = '', body = '', goldAmount = 0, items = [], cards = [] } = req.body;
   try {
-    // Verificar amistad
-    const friendship = await friendshipRow(playerId, receiverId);
-    if (!friendship.rows.length || friendship.rows[0].status !== 'ACCEPTED') {
-      return res.status(403).json({ error: 'Solo puedes enviar mensajes a tus amigos' });
+    await correo.ensureTables();
+    let toId = Number(receiverId) || null;
+    if (!toId && receiverName) {
+      const r = await db.query('SELECT id FROM players WHERE lower(nickname) = lower($1)', [String(receiverName).trim()]);
+      toId = r.rows[0]?.id ?? null;
     }
+    if (!toId) return res.status(404).json({ error: 'No hay ningún aventurero con ese nombre' });
+    if (toId === Number(playerId)) return res.status(400).json({ error: 'No puedes enviarte cartas a ti mismo' });
 
-    // Verificar y descontar oro
     const gold = Math.floor(Number(goldAmount) || 0);
     if (gold < 0) return res.status(400).json({ error: 'El oro no puede ser negativo' });
-    if (gold > 0) {
-      const playerRes = await db.query('SELECT gold FROM players WHERE id = $1', [playerId]);
-      if (playerRes.rows[0].gold < gold) return res.status(400).json({ error: 'No tienes suficiente oro' });
+    if (!Array.isArray(items) || !Array.isArray(cards)) return res.status(400).json({ error: 'Adjuntos inválidos' });
+    if (items.length + cards.length > correo.MAX_ADJUNTOS) return res.status(400).json({ error: `Puedes adjuntar hasta ${correo.MAX_ADJUNTOS} cosas` });
+    const hasAttach = gold > 0 || items.length > 0 || cards.length > 0;
+    if (!String(subject).trim() && !String(body).trim() && !hasAttach) {
+      return res.status(400).json({ error: 'La carta no puede estar vacía' });
     }
 
-    // Verificar items adjuntos
+    const friendship = await friendshipRow(playerId, toId);
+    const friends = friendship.rows.length && friendship.rows[0].status === 'ACCEPTED';
+    const postal = hasAttach || !friends;
+    if (postal) {
+      const msg = lejosDe(playerId, SERVICIOS.correo.lugares, SERVICIOS.correo.nombre);
+      if (msg) return res.status(403).json({ error: hasAttach ? `Para mandar cosas: ${msg}` : `Solo puedes escribir a tus amigos desde cualquier lado. ${msg}`, lejos: true });
+    }
+    const fee = postal ? correo.postage(gold) : 0;
+
+    // adjuntos: mismo tier que el que se descuenta, sin repetir (antes se duplicaban objetos)
+    const seen = new Set();
+    const list = [];
     for (const it of items) {
-      const qty = await inventory.getQuantity(playerId, it.itemId, it.enchantLevel || 0, it.qualityTier ?? null);
-      if (qty < (it.quantity || 1)) {
-        const itemRes = await db.query('SELECT name FROM items WHERE id = $1', [it.itemId]);
-        return res.status(400).json({ error: `No tienes suficientes ${itemRes.rows[0]?.name || 'items'}` });
+      const e = { itemId: Number(it.itemId), quantity: Math.floor(Number(it.quantity) || 1), enchantLevel: Number(it.enchantLevel) || 0, qualityTier: Number(it.qualityTier) || 0 };
+      const key = `${e.itemId}:${e.enchantLevel}:${e.qualityTier}`;
+      if (!e.itemId || e.quantity <= 0 || seen.has(key)) return res.status(400).json({ error: 'Adjunto inválido o repetido' });
+      seen.add(key);
+      const have = await inventory.getQuantity(playerId, e.itemId, e.enchantLevel, e.qualityTier);
+      if (have < e.quantity) {
+        const itemRes = await db.query('SELECT name FROM items WHERE id = $1', [e.itemId]);
+        return res.status(400).json({ error: `No tienes suficientes ${itemRes.rows[0]?.name || 'objetos'}` });
       }
+      list.push(e);
+    }
+    for (const c of cards) {
+      const e = { kind: 'card', monsterId: Number(c.monsterId), quantity: Math.floor(Number(c.quantity) || 1) };
+      if (!e.monsterId || e.quantity <= 0 || seen.has(`c:${e.monsterId}`)) return res.status(400).json({ error: 'Carta inválida o repetida' });
+      seen.add(`c:${e.monsterId}`);
+      list.push(e);
     }
 
-    // Descontar oro/items y crear el mensaje con lo adjunto en una sola transaccion -- antes,
-    // si la creacion del mensaje fallaba a mitad de camino, el remitente perdia el oro/items sin
-    // que se haya mandado nada.
+    // Descontar todo y crear la carta en una sola transacción
     const client = await db.pool.connect();
     let messageId;
     try {
       await client.query('BEGIN');
-
-      if (gold > 0 && (await spendCurrency(playerId, 'gold', gold, client)) === null) {
+      if (gold + fee > 0 && (await spendCurrency(playerId, 'gold', gold + fee, client)) === null) {
         await client.query('ROLLBACK');
-        return res.status(400).json({ error: 'No tienes suficiente oro' });
+        return res.status(400).json({ error: fee ? `No te alcanza el oro (el franqueo cuesta ${fee})` : 'No tienes suficiente oro' });
       }
-
-      for (const it of items) {
-        await inventory.removeItem(playerId, it.itemId, it.quantity || 1, it.enchantLevel || 0, it.qualityTier ?? 0, client);
+      for (const e of list) {
+        if (e.kind === 'card') {
+          const took = await client.query(
+            'UPDATE player_cards SET quantity = quantity - $3 WHERE player_id = $1 AND monster_id = $2 AND quantity >= $3 RETURNING quantity',
+            [playerId, e.monsterId, e.quantity]
+          );
+          if (!took.rows.length) {
+            await client.query('ROLLBACK');
+            return res.status(400).json({ error: 'No tienes tantas copias de esa carta en el álbum' });
+          }
+        } else {
+          await inventory.removeItem(playerId, e.itemId, e.quantity, e.enchantLevel, e.qualityTier, client);
+        }
       }
-
       const msgRes = await client.query(
-        `INSERT INTO player_messages (sender_id, receiver_id, subject, body, gold_amount)
-         VALUES ($1, $2, $3, $4, $5) RETURNING id`,
-        [playerId, receiverId, subject.trim(), body.trim(), gold]
+        `INSERT INTO player_messages (sender_id, receiver_id, subject, body, gold_amount, expires_at)
+         VALUES ($1, $2, $3, $4, $5, now() + make_interval(days => $6)) RETURNING id`,
+        [playerId, toId, String(subject).trim().slice(0, 80), String(body).trim().slice(0, 1000), gold, hasAttach ? correo.DIAS : 10]
       );
       messageId = msgRes.rows[0].id;
-
-      for (const it of items) {
-        await client.query(
-          `INSERT INTO player_message_items (message_id, item_id, quantity, enchant_level, quality_tier)
-           VALUES ($1, $2, $3, $4, $5)`,
-          [messageId, it.itemId, it.quantity || 1, it.enchantLevel || 0, it.qualityTier ?? 0]
-        );
-      }
-
+      await correo.attach(client, messageId, list);
       await client.query('COMMIT');
     } catch (e) {
       await client.query('ROLLBACK');
@@ -374,58 +402,40 @@ router.post('/messages', async (req, res, next) => {
       client.release();
     }
 
-    res.status(201).json({ message: 'Mensaje enviado', messageId });
+    const me = await db.query('SELECT nickname FROM players WHERE id = $1', [playerId]);
+    req.app.get('io')?.to(`player:${toId}`).emit('mail:new', { from: me.rows[0]?.nickname, attach: hasAttach });
+    res.status(201).json({ message: fee ? `Carta enviada (franqueo: ${fee} de oro)` : 'Carta enviada', messageId, fee });
   } catch (error) { next(error); }
 });
 
 // POST /api/player/:playerId/messages/:messageId/claim
-// Reclamar oro e items del mensaje. Solo el receptor puede reclamar.
+// Recoger el oro, los objetos y las cartas de una carta. Solo el destinatario y en un buzón.
 router.post('/messages/:messageId/claim', async (req, res, next) => {
   const { playerId, messageId } = req.params;
   try {
+    await correo.ensureTables();
     const msgRes = await db.query(
-      `SELECT * FROM player_messages WHERE id = $1 AND receiver_id = $2 AND expires_at > now()`,
+      `SELECT id FROM player_messages WHERE id = $1 AND receiver_id = $2 AND expires_at > now()`,
       [messageId, playerId]
     );
-    if (!msgRes.rows.length) return res.status(404).json({ error: 'Mensaje no encontrado o expirado' });
-    const msg = msgRes.rows[0];
+    if (!msgRes.rows.length) return res.status(404).json({ error: 'Carta no encontrada o vencida' });
+    const lejos = lejosDe(playerId, SERVICIOS.correo.lugares, SERVICIOS.correo.nombre);
+    if (lejos) return res.status(403).json({ error: `Lo adjunto se recoge en un buzón. ${lejos}`, lejos: true });
 
-    const claimed = [];
-
-    // Reclamar oro: UPDATE atomico con guard sobre gold_claimed en vez de leer-y-despues-escribir
-    // -- dos clicks casi simultaneos ya no pueden reclamar el mismo oro dos veces, porque el
-    // segundo UPDATE no encuentra ninguna fila con gold_claimed=FALSE para tocar.
-    if (msg.gold_amount > 0) {
-      const goldClaim = await db.query(
-        'UPDATE player_messages SET gold_claimed = TRUE WHERE id = $1 AND gold_claimed = FALSE RETURNING gold_amount',
-        [messageId]
-      );
-      if (goldClaim.rows.length) {
-        await db.query('UPDATE players SET gold = gold + $1 WHERE id = $2', [goldClaim.rows[0].gold_amount, playerId]);
-        claimed.push(`${goldClaim.rows[0].gold_amount} oro`);
-      }
+    const client = await db.pool.connect();
+    let claimed;
+    try {
+      await client.query('BEGIN');
+      claimed = await correo.claimInto(client, messageId, Number(playerId));
+      await client.query('COMMIT');
+    } catch (e) {
+      await client.query('ROLLBACK');
+      throw e;
+    } finally {
+      client.release();
     }
-
-    // Reclamar items no reclamados: mismo criterio, un UPDATE atomico por fila antes de otorgar
-    // el item -- si dos requests llegan a la vez, solo uno gana la fila.
-    const unclaimedItems = await db.query(
-      `SELECT * FROM player_message_items WHERE message_id = $1 AND claimed = FALSE`,
-      [messageId]
-    );
-    for (const it of unclaimedItems.rows) {
-      const itemClaim = await db.query(
-        'UPDATE player_message_items SET claimed = TRUE WHERE id = $1 AND claimed = FALSE RETURNING id',
-        [it.id]
-      );
-      if (!itemClaim.rows.length) continue;
-      await inventory.addItem(playerId, it.item_id, it.quantity, it.enchant_level, it.quality_tier);
-      const itemRes = await db.query('SELECT name FROM items WHERE id = $1', [it.item_id]);
-      claimed.push(`${it.quantity}x ${itemRes.rows[0]?.name}`);
-    }
-
-    if (claimed.length === 0) return res.status(400).json({ error: 'No hay nada para reclamar' });
-
-    res.json({ message: `Reclamaste: ${claimed.join(', ')}`, claimed });
+    if (claimed.length === 0) return res.status(400).json({ error: 'No hay nada para recoger' });
+    res.json({ message: `Recogiste: ${claimed.join(', ')}`, claimed });
   } catch (error) { next(error); }
 });
 

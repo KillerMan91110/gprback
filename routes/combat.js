@@ -16,6 +16,7 @@ const mythic = require('../lib/mythic');
 const huntRewards = require('../lib/huntRewards');
 const { requireAuth } = require('../lib/auth');
 const { applyGuildXp, getGuildLevelsForPlayers, combatBonusMultipliers } = require('../lib/guilds');
+const { positionOf } = require('../lib/worldPresence');
 const pets = require('../lib/pets');
 const { incrementCounter, markCounterCodeSeen, getCounter } = require('../lib/counters');
 const { applyInnateTrigger, applyLiveInnateModifiers, getInnateForClass, getSkillModifier, getTargetDamageBonus } = require('../lib/innates');
@@ -86,11 +87,20 @@ const DEFAULT_PLAYER_EVASION = 0;
 
 // ---------- Helpers de carga/persistencia ----------
 
+// ¿le queda a este jugador algún personaje en pie (su héroe o sus contratados) en esa sesión?
+// Un jugador con todo caído en un combate de grupo que sigue no cuenta como "en combate": puede
+// volver a su refugio y entrar en otra pelea mientras su grupo termina la suya.
+const STANDING_SQL = `EXISTS (
+  SELECT 1 FROM combat_participants alive
+  WHERE alive.session_id = cs.id AND alive.hp > 0
+    AND (alive.player_id = $1 OR alive.owner_player_id = $1)
+)`;
+
 async function hasAbandonedActiveSession(playerId) {
   const res = await db.query(
     `SELECT 1 FROM combat_abandoned_players cap
      JOIN combat_sessions cs ON cs.id = cap.session_id
-     WHERE cap.player_id = $1 AND cs.status = 'IN_PROGRESS'
+     WHERE cap.player_id = $1 AND cs.status = 'IN_PROGRESS' AND ${STANDING_SQL}
      LIMIT 1`,
     [playerId]
   );
@@ -104,7 +114,7 @@ async function hasActiveCombatSession(playerId) {
   const res = await db.query(
     `SELECT 1 FROM combat_participants cp
      JOIN combat_sessions cs ON cs.id = cp.session_id
-     WHERE cp.player_id = $1 AND cs.status = 'IN_PROGRESS'
+     WHERE cp.player_id = $1 AND cs.status = 'IN_PROGRESS' AND ${STANDING_SQL}
      LIMIT 1`,
     [playerId]
   );
@@ -327,6 +337,56 @@ async function hydrateMonsters(monsterSpecs) {
 
   return combatants;
 }
+
+// Máximo de personajes por lado en un combate: 3 jugadores, 1 jugador y sus 2 compañeros, o 2
+// jugadores y un compañero.
+const COMBAT_SIDE_MAX = 3;
+
+// Mundo 2D: compañeros de grupo que entran a tu combate: están en el mundo, en tu zona, a menos
+// de WORLD_GROUP_PX (unos 3 metros = 3 casillas, como si estuvieran a tu lado) y sin otro combate
+// en curso. Da igual cómo empezó: hierba alta o un monstruo que deambula por el área.
+const WORLD_GROUP_PX = 3 * 32 + 16;
+async function worldGroupPartners(playerId, left = []) {
+  const me = positionOf(playerId);
+  if (!me) return [];
+  const g = await db.query(
+    `SELECT gm2.player_id FROM player_coop_group_members gm
+     JOIN player_coop_group_members gm2 ON gm2.group_id = gm.group_id AND gm2.player_id <> gm.player_id
+     WHERE gm.player_id = $1`,
+    [playerId]
+  );
+  const out = [];
+  for (const { player_id: pid } of g.rows) {
+    const p = positionOf(pid);
+    // los que se quedan afuera reciben un aviso (lejos, en otra zona o ya peleando)
+    if (!p || p.zone !== me.zone || Math.hypot(p.x - me.x, p.y - me.y) > WORLD_GROUP_PX) { left.push({ pid, why: 'lejos' }); continue; }
+    // sigue dentro de otra pelea abierta (peleando, o caído mirando cómo termina): no se lo suma.
+    // Si ya se fue de ella (salir caído), está libre.
+    const busy = await db.query(
+      `SELECT 1 FROM combat_participants cp JOIN combat_sessions cs ON cs.id = cp.session_id
+       WHERE cp.player_id = $1 AND cs.status = 'IN_PROGRESS'
+         AND NOT EXISTS (SELECT 1 FROM combat_abandoned_players cap WHERE cap.session_id = cs.id AND cap.player_id = $1)
+       LIMIT 1`,
+      [pid]
+    );
+    if (busy.rows.length || await hasAbandonedActiveSession(pid)) { left.push({ pid, why: 'ocupado' }); continue; }
+    out.push(pid);
+  }
+  return out.slice(0, 2);
+}
+
+// avisa a los del grupo que no entraron al combate (estaban lejos u ocupados)
+async function notifyLeftOut(req, leftOut) {
+  if (!leftOut?.length) return;
+  const io = req.app.get('io');
+  const who = await db.query('SELECT nickname FROM players WHERE id = $1', [req.playerId]);
+  for (const { pid, why } of leftOut) {
+    io?.to(`player:${pid}`).emit('coop:battle-missed', { leaderName: who.rows[0]?.nickname, why });
+  }
+}
+
+// co-op: tras cuánto tiempo sin actuar se puede saltar el turno de un compañero (se defiende)
+const IDLE_TURN_MS = 30 * 1000;
 
 function emitCombatUpdate(req, sessionId, state) {
   req.app.get('io')?.to(`combat:${sessionId}`).emit('combat:update', state);
@@ -2476,6 +2536,17 @@ async function getElementCodes() {
   return elementCodesCache;
 }
 
+// código de la clase base (GUERRERO, MAGO...) de una clase cualquiera; se guarda en memoria
+const baseClassCache = new Map();
+async function baseClassCode(classId) {
+  if (!baseClassCache.has(classId)) {
+    const chain = await getClassAncestorChain(classId);
+    const r = await db.query('SELECT code FROM classes WHERE id = $1', [chain[0] ?? classId]);
+    baseClassCache.set(classId, r.rows[0]?.code ?? null);
+  }
+  return baseClassCache.get(classId);
+}
+
 async function fetchSessionState(sessionId) {
   const sessionResult = await db.query('SELECT * FROM combat_sessions WHERE id = $1', [sessionId]);
   if (!sessionResult.rows.length) return null;
@@ -2485,6 +2556,11 @@ async function fetchSessionState(sessionId) {
     db.query('SELECT player_id FROM combat_abandoned_players WHERE session_id = $1', [sessionId]),
   ]);
   const abandonedIds = abandonedRes.rows.map((r) => r.player_id);
+  // clase base de cada personaje del grupo (las evoluciones usan el sprite de su clase base):
+  // en un combate en grupo cada uno ve al otro con su sprite real, no con el propio
+  for (const p of participants.player) {
+    if (p.class_id) p.base_class_code = await baseClassCode(p.class_id);
+  }
 
   const logResult = await db.query(
     `SELECT cl.id, cl.round, cl.action, cl.damage, cl.heal, cl.evaded, cl.crit, cl.success, cl.description,
@@ -2610,9 +2686,14 @@ router.post('/zones/:zoneId/explore', async (req, res, next) => {
     }
 
     // ─── Co-op: cargar combatientes de hasta 2 compañeros si vienen coopPartnerIds ───
-    const coopPartnerIds = Array.isArray(req.body?.coopPartnerIds)
-      ? [...new Set(req.body.coopPartnerIds.map(Number))].filter((id) => id !== req.playerId)
-      : [];
+    // Mundo 2D (worldGroup): los elige el servidor: los de tu grupo que están cerca en el mapa
+    // y libres. Si no hay ninguno, el combate es solo tuyo, como siempre.
+    const leftOut = [];
+    const coopPartnerIds = req.body?.worldGroup === true
+      ? await worldGroupPartners(req.playerId, leftOut)
+      : Array.isArray(req.body?.coopPartnerIds)
+        ? [...new Set(req.body.coopPartnerIds.map(Number))].filter((id) => id !== req.playerId)
+        : [];
 
     const formationResult = await db.query(
       `SELECT p.level AS hero_level,
@@ -2710,20 +2791,24 @@ router.post('/zones/:zoneId/explore', async (req, res, next) => {
       return res.status(400).json({ error: 'No hay monstruos disponibles en esta zona para tu nivel' });
     }
 
-    // Cantidad de monstruos según rareza y tamaño de formación
+    // Cantidad de monstruos según rareza y tamaño de formación. En grupo cuenta el lado completo
+    // (jugadores + el compañero que entra), que nunca pasa de COMBAT_SIDE_MAX.
     const actualRarity = lead ? lead.rarity : eligible.rows[0].rarity;
+    const sideSize = coopPartnerIds.length ? Math.min(COMBAT_SIDE_MAX, formationSize + coopPartnerIds.length) : formationSize;
     let monsterCount;
     if (actualRarity === 'LEGENDARY' || actualRarity === 'MINIBOSS') {
       monsterCount = 1;
     } else if (actualRarity === 'RARE') {
-      monsterCount = formationSize === 1 ? 1 : Math.floor(Math.random() * 2) + 1;
+      monsterCount = sideSize === 1 ? 1 : Math.floor(Math.random() * 2) + 1;
     } else {
-      const maxCount = formationSize === 1 ? 2 : 3;
+      const maxCount = sideSize === 1 ? 2 : 3;
       monsterCount = Math.floor(Math.random() * maxCount) + 1;
     }
 
     // Elige monstruos aleatorios con nivel dentro del rango válido
     const monsterSpecs = [];
+    // nunca más de COMBAT_SIDE_MAX enemigos, pase lo que pase con las reglas de arriba
+    monsterCount = Math.min(monsterCount, COMBAT_SIDE_MAX);
     for (let i = 0; i < monsterCount; i++) {
       const pool = eligible.rows.length ? eligible.rows : [lead];
       const m = i === 0 && lead ? lead : pool[Math.floor(Math.random() * pool.length)];
@@ -2765,14 +2850,21 @@ router.post('/zones/:zoneId/explore', async (req, res, next) => {
         return res.status(403).json({ error: 'No estás en el mismo grupo co-op que esos jugadores' });
       }
 
+      // Como mucho COMBAT_SIDE_MAX personajes por lado: primero los jugadores y, en los puestos
+      // que sobren, el compañero del primer puesto del líder del grupo; si no tiene (o está
+      // caído), el del primer puesto del siguiente miembro.
+      const leaderRes = await db.query('SELECT leader_id FROM player_coop_groups WHERE id = $1', [groupCheck.rows[0].group_id]);
+      const leaderId = leaderRes.rows[0]?.leader_id;
+      const npcOrder = [...allPlayerIds].sort((a, b) => Number(b === leaderId) - Number(a === leaderId));
       const [allCombatants, enemyCombatants, ...npcLists] = await Promise.all([
         hydratePlayers(allPlayerIds),
         hydrateMonsters(monsterSpecs),
-        ...allPlayerIds.map((id) => hydratePartyNpcs(id, id, 1)),
+        ...npcOrder.map((id) => hydratePartyNpcs(id, id, 1)),
       ]);
 
       const aliveCombatants = allCombatants.filter((p) => p.hp > 0);
-      const aliveNpcs = npcLists.flat().filter((n) => n.hp > 0);
+      const freeSlots = Math.max(0, COMBAT_SIDE_MAX - aliveCombatants.length);
+      const aliveNpcs = npcLists.flat().filter((n) => n.hp > 0).slice(0, freeSlots);
 
       if (!aliveCombatants.length && !aliveNpcs.length) {
         return res.status(400).json({ error: 'Toda la formación está derrotada.' });
@@ -2792,6 +2884,15 @@ router.post('/zones/:zoneId/explore', async (req, res, next) => {
       await advanceEnemyTurns(sessionId);
       const state = await fetchSessionState(sessionId);
       emitCombatUpdate(req, sessionId, state);
+      await notifyLeftOut(req, leftOut);
+      // los compañeros del mundo entran al mismo combate al instante
+      if (req.body?.worldGroup === true) {
+        const who = await db.query('SELECT nickname FROM players WHERE id = $1', [req.playerId]);
+        const io = req.app.get('io');
+        for (const pid of coopPartnerIds) {
+          io?.to(`player:${pid}`).emit('coop:battle', { sessionId, zoneId: zone.id, leaderId: req.playerId, leaderName: who.rows[0]?.nickname });
+        }
+      }
       return res.status(201).json({ ...state, coopPartnerIds });
     }
 
@@ -2820,6 +2921,7 @@ router.post('/zones/:zoneId/explore', async (req, res, next) => {
 
     const state = await fetchSessionState(sessionId);
     emitCombatUpdate(req, sessionId, state);
+    await notifyLeftOut(req, leftOut);
     res.status(201).json(state);
   } catch (err) {
     if (err.isActiveCombatConflict) return res.status(400).json({ error: err.message });
@@ -2890,6 +2992,48 @@ router.post('/sessions', async (req, res, next) => {
 });
 
 // GET /api/combat/sessions/active — sesión ACTIVE del jugador autenticado, si existe
+// POST /api/combat/sessions/:id/leave-fallen — caíste en un combate de grupo que sigue: sales de
+// él sin castigo (no es abandonar a tus compañeros: ya no te quedaba nadie en pie). Quedas caído
+// para despertar en tu refugio (POST /world/revivir) y no cobras lo que gane el grupo después.
+router.post('/sessions/:id/leave-fallen', async (req, res, next) => {
+  const sessionId = Number(req.params.id);
+  try {
+    const sess = await db.query(
+      `SELECT cs.status FROM combat_sessions cs
+       JOIN combat_participants cp ON cp.session_id = cs.id AND cp.player_id = $2
+       WHERE cs.id = $1`,
+      [sessionId, req.playerId]
+    );
+    if (!sess.rows.length) return res.status(404).json({ error: 'No estás en ese combate' });
+    if (sess.rows[0].status !== 'IN_PROGRESS') return res.json({ left: false, ended: true });
+    const mine = await db.query(
+      `SELECT player_id, npc_id, hp, mana FROM combat_participants
+       WHERE session_id = $1 AND (player_id = $2 OR owner_player_id = $2)`,
+      [sessionId, req.playerId]
+    );
+    if (mine.rows.some((p) => p.hp > 0)) {
+      return res.status(400).json({ error: 'Todavía tienes personajes en pie en este combate' });
+    }
+    await db.query(
+      `INSERT INTO combat_abandoned_players(session_id, player_id, penalized) VALUES ($1, $2, FALSE)
+       ON CONFLICT DO NOTHING`,
+      [sessionId, req.playerId]
+    );
+    await db.query('DELETE FROM player_active_combat_session WHERE player_id = $1 AND session_id = $2', [req.playerId, sessionId]);
+    // queda caído como si la pelea hubiera terminado para él (el refugio lo levanta)
+    for (const p of mine.rows) {
+      if (p.player_id) {
+        await db.query('UPDATE players SET hp = 0, mana = $1, combat_losses = combat_losses + 1, updated_at = now() WHERE id = $2', [p.mana, p.player_id]);
+      } else if (p.npc_id) {
+        await db.query('UPDATE player_npcs SET hp = 0, mana = $1 WHERE id = $2', [p.mana, p.npc_id]);
+      }
+    }
+    res.json({ left: true });
+  } catch (error) {
+    next(error);
+  }
+});
+
 router.get('/sessions/active', async (req, res, next) => {
   try {
     const result = await db.query(
@@ -2995,11 +3139,27 @@ router.post('/sessions/:id/action', async (req, res, next) => {
     if (!actor || !expectedActor || actor.id !== expectedActor.id) {
       return res.status(400).json({ error: 'No es el turno de ese personaje' });
     }
-    if (actor.player_id !== null && actor.player_id !== req.playerId) {
+    const ajeno = (actor.player_id !== null && actor.player_id !== req.playerId)
+      || (actor.player_id === null && actor.owner_player_id !== null && actor.owner_player_id !== req.playerId);
+    // Co-op en el mundo: si un compañero no responde, otro jugador del combate puede saltar su
+    // turno (se defiende solo) cuando ya pasaron IDLE_TURN_MS desde la última acción. Así una
+    // pelea en grupo no se traba porque alguien se fue a hacer otra cosa.
+    let saltaTurno = false;
+    if (ajeno && req.body?.skipIdle === true && action === 'DEFEND') {
+      const enSesion = participants.player.some((p) => p.player_id === req.playerId);
+      const last = await db.query('SELECT MAX(created_at) AS at FROM combat_log WHERE session_id = $1', [sessionId]);
+      const since = new Date(last.rows[0]?.at ?? session.created_at).getTime();
+      if (!enSesion) return res.status(403).json({ error: 'No estás en este combate' });
+      if (Date.now() - since < IDLE_TURN_MS) {
+        return res.status(400).json({ error: 'Dale unos segundos más a tu compañero' });
+      }
+      saltaTurno = true;
+    }
+    if (!saltaTurno && actor.player_id !== null && actor.player_id !== req.playerId) {
       return res.status(403).json({ error: 'No puedes actuar por un personaje que no es tuyo' });
     }
     // Co-op: en sesiones con dos jugadores, el NPC pertenece a uno solo.
-    if (actor.player_id === null && actor.owner_player_id !== null && actor.owner_player_id !== req.playerId) {
+    if (!saltaTurno && actor.player_id === null && actor.owner_player_id !== null && actor.owner_player_id !== req.playerId) {
       return res.status(403).json({ error: 'Ese NPC pertenece a tu compañero' });
     }
 
@@ -3011,7 +3171,7 @@ router.post('/sessions/:id/action', async (req, res, next) => {
       if (combat.isWiped(refreshed.enemy)) {
         const rewards = await finalizeSession(sessionId, 'PLAYER_WON', refreshed);
         const state = await fetchSessionState(sessionId);
-        emitCombatUpdate(req, sessionId, state);
+        emitCombatUpdate(req, sessionId, { ...state, rewards });
         return res.json({ ...state, rewards });
       }
       if (combat.isWiped(refreshed.player)) {
@@ -3868,9 +4028,8 @@ router.post('/sessions/:id/action', async (req, res, next) => {
       }
       logEntry = { actorId: actor.id, action, description: `${actor.name} se pone en guardia.${defendDescExtra}`, mana_after: actor.mana };
     } else if (action === 'ESCAPE') {
-      if (!actor.player_id) {
-        return res.status(400).json({ error: 'Solo el héroe puede intentar escapar' });
-      }
+      // cualquier personaje tuyo (héroe o compañero contratado) puede intentar que el grupo huya;
+      // antes solo el héroe, y en el turno de un compañero el botón Huir no hacía nada
       const petEscapeBonus = actorPetBonuses ? actorPetBonuses.escape_bonus : 0;
       const chance = Math.min(90, combat.escapeChance(actor, participants.enemy) + petEscapeBonus);
       const success = Math.random() * 100 < chance;
@@ -3886,7 +4045,7 @@ router.post('/sessions/:id/action', async (req, res, next) => {
         });
         const rewards = await finalizeSession(sessionId, 'ESCAPED', participants);
         const state = await fetchSessionState(sessionId);
-        emitCombatUpdate(req, sessionId, state);
+        emitCombatUpdate(req, sessionId, { ...state, rewards });
         return res.json({ ...state, rewards });
       }
 
@@ -4014,7 +4173,7 @@ router.post('/sessions/:id/action', async (req, res, next) => {
     if (combat.isWiped(refreshed.enemy)) {
       const rewards = await finalizeSession(sessionId, 'PLAYER_WON', refreshed);
       const state = await fetchSessionState(sessionId);
-      emitCombatUpdate(req, sessionId, state);
+      emitCombatUpdate(req, sessionId, { ...state, rewards });
       return res.json({ ...state, rewards });
     }
     if (combat.isWiped(refreshed.player)) {

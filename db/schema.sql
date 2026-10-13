@@ -1450,3 +1450,90 @@ CREATE TABLE IF NOT EXISTS player_hearthstones (
   vinculo    TEXT NOT NULL DEFAULT 'aurelia',
   used_at    TIMESTAMPTZ
 );
+
+-- Encargos semanales del gremio (lib/guildContracts.js, que también crea la tabla la primera vez).
+-- code "_bono" marca que ya se pagó el premio por completar los tres de la semana.
+CREATE TABLE IF NOT EXISTS guild_contracts (
+  guild_id  INTEGER NOT NULL REFERENCES guilds(id) ON DELETE CASCADE,
+  week      TEXT    NOT NULL,
+  code      TEXT    NOT NULL,
+  target    INTEGER NOT NULL,
+  progress  INTEGER NOT NULL DEFAULT 0,
+  done_at   TIMESTAMPTZ,
+  PRIMARY KEY (guild_id, week, code)
+);
+-- el registro de actividad acepta los encargos cumplidos (CONTRACT) y el bono de los tres (CONTRACT_ALL)
+ALTER TABLE guild_activity_log DROP CONSTRAINT IF EXISTS guild_activity_log_type_check;
+ALTER TABLE guild_activity_log ADD CONSTRAINT guild_activity_log_type_check CHECK (type IN
+  ('JOIN','LEAVE','KICK','PROMOTE','DEMOTE','TRANSFER','LEVEL_UP','EDIT','DONATION','SHOP_PURCHASE','CONTRACT','CONTRACT_ALL'));
+
+-- Historial del comercio directo entre jugadores (lib/trade.js, que también crea la tabla).
+CREATE TABLE IF NOT EXISTS player_trades (
+  id         SERIAL PRIMARY KEY,
+  player_a   INTEGER REFERENCES players(id) ON DELETE SET NULL,
+  player_b   INTEGER REFERENCES players(id) ON DELETE SET NULL,
+  offer_a    JSONB NOT NULL,
+  offer_b    JSONB NOT NULL,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+-- Materiales que no tenían rareza (no se podían vender a los artesanos): se les asigna una según
+-- el equipo que fabrican. Solo toca los que siguen en NULL.
+UPDATE items SET rarity = 'COMUN' WHERE rarity IS NULL AND code IN ('MINERAL_DE_HIERRO', 'CARBON', 'PIEL', 'POLVO_DE_PIEDRA', 'MADERA_DE_ROBLE', 'CUERO_CRUDO', 'TELA_COMUN', 'GEMA_COMUN', 'HIERBA_CURATIVA', 'AGUA_FRESCA', 'HIERBA_MAGICA');
+UPDATE items SET rarity = 'POCO_COMUN' WHERE rarity IS NULL AND code IN ('ACERO_REFINADO', 'GEMA_DE_PRECISION', 'PLUMA', 'MINERAL_DE_ACERO', 'ORO_ANTIGUO', 'HILO_DE_PLATA', 'FLOR_LUMINOSA', 'POLVO_ARCANO');
+UPDATE items SET rarity = 'RARO' WHERE rarity IS NULL AND code IN ('MINERAL_EPICO', 'GEMA_HELADA', 'CUERO_EPICO', 'ORO_PRIMORDIAL', 'PERLA_MARINA', 'FRAGMENTO_DE_PODER', 'HILO_DE_MITHRIL', 'MIEL_ABEJA_ANTIGUA');
+UPDATE items SET rarity = 'EPICO' WHERE rarity IS NULL AND code IN ('HIERRO_PRIMORDIAL', 'ESENCIA_DE_PODER', 'ALMA_REDIMIDA', 'ORO_PURO', 'ALMA_COSMICA', 'FRAGMENTO_DE_LUZ');
+
+-- Correo del reino (lib/correo.js): remitente del sistema, devolución de lo no recogido y cartas
+-- de monstruo como adjunto
+ALTER TABLE player_messages ADD COLUMN IF NOT EXISTS sender_name TEXT;
+ALTER TABLE player_messages ADD COLUMN IF NOT EXISTS returned BOOLEAN NOT NULL DEFAULT FALSE;
+ALTER TABLE player_message_items ALTER COLUMN item_id DROP NOT NULL;
+ALTER TABLE player_message_items ADD COLUMN IF NOT EXISTS monster_id INTEGER REFERENCES monsters(id);
+
+-- Muñecos de venta (lib/puestos.js)
+CREATE TABLE IF NOT EXISTS player_stalls (
+  id         SERIAL PRIMARY KEY,
+  owner_id   INTEGER NOT NULL REFERENCES players(id) ON DELETE CASCADE,
+  zone       TEXT NOT NULL,
+  x          INTEGER NOT NULL,
+  y          INTEGER NOT NULL,
+  title      TEXT NOT NULL,
+  look       TEXT NOT NULL DEFAULT 'oso',
+  opened_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
+  expires_at TIMESTAMPTZ NOT NULL,
+  closed_at  TIMESTAMPTZ,
+  earned     BIGINT NOT NULL DEFAULT 0
+);
+CREATE UNIQUE INDEX IF NOT EXISTS uq_stall_owner_open ON player_stalls(owner_id) WHERE closed_at IS NULL;
+CREATE TABLE IF NOT EXISTS player_stall_items (
+  id            SERIAL PRIMARY KEY,
+  stall_id      INTEGER NOT NULL REFERENCES player_stalls(id) ON DELETE CASCADE,
+  item_id       INTEGER REFERENCES items(id),
+  monster_id    INTEGER REFERENCES monsters(id),
+  enchant_level INTEGER NOT NULL DEFAULT 0,
+  quality_tier  SMALLINT NOT NULL DEFAULT 0,
+  quantity      INTEGER NOT NULL CHECK (quantity >= 0),
+  sold          INTEGER NOT NULL DEFAULT 0,
+  price         BIGINT NOT NULL CHECK (price > 0)
+);
+CREATE TABLE IF NOT EXISTS player_stall_sales (
+  id         SERIAL PRIMARY KEY,
+  stall_id   INTEGER NOT NULL REFERENCES player_stalls(id) ON DELETE CASCADE,
+  buyer_id   INTEGER REFERENCES players(id) ON DELETE SET NULL,
+  entry_id   INTEGER REFERENCES player_stall_items(id) ON DELETE SET NULL,
+  name       TEXT NOT NULL,
+  quantity   INTEGER NOT NULL,
+  total      BIGINT NOT NULL,
+  fee        BIGINT NOT NULL,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+-- Economía (lib/economia.js): cada cambio de oro de un jugador, para ver cuánto entra y sale por día
+CREATE TABLE IF NOT EXISTS economy_gold_log (
+  id    BIGSERIAL PRIMARY KEY,
+  at    TIMESTAMPTZ NOT NULL DEFAULT now(),
+  delta BIGINT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_economy_gold_log_at ON economy_gold_log(at);
+ALTER TABLE economy_gold_log ADD COLUMN IF NOT EXISTS sistema BOOLEAN NOT NULL DEFAULT FALSE;

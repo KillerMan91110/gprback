@@ -4556,15 +4556,15 @@ VALUES
   ('DAGA_DE_PRECISION_CRAFTEADA', 'Daga de Precisión Crafteada', 'EQUIPMENT', 'WEAPON', FALSE, 'POCO_COMUN', 4, NULL, TRUE, 'Crafteo', 'Versión crafteada de la Daga de Precisión (2x Acero Refinado + 1x Gema de Precisión + 2x Pluma). Sin requisito de nivel.'),
   ('BACULO_DE_LA_ETERNIDAD_CRAFTEADO', 'Báculo de la Eternidad Crafteado', 'EQUIPMENT', 'WEAPON', FALSE, 'LEGENDARIO', 2, NULL, TRUE, 'Crafteo', 'Versión crafteada del Báculo de la Eternidad (5x Cristal Supremo + 3x Oro Puro + 1x Alma Cósmica + 10x Fragmento de Luz). Requiere 100+ horas de grindeo de ingredientes. Sin requisito de nivel.'),
 
-  ('MINERAL_DE_HIERRO', 'Mineral de Hierro', 'MATERIAL', NULL, FALSE, NULL, NULL, NULL, FALSE, NULL, 'Material de crafteo. Ingrediente de la Espada de Hierro Crafteada.'),
-  ('CARBON', 'Carbón', 'MATERIAL', NULL, FALSE, NULL, NULL, NULL, FALSE, NULL, 'Material de crafteo. Ingrediente de la Espada de Hierro Crafteada.'),
-  ('PIEL', 'Piel', 'MATERIAL', NULL, FALSE, NULL, NULL, NULL, FALSE, NULL, 'Material de crafteo. Ingrediente de la Espada de Hierro Crafteada.'),
-  ('ACERO_REFINADO', 'Acero Refinado', 'MATERIAL', NULL, FALSE, NULL, NULL, NULL, FALSE, NULL, 'Material de crafteo. Ingrediente de la Daga de Precisión Crafteada.'),
-  ('GEMA_DE_PRECISION', 'Gema de Precisión', 'MATERIAL', NULL, FALSE, NULL, NULL, NULL, FALSE, NULL, 'Material de crafteo. Ingrediente de la Daga de Precisión Crafteada.'),
-  ('PLUMA', 'Pluma', 'MATERIAL', NULL, FALSE, NULL, NULL, NULL, FALSE, NULL, 'Material de crafteo. Ingrediente de la Daga de Precisión Crafteada.'),
-  ('ORO_PURO', 'Oro Puro', 'MATERIAL', NULL, FALSE, NULL, NULL, NULL, FALSE, NULL, 'Material de crafteo. Ingrediente del Báculo de la Eternidad Crafteado.'),
-  ('ALMA_COSMICA', 'Alma Cósmica', 'MATERIAL', NULL, FALSE, NULL, NULL, NULL, FALSE, NULL, 'Material de crafteo. Ingrediente del Báculo de la Eternidad Crafteado.'),
-  ('FRAGMENTO_DE_LUZ', 'Fragmento de Luz', 'MATERIAL', NULL, FALSE, NULL, NULL, NULL, FALSE, NULL, 'Material de crafteo. Ingrediente del Báculo de la Eternidad Crafteado.'),
+  ('MINERAL_DE_HIERRO', 'Mineral de Hierro', 'MATERIAL', NULL, FALSE, 'COMUN', NULL, NULL, FALSE, NULL, 'Material de crafteo. Ingrediente de la Espada de Hierro Crafteada.'),
+  ('CARBON', 'Carbón', 'MATERIAL', NULL, FALSE, 'COMUN', NULL, NULL, FALSE, NULL, 'Material de crafteo. Ingrediente de la Espada de Hierro Crafteada.'),
+  ('PIEL', 'Piel', 'MATERIAL', NULL, FALSE, 'COMUN', NULL, NULL, FALSE, NULL, 'Material de crafteo. Ingrediente de la Espada de Hierro Crafteada.'),
+  ('ACERO_REFINADO', 'Acero Refinado', 'MATERIAL', NULL, FALSE, 'POCO_COMUN', NULL, NULL, FALSE, NULL, 'Material de crafteo. Ingrediente de la Daga de Precisión Crafteada.'),
+  ('GEMA_DE_PRECISION', 'Gema de Precisión', 'MATERIAL', NULL, FALSE, 'POCO_COMUN', NULL, NULL, FALSE, NULL, 'Material de crafteo. Ingrediente de la Daga de Precisión Crafteada.'),
+  ('PLUMA', 'Pluma', 'MATERIAL', NULL, FALSE, 'POCO_COMUN', NULL, NULL, FALSE, NULL, 'Material de crafteo. Ingrediente de la Daga de Precisión Crafteada.'),
+  ('ORO_PURO', 'Oro Puro', 'MATERIAL', NULL, FALSE, 'EPICO', NULL, NULL, FALSE, NULL, 'Material de crafteo. Ingrediente del Báculo de la Eternidad Crafteado.'),
+  ('ALMA_COSMICA', 'Alma Cósmica', 'MATERIAL', NULL, FALSE, 'EPICO', NULL, NULL, FALSE, NULL, 'Material de crafteo. Ingrediente del Báculo de la Eternidad Crafteado.'),
+  ('FRAGMENTO_DE_LUZ', 'Fragmento de Luz', 'MATERIAL', NULL, FALSE, 'EPICO', NULL, NULL, FALSE, NULL, 'Material de crafteo. Ingrediente del Báculo de la Eternidad Crafteado.'),
 
 -- DROPS DE MONSTRUOS: cada uno de los 63 monstruos suelta su propio material de crafteo
 -- unico (items.item_type = 'MATERIAL'). La rareza del material y su % de drop siguen la
@@ -4644,28 +4644,28 @@ VALUES
 -- SISTEMA DE CRAFTEO (sistema_crafteo_gremios_completo.html): materiales genericos de
 -- recoleccion/mineria que el HTML nombra en sus recetas de ejemplo (no son drop de un
 -- monstruo especifico, a diferencia del bloque anterior).
-  ('MINERAL_DE_ACERO', 'Mineral de Acero', 'MATERIAL', NULL, FALSE, NULL, NULL, NULL, FALSE, 'Minería', 'Material de crafteo. Se obtiene minando en zonas intermedias.'),
-  ('POLVO_DE_PIEDRA', 'Polvo de Piedra', 'MATERIAL', NULL, FALSE, NULL, NULL, NULL, FALSE, 'Minería', 'Material de crafteo. Se obtiene minando.'),
-  ('MADERA_DE_ROBLE', 'Madera de Roble', 'MATERIAL', NULL, FALSE, NULL, NULL, NULL, FALSE, 'Recolección', 'Material de crafteo. Se obtiene recolectando en bosques.'),
-  ('MINERAL_EPICO', 'Mineral Épico', 'MATERIAL', NULL, FALSE, NULL, NULL, NULL, FALSE, 'Minería', 'Material de crafteo raro de minas volcánicas.'),
-  ('HIERRO_PRIMORDIAL', 'Hierro Primordial', 'MATERIAL', NULL, FALSE, NULL, NULL, NULL, FALSE, 'Minería', 'Material de crafteo de altísima pureza usado en equipo épico.'),
-  ('ESENCIA_DE_PODER', 'Esencia de Poder', 'MATERIAL', NULL, FALSE, NULL, NULL, NULL, FALSE, 'Drop raro, Quests', 'Material de crafteo concentrado de energía pura.'),
-  ('GEMA_HELADA', 'Gema Helada', 'MATERIAL', NULL, FALSE, NULL, NULL, NULL, FALSE, 'Minería', 'Material de crafteo extraído de vetas heladas.'),
-  ('ALMA_REDIMIDA', 'Alma Redimida', 'MATERIAL', NULL, FALSE, NULL, NULL, NULL, FALSE, 'Quests, Drop raro', 'Material de crafteo. Alma purificada de un espíritu en pena.'),
-  ('CUERO_CRUDO', 'Cuero Crudo', 'MATERIAL', NULL, FALSE, NULL, NULL, NULL, FALSE, 'Combate, Recolección', 'Material de crafteo. Cuero sin procesar de bestias comunes.'),
-  ('TELA_COMUN', 'Tela Común', 'MATERIAL', NULL, FALSE, NULL, NULL, NULL, FALSE, 'Tienda, Recolección', 'Material de crafteo textil básico.'),
-  ('CUERO_EPICO', 'Cuero Épico', 'MATERIAL', NULL, FALSE, NULL, NULL, NULL, FALSE, 'Combate', 'Material de crafteo. Cuero curtido de bestias de élite.'),
-  ('ORO_ANTIGUO', 'Oro Antiguo', 'MATERIAL', NULL, FALSE, NULL, NULL, NULL, FALSE, 'Minería, Quests', 'Material de crafteo. Oro de acuñación olvidada.'),
-  ('GEMA_COMUN', 'Gema Común', 'MATERIAL', NULL, FALSE, NULL, NULL, NULL, FALSE, 'Minería', 'Material de crafteo. Gema sin pulir de baja pureza.'),
-  ('HILO_DE_PLATA', 'Hilo de Plata', 'MATERIAL', NULL, FALSE, NULL, NULL, NULL, FALSE, 'Tienda, Minería', 'Material de crafteo para joyería básica.'),
-  ('ORO_PRIMORDIAL', 'Oro Primordial', 'MATERIAL', NULL, FALSE, NULL, NULL, NULL, FALSE, 'Minería, Quests', 'Material de crafteo. Oro de pureza ancestral.'),
-  ('PERLA_MARINA', 'Perla Marina', 'MATERIAL', NULL, FALSE, NULL, NULL, NULL, FALSE, 'Combate, Pesca', 'Material de crafteo extraído de criaturas marinas.'),
-  ('FRAGMENTO_DE_PODER', 'Fragmento de Poder', 'MATERIAL', NULL, FALSE, NULL, NULL, NULL, FALSE, 'Drop raro, Quests', 'Material de crafteo. Fragmento cristalizado de poder puro.'),
-  ('HILO_DE_MITHRIL', 'Hilo de Mithril', 'MATERIAL', NULL, FALSE, NULL, NULL, NULL, FALSE, 'Minería, Quests', 'Material de crafteo para joyería de alta gama.'),
-  ('HIERBA_CURATIVA', 'Hierba Curativa', 'MATERIAL', NULL, FALSE, NULL, NULL, NULL, FALSE, 'Recolección', 'Material de crafteo. Hierba con propiedades curativas.'),
-  ('AGUA_FRESCA', 'Agua Fresca', 'MATERIAL', NULL, FALSE, NULL, NULL, NULL, FALSE, 'Recolección', 'Material de crafteo. Agua pura de manantial.'),
-  ('FLOR_LUMINOSA', 'Flor Luminosa', 'MATERIAL', NULL, FALSE, NULL, NULL, NULL, FALSE, 'Recolección', 'Material de crafteo. Flor que brilla con energía mágica.'),
-  ('MIEL_ABEJA_ANTIGUA', 'Miel de Abeja Antigua', 'MATERIAL', NULL, FALSE, NULL, NULL, NULL, FALSE, 'Recolección', 'Material de crafteo. Miel rara con propiedades mágicas.'),
+  ('MINERAL_DE_ACERO', 'Mineral de Acero', 'MATERIAL', NULL, FALSE, 'POCO_COMUN', NULL, NULL, FALSE, 'Minería', 'Material de crafteo. Se obtiene minando en zonas intermedias.'),
+  ('POLVO_DE_PIEDRA', 'Polvo de Piedra', 'MATERIAL', NULL, FALSE, 'COMUN', NULL, NULL, FALSE, 'Minería', 'Material de crafteo. Se obtiene minando.'),
+  ('MADERA_DE_ROBLE', 'Madera de Roble', 'MATERIAL', NULL, FALSE, 'COMUN', NULL, NULL, FALSE, 'Recolección', 'Material de crafteo. Se obtiene recolectando en bosques.'),
+  ('MINERAL_EPICO', 'Mineral Épico', 'MATERIAL', NULL, FALSE, 'RARO', NULL, NULL, FALSE, 'Minería', 'Material de crafteo raro de minas volcánicas.'),
+  ('HIERRO_PRIMORDIAL', 'Hierro Primordial', 'MATERIAL', NULL, FALSE, 'EPICO', NULL, NULL, FALSE, 'Minería', 'Material de crafteo de altísima pureza usado en equipo épico.'),
+  ('ESENCIA_DE_PODER', 'Esencia de Poder', 'MATERIAL', NULL, FALSE, 'EPICO', NULL, NULL, FALSE, 'Drop raro, Quests', 'Material de crafteo concentrado de energía pura.'),
+  ('GEMA_HELADA', 'Gema Helada', 'MATERIAL', NULL, FALSE, 'RARO', NULL, NULL, FALSE, 'Minería', 'Material de crafteo extraído de vetas heladas.'),
+  ('ALMA_REDIMIDA', 'Alma Redimida', 'MATERIAL', NULL, FALSE, 'EPICO', NULL, NULL, FALSE, 'Quests, Drop raro', 'Material de crafteo. Alma purificada de un espíritu en pena.'),
+  ('CUERO_CRUDO', 'Cuero Crudo', 'MATERIAL', NULL, FALSE, 'COMUN', NULL, NULL, FALSE, 'Combate, Recolección', 'Material de crafteo. Cuero sin procesar de bestias comunes.'),
+  ('TELA_COMUN', 'Tela Común', 'MATERIAL', NULL, FALSE, 'COMUN', NULL, NULL, FALSE, 'Tienda, Recolección', 'Material de crafteo textil básico.'),
+  ('CUERO_EPICO', 'Cuero Épico', 'MATERIAL', NULL, FALSE, 'RARO', NULL, NULL, FALSE, 'Combate', 'Material de crafteo. Cuero curtido de bestias de élite.'),
+  ('ORO_ANTIGUO', 'Oro Antiguo', 'MATERIAL', NULL, FALSE, 'POCO_COMUN', NULL, NULL, FALSE, 'Minería, Quests', 'Material de crafteo. Oro de acuñación olvidada.'),
+  ('GEMA_COMUN', 'Gema Común', 'MATERIAL', NULL, FALSE, 'COMUN', NULL, NULL, FALSE, 'Minería', 'Material de crafteo. Gema sin pulir de baja pureza.'),
+  ('HILO_DE_PLATA', 'Hilo de Plata', 'MATERIAL', NULL, FALSE, 'POCO_COMUN', NULL, NULL, FALSE, 'Tienda, Minería', 'Material de crafteo para joyería básica.'),
+  ('ORO_PRIMORDIAL', 'Oro Primordial', 'MATERIAL', NULL, FALSE, 'RARO', NULL, NULL, FALSE, 'Minería, Quests', 'Material de crafteo. Oro de pureza ancestral.'),
+  ('PERLA_MARINA', 'Perla Marina', 'MATERIAL', NULL, FALSE, 'RARO', NULL, NULL, FALSE, 'Combate, Pesca', 'Material de crafteo extraído de criaturas marinas.'),
+  ('FRAGMENTO_DE_PODER', 'Fragmento de Poder', 'MATERIAL', NULL, FALSE, 'RARO', NULL, NULL, FALSE, 'Drop raro, Quests', 'Material de crafteo. Fragmento cristalizado de poder puro.'),
+  ('HILO_DE_MITHRIL', 'Hilo de Mithril', 'MATERIAL', NULL, FALSE, 'RARO', NULL, NULL, FALSE, 'Minería, Quests', 'Material de crafteo para joyería de alta gama.'),
+  ('HIERBA_CURATIVA', 'Hierba Curativa', 'MATERIAL', NULL, FALSE, 'COMUN', NULL, NULL, FALSE, 'Recolección', 'Material de crafteo. Hierba con propiedades curativas.'),
+  ('AGUA_FRESCA', 'Agua Fresca', 'MATERIAL', NULL, FALSE, 'COMUN', NULL, NULL, FALSE, 'Recolección', 'Material de crafteo. Agua pura de manantial.'),
+  ('FLOR_LUMINOSA', 'Flor Luminosa', 'MATERIAL', NULL, FALSE, 'POCO_COMUN', NULL, NULL, FALSE, 'Recolección', 'Material de crafteo. Flor que brilla con energía mágica.'),
+  ('MIEL_ABEJA_ANTIGUA', 'Miel de Abeja Antigua', 'MATERIAL', NULL, FALSE, 'RARO', NULL, NULL, FALSE, 'Recolección', 'Material de crafteo. Miel rara con propiedades mágicas.'),
 
 -- Items resultado de crafteo nuevos (los 3 ya existentes de sistema_items_equipamento.html
 -- -ESPADA_DE_HIERRO_CRAFTEADA, DAGA_DE_PRECISION_CRAFTEADA, BACULO_DE_LA_ETERNIDAD_CRAFTEADO-
@@ -4681,8 +4681,8 @@ VALUES
   ('ELIXIR_DE_PODER_SUPREMO', 'Elixir de Poder Supremo', 'CONSUMABLE', NULL, FALSE, 'RARO', NULL, 50, TRUE, 'Crafteo', 'Elixir que potencia todos los stats de combate por 5 minutos.'),
 
 -- Materiales para pociones de mana
-  ('POLVO_ARCANO',  'Polvo Arcano',  'MATERIAL', NULL, FALSE, NULL, NULL, NULL, FALSE, 'Recolección, Drop', 'Material mágico en polvo. Potencia pociones de maná.'),
-  ('HIERBA_MAGICA', 'Hierba Mágica', 'MATERIAL', NULL, FALSE, NULL, NULL, NULL, FALSE, 'Recolección',       'Hierba imbuida de energía mágica. Componente básico de pociones de maná.'),
+  ('POLVO_ARCANO',  'Polvo Arcano',  'MATERIAL', NULL, FALSE, 'POCO_COMUN', NULL, NULL, FALSE, 'Recolección, Drop', 'Material mágico en polvo. Potencia pociones de maná.'),
+  ('HIERBA_MAGICA', 'Hierba Mágica', 'MATERIAL', NULL, FALSE, 'COMUN', NULL, NULL, FALSE, 'Recolección',       'Hierba imbuida de energía mágica. Componente básico de pociones de maná.'),
 
 -- Pociones nuevas
   ('POCION_DE_MANA_MENOR',   'Poción de Maná Menor',   'CONSUMABLE', NULL, FALSE, 'COMUN',      NULL, 1,  TRUE, 'Crafteo', 'Restaura 60 MP al instante.'),

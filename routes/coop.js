@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router({ mergeParams: true });
 const db = require('../db/db');
 const { requireAuth, requireSelf } = require('../lib/auth');
+const { positionOf } = require('../lib/worldPresence');
 
 router.use(requireAuth);
 router.use(requireSelf);
@@ -9,6 +10,22 @@ router.use(requireSelf);
 const INVITE_TTL_SECONDS = 60;
 const READY_TTL_MS = 15000;
 const MAX_GROUP_SIZE = 3;
+// en el mundo 2D se puede invitar a cualquiera que esté a la vista (sin ser amigos)
+const INVITE_NEAR_PX = 20 * 32;
+
+// ¿los dos están en el mundo, en la misma zona y cerca?
+function nearInWorld(aId, bId) {
+  const a = positionOf(Number(aId));
+  const b = positionOf(Number(bId));
+  return !!a && !!b && a.zone === b.zone && Math.hypot(a.x - b.x, a.y - b.y) <= INVITE_NEAR_PX;
+}
+
+// avisos por socket a la sala personal de cada jugador (ver lib/worldPresence.js)
+function notify(req, playerIds, event, payload) {
+  const io = req.app.get('io');
+  if (!io) return;
+  for (const id of playerIds) io.to(`player:${id}`).emit(event, payload);
+}
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -54,7 +71,9 @@ router.post('/invite', async (req, res, next) => {
          AND status='ACCEPTED'`,
       [playerId, friendId]
     );
-    if (!friendship.rows.length) return res.status(403).json({ error: 'Solo puedes invitar a un amigo' });
+    if (!friendship.rows.length && !nearInWorld(playerId, friendId)) {
+      return res.status(403).json({ error: 'Solo puedes invitar a un amigo o a alguien que esté cerca de ti en el mundo' });
+    }
 
     const guestInGroup = await db.query('SELECT 1 FROM player_coop_group_members WHERE player_id=$1', [friendId]);
     if (guestInGroup.rows.length) return res.status(400).json({ error: 'Ese jugador ya está en un grupo co-op' });
@@ -82,6 +101,13 @@ router.post('/invite', async (req, res, next) => {
        VALUES($1,$2, now() + INTERVAL '${INVITE_TTL_SECONDS} seconds') RETURNING id, expires_at`,
       [playerId, friendId]
     );
+    // el invitado lo ve al instante (sin esperar al polling de CoopBar)
+    const who = await db.query(
+      `SELECT p.id, p.nickname, p.level, c.name AS class_name FROM players p
+       JOIN classes c ON c.id = COALESCE(p.evolution_class_id, p.current_class_id) WHERE p.id = $1`,
+      [playerId]
+    );
+    notify(req, [friendId], 'coop:invite', { inviteId: inv.rows[0].id, expiresAt: inv.rows[0].expires_at, leader: who.rows[0] });
     res.status(201).json({ inviteId: inv.rows[0].id, expiresAt: inv.rows[0].expires_at });
   } catch (error) { next(error); }
 });
@@ -150,6 +176,7 @@ router.post('/invite/:inviteId/accept', async (req, res, next) => {
       }
     }
     await db.query('INSERT INTO player_coop_group_members(group_id, player_id) VALUES($1,$2)', [group.id, guest_id]);
+    notify(req, await getGroupMemberIds(group.id), 'coop:changed', { groupId: group.id });
 
     const leaderRes = await db.query(
       `SELECT p.nickname, p.level, c.name AS class_name
@@ -228,6 +255,7 @@ router.delete('/party', async (req, res, next) => {
       }
       await db.query('DELETE FROM player_coop_group_members WHERE group_id=$1 AND player_id=$2', [group.id, playerId]);
       const remaining = await getGroupMemberIds(group.id);
+      notify(req, [...remaining, Number(playerId)], 'coop:changed', { groupId: group.id });
       if (remaining.length <= 1) {
         await db.query('DELETE FROM player_coop_groups WHERE id=$1', [group.id]);
         if (remaining.length === 1) {
@@ -334,6 +362,40 @@ router.get('/ready-status', async (req, res, next) => {
   } catch (error) { next(error); }
 });
 
+// ─── COMPARTIR MISIÓN ─────────────────────────────────────────────────────────
+
+// POST /api/player/:playerId/coop/share-quest  body: { questId }
+// Como en un MMO: ofreces a tu grupo una misión que tienes activa. A cada compañero le llega un
+// aviso por socket y, si quiere, la acepta con el accept de siempre (que revisa nivel, rango y si
+// ya la tiene). Las muertes de un combate en grupo cuentan para todos los que la tengan.
+router.post('/share-quest', async (req, res, next) => {
+  const { playerId } = req.params;
+  const questId = Number(req.body?.questId);
+  if (!questId) return res.status(400).json({ error: 'Falta questId' });
+  try {
+    const group = await getMyGroup(playerId);
+    if (!group) return res.status(400).json({ error: 'No estás en un grupo' });
+    const q = await db.query(
+      `SELECT q.id, q.name FROM player_active_quests paq JOIN quests q ON q.id = paq.quest_id
+       WHERE paq.player_id = $1 AND paq.quest_id = $2`,
+      [playerId, questId]
+    );
+    if (!q.rows.length) return res.status(400).json({ error: 'Solo puedes compartir una misión que tengas activa' });
+    const others = (await getGroupMemberIds(group.id)).filter((id) => id !== Number(playerId));
+    if (!others.length) return res.status(400).json({ error: 'No hay nadie más en tu grupo' });
+    // a quien ya la tiene no se le ofrece
+    const have = await db.query(
+      'SELECT player_id FROM player_active_quests WHERE quest_id = $1 AND player_id = ANY($2::int[])',
+      [questId, others]
+    );
+    const haveIds = new Set(have.rows.map((r) => r.player_id));
+    const to = others.filter((id) => !haveIds.has(id));
+    const from = await db.query('SELECT nickname FROM players WHERE id = $1', [playerId]);
+    notify(req, to, 'coop:quest-share', { questId, questName: q.rows[0].name, fromId: Number(playerId), fromName: from.rows[0]?.nickname });
+    res.json({ sentTo: to.length, alreadyHave: haveIds.size });
+  } catch (error) { next(error); }
+});
+
 // ─── CHAT DE GRUPO ────────────────────────────────────────────────────────────
 
 // POST /api/player/:playerId/coop/messages  body: { body }
@@ -414,6 +476,7 @@ router.delete('/party/members/:targetId', async (req, res, next) => {
     }
 
     const remaining = await getGroupMemberIds(group.id);
+    notify(req, [...remaining, Number(targetId)], 'coop:changed', { groupId: group.id });
     if (remaining.length <= 1) {
       await db.query('DELETE FROM player_coop_groups WHERE id=$1', [group.id]);
       if (remaining.length === 1) {
