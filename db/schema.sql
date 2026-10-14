@@ -2587,10 +2587,14 @@ INSERT INTO balance_versions (version) SELECT 'pradera_v2' WHERE NOT EXISTS (SEL
 ALTER TABLE skill_effects ADD COLUMN IF NOT EXISTS chance_percent NUMERIC(5,2);
 ALTER TABLE skill_effects ADD COLUMN IF NOT EXISTS status_code TEXT;
 ALTER TABLE combat_participant_buffs ADD COLUMN IF NOT EXISTS status_code TEXT;
-DO $$ BEGIN
+DO $$
+DECLARE allowed TEXT;
+BEGIN
+  -- los tipos nuevos más los que ya existan en esta base (en producción puede haber otros)
+  SELECT string_agg(DISTINCT quote_literal(t), ',') INTO allowed
+  FROM (SELECT unnest(ARRAY['STAT_MOD','DOT','HOT','REVIVE','CLEANSE','NO_DAMAGE_WINDOW','GUARANTEED_CRIT','CONDITIONAL_DAMAGE','SUMMON','PARALYZE','BLIND']) AS t UNION SELECT effect_type FROM skill_effects) x;
   ALTER TABLE skill_effects DROP CONSTRAINT IF EXISTS skill_effects_effect_type_check;
-  ALTER TABLE skill_effects ADD CONSTRAINT skill_effects_effect_type_check
-    CHECK (effect_type IN ('STAT_MOD','DOT','HOT','REVIVE','CLEANSE','NO_DAMAGE_WINDOW','GUARANTEED_CRIT','CONDITIONAL_DAMAGE','SUMMON','PARALYZE','BLIND'));
+  EXECUTE 'ALTER TABLE skill_effects ADD CONSTRAINT skill_effects_effect_type_check CHECK (effect_type IN (' || allowed || '))';
 END $$;
 
 -- Quien ya tenía una habilidad por nivel no la pierde al pasar al maestro (solo corre mientras
@@ -2681,10 +2685,14 @@ CREATE TABLE IF NOT EXISTS combat_skill_cooldowns (
   PRIMARY KEY (participant_id, skill_id)
 );
 CREATE INDEX IF NOT EXISTS idx_combat_skill_cooldowns_session ON combat_skill_cooldowns(session_id);
-DO $$ BEGIN
+DO $$
+DECLARE allowed TEXT;
+BEGIN
+  -- los tipos nuevos más los que ya existan en esta base (en producción puede haber otros)
+  SELECT string_agg(DISTINCT quote_literal(t), ',') INTO allowed
+  FROM (SELECT unnest(ARRAY['STAT_MOD','DOT','HOT','REVIVE','CLEANSE','NO_DAMAGE_WINDOW','GUARANTEED_CRIT','CONDITIONAL_DAMAGE','SUMMON','PARALYZE','BLIND','TAUNT']) AS t UNION SELECT effect_type FROM skill_effects) x;
   ALTER TABLE skill_effects DROP CONSTRAINT IF EXISTS skill_effects_effect_type_check;
-  ALTER TABLE skill_effects ADD CONSTRAINT skill_effects_effect_type_check
-    CHECK (effect_type IN ('STAT_MOD','DOT','HOT','REVIVE','CLEANSE','NO_DAMAGE_WINDOW','GUARANTEED_CRIT','CONDITIONAL_DAMAGE','SUMMON','PARALYZE','BLIND','TAUNT'));
+  EXECUTE 'ALTER TABLE skill_effects ADD CONSTRAINT skill_effects_effect_type_check CHECK (effect_type IN (' || allowed || '))';
 END $$;
 
 UPDATE skills k SET cooldown_rounds = v.cd FROM (VALUES
