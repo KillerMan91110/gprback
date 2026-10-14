@@ -196,6 +196,10 @@ if (process.env.LEYENDAS_APAGADAS === '1') {
   startLegendSchedule().catch(console.error);
 }
 
+// Equilibrio (lib/equilibrio.js): cuando un SQL de equilibrio deja una versión pendiente en
+// balance_versions, recalcula una vez las stats guardadas de jugadores y compañeros.
+require('./lib/equilibrio').iniciarRecalculo();
+
 // ========== RUTAS DE PRUEBA ==========
 
 // 1. Ruta básica de prueba

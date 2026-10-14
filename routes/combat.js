@@ -1404,6 +1404,10 @@ async function startNewRound(sessionId, participants) {
 // de esas clases (SCROLL_<SET>_<CLASE>) tienen el doble de probabilidad: así a cada uno le cae más
 // seguido el suyo, y los de otras clases siguen saliendo para comerciarlos.
 const OWN_CLASS_SCROLL_MULT = 2;
+// clases cuyo ataque básico es mágico (clase base; las evoluciones heredan) y cuánto maná devuelve
+// el ataque básico (fracción del máximo)
+const MAGIC_BASIC_CLASSES = ['MAGO', 'SACERDOTE'];
+const BASIC_ATTACK_MANA_PCT = 0.08;
 async function rollMonsterDrops(enemies, dropRateBonusPct = 0, partyClasses = []) {
   const codes = [...new Set(enemies.map((e) => e.monster_code))];
   if (!codes.length) return [];
@@ -3321,9 +3325,10 @@ router.post('/sessions/:id/action', async (req, res, next) => {
       }
 
       let attackBonusPercent = 0;
-      // El basico de jugador/NPC ahora siempre es fisico (ver lib/combat.js resolveAttack) --
-      // esta categorizacion de bonos tiene que quedar consistente con esa regla.
-      const isMagicAttack = false;
+      // El básico de jugador/NPC es físico, salvo Mago y Sacerdote (y sus evoluciones), que pegan
+      // con MAG (su báculo): sin maná, si no, quedaban pegando 1. Ver lib/combat.js resolveAttack.
+      const isMagicAttack = MAGIC_BASIC_CLASSES.includes(await baseClassCode(actor.class_id));
+      actor.basic_magic = isMagicAttack;
       if (actor.player_id === req.playerId) {
         const playerBonuses = await achievements.getPlayerBonuses(req.playerId);
         attackBonusPercent += isMagicAttack ? playerBonuses.magicalDamage : playerBonuses.physicalDamage;
@@ -3359,6 +3364,11 @@ router.post('/sessions/:id/action', async (req, res, next) => {
       await checkCritImmunity(target);
       const result = combat.resolveAttack(actor, target, attackElementalMods, attackBonusPercent);
       if (hadUnavoidableHit) target.evasion = savedEvasion;
+      // el ataque básico recupera un poco de maná (no hay otra forma de recuperarlo en combate)
+      const manaBefore = Number(actor.mana || 0);
+      actor.mana = Math.min(Number(actor.max_mana || 0), manaBefore + Math.round(Number(actor.max_mana || 0) * BASIC_ATTACK_MANA_PCT));
+      const manaGained = actor.mana - manaBefore;
+      if (manaGained > 0) await persistParticipant(actor);
       await consumeCritImmunityIfUsed(target, result);
       await checkOnceForCombatSave(target);
       await persistParticipant(target);
@@ -3378,7 +3388,7 @@ router.post('/sessions/:id/action', async (req, res, next) => {
         crit: result.crit,
         description: result.evaded
           ? `${actor.name} ataca a ${target.name}, pero esquiva el golpe.`
-          : `${actor.name} ataca a ${target.name}, infligiéndole ${result.damage} de daño${attackElementalMods ? ' elemental' : ''}${result.crit ? ' (¡Crítico!)' : ''}.`,
+          : `${actor.name} ataca a ${target.name}, infligiéndole ${result.damage} de daño${attackElementalMods ? ' elemental' : ''}${result.crit ? ' (¡Crítico!)' : ''}.${manaGained > 0 ? ` Recupera ${manaGained} de maná.` : ''}`,
         hp_after: target.hp, mana_after: actor.mana,
       };
       } // end else (no_damage_window)
