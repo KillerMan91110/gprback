@@ -2701,3 +2701,24 @@ INSERT INTO skill_effects (skill_id, effect_type, duration_turns, status_code, d
 SELECT id, 'TAUNT', 2, 'TAUNT', 'Provocas: durante 2 turnos los enemigos te atacan a ti.' FROM skills WHERE code = 'GUERRERO_ESCUDO_DEFENSIVO';
 UPDATE skills SET description = 'Te cubres tras el escudo y provocas: +30% de defensa por 3 turnos y durante 2 turnos los enemigos te atacan a ti.'
 WHERE code = 'GUERRERO_ESCUDO_DEFENSIVO';
+
+-- Tiempos de espera de las habilidades de misión, botín y armas legendarias de las clases base
+-- (cada 3 rondas; las de armas legendarias cada 4; Resurrección cada 5)
+UPDATE skills k SET cooldown_rounds = v.cd FROM (VALUES
+  ('GUERRERO_GOLPE_DEVASTADOR', 3), ('GUERRERO_DEFENSA_REFORZADA', 3), ('GUERRERO_AULLIDO_DE_GUERRA', 3), ('GUERRERO_CORTE_DIVINO', 4),
+  ('MAGO_MALDICION', 3), ('MAGO_TORMENTA_ELEMENTAL', 3), ('MAGO_EXPLOSION_MAGICA', 4), ('MAGO_TORMENTA_COSMICA', 4),
+  ('ARQUERO_TRAMPA_DE_FLECHAS', 3), ('ARQUERO_DISPARO_CERTERO', 3), ('ARQUERO_TORMENTA_DE_FLECHAS', 3), ('ARQUERO_LLUVIA_INFINITA', 4),
+  ('PICARO_ATAQUE_SILENCIOSO', 3), ('PICARO_ASESINATO', 3), ('PICARO_DANZA_DE_CUCHILLOS', 3), ('PICARO_DANZA_MORTAL', 4),
+  ('SACERDOTE_MALDICION_DIVINA', 3), ('SACERDOTE_PODER_SAGRADO', 4), ('SACERDOTE_RESURRECCION', 5), ('SACERDOTE_MILAGRO_DIVINO', 4)
+) AS v(code, cd) WHERE k.code = v.code;
+
+-- ============================================================================================
+-- Evoluciones con ramas ocultas: una rama se descubre al cumplir uno de sus requisitos y queda
+-- descubierta para siempre (ver lib/evolution.js getAvailableEvolutions)
+-- ============================================================================================
+CREATE TABLE IF NOT EXISTS player_evolution_discoveries (
+  player_id     INT NOT NULL REFERENCES players(id) ON DELETE CASCADE,
+  evolution_id  INT NOT NULL REFERENCES class_evolutions(id) ON DELETE CASCADE,
+  discovered_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  PRIMARY KEY (player_id, evolution_id)
+);
