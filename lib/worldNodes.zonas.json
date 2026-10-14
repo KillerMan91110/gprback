@@ -21,6 +21,10 @@
    "tipo": "cofre",
    "sitios": 2
   },
+  "lino": {
+   "tipo": "lino",
+   "sitios": 25
+  },
   "hierba_camino": {
    "tipo": "hierba",
    "sitios": 3
@@ -28,10 +32,6 @@
   "hierba_robleviejo": {
    "tipo": "hierba",
    "sitios": 3
-  },
-  "lino": {
-   "tipo": "lino",
-   "sitios": 7
   },
   "hierba_lago": {
    "tipo": "hierba",
@@ -43,7 +43,7 @@
   },
   "cuarzo": {
    "tipo": "cuarzo",
-   "sitios": 6
+   "sitios": 17
   },
   "nido_lago": {
    "tipo": "nido",
@@ -55,7 +55,7 @@
   },
   "trigo": {
    "tipo": "trigo",
-   "sitios": 7
+   "sitios": 15
   },
   "mineral_molino": {
    "tipo": "mineral",
@@ -79,7 +79,7 @@
   },
   "hierba_sur": {
    "tipo": "hierba",
-   "sitios": 3
+   "sitios": 4
   },
   "restos_ruinas": {
    "tipo": "restos",
