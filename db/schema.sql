@@ -1584,8 +1584,9 @@ ALTER TABLE player_hearthstones ALTER COLUMN vinculo DROP NOT NULL;
 ALTER TABLE player_hearthstones ALTER COLUMN vinculo DROP DEFAULT;
 
 -- ============================================================================================
--- Crafteo v2 (mundo 2D). Se puede correr varias veces sin duplicar nada (también va al final
--- de schema.sql).
+-- Crafteo v2 (mundo 2D). Se puede correr varias veces sin duplicar nada. No usa ON CONFLICT: en
+-- bases viejas puede faltar la restricción única de crafting_recipe_ingredients, así que cada
+-- insert mira antes si ya existe.
 --
 -- - Cada receta dice DÓNDE se fabrica (crafting_recipes.station):
 --     NULL    = en cualquier lado (pociones, comidas, vendajes y refinados simples)
@@ -1601,7 +1602,8 @@ ALTER TABLE player_hearthstones ALTER COLUMN vinculo DROP DEFAULT;
 ALTER TABLE crafting_recipes ADD COLUMN IF NOT EXISTS station TEXT;
 
 -- ---------------------------------------------------------------- objetos nuevos
-INSERT INTO items (code, name, item_type, rarity, required_level, is_craftable, obtain_method, buy_price, description) VALUES
+INSERT INTO items (code, name, item_type, rarity, required_level, is_craftable, obtain_method, buy_price, description)
+SELECT v.* FROM (VALUES
   ('FRASCO_VACIO', 'Frasco Vacío', 'MATERIAL', 'COMUN', NULL, FALSE, 'Tienda del alquimista', 8,
    'Un frasco de vidrio limpio. Llénalo en el Pilar de Aethra para obtener Agua Purificada.'),
   ('LINGOTE_HIERRO', 'Lingote de Hierro', 'MATERIAL', 'COMUN', NULL, TRUE, 'Crafteo (forja)', NULL,
@@ -1614,7 +1616,8 @@ INSERT INTO items (code, name, item_type, rarity, required_level, is_craftable, 
    'Cura un poco al instante y regenera vida durante 3 rondas.'),
   ('VENDAJE', 'Vendaje', 'CONSUMABLE', 'COMUN', 1, TRUE, 'Crafteo', NULL,
    'Tela limpia con hierbas. Cura un poco, también fuera de combate.')
-ON CONFLICT (code) DO NOTHING;
+) AS v(code, name, item_type, rarity, required_level, is_craftable, obtain_method, buy_price, description)
+WHERE NOT EXISTS (SELECT 1 FROM items i WHERE i.code = v.code);
 
 UPDATE items SET obtain_method = 'Crafteo en el Pilar de Aethra',
   description = 'Agua del Pilar de Aethra. Base de pociones y elixires.'
@@ -1647,7 +1650,7 @@ FROM (VALUES
   ('VENDAJE', 'VENDAJE', 2, 'COMUN', 100, NULL, NULL, NULL)
 ) AS v(code, item_code, qty, rarity, ok, artisan, descr, station)
 JOIN items i ON i.code = v.item_code
-ON CONFLICT (code) DO NOTHING;
+WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes c2 WHERE c2.code = v.code);
 
 INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
 SELECT cr.id, i.id, v.qty
@@ -1668,7 +1671,7 @@ FROM (VALUES
 ) AS v(recipe_code, item_code, qty)
 JOIN crafting_recipes cr ON cr.code = v.recipe_code
 JOIN items i ON i.code = v.item_code
-ON CONFLICT (recipe_id, item_id) DO NOTHING;
+WHERE NOT EXISTS (SELECT 1 FROM crafting_recipe_ingredients x WHERE x.recipe_id = cr.id AND x.item_id = i.id);
 
 -- todo el equipo se fabrica en la forja (las recetas que ya existían no tenían lugar)
 UPDATE crafting_recipes cr SET station = 'forja'
@@ -1715,5 +1718,5 @@ INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
 SELECT t.recipe_id, i.id, t.qty
 FROM tmp_pradera_extra t JOIN items i ON i.code = t.item_code
 WHERE t.item_code IS NOT NULL
-ON CONFLICT (recipe_id, item_id) DO NOTHING;
+  AND NOT EXISTS (SELECT 1 FROM crafting_recipe_ingredients x WHERE x.recipe_id = t.recipe_id AND x.item_id = i.id);
 DROP TABLE tmp_pradera_extra;
