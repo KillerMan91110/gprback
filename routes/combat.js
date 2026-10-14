@@ -1400,12 +1400,17 @@ async function startNewRound(sessionId, participants) {
 // drop_chance_percent (COMMON 30%, RARE 15%, MINIBOSS 8%, LEGENDARY 100% garantizado) y una
 // cantidad min/max. Se rolea independiente por CADA enemigo de la sesion (no por codigo unico),
 // asi que matar 2 Lobos de Pradera en la misma pelea son 2 tiradas separadas de su drop.
-async function rollMonsterDrops(enemies, dropRateBonusPct = 0) {
+// partyClasses: clases base de los héroes del combate (GUERRERO, MAGO…). Los pergaminos de receta
+// de esas clases (SCROLL_<SET>_<CLASE>) tienen el doble de probabilidad: así a cada uno le cae más
+// seguido el suyo, y los de otras clases siguen saliendo para comerciarlos.
+const OWN_CLASS_SCROLL_MULT = 2;
+async function rollMonsterDrops(enemies, dropRateBonusPct = 0, partyClasses = []) {
   const codes = [...new Set(enemies.map((e) => e.monster_code))];
   if (!codes.length) return [];
+  const ownScroll = (itemCode) => /^SCROLL_/.test(itemCode ?? '') && partyClasses.some((c) => itemCode.endsWith(`_${c}`));
 
   const dropsResult = await db.query(
-    `SELECT m.code AS monster_code, md.item_id, i.name AS item_name, md.drop_chance_percent, md.min_quantity, md.max_quantity
+    `SELECT m.code AS monster_code, md.item_id, i.code AS item_code, i.name AS item_name, md.drop_chance_percent, md.min_quantity, md.max_quantity
      FROM monster_drops md
      JOIN monsters m ON m.id = md.monster_id
      JOIN items i ON i.id = md.item_id
@@ -1425,7 +1430,8 @@ async function rollMonsterDrops(enemies, dropRateBonusPct = 0) {
     const drops = dropsByCode.get(enemy.monster_code);
     if (!drops) continue;
     for (const drop of drops) {
-    const effectiveChance = Math.min(100, Number(drop.drop_chance_percent) * (1 + dropRateBonusPct / 100));
+    const classMult = ownScroll(drop.item_code) ? OWN_CLASS_SCROLL_MULT : 1;
+    const effectiveChance = Math.min(100, Number(drop.drop_chance_percent) * classMult * (1 + dropRateBonusPct / 100));
     if (Math.random() * 100 >= effectiveChance) continue;
 
     const quantity = drop.min_quantity + Math.floor(Math.random() * (drop.max_quantity - drop.min_quantity + 1));
@@ -1834,7 +1840,8 @@ async function finalizeSession(sessionId, status, participants) {
       rewards.xp   = applyPercentBonus(applyPercentBonus(applyPercentBonus(applyPercentBonus(rewards.xp,   xpBonusPercent),     combatAchBonuses.xpEarned),   heroPassives.xp_bonus),   heroPetBonuses.xp_percent);
       const heroLuckRow = await db.query('SELECT luck FROM players WHERE id = $1', [heroP.player_id]);
       const heroLuck = Number(heroLuckRow.rows[0]?.luck || 0);
-      rewards.itemsDropped = await rollMonsterDrops(participants.enemy, heroPassives.drop_rate_bonus + heroLuck + heroPetBonuses.drop_rate_percent + leaderUtil.drop);
+      const partyClasses = [...new Set(await Promise.all(heroPs.map((h) => baseClassCode(h.class_id))))].filter(Boolean);
+      rewards.itemsDropped = await rollMonsterDrops(participants.enemy, heroPassives.drop_rate_bonus + heroLuck + heroPetBonuses.drop_rate_percent + leaderUtil.drop, partyClasses);
 
       // Co-op: oro dividido en partes iguales entre todos los héroes (1 a 3).
       const goldPerHero = Math.floor(rewards.gold / heroPs.length);

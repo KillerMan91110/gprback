@@ -1915,3 +1915,23 @@ DELETE FROM crafting_recipe_ingredients ri USING crafting_recipes cr, items r, i
 WHERE ri.recipe_id = cr.id AND r.id = cr.result_item_id AND pl.id = ri.item_id AND pl.code = 'PIEL_DE_LOBO'
   AND cr.zone_id = 1 AND r.item_type = 'EQUIPMENT' AND r.class_id IN (2, 5) AND r.slot IN ('ARMOR', 'HELMET', 'GLOVES', 'BOOTS')
   AND EXISTS (SELECT 1 FROM crafting_recipe_ingredients x JOIN items tl ON tl.id = x.item_id AND tl.code = 'TELA_LINO' WHERE x.recipe_id = cr.id);
+
+-- ============================================================================================
+-- Equilibrio del crafteo de la Pradera (repetible; sin ON CONFLICT)
+-- ============================================================================================
+-- El set del Capitán pedía ~195 victorias contra el Capitán de los Lobos (minijefe que reaparece
+-- cada 5 min): el Collar caía al 8% y cada pieza pedía 2. Ahora cae al 40% y las piezas del set del
+-- Capitán piden 1 (≈20 victorias por set; el del Titán ≈26).
+UPDATE monster_drops md SET drop_chance_percent = 40
+FROM monsters m, items x
+WHERE md.monster_id = m.id AND md.item_id = x.id AND m.code = 'CAPITAN_LOBOS' AND x.code = 'COLLAR_CAPITAN_LOBOS'
+  AND md.drop_chance_percent < 40;
+UPDATE crafting_recipe_ingredients ri SET quantity = 1
+FROM crafting_recipes cr, items r, items x
+WHERE ri.recipe_id = cr.id AND r.id = cr.result_item_id AND x.id = ri.item_id
+  AND cr.zone_id = 1 AND r.name LIKE '% del Capitán' AND x.code = 'COLLAR_CAPITAN_LOBOS' AND ri.quantity > 1;
+
+-- Tope de venta propio por objeto (lib/npcSell.js). El Agua Purificada se hace con un Frasco de 8
+-- de oro y se vendía a 25: oro infinito. Ahora un NPC paga como mucho 4.
+ALTER TABLE items ADD COLUMN IF NOT EXISTS max_sell_price INT;
+UPDATE items SET max_sell_price = 4 WHERE code = 'AGUA_PURIFICADA';
