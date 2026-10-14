@@ -209,7 +209,7 @@ router.post('/mitico/enter', async (req, res, next) => {
     const def = mythic.MITICOS[hunt.zone_id];
     const pr = await db.query('SELECT level FROM players WHERE id = $1', [req.playerId]);
     const level = pr.rows[0]?.level ?? 1;
-    if (level < def.minLevel) return res.status(400).json({ error: `Necesitas nivel ${def.minLevel} para enfrentar a ${def.name}` });
+    // def.minLevel es solo el nivel recomendado (lo muestra el front): se puede intentar igual
     const cd = await db.query('SELECT last_attempt_at FROM mythic_hunt_damage WHERE hunt_id = $1 AND player_id = $2', [hunt.id, req.playerId]);
     const since = cd.rows[0] ? (Date.now() - new Date(cd.rows[0].last_attempt_at).getTime()) / 1000 : Infinity;
     if (since < mythic.ATTEMPT_COOLDOWN_S) return res.status(400).json({ error: `Recupera el aliento: ${Math.ceil(mythic.ATTEMPT_COOLDOWN_S - since)} s` });

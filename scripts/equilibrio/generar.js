@@ -22,7 +22,8 @@ const PERFILES = {
   TITAN_PRADERA: {},
 };
 
-const SIM_LEVELS = [1, 3, 5, 8, 10, 12, 15];
+const SIM_LEVELS = [1, 3, 5, 8, 10, 12, 14, 15];
+const { DAMAGE_FLOOR } = require('../../lib/combat');
 const CLASS_IDS = { GUERRERO: 1, MAGO: 2, ARQUERO: 3, PICARO: 4, SACERDOTE: 5 };
 const PASSIVE_CRIT = { ARQUERO: 15, PICARO: 25 };
 
@@ -93,10 +94,12 @@ function simulate({ classes, gear, monsters }) {
       let worstTtk = 0; let worstTtd = 99;
       for (const m of monsters.filter((x) => x.rarity === 'COMMON')) {
         const row = EQ.monsterRow(lv, 'COMMON', PERFILES[m.code]);
-        const dmg = Math.max(1, sk.base + sk.mult * main - 0.5 * (magic ? row.magic_def : row.def)) * (1 + Math.min(100, h.crit) / 100 * 0.5);
+        const raw = sk.base + sk.mult * main;
+        const dmg = Math.max(raw * DAMAGE_FLOOR, raw - 0.5 * (magic ? row.magic_def : row.def)) * (1 + Math.min(100, h.crit) / 100 * 0.5);
         const ttk = Math.ceil(row.hp / dmg);
         const monMagic = row.magic_atk > row.atk;
-        const hit = Math.max(1, 1.2 * (monMagic ? row.magic_atk : row.atk) - 0.5 * (monMagic ? h.magic_def : h.def)) * (1 + row.crit_chance / 100 * 0.5);
+        const rawHit = 1.2 * (monMagic ? row.magic_atk : row.atk);
+        const hit = Math.max(rawHit * DAMAGE_FLOOR, rawHit - 0.5 * (monMagic ? h.magic_def : h.def)) * (1 + row.crit_chance / 100 * 0.5);
         const ttd = Math.ceil(h.hp / hit);
         worstTtk = Math.max(worstTtk, ttk); worstTtd = Math.min(worstTtd, ttd);
       }
@@ -134,9 +137,9 @@ ${values}
 async function buildSql(data) {
   const { monsters } = data;
   const parts = [];
-  parts.push('-- monstruos de la Pradera (filas en su nivel mínimo y en el 15: la curva es lineal)');
+  parts.push('-- monstruos de la Pradera (filas en su nivel mínimo, en el 9 y en el 15: la curva es lineal entre filas)');
   for (const m of monsters) {
-    const rows = [m.min_spawn_level, 15].filter((v, i, a) => a.indexOf(v) === i).map((lv) => EQ.monsterRow(lv, m.rarity, PERFILES[m.code]));
+    const rows = [m.min_spawn_level, EQ.HP_KNEE_LEVEL, 15].filter((v, i, a) => v >= m.min_spawn_level && a.indexOf(v) === i).map((lv) => EQ.monsterRow(lv, m.rarity, PERFILES[m.code]));
     parts.push(monsterSql(m.code, rows));
   }
   parts.push('-- cripta del Vigía y cacería mítica (definidos en lib/cripta.js y lib/mythic.js con la misma curva)');
@@ -182,13 +185,15 @@ async function buildSql(data) {
     parts.push(`UPDATE skills SET base_value = ${v.base}, scaling_multiplier = ${sqlNum(v.mult)} WHERE code = '${sk.code}';`);
   }
 
-  // equipo de la Pradera por fórmula (lib/equilibrio.js itemStats): solo las stats que cambian
+  // equipo de la Pradera por fórmula (lib/equilibrio.js itemStats): se escriben TODAS las stats que
+  // maneja la fórmula (no solo las que cambian), así el bloque deja lo mismo en cualquier base, tenga
+  // o no aplicada la versión anterior
   parts.push('-- equipo de nivel 1-15 de las clases base: stats por fórmula según su nivel y rareza');
   for (const it of data.items) {
     for (let i = 0; i < it.stats.length; i += 1) {
       const before = Number(it.stats[i].amount); const after = Number(it.newStats[i].amount);
       // por código de objeto y stat (los id de item_stat_bonuses cambian entre bases)
-      if (before !== after) parts.push(`UPDATE item_stat_bonuses b SET amount = ${sqlNum(after)} FROM items i WHERE i.id = b.item_id AND i.code = '${it.code}' AND b.stat_code = '${it.stats[i].stat_code}' AND b.is_percent = ${it.stats[i].is_percent ? 'TRUE' : 'FALSE'}; -- ${before} -> ${after}`);
+      if (it.newStats[i] !== it.stats[i]) parts.push(`UPDATE item_stat_bonuses b SET amount = ${sqlNum(after)} FROM items i WHERE i.id = b.item_id AND i.code = '${it.code}' AND b.stat_code = '${it.stats[i].stat_code}' AND b.is_percent = ${it.stats[i].is_percent ? 'TRUE' : 'FALSE'}; -- ${before} -> ${after}`);
     }
   }
 
@@ -196,7 +201,8 @@ async function buildSql(data) {
   parts.push('-- pide recalcular las stats guardadas de jugadores y compañeros (lo hace el servidor)');
   parts.push(`CREATE TABLE IF NOT EXISTS balance_versions (version TEXT PRIMARY KEY, created_at TIMESTAMPTZ NOT NULL DEFAULT now(), applied_at TIMESTAMPTZ);
 INSERT INTO balance_versions (version) SELECT 'pradera_v1' WHERE NOT EXISTS (SELECT 1 FROM balance_versions WHERE version = 'pradera_v1');
-INSERT INTO balance_versions (version) SELECT 'pradera_equipo_v1' WHERE NOT EXISTS (SELECT 1 FROM balance_versions WHERE version = 'pradera_equipo_v1');`);
+INSERT INTO balance_versions (version) SELECT 'pradera_equipo_v1' WHERE NOT EXISTS (SELECT 1 FROM balance_versions WHERE version = 'pradera_equipo_v1');
+INSERT INTO balance_versions (version) SELECT 'pradera_v2' WHERE NOT EXISTS (SELECT 1 FROM balance_versions WHERE version = 'pradera_v2');`);
   return parts.join('\n');
 }
 

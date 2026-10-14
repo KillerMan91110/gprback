@@ -1966,107 +1966,116 @@ UPDATE classes SET xp_rate = 1.00 WHERE xp_rate <> 1.00;
 -- Equilibrio, fases B y C: la Pradera por fórmulas (lib/equilibrio.js; generado con
 -- node scripts/equilibrio/generar.js --sql): monstruos (también la cripta y la cacería mítica),
 -- crecimiento de las clases y sus evoluciones, habilidades de las clases base y equipo de nivel 1-15.
--- Valores fijos: se puede correr varias veces. Al final deja pendientes pradera_v1 y
--- pradera_equipo_v1 y el servidor recalcula las stats guardadas de jugadores y compañeros.
+-- v2: rareza más baja en el equipo épico/legendario, monstruos con más vida desde el nivel 10 y
+-- habilidad del tramo alto más suave. Valores fijos: se puede correr varias veces. Al final deja
+-- pendientes las versiones de balance_versions y el servidor recalcula las stats guardadas de
+-- jugadores y compañeros.
 -- ============================================================================================
--- monstruos de la Pradera (filas en su nivel mínimo y en el 15: la curva es lineal)
+-- monstruos de la Pradera (filas en su nivel mínimo, en el 9 y en el 15: la curva es lineal entre filas)
 DELETE FROM monster_level_scalings WHERE monster_id = (SELECT id FROM monsters WHERE code = 'ARANA_VENENOSA');
 INSERT INTO monster_level_scalings (monster_id, level, hp, atk, def, magic_atk, magic_def, spd, evasion, crit_chance, crit_damage, elemental_damage)
 SELECT (SELECT id FROM monsters WHERE code = 'ARANA_VENENOSA'), v.* FROM (VALUES
   (1, 119, 13, 20, 7, 16, 13, 5, 10, 50, 0),
-  (15, 655, 67, 112, 33, 93, 49, 9.2, 12.8, 50, 0)
+  (9, 425, 44, 73, 22, 60, 34, 7.4, 11.6, 50, 0),
+  (15, 935, 67, 112, 33, 93, 49, 9.2, 12.8, 50, 0)
 ) AS v(level, hp, atk, def, magic_atk, magic_def, spd, evasion, crit_chance, crit_damage, elemental_damage) WHERE (SELECT id FROM monsters WHERE code = 'ARANA_VENENOSA') IS NOT NULL;
 UPDATE monsters SET base_hp = 119, base_atk = 13, base_def = 20, base_magic_atk = 7, base_magic_def = 16, base_spd = 13, base_evasion = 5, base_crit_chance = 10, base_crit_damage = 50 WHERE code = 'ARANA_VENENOSA';
 DELETE FROM monster_level_scalings WHERE monster_id = (SELECT id FROM monsters WHERE code = 'BANDIDO_CORRUPTO');
 INSERT INTO monster_level_scalings (monster_id, level, hp, atk, def, magic_atk, magic_def, spd, evasion, crit_chance, crit_damage, elemental_damage)
 SELECT (SELECT id FROM monsters WHERE code = 'BANDIDO_CORRUPTO'), v.* FROM (VALUES
   (1, 140, 15, 19, 8, 15, 10, 5, 6, 50, 0),
-  (15, 770, 77, 107, 39, 88, 38, 9.2, 8.8, 50, 0)
+  (9, 500, 51, 69, 25, 57, 26, 7.4, 7.6, 50, 0),
+  (15, 1100, 77, 107, 39, 88, 38, 9.2, 8.8, 50, 0)
 ) AS v(level, hp, atk, def, magic_atk, magic_def, spd, evasion, crit_chance, crit_damage, elemental_damage) WHERE (SELECT id FROM monsters WHERE code = 'BANDIDO_CORRUPTO') IS NOT NULL;
 UPDATE monsters SET base_hp = 140, base_atk = 15, base_def = 19, base_magic_atk = 8, base_magic_def = 15, base_spd = 10, base_evasion = 5, base_crit_chance = 6, base_crit_damage = 50 WHERE code = 'BANDIDO_CORRUPTO';
 DELETE FROM monster_level_scalings WHERE monster_id = (SELECT id FROM monsters WHERE code = 'GOBLIN_SAQUEADOR');
 INSERT INTO monster_level_scalings (monster_id, level, hp, atk, def, magic_atk, magic_def, spd, evasion, crit_chance, crit_damage, elemental_damage)
 SELECT (SELECT id FROM monsters WHERE code = 'GOBLIN_SAQUEADOR'), v.* FROM (VALUES
   (1, 140, 15, 16, 7, 12, 11, 5, 6, 50, 0),
-  (15, 770, 74, 92, 37, 74, 42, 9.2, 8.8, 50, 0)
+  (9, 500, 48, 59, 24, 48, 29, 7.4, 7.6, 50, 0),
+  (15, 1100, 74, 92, 37, 74, 42, 9.2, 8.8, 50, 0)
 ) AS v(level, hp, atk, def, magic_atk, magic_def, spd, evasion, crit_chance, crit_damage, elemental_damage) WHERE (SELECT id FROM monsters WHERE code = 'GOBLIN_SAQUEADOR') IS NOT NULL;
 UPDATE monsters SET base_hp = 140, base_atk = 15, base_def = 16, base_magic_atk = 7, base_magic_def = 12, base_spd = 11, base_evasion = 5, base_crit_chance = 6, base_crit_damage = 50 WHERE code = 'GOBLIN_SAQUEADOR';
 DELETE FROM monster_level_scalings WHERE monster_id = (SELECT id FROM monsters WHERE code = 'LOBO_PRADERA');
 INSERT INTO monster_level_scalings (monster_id, level, hp, atk, def, magic_atk, magic_def, spd, evasion, crit_chance, crit_damage, elemental_damage)
 SELECT (SELECT id FROM monsters WHERE code = 'LOBO_PRADERA'), v.* FROM (VALUES
   (1, 140, 14, 18, 7, 14, 12, 5, 6, 50, 0),
-  (15, 770, 70, 102, 35, 83, 46, 9.2, 8.8, 50, 0)
+  (9, 500, 46, 66, 23, 54, 31, 7.4, 7.6, 50, 0),
+  (15, 1100, 70, 102, 35, 83, 46, 9.2, 8.8, 50, 0)
 ) AS v(level, hp, atk, def, magic_atk, magic_def, spd, evasion, crit_chance, crit_damage, elemental_damage) WHERE (SELECT id FROM monsters WHERE code = 'LOBO_PRADERA') IS NOT NULL;
 UPDATE monsters SET base_hp = 140, base_atk = 14, base_def = 18, base_magic_atk = 7, base_magic_def = 14, base_spd = 12, base_evasion = 5, base_crit_chance = 6, base_crit_damage = 50 WHERE code = 'LOBO_PRADERA';
 DELETE FROM monster_level_scalings WHERE monster_id = (SELECT id FROM monsters WHERE code = 'RATA_ALCANTARILLA');
 INSERT INTO monster_level_scalings (monster_id, level, hp, atk, def, magic_atk, magic_def, spd, evasion, crit_chance, crit_damage, elemental_damage)
 SELECT (SELECT id FROM monsters WHERE code = 'RATA_ALCANTARILLA'), v.* FROM (VALUES
   (1, 112, 12, 15, 6, 16, 14, 8, 6, 50, 0),
-  (15, 616, 60, 87, 30, 93, 53, 12.2, 8.8, 50, 0)
+  (9, 400, 39, 56, 20, 60, 36, 10.4, 7.6, 50, 0),
+  (15, 880, 60, 87, 30, 93, 53, 12.2, 8.8, 50, 0)
 ) AS v(level, hp, atk, def, magic_atk, magic_def, spd, evasion, crit_chance, crit_damage, elemental_damage) WHERE (SELECT id FROM monsters WHERE code = 'RATA_ALCANTARILLA') IS NOT NULL;
 UPDATE monsters SET base_hp = 112, base_atk = 12, base_def = 15, base_magic_atk = 6, base_magic_def = 16, base_spd = 14, base_evasion = 8, base_crit_chance = 6, base_crit_damage = 50 WHERE code = 'RATA_ALCANTARILLA';
 DELETE FROM monster_level_scalings WHERE monster_id = (SELECT id FROM monsters WHERE code = 'CHAMAN_OSCURO');
 INSERT INTO monster_level_scalings (monster_id, level, hp, atk, def, magic_atk, magic_def, spd, evasion, crit_chance, crit_damage, elemental_damage)
 SELECT (SELECT id FROM monsters WHERE code = 'CHAMAN_OSCURO'), v.* FROM (VALUES
   (8, 819, 20, 56, 53, 71, 25, 7.1, 7.4, 50, 0),
-  (15, 1386, 34, 95, 88, 122, 40, 9.2, 8.8, 50, 0)
+  (9, 900, 22, 62, 58, 79, 27, 7.4, 7.6, 50, 0),
+  (15, 1980, 34, 95, 88, 122, 40, 9.2, 8.8, 50, 0)
 ) AS v(level, hp, atk, def, magic_atk, magic_def, spd, evasion, crit_chance, crit_damage, elemental_damage) WHERE (SELECT id FROM monsters WHERE code = 'CHAMAN_OSCURO') IS NOT NULL;
 UPDATE monsters SET base_hp = 819, base_atk = 20, base_def = 56, base_magic_atk = 53, base_magic_def = 71, base_spd = 25, base_evasion = 7.1, base_crit_chance = 7.4, base_crit_damage = 50 WHERE code = 'CHAMAN_OSCURO';
 DELETE FROM monster_level_scalings WHERE monster_id = (SELECT id FROM monsters WHERE code = 'LOBO_FEROZ');
 INSERT INTO monster_level_scalings (monster_id, level, hp, atk, def, magic_atk, magic_def, spd, evasion, crit_chance, crit_damage, elemental_damage)
 SELECT (SELECT id FROM monsters WHERE code = 'LOBO_FEROZ'), v.* FROM (VALUES
   (8, 819, 50, 66, 25, 53, 32, 7.1, 7.4, 50, 0),
-  (15, 1386, 84, 112, 42, 92, 50, 9.2, 8.8, 50, 0)
+  (9, 900, 55, 73, 28, 59, 34, 7.4, 7.6, 50, 0),
+  (15, 1980, 84, 112, 42, 92, 50, 9.2, 8.8, 50, 0)
 ) AS v(level, hp, atk, def, magic_atk, magic_def, spd, evasion, crit_chance, crit_damage, elemental_damage) WHERE (SELECT id FROM monsters WHERE code = 'LOBO_FEROZ') IS NOT NULL;
 UPDATE monsters SET base_hp = 819, base_atk = 50, base_def = 66, base_magic_atk = 25, base_magic_def = 53, base_spd = 32, base_evasion = 7.1, base_crit_chance = 7.4, base_crit_damage = 50 WHERE code = 'LOBO_FEROZ';
 DELETE FROM monster_level_scalings WHERE monster_id = (SELECT id FROM monsters WHERE code = 'CAPITAN_LOBOS');
 INSERT INTO monster_level_scalings (monster_id, level, hp, atk, def, magic_atk, magic_def, spd, evasion, crit_chance, crit_damage, elemental_damage)
 SELECT (SELECT id FROM monsters WHERE code = 'CAPITAN_LOBOS'), v.* FROM (VALUES
-  (10, 1908, 70, 86, 35, 74, 36, 7.7, 7.8, 50, 0),
-  (15, 2695, 98, 122, 49, 105, 49, 9.2, 8.8, 50, 0)
+  (10, 2100, 70, 86, 35, 74, 36, 7.7, 7.8, 50, 0),
+  (15, 3850, 98, 122, 49, 105, 49, 9.2, 8.8, 50, 0)
 ) AS v(level, hp, atk, def, magic_atk, magic_def, spd, evasion, crit_chance, crit_damage, elemental_damage) WHERE (SELECT id FROM monsters WHERE code = 'CAPITAN_LOBOS') IS NOT NULL;
-UPDATE monsters SET base_hp = 1908, base_atk = 70, base_def = 86, base_magic_atk = 35, base_magic_def = 74, base_spd = 36, base_evasion = 7.7, base_crit_chance = 7.8, base_crit_damage = 50 WHERE code = 'CAPITAN_LOBOS';
+UPDATE monsters SET base_hp = 2100, base_atk = 70, base_def = 86, base_magic_atk = 35, base_magic_def = 74, base_spd = 36, base_evasion = 7.7, base_crit_chance = 7.8, base_crit_damage = 50 WHERE code = 'CAPITAN_LOBOS';
 DELETE FROM monster_level_scalings WHERE monster_id = (SELECT id FROM monsters WHERE code = 'TITAN_PRADERA');
 INSERT INTO monster_level_scalings (monster_id, level, hp, atk, def, magic_atk, magic_def, spd, evasion, crit_chance, crit_damage, elemental_damage)
 SELECT (SELECT id FROM monsters WHERE code = 'TITAN_PRADERA'), v.* FROM (VALUES
-  (14, 4350, 106, 125, 53, 113, 43, 8.9, 8.6, 50, 0),
-  (15, 4620, 112, 133, 56, 120, 46, 9.2, 8.8, 50, 0)
+  (14, 6000, 106, 125, 53, 113, 43, 8.9, 8.6, 50, 0),
+  (15, 6600, 112, 133, 56, 120, 46, 9.2, 8.8, 50, 0)
 ) AS v(level, hp, atk, def, magic_atk, magic_def, spd, evasion, crit_chance, crit_damage, elemental_damage) WHERE (SELECT id FROM monsters WHERE code = 'TITAN_PRADERA') IS NOT NULL;
-UPDATE monsters SET base_hp = 4350, base_atk = 106, base_def = 125, base_magic_atk = 53, base_magic_def = 113, base_spd = 43, base_evasion = 8.9, base_crit_chance = 8.6, base_crit_damage = 50 WHERE code = 'TITAN_PRADERA';
+UPDATE monsters SET base_hp = 6000, base_atk = 106, base_def = 125, base_magic_atk = 53, base_magic_def = 113, base_spd = 43, base_evasion = 8.9, base_crit_chance = 8.6, base_crit_damage = 50 WHERE code = 'TITAN_PRADERA';
 -- cripta del Vigía y cacería mítica (definidos en lib/cripta.js y lib/mythic.js con la misma curva)
 DELETE FROM monster_level_scalings WHERE monster_id = (SELECT id FROM monsters WHERE code = 'CRIPTA_CENTINELA');
 INSERT INTO monster_level_scalings (monster_id, level, hp, atk, def, magic_atk, magic_def, spd, evasion, crit_chance, crit_damage, elemental_damage)
 SELECT (SELECT id FROM monsters WHERE code = 'CRIPTA_CENTINELA'), v.* FROM (VALUES
   (5, 576, 36, 58, 18, 35, 17, 6.2, 6.8, 50, 0),
-  (12, 1143, 70, 116, 35, 71, 30, 8.3, 8.2, 50, 0)
+  (12, 1440, 70, 116, 35, 71, 30, 8.3, 8.2, 50, 0)
 ) AS v(level, hp, atk, def, magic_atk, magic_def, spd, evasion, crit_chance, crit_damage, elemental_damage) WHERE (SELECT id FROM monsters WHERE code = 'CRIPTA_CENTINELA') IS NOT NULL;
 UPDATE monsters SET base_hp = 576, base_atk = 36, base_def = 58, base_magic_atk = 18, base_magic_def = 35, base_spd = 17, base_evasion = 6.2, base_crit_chance = 6.8, base_crit_damage = 50 WHERE code = 'CRIPTA_CENTINELA';
 DELETE FROM monster_level_scalings WHERE monster_id = (SELECT id FROM monsters WHERE code = 'CRIPTA_ESPECTRO');
 INSERT INTO monster_level_scalings (monster_id, level, hp, atk, def, magic_atk, magic_def, spd, evasion, crit_chance, crit_damage, elemental_damage)
 SELECT (SELECT id FROM monsters WHERE code = 'CRIPTA_ESPECTRO'), v.* FROM (VALUES
   (5, 490, 14, 32, 38, 54, 23, 10.2, 6.8, 50, 6),
-  (12, 972, 28, 65, 73, 109, 40, 12.3, 8.2, 50, 6)
+  (12, 1224, 28, 65, 73, 109, 40, 12.3, 8.2, 50, 6)
 ) AS v(level, hp, atk, def, magic_atk, magic_def, spd, evasion, crit_chance, crit_damage, elemental_damage) WHERE (SELECT id FROM monsters WHERE code = 'CRIPTA_ESPECTRO') IS NOT NULL;
 UPDATE monsters SET base_hp = 490, base_atk = 14, base_def = 32, base_magic_atk = 38, base_magic_def = 54, base_spd = 23, base_evasion = 10.2, base_crit_chance = 6.8, base_crit_damage = 50 WHERE code = 'CRIPTA_ESPECTRO';
 DELETE FROM monster_level_scalings WHERE monster_id = (SELECT id FROM monsters WHERE code = 'CRIPTA_VIGIA');
 INSERT INTO monster_level_scalings (monster_id, level, hp, atk, def, magic_atk, magic_def, spd, evasion, crit_chance, crit_damage, elemental_damage)
 SELECT (SELECT id FROM monsters WHERE code = 'CRIPTA_VIGIA'), v.* FROM (VALUES
   (5, 1728, 48, 60, 24, 49, 22, 6.2, 6.8, 50, 6),
-  (12, 3429, 93, 120, 46, 99, 38, 8.3, 8.2, 50, 6)
+  (12, 4320, 93, 120, 46, 99, 38, 8.3, 8.2, 50, 6)
 ) AS v(level, hp, atk, def, magic_atk, magic_def, spd, evasion, crit_chance, crit_damage, elemental_damage) WHERE (SELECT id FROM monsters WHERE code = 'CRIPTA_VIGIA') IS NOT NULL;
 UPDATE monsters SET base_hp = 1728, base_atk = 48, base_def = 60, base_magic_atk = 24, base_magic_def = 49, base_spd = 22, base_evasion = 6.2, base_crit_chance = 6.8, base_crit_damage = 50 WHERE code = 'CRIPTA_VIGIA';
 DELETE FROM monster_level_scalings WHERE monster_id = (SELECT id FROM monsters WHERE code = 'LOBO_ESPECTRAL');
 INSERT INTO monster_level_scalings (monster_id, level, hp, atk, def, magic_atk, magic_def, spd, evasion, crit_chance, crit_damage, elemental_damage)
 SELECT (SELECT id FROM monsters WHERE code = 'LOBO_ESPECTRAL'), v.* FROM (VALUES
   (1, 119, 13, 18, 6, 16, 12, 6, 6, 50, 0),
-  (15, 655, 63, 102, 32, 93, 46, 10.2, 8.8, 50, 0)
+  (15, 935, 63, 102, 32, 93, 46, 10.2, 8.8, 50, 0)
 ) AS v(level, hp, atk, def, magic_atk, magic_def, spd, evasion, crit_chance, crit_damage, elemental_damage) WHERE (SELECT id FROM monsters WHERE code = 'LOBO_ESPECTRAL') IS NOT NULL;
 UPDATE monsters SET base_hp = 119, base_atk = 13, base_def = 18, base_magic_atk = 6, base_magic_def = 16, base_spd = 12, base_evasion = 6, base_crit_chance = 6, base_crit_damage = 50 WHERE code = 'LOBO_ESPECTRAL';
 DELETE FROM monster_level_scalings WHERE monster_id = (SELECT id FROM monsters WHERE code = 'MITICO_AULLALUNA');
 INSERT INTO monster_level_scalings (monster_id, level, hp, atk, def, magic_atk, magic_def, spd, evasion, crit_chance, crit_damage, elemental_damage)
 SELECT (SELECT id FROM monsters WHERE code = 'MITICO_AULLALUNA'), v.* FROM (VALUES
   (1, 588, 22, 23, 11, 22, 13, 5, 6, 50, 6),
-  (15, 3234, 112, 133, 56, 132, 50, 9.2, 8.8, 50, 6)
+  (15, 4620, 112, 133, 56, 132, 50, 9.2, 8.8, 50, 6)
 ) AS v(level, hp, atk, def, magic_atk, magic_def, spd, evasion, crit_chance, crit_damage, elemental_damage) WHERE (SELECT id FROM monsters WHERE code = 'MITICO_AULLALUNA') IS NOT NULL;
 UPDATE monsters SET base_hp = 588, base_atk = 22, base_def = 23, base_magic_atk = 11, base_magic_def = 22, base_spd = 13, base_evasion = 5, base_crit_chance = 6, base_crit_damage = 50 WHERE code = 'MITICO_AULLALUNA';
 -- crecimiento por nivel (las 5 clases base y sus evoluciones)
@@ -2171,389 +2180,395 @@ UPDATE class_growths SET hp_per_level = 25.83, atk_per_level = 2.05, def_per_lev
 UPDATE class_growths SET hp_per_level = 21, atk_per_level = 1.67, def_per_level = 5, mag_per_level = 11.65, magic_def_per_level = 7.5, spd_per_level = 3.75, mana_per_level = 37.5 WHERE class_id = 101;
 -- habilidades de las clases base: menos número fijo, más escala con la stat principal
 UPDATE skills SET base_value = 40, scaling_multiplier = 1.6 WHERE code = 'MAGO_ESCARCHA';
-UPDATE skills SET base_value = 60, scaling_multiplier = 1.9 WHERE code = 'MAGO_RAYO';
-UPDATE skills SET base_value = 48, scaling_multiplier = 1.53 WHERE code = 'MAGO_TORMENTA_ELEMENTAL';
-UPDATE skills SET base_value = 75, scaling_multiplier = 2.38 WHERE code = 'MAGO_EXPLOSION_MAGICA';
+UPDATE skills SET base_value = 50, scaling_multiplier = 1.7 WHERE code = 'MAGO_RAYO';
+UPDATE skills SET base_value = 40, scaling_multiplier = 1.37 WHERE code = 'MAGO_TORMENTA_ELEMENTAL';
+UPDATE skills SET base_value = 63, scaling_multiplier = 2.13 WHERE code = 'MAGO_EXPLOSION_MAGICA';
 UPDATE skills SET base_value = 20, scaling_multiplier = 1.1 WHERE code = 'ARQUERO_FLECHA_BASICA';
 UPDATE skills SET base_value = 40, scaling_multiplier = 1.6 WHERE code = 'ARQUERO_DISPARO_PRECISO';
-UPDATE skills SET base_value = 42, scaling_multiplier = 1.33 WHERE code = 'ARQUERO_LLUVIA_DE_FLECHAS';
-UPDATE skills SET base_value = 63, scaling_multiplier = 2 WHERE code = 'ARQUERO_FLECHA_EXPLOSIVA';
-UPDATE skills SET base_value = 69, scaling_multiplier = 2.18 WHERE code = 'ARQUERO_DISPARO_CERTERO';
+UPDATE skills SET base_value = 35, scaling_multiplier = 1.19 WHERE code = 'ARQUERO_LLUVIA_DE_FLECHAS';
+UPDATE skills SET base_value = 53, scaling_multiplier = 1.79 WHERE code = 'ARQUERO_FLECHA_EXPLOSIVA';
+UPDATE skills SET base_value = 57, scaling_multiplier = 1.95 WHERE code = 'ARQUERO_DISPARO_CERTERO';
 UPDATE skills SET base_value = 20, scaling_multiplier = 1.1 WHERE code = 'GUERRERO_GOLPE_BASICO';
 UPDATE skills SET base_value = 40, scaling_multiplier = 1.6 WHERE code = 'GUERRERO_TAJO';
-UPDATE skills SET base_value = 63, scaling_multiplier = 2 WHERE code = 'GUERRERO_GOLPE_MORTAL';
-UPDATE skills SET base_value = 69, scaling_multiplier = 2.18 WHERE code = 'GUERRERO_GOLPE_DEVASTADOR';
+UPDATE skills SET base_value = 53, scaling_multiplier = 1.79 WHERE code = 'GUERRERO_GOLPE_MORTAL';
 UPDATE skills SET base_value = 20, scaling_multiplier = 1.1 WHERE code = 'MAGO_BOLA_DE_FUEGO';
-UPDATE skills SET base_value = 53, scaling_multiplier = 1.66 WHERE code = 'ARQUERO_TORMENTA_DE_FLECHAS';
+UPDATE skills SET base_value = 44, scaling_multiplier = 1.49 WHERE code = 'ARQUERO_TORMENTA_DE_FLECHAS';
 UPDATE skills SET base_value = 20, scaling_multiplier = 1.1 WHERE code = 'PICARO_PUNALADA_RAPIDA';
 UPDATE skills SET base_value = 40, scaling_multiplier = 1.6 WHERE code = 'PICARO_GOLPE_LETAL';
-UPDATE skills SET base_value = 69, scaling_multiplier = 2.18 WHERE code = 'PICARO_ATAQUE_SILENCIOSO';
-UPDATE skills SET base_value = 69, scaling_multiplier = 2.18 WHERE code = 'PICARO_ASESINATO';
-UPDATE skills SET base_value = 24, scaling_multiplier = 0.77 WHERE code = 'PICARO_DANZA_DE_CUCHILLOS';
+UPDATE skills SET base_value = 57, scaling_multiplier = 1.95 WHERE code = 'PICARO_ATAQUE_SILENCIOSO';
+UPDATE skills SET base_value = 57, scaling_multiplier = 1.95 WHERE code = 'PICARO_ASESINATO';
+UPDATE skills SET base_value = 57, scaling_multiplier = 1.95 WHERE code = 'GUERRERO_GOLPE_DEVASTADOR';
+UPDATE skills SET base_value = 20, scaling_multiplier = 0.69 WHERE code = 'PICARO_DANZA_DE_CUCHILLOS';
 UPDATE skills SET base_value = 20, scaling_multiplier = 1.1 WHERE code = 'SACERDOTE_CURACION';
-UPDATE skills SET base_value = 42, scaling_multiplier = 1.33 WHERE code = 'SACERDOTE_CURACION_DE_GRUPO';
-UPDATE skills SET base_value = 81, scaling_multiplier = 2.57 WHERE code = 'GUERRERO_CORTE_DIVINO';
-UPDATE skills SET base_value = 57, scaling_multiplier = 1.8 WHERE code = 'MAGO_TORMENTA_COSMICA';
-UPDATE skills SET base_value = 12, scaling_multiplier = 0.39 WHERE code = 'ARQUERO_LLUVIA_INFINITA';
-UPDATE skills SET base_value = 21, scaling_multiplier = 0.67 WHERE code = 'PICARO_DANZA_MORTAL';
-UPDATE skills SET base_value = 57, scaling_multiplier = 1.8 WHERE code = 'SACERDOTE_MILAGRO_DIVINO';
+UPDATE skills SET base_value = 35, scaling_multiplier = 1.19 WHERE code = 'SACERDOTE_CURACION_DE_GRUPO';
+UPDATE skills SET base_value = 68, scaling_multiplier = 2.3 WHERE code = 'GUERRERO_CORTE_DIVINO';
+UPDATE skills SET base_value = 47, scaling_multiplier = 1.61 WHERE code = 'MAGO_TORMENTA_COSMICA';
+UPDATE skills SET base_value = 10, scaling_multiplier = 0.35 WHERE code = 'ARQUERO_LLUVIA_INFINITA';
+UPDATE skills SET base_value = 18, scaling_multiplier = 0.6 WHERE code = 'PICARO_DANZA_MORTAL';
+UPDATE skills SET base_value = 47, scaling_multiplier = 1.61 WHERE code = 'SACERDOTE_MILAGRO_DIVINO';
 UPDATE skills SET base_value = 40, scaling_multiplier = 1.6 WHERE code = 'SACERDOTE_ATAQUE';
 UPDATE skills SET base_value = 20, scaling_multiplier = 1.1 WHERE code = 'SACERDOTE_LUZ';
 -- equipo de nivel 1-15 de las clases base: stats por fórmula según su nivel y rareza
-UPDATE item_stat_bonuses b SET amount = 12 FROM items i WHERE i.id = b.item_id AND i.code = 'ESPADA_DE_HIERRO' AND b.stat_code = 'ATK' AND b.is_percent = FALSE; -- 15 -> 12
-UPDATE item_stat_bonuses b SET amount = 4 FROM items i WHERE i.id = b.item_id AND i.code = 'ESPADA_DE_HIERRO' AND b.stat_code = 'DEF' AND b.is_percent = FALSE; -- 5 -> 4
-UPDATE item_stat_bonuses b SET amount = 3.8 FROM items i WHERE i.id = b.item_id AND i.code = 'GRAN_ESPADA_DE_HIERRO' AND b.stat_code = 'CRIT_CHANCE' AND b.is_percent = TRUE; -- 5 -> 3.8
-UPDATE item_stat_bonuses b SET amount = 12 FROM items i WHERE i.id = b.item_id AND i.code = 'BACULO_DE_APRENDIZ' AND b.stat_code = 'MAG' AND b.is_percent = FALSE; -- 20 -> 12
-UPDATE item_stat_bonuses b SET amount = 3 FROM items i WHERE i.id = b.item_id AND i.code = 'BACULO_DE_APRENDIZ' AND b.stat_code = 'MAGIC_DEF' AND b.is_percent = FALSE; -- 5 -> 3
-UPDATE item_stat_bonuses b SET amount = 16 FROM items i WHERE i.id = b.item_id AND i.code = 'ORBE_DE_FUEGO' AND b.stat_code = 'MAG' AND b.is_percent = FALSE; -- 40 -> 16
-UPDATE item_stat_bonuses b SET amount = 4 FROM items i WHERE i.id = b.item_id AND i.code = 'ORBE_DE_FUEGO' AND b.stat_code = 'ELEMENTAL_ATK' AND b.is_percent = FALSE; -- 10 -> 4
-UPDATE item_stat_bonuses b SET amount = 8 FROM items i WHERE i.id = b.item_id AND i.code = 'ARCO_DE_MADERA' AND b.stat_code = 'ATK' AND b.is_percent = FALSE; -- 12 -> 8
-UPDATE item_stat_bonuses b SET amount = 7 FROM items i WHERE i.id = b.item_id AND i.code = 'ARCO_DE_MADERA' AND b.stat_code = 'SPD' AND b.is_percent = FALSE; -- 10 -> 7
-UPDATE item_stat_bonuses b SET amount = 2.3 FROM items i WHERE i.id = b.item_id AND i.code = 'ARCO_DE_MADERA' AND b.stat_code = 'CRIT_CHANCE' AND b.is_percent = TRUE; -- 3 -> 2.3
-UPDATE item_stat_bonuses b SET amount = 19 FROM items i WHERE i.id = b.item_id AND i.code = 'ARCO_DE_PRECISION' AND b.stat_code = 'ATK' AND b.is_percent = FALSE; -- 25 -> 19
-UPDATE item_stat_bonuses b SET amount = 15 FROM items i WHERE i.id = b.item_id AND i.code = 'ARCO_DE_PRECISION' AND b.stat_code = 'SPD' AND b.is_percent = FALSE; -- 20 -> 15
-UPDATE item_stat_bonuses b SET amount = 3.8 FROM items i WHERE i.id = b.item_id AND i.code = 'ARCO_DE_PRECISION' AND b.stat_code = 'CRIT_CHANCE' AND b.is_percent = TRUE; -- 10 -> 3.8
-UPDATE item_stat_bonuses b SET amount = 1.5 FROM items i WHERE i.id = b.item_id AND i.code = 'ARCO_DE_PRECISION' AND b.stat_code = 'EVASION' AND b.is_percent = TRUE; -- 5 -> 1.5
-UPDATE item_stat_bonuses b SET amount = 7 FROM items i WHERE i.id = b.item_id AND i.code = 'DAGA_DE_HIERRO' AND b.stat_code = 'ATK' AND b.is_percent = FALSE; -- 16 -> 7
-UPDATE item_stat_bonuses b SET amount = 7 FROM items i WHERE i.id = b.item_id AND i.code = 'DAGA_DE_HIERRO' AND b.stat_code = 'SPD' AND b.is_percent = FALSE; -- 15 -> 7
-UPDATE item_stat_bonuses b SET amount = 2.3 FROM items i WHERE i.id = b.item_id AND i.code = 'DAGA_DE_HIERRO' AND b.stat_code = 'CRIT_CHANCE' AND b.is_percent = TRUE; -- 8 -> 2.3
-UPDATE item_stat_bonuses b SET amount = 1 FROM items i WHERE i.id = b.item_id AND i.code = 'DAGA_DE_HIERRO' AND b.stat_code = 'EVASION' AND b.is_percent = TRUE; -- 2 -> 1
-UPDATE item_stat_bonuses b SET amount = 15 FROM items i WHERE i.id = b.item_id AND i.code = 'DAGA_DE_PRECISION' AND b.stat_code = 'ATK' AND b.is_percent = FALSE; -- 30 -> 15
-UPDATE item_stat_bonuses b SET amount = 17 FROM items i WHERE i.id = b.item_id AND i.code = 'DAGA_DE_PRECISION' AND b.stat_code = 'SPD' AND b.is_percent = FALSE; -- 35 -> 17
-UPDATE item_stat_bonuses b SET amount = 3.8 FROM items i WHERE i.id = b.item_id AND i.code = 'DAGA_DE_PRECISION' AND b.stat_code = 'CRIT_CHANCE' AND b.is_percent = TRUE; -- 15 -> 3.8
-UPDATE item_stat_bonuses b SET amount = 1.5 FROM items i WHERE i.id = b.item_id AND i.code = 'DAGA_DE_PRECISION' AND b.stat_code = 'EVASION' AND b.is_percent = TRUE; -- 8 -> 1.5
-UPDATE item_stat_bonuses b SET amount = 10 FROM items i WHERE i.id = b.item_id AND i.code = 'BACULO_DE_CURACION' AND b.stat_code = 'MAG' AND b.is_percent = FALSE; -- 18 -> 10
-UPDATE item_stat_bonuses b SET amount = 5 FROM items i WHERE i.id = b.item_id AND i.code = 'BACULO_DE_CURACION' AND b.stat_code = 'MAGIC_DEF' AND b.is_percent = FALSE; -- 8 -> 5
-UPDATE item_stat_bonuses b SET amount = 23 FROM items i WHERE i.id = b.item_id AND i.code = 'BACULO_SAGRADO' AND b.stat_code = 'MAG' AND b.is_percent = FALSE; -- 35 -> 23
-UPDATE item_stat_bonuses b SET amount = 13 FROM items i WHERE i.id = b.item_id AND i.code = 'BACULO_SAGRADO' AND b.stat_code = 'MAGIC_DEF' AND b.is_percent = FALSE; -- 20 -> 13
-UPDATE item_stat_bonuses b SET amount = 41 FROM items i WHERE i.id = b.item_id AND i.code = 'ESPADA_ACERO_TEMPLADO' AND b.stat_code = 'ATK' AND b.is_percent = FALSE; -- 35 -> 41
-UPDATE item_stat_bonuses b SET amount = 9 FROM items i WHERE i.id = b.item_id AND i.code = 'ESPADA_ACERO_TEMPLADO' AND b.stat_code = 'DEF' AND b.is_percent = FALSE; -- 8 -> 9
-UPDATE item_stat_bonuses b SET amount = 12 FROM items i WHERE i.id = b.item_id AND i.code = 'PETO_CUERO_REFORZADO' AND b.stat_code = 'DEF' AND b.is_percent = FALSE; -- 18 -> 12
-UPDATE item_stat_bonuses b SET amount = 19 FROM items i WHERE i.id = b.item_id AND i.code = 'PETO_CUERO_REFORZADO' AND b.stat_code = 'HP' AND b.is_percent = FALSE; -- 30 -> 19
-UPDATE item_stat_bonuses b SET amount = 14 FROM items i WHERE i.id = b.item_id AND i.code = 'ANILLO_FUERZA_MENOR' AND b.stat_code = 'ATK' AND b.is_percent = FALSE; -- 8 -> 14
-UPDATE item_stat_bonuses b SET amount = 15 FROM items i WHERE i.id = b.item_id AND i.code = 'GUERRERO_WEAPON_PRADERA' AND b.stat_code = 'ATK' AND b.is_percent = FALSE; -- 12 -> 15
-UPDATE item_stat_bonuses b SET amount = 2.3 FROM items i WHERE i.id = b.item_id AND i.code = 'GUERRERO_WEAPON_PRADERA' AND b.stat_code = 'CRIT_CHANCE' AND b.is_percent = TRUE; -- 6 -> 2.3
-UPDATE item_stat_bonuses b SET amount = 3 FROM items i WHERE i.id = b.item_id AND i.code = 'GUERRERO_OFFHAND_PRADERA' AND b.stat_code = 'DEF' AND b.is_percent = FALSE; -- 4 -> 3
-UPDATE item_stat_bonuses b SET amount = 6 FROM items i WHERE i.id = b.item_id AND i.code = 'GUERRERO_OFFHAND_PRADERA' AND b.stat_code = 'HP' AND b.is_percent = FALSE; -- 7 -> 6
-UPDATE item_stat_bonuses b SET amount = 3 FROM items i WHERE i.id = b.item_id AND i.code = 'GUERRERO_HELMET_PRADERA' AND b.stat_code = 'DEF' AND b.is_percent = FALSE; -- 5 -> 3
-UPDATE item_stat_bonuses b SET amount = 1 FROM items i WHERE i.id = b.item_id AND i.code = 'GUERRERO_HELMET_PRADERA' AND b.stat_code = 'MAGIC_DEF' AND b.is_percent = FALSE; -- 2 -> 1
-UPDATE item_stat_bonuses b SET amount = 4 FROM items i WHERE i.id = b.item_id AND i.code = 'GUERRERO_HELMET_PRADERA' AND b.stat_code = 'HP' AND b.is_percent = FALSE; -- 7 -> 4
-UPDATE item_stat_bonuses b SET amount = 5 FROM items i WHERE i.id = b.item_id AND i.code = 'GUERRERO_ARMOR_PRADERA' AND b.stat_code = 'DEF' AND b.is_percent = FALSE; -- 9 -> 5
-UPDATE item_stat_bonuses b SET amount = 2 FROM items i WHERE i.id = b.item_id AND i.code = 'GUERRERO_ARMOR_PRADERA' AND b.stat_code = 'MAGIC_DEF' AND b.is_percent = FALSE; -- 3 -> 2
-UPDATE item_stat_bonuses b SET amount = 10 FROM items i WHERE i.id = b.item_id AND i.code = 'GUERRERO_ARMOR_PRADERA' AND b.stat_code = 'HP' AND b.is_percent = FALSE; -- 18 -> 10
-UPDATE item_stat_bonuses b SET amount = 7 FROM items i WHERE i.id = b.item_id AND i.code = 'GUERRERO_GLOVES_PRADERA' AND b.stat_code = 'ATK' AND b.is_percent = FALSE; -- 6 -> 7
-UPDATE item_stat_bonuses b SET amount = 1.5 FROM items i WHERE i.id = b.item_id AND i.code = 'GUERRERO_GLOVES_PRADERA' AND b.stat_code = 'CRIT_CHANCE' AND b.is_percent = TRUE; -- 6 -> 1.5
-UPDATE item_stat_bonuses b SET amount = 1 FROM items i WHERE i.id = b.item_id AND i.code = 'GUERRERO_BOOTS_PRADERA' AND b.stat_code = 'DEF' AND b.is_percent = FALSE; -- 3 -> 1
-UPDATE item_stat_bonuses b SET amount = 1 FROM items i WHERE i.id = b.item_id AND i.code = 'GUERRERO_BOOTS_PRADERA' AND b.stat_code = 'HP' AND b.is_percent = FALSE; -- 4 -> 1
-UPDATE item_stat_bonuses b SET amount = 4 FROM items i WHERE i.id = b.item_id AND i.code = 'GUERRERO_BOOTS_PRADERA' AND b.stat_code = 'SPD' AND b.is_percent = FALSE; -- 22 -> 4
-UPDATE item_stat_bonuses b SET amount = 1 FROM items i WHERE i.id = b.item_id AND i.code = 'GUERRERO_BOOTS_PRADERA' AND b.stat_code = 'EVASION' AND b.is_percent = TRUE; -- 4 -> 1
-UPDATE item_stat_bonuses b SET amount = 6 FROM items i WHERE i.id = b.item_id AND i.code = 'GUERRERO_ACCESSORY_PRADERA' AND b.stat_code = 'ATK' AND b.is_percent = FALSE; -- 4 -> 6
-UPDATE item_stat_bonuses b SET amount = 1.5 FROM items i WHERE i.id = b.item_id AND i.code = 'GUERRERO_ACCESSORY_PRADERA' AND b.stat_code = 'CRIT_CHANCE' AND b.is_percent = TRUE; -- 6 -> 1.5
-UPDATE item_stat_bonuses b SET amount = 15 FROM items i WHERE i.id = b.item_id AND i.code = 'ARQUERO_WEAPON_PRADERA' AND b.stat_code = 'ATK' AND b.is_percent = FALSE; -- 10 -> 15
-UPDATE item_stat_bonuses b SET amount = 2.3 FROM items i WHERE i.id = b.item_id AND i.code = 'ARQUERO_WEAPON_PRADERA' AND b.stat_code = 'CRIT_CHANCE' AND b.is_percent = TRUE; -- 10 -> 2.3
-UPDATE item_stat_bonuses b SET amount = 2 FROM items i WHERE i.id = b.item_id AND i.code = 'ARQUERO_OFFHAND_PRADERA' AND b.stat_code = 'ATK' AND b.is_percent = FALSE; -- 3 -> 2
-UPDATE item_stat_bonuses b SET amount = 5 FROM items i WHERE i.id = b.item_id AND i.code = 'ARQUERO_OFFHAND_PRADERA' AND b.stat_code = 'SPD' AND b.is_percent = FALSE; -- 9 -> 5
-UPDATE item_stat_bonuses b SET amount = 3 FROM items i WHERE i.id = b.item_id AND i.code = 'ARQUERO_HELMET_PRADERA' AND b.stat_code = 'DEF' AND b.is_percent = FALSE; -- 6 -> 3
-UPDATE item_stat_bonuses b SET amount = 1 FROM items i WHERE i.id = b.item_id AND i.code = 'ARQUERO_HELMET_PRADERA' AND b.stat_code = 'MAGIC_DEF' AND b.is_percent = FALSE; -- 2 -> 1
-UPDATE item_stat_bonuses b SET amount = 3 FROM items i WHERE i.id = b.item_id AND i.code = 'ARQUERO_HELMET_PRADERA' AND b.stat_code = 'HP' AND b.is_percent = FALSE; -- 7 -> 3
-UPDATE item_stat_bonuses b SET amount = 5 FROM items i WHERE i.id = b.item_id AND i.code = 'ARQUERO_ARMOR_PRADERA' AND b.stat_code = 'DEF' AND b.is_percent = FALSE; -- 11 -> 5
-UPDATE item_stat_bonuses b SET amount = 1 FROM items i WHERE i.id = b.item_id AND i.code = 'ARQUERO_ARMOR_PRADERA' AND b.stat_code = 'MAGIC_DEF' AND b.is_percent = FALSE; -- 3 -> 1
-UPDATE item_stat_bonuses b SET amount = 12 FROM items i WHERE i.id = b.item_id AND i.code = 'ARQUERO_ARMOR_PRADERA' AND b.stat_code = 'HP' AND b.is_percent = FALSE; -- 25 -> 12
-UPDATE item_stat_bonuses b SET amount = 7 FROM items i WHERE i.id = b.item_id AND i.code = 'ARQUERO_GLOVES_PRADERA' AND b.stat_code = 'ATK' AND b.is_percent = FALSE; -- 4 -> 7
-UPDATE item_stat_bonuses b SET amount = 1.5 FROM items i WHERE i.id = b.item_id AND i.code = 'ARQUERO_GLOVES_PRADERA' AND b.stat_code = 'CRIT_CHANCE' AND b.is_percent = TRUE; -- 10 -> 1.5
-UPDATE item_stat_bonuses b SET amount = 1 FROM items i WHERE i.id = b.item_id AND i.code = 'ARQUERO_BOOTS_PRADERA' AND b.stat_code = 'DEF' AND b.is_percent = FALSE; -- 4 -> 1
-UPDATE item_stat_bonuses b SET amount = 1 FROM items i WHERE i.id = b.item_id AND i.code = 'ARQUERO_BOOTS_PRADERA' AND b.stat_code = 'HP' AND b.is_percent = FALSE; -- 4 -> 1
-UPDATE item_stat_bonuses b SET amount = 4 FROM items i WHERE i.id = b.item_id AND i.code = 'ARQUERO_BOOTS_PRADERA' AND b.stat_code = 'SPD' AND b.is_percent = FALSE; -- 22 -> 4
-UPDATE item_stat_bonuses b SET amount = 1 FROM items i WHERE i.id = b.item_id AND i.code = 'ARQUERO_BOOTS_PRADERA' AND b.stat_code = 'EVASION' AND b.is_percent = TRUE; -- 4 -> 1
-UPDATE item_stat_bonuses b SET amount = 6 FROM items i WHERE i.id = b.item_id AND i.code = 'ARQUERO_ACCESSORY_PRADERA' AND b.stat_code = 'ATK' AND b.is_percent = FALSE; -- 4 -> 6
-UPDATE item_stat_bonuses b SET amount = 1.5 FROM items i WHERE i.id = b.item_id AND i.code = 'ARQUERO_ACCESSORY_PRADERA' AND b.stat_code = 'CRIT_CHANCE' AND b.is_percent = TRUE; -- 10 -> 1.5
-UPDATE item_stat_bonuses b SET amount = 15 FROM items i WHERE i.id = b.item_id AND i.code = 'PICARO_WEAPON_PRADERA' AND b.stat_code = 'ATK' AND b.is_percent = FALSE; -- 10 -> 15
-UPDATE item_stat_bonuses b SET amount = 2.3 FROM items i WHERE i.id = b.item_id AND i.code = 'PICARO_WEAPON_PRADERA' AND b.stat_code = 'CRIT_CHANCE' AND b.is_percent = TRUE; -- 12 -> 2.3
-UPDATE item_stat_bonuses b SET amount = 2 FROM items i WHERE i.id = b.item_id AND i.code = 'PICARO_OFFHAND_PRADERA' AND b.stat_code = 'ATK' AND b.is_percent = FALSE; -- 3 -> 2
-UPDATE item_stat_bonuses b SET amount = 5 FROM items i WHERE i.id = b.item_id AND i.code = 'PICARO_OFFHAND_PRADERA' AND b.stat_code = 'SPD' AND b.is_percent = FALSE; -- 9 -> 5
-UPDATE item_stat_bonuses b SET amount = 3 FROM items i WHERE i.id = b.item_id AND i.code = 'PICARO_HELMET_PRADERA' AND b.stat_code = 'DEF' AND b.is_percent = FALSE; -- 6 -> 3
-UPDATE item_stat_bonuses b SET amount = 1 FROM items i WHERE i.id = b.item_id AND i.code = 'PICARO_HELMET_PRADERA' AND b.stat_code = 'MAGIC_DEF' AND b.is_percent = FALSE; -- 2 -> 1
-UPDATE item_stat_bonuses b SET amount = 3 FROM items i WHERE i.id = b.item_id AND i.code = 'PICARO_HELMET_PRADERA' AND b.stat_code = 'HP' AND b.is_percent = FALSE; -- 7 -> 3
-UPDATE item_stat_bonuses b SET amount = 5 FROM items i WHERE i.id = b.item_id AND i.code = 'PICARO_ARMOR_PRADERA' AND b.stat_code = 'DEF' AND b.is_percent = FALSE; -- 10 -> 5
-UPDATE item_stat_bonuses b SET amount = 2 FROM items i WHERE i.id = b.item_id AND i.code = 'PICARO_ARMOR_PRADERA' AND b.stat_code = 'MAGIC_DEF' AND b.is_percent = FALSE; -- 3 -> 2
-UPDATE item_stat_bonuses b SET amount = 13 FROM items i WHERE i.id = b.item_id AND i.code = 'PICARO_ARMOR_PRADERA' AND b.stat_code = 'HP' AND b.is_percent = FALSE; -- 25 -> 13
-UPDATE item_stat_bonuses b SET amount = 7 FROM items i WHERE i.id = b.item_id AND i.code = 'PICARO_GLOVES_PRADERA' AND b.stat_code = 'ATK' AND b.is_percent = FALSE; -- 4 -> 7
-UPDATE item_stat_bonuses b SET amount = 1.5 FROM items i WHERE i.id = b.item_id AND i.code = 'PICARO_GLOVES_PRADERA' AND b.stat_code = 'CRIT_CHANCE' AND b.is_percent = TRUE; -- 12 -> 1.5
-UPDATE item_stat_bonuses b SET amount = 1 FROM items i WHERE i.id = b.item_id AND i.code = 'PICARO_BOOTS_PRADERA' AND b.stat_code = 'DEF' AND b.is_percent = FALSE; -- 4 -> 1
-UPDATE item_stat_bonuses b SET amount = 1 FROM items i WHERE i.id = b.item_id AND i.code = 'PICARO_BOOTS_PRADERA' AND b.stat_code = 'HP' AND b.is_percent = FALSE; -- 4 -> 1
-UPDATE item_stat_bonuses b SET amount = 4 FROM items i WHERE i.id = b.item_id AND i.code = 'PICARO_BOOTS_PRADERA' AND b.stat_code = 'SPD' AND b.is_percent = FALSE; -- 22 -> 4
-UPDATE item_stat_bonuses b SET amount = 1 FROM items i WHERE i.id = b.item_id AND i.code = 'PICARO_BOOTS_PRADERA' AND b.stat_code = 'EVASION' AND b.is_percent = TRUE; -- 4 -> 1
-UPDATE item_stat_bonuses b SET amount = 6 FROM items i WHERE i.id = b.item_id AND i.code = 'PICARO_ACCESSORY_PRADERA' AND b.stat_code = 'ATK' AND b.is_percent = FALSE; -- 4 -> 6
-UPDATE item_stat_bonuses b SET amount = 1.5 FROM items i WHERE i.id = b.item_id AND i.code = 'PICARO_ACCESSORY_PRADERA' AND b.stat_code = 'CRIT_CHANCE' AND b.is_percent = TRUE; -- 12 -> 1.5
-UPDATE item_stat_bonuses b SET amount = 15 FROM items i WHERE i.id = b.item_id AND i.code = 'MAGO_WEAPON_PRADERA' AND b.stat_code = 'MAG' AND b.is_percent = FALSE; -- 13 -> 15
-UPDATE item_stat_bonuses b SET amount = 2.3 FROM items i WHERE i.id = b.item_id AND i.code = 'MAGO_WEAPON_PRADERA' AND b.stat_code = 'CRIT_CHANCE' AND b.is_percent = TRUE; -- 6 -> 2.3
-UPDATE item_stat_bonuses b SET amount = 2 FROM items i WHERE i.id = b.item_id AND i.code = 'MAGO_OFFHAND_PRADERA' AND b.stat_code = 'MAG' AND b.is_percent = FALSE; -- 4 -> 2
-UPDATE item_stat_bonuses b SET amount = 5 FROM items i WHERE i.id = b.item_id AND i.code = 'MAGO_OFFHAND_PRADERA' AND b.stat_code = 'SPD' AND b.is_percent = FALSE; -- 9 -> 5
-UPDATE item_stat_bonuses b SET amount = 3 FROM items i WHERE i.id = b.item_id AND i.code = 'MAGO_HELMET_PRADERA' AND b.stat_code = 'MAGIC_DEF' AND b.is_percent = FALSE; -- 6 -> 3
-UPDATE item_stat_bonuses b SET amount = 1 FROM items i WHERE i.id = b.item_id AND i.code = 'MAGO_HELMET_PRADERA' AND b.stat_code = 'DEF' AND b.is_percent = FALSE; -- 2 -> 1
-UPDATE item_stat_bonuses b SET amount = 3 FROM items i WHERE i.id = b.item_id AND i.code = 'MAGO_HELMET_PRADERA' AND b.stat_code = 'HP' AND b.is_percent = FALSE; -- 7 -> 3
-UPDATE item_stat_bonuses b SET amount = 5 FROM items i WHERE i.id = b.item_id AND i.code = 'MAGO_ARMOR_PRADERA' AND b.stat_code = 'MAGIC_DEF' AND b.is_percent = FALSE; -- 11 -> 5
-UPDATE item_stat_bonuses b SET amount = 1 FROM items i WHERE i.id = b.item_id AND i.code = 'MAGO_ARMOR_PRADERA' AND b.stat_code = 'DEF' AND b.is_percent = FALSE; -- 3 -> 1
-UPDATE item_stat_bonuses b SET amount = 12 FROM items i WHERE i.id = b.item_id AND i.code = 'MAGO_ARMOR_PRADERA' AND b.stat_code = 'HP' AND b.is_percent = FALSE; -- 25 -> 12
-UPDATE item_stat_bonuses b SET amount = 7 FROM items i WHERE i.id = b.item_id AND i.code = 'MAGO_GLOVES_PRADERA' AND b.stat_code = 'MAG' AND b.is_percent = FALSE; -- 6 -> 7
-UPDATE item_stat_bonuses b SET amount = 1.5 FROM items i WHERE i.id = b.item_id AND i.code = 'MAGO_GLOVES_PRADERA' AND b.stat_code = 'CRIT_CHANCE' AND b.is_percent = TRUE; -- 6 -> 1.5
-UPDATE item_stat_bonuses b SET amount = 1 FROM items i WHERE i.id = b.item_id AND i.code = 'MAGO_BOOTS_PRADERA' AND b.stat_code = 'MAGIC_DEF' AND b.is_percent = FALSE; -- 4 -> 1
-UPDATE item_stat_bonuses b SET amount = 1 FROM items i WHERE i.id = b.item_id AND i.code = 'MAGO_BOOTS_PRADERA' AND b.stat_code = 'HP' AND b.is_percent = FALSE; -- 4 -> 1
-UPDATE item_stat_bonuses b SET amount = 4 FROM items i WHERE i.id = b.item_id AND i.code = 'MAGO_BOOTS_PRADERA' AND b.stat_code = 'SPD' AND b.is_percent = FALSE; -- 22 -> 4
-UPDATE item_stat_bonuses b SET amount = 1 FROM items i WHERE i.id = b.item_id AND i.code = 'MAGO_BOOTS_PRADERA' AND b.stat_code = 'EVASION' AND b.is_percent = TRUE; -- 4 -> 1
-UPDATE item_stat_bonuses b SET amount = 1.5 FROM items i WHERE i.id = b.item_id AND i.code = 'MAGO_ACCESSORY_PRADERA' AND b.stat_code = 'CRIT_CHANCE' AND b.is_percent = TRUE; -- 6 -> 1.5
-UPDATE item_stat_bonuses b SET amount = 2.3 FROM items i WHERE i.id = b.item_id AND i.code = 'SACERDOTE_WEAPON_PRADERA' AND b.stat_code = 'CRIT_CHANCE' AND b.is_percent = TRUE; -- 5 -> 2.3
-UPDATE item_stat_bonuses b SET amount = 3 FROM items i WHERE i.id = b.item_id AND i.code = 'SACERDOTE_OFFHAND_PRADERA' AND b.stat_code = 'MAGIC_DEF' AND b.is_percent = FALSE; -- 4 -> 3
-UPDATE item_stat_bonuses b SET amount = 6 FROM items i WHERE i.id = b.item_id AND i.code = 'SACERDOTE_OFFHAND_PRADERA' AND b.stat_code = 'HP' AND b.is_percent = FALSE; -- 7 -> 6
-UPDATE item_stat_bonuses b SET amount = 3 FROM items i WHERE i.id = b.item_id AND i.code = 'SACERDOTE_HELMET_PRADERA' AND b.stat_code = 'MAGIC_DEF' AND b.is_percent = FALSE; -- 5 -> 3
-UPDATE item_stat_bonuses b SET amount = 1 FROM items i WHERE i.id = b.item_id AND i.code = 'SACERDOTE_HELMET_PRADERA' AND b.stat_code = 'DEF' AND b.is_percent = FALSE; -- 2 -> 1
-UPDATE item_stat_bonuses b SET amount = 4 FROM items i WHERE i.id = b.item_id AND i.code = 'SACERDOTE_HELMET_PRADERA' AND b.stat_code = 'HP' AND b.is_percent = FALSE; -- 7 -> 4
-UPDATE item_stat_bonuses b SET amount = 5 FROM items i WHERE i.id = b.item_id AND i.code = 'SACERDOTE_ARMOR_PRADERA' AND b.stat_code = 'MAGIC_DEF' AND b.is_percent = FALSE; -- 9 -> 5
-UPDATE item_stat_bonuses b SET amount = 2 FROM items i WHERE i.id = b.item_id AND i.code = 'SACERDOTE_ARMOR_PRADERA' AND b.stat_code = 'DEF' AND b.is_percent = FALSE; -- 3 -> 2
-UPDATE item_stat_bonuses b SET amount = 10 FROM items i WHERE i.id = b.item_id AND i.code = 'SACERDOTE_ARMOR_PRADERA' AND b.stat_code = 'HP' AND b.is_percent = FALSE; -- 18 -> 10
-UPDATE item_stat_bonuses b SET amount = 1.5 FROM items i WHERE i.id = b.item_id AND i.code = 'SACERDOTE_GLOVES_PRADERA' AND b.stat_code = 'CRIT_CHANCE' AND b.is_percent = TRUE; -- 5 -> 1.5
-UPDATE item_stat_bonuses b SET amount = 1 FROM items i WHERE i.id = b.item_id AND i.code = 'SACERDOTE_BOOTS_PRADERA' AND b.stat_code = 'MAGIC_DEF' AND b.is_percent = FALSE; -- 3 -> 1
-UPDATE item_stat_bonuses b SET amount = 1 FROM items i WHERE i.id = b.item_id AND i.code = 'SACERDOTE_BOOTS_PRADERA' AND b.stat_code = 'HP' AND b.is_percent = FALSE; -- 4 -> 1
-UPDATE item_stat_bonuses b SET amount = 4 FROM items i WHERE i.id = b.item_id AND i.code = 'SACERDOTE_BOOTS_PRADERA' AND b.stat_code = 'SPD' AND b.is_percent = FALSE; -- 22 -> 4
-UPDATE item_stat_bonuses b SET amount = 1 FROM items i WHERE i.id = b.item_id AND i.code = 'SACERDOTE_BOOTS_PRADERA' AND b.stat_code = 'EVASION' AND b.is_percent = TRUE; -- 4 -> 1
-UPDATE item_stat_bonuses b SET amount = 6 FROM items i WHERE i.id = b.item_id AND i.code = 'SACERDOTE_ACCESSORY_PRADERA' AND b.stat_code = 'MAG' AND b.is_percent = FALSE; -- 5 -> 6
-UPDATE item_stat_bonuses b SET amount = 1.5 FROM items i WHERE i.id = b.item_id AND i.code = 'SACERDOTE_ACCESSORY_PRADERA' AND b.stat_code = 'CRIT_CHANCE' AND b.is_percent = TRUE; -- 5 -> 1.5
-UPDATE item_stat_bonuses b SET amount = 69 FROM items i WHERE i.id = b.item_id AND i.code = 'GUERRERO_WEAPON2H_MONTANAS' AND b.stat_code = 'ATK' AND b.is_percent = FALSE; -- 140 -> 69
-UPDATE item_stat_bonuses b SET amount = -20 FROM items i WHERE i.id = b.item_id AND i.code = 'GUERRERO_WEAPON2H_MONTANAS' AND b.stat_code = 'DEF' AND b.is_percent = FALSE; -- -40 -> -20
-UPDATE item_stat_bonuses b SET amount = -15 FROM items i WHERE i.id = b.item_id AND i.code = 'GUERRERO_WEAPON2H_MONTANAS' AND b.stat_code = 'SPD' AND b.is_percent = FALSE; -- -30 -> -15
-UPDATE item_stat_bonuses b SET amount = 35 FROM items i WHERE i.id = b.item_id AND i.code = 'GUERRERO_WEAPON2H_PRADERA' AND b.stat_code = 'ATK' AND b.is_percent = FALSE; -- 42 -> 35
-UPDATE item_stat_bonuses b SET amount = -8 FROM items i WHERE i.id = b.item_id AND i.code = 'GUERRERO_WEAPON2H_PRADERA' AND b.stat_code = 'DEF' AND b.is_percent = FALSE; -- -9 -> -8
-UPDATE item_stat_bonuses b SET amount = 12 FROM items i WHERE i.id = b.item_id AND i.code = 'AMULETO_DEL_BRUJO' AND b.stat_code = 'MAG' AND b.is_percent = FALSE; -- 25 -> 12
-UPDATE item_stat_bonuses b SET amount = 7 FROM items i WHERE i.id = b.item_id AND i.code = 'AMULETO_DEL_BRUJO' AND b.stat_code = 'MAGIC_DEF' AND b.is_percent = FALSE; -- 15 -> 7
-UPDATE item_stat_bonuses b SET amount = 15 FROM items i WHERE i.id = b.item_id AND i.code = 'AMULETO_DEL_BRUJO' AND b.stat_code = 'HP' AND b.is_percent = FALSE; -- 30 -> 15
-UPDATE item_stat_bonuses b SET amount = 5 FROM items i WHERE i.id = b.item_id AND i.code = 'AMULETO_DEL_CAPITAN' AND b.stat_code = 'ATK' AND b.is_percent = FALSE; -- 10 -> 5
-UPDATE item_stat_bonuses b SET amount = 4 FROM items i WHERE i.id = b.item_id AND i.code = 'AMULETO_DEL_CAPITAN' AND b.stat_code = 'DEF' AND b.is_percent = FALSE; -- 8 -> 4
-UPDATE item_stat_bonuses b SET amount = 9 FROM items i WHERE i.id = b.item_id AND i.code = 'AMULETO_DEL_CAPITAN' AND b.stat_code = 'HP' AND b.is_percent = FALSE; -- 20 -> 9
-UPDATE item_stat_bonuses b SET amount = 42 FROM items i WHERE i.id = b.item_id AND i.code = 'GUERRERO_WEAPON_CAPITAN' AND b.stat_code = 'ATK' AND b.is_percent = FALSE; -- 45 -> 42
-UPDATE item_stat_bonuses b SET amount = 6.8 FROM items i WHERE i.id = b.item_id AND i.code = 'GUERRERO_WEAPON_CAPITAN' AND b.stat_code = 'CRIT_CHANCE' AND b.is_percent = TRUE; -- 11 -> 6.8
-UPDATE item_stat_bonuses b SET amount = 63 FROM items i WHERE i.id = b.item_id AND i.code = 'GUERRERO_WEAPON2H_CAPITAN' AND b.stat_code = 'ATK' AND b.is_percent = FALSE; -- 95 -> 63
-UPDATE item_stat_bonuses b SET amount = 9 FROM items i WHERE i.id = b.item_id AND i.code = 'GUERRERO_OFFHAND_CAPITAN' AND b.stat_code = 'DEF' AND b.is_percent = FALSE; -- 15 -> 9
-UPDATE item_stat_bonuses b SET amount = 12 FROM items i WHERE i.id = b.item_id AND i.code = 'GUERRERO_OFFHAND_CAPITAN' AND b.stat_code = 'HP' AND b.is_percent = FALSE; -- 19 -> 12
-UPDATE item_stat_bonuses b SET amount = 8 FROM items i WHERE i.id = b.item_id AND i.code = 'GUERRERO_HELMET_CAPITAN' AND b.stat_code = 'DEF' AND b.is_percent = FALSE; -- 19 -> 8
-UPDATE item_stat_bonuses b SET amount = 7 FROM items i WHERE i.id = b.item_id AND i.code = 'GUERRERO_HELMET_CAPITAN' AND b.stat_code = 'HP' AND b.is_percent = FALSE; -- 18 -> 7
-UPDATE item_stat_bonuses b SET amount = 2 FROM items i WHERE i.id = b.item_id AND i.code = 'GUERRERO_HELMET_CAPITAN' AND b.stat_code = 'MAGIC_DEF' AND b.is_percent = FALSE; -- 6 -> 2
-UPDATE item_stat_bonuses b SET amount = 15 FROM items i WHERE i.id = b.item_id AND i.code = 'GUERRERO_ARMOR_CAPITAN' AND b.stat_code = 'DEF' AND b.is_percent = FALSE; -- 30 -> 15
-UPDATE item_stat_bonuses b SET amount = 24 FROM items i WHERE i.id = b.item_id AND i.code = 'GUERRERO_ARMOR_CAPITAN' AND b.stat_code = 'HP' AND b.is_percent = FALSE; -- 47 -> 24
-UPDATE item_stat_bonuses b SET amount = 5 FROM items i WHERE i.id = b.item_id AND i.code = 'GUERRERO_ARMOR_CAPITAN' AND b.stat_code = 'MAGIC_DEF' AND b.is_percent = FALSE; -- 9 -> 5
-UPDATE item_stat_bonuses b SET amount = 19 FROM items i WHERE i.id = b.item_id AND i.code = 'GUERRERO_GLOVES_CAPITAN' AND b.stat_code = 'ATK' AND b.is_percent = FALSE; -- 25 -> 19
-UPDATE item_stat_bonuses b SET amount = 4.5 FROM items i WHERE i.id = b.item_id AND i.code = 'GUERRERO_GLOVES_CAPITAN' AND b.stat_code = 'CRIT_CHANCE' AND b.is_percent = TRUE; -- 11 -> 4.5
-UPDATE item_stat_bonuses b SET amount = 11 FROM items i WHERE i.id = b.item_id AND i.code = 'GUERRERO_BOOTS_CAPITAN' AND b.stat_code = 'SPD' AND b.is_percent = FALSE; -- 35 -> 11
-UPDATE item_stat_bonuses b SET amount = 3 FROM items i WHERE i.id = b.item_id AND i.code = 'GUERRERO_BOOTS_CAPITAN' AND b.stat_code = 'HP' AND b.is_percent = FALSE; -- 9 -> 3
-UPDATE item_stat_bonuses b SET amount = 4 FROM items i WHERE i.id = b.item_id AND i.code = 'GUERRERO_BOOTS_CAPITAN' AND b.stat_code = 'DEF' AND b.is_percent = FALSE; -- 11 -> 4
-UPDATE item_stat_bonuses b SET amount = 2.5 FROM items i WHERE i.id = b.item_id AND i.code = 'GUERRERO_BOOTS_CAPITAN' AND b.stat_code = 'EVASION' AND b.is_percent = TRUE; -- 5 -> 2.5
-UPDATE item_stat_bonuses b SET amount = 42 FROM items i WHERE i.id = b.item_id AND i.code = 'MAGO_WEAPON_CAPITAN' AND b.stat_code = 'MAG' AND b.is_percent = FALSE; -- 48 -> 42
-UPDATE item_stat_bonuses b SET amount = 6.8 FROM items i WHERE i.id = b.item_id AND i.code = 'MAGO_WEAPON_CAPITAN' AND b.stat_code = 'CRIT_CHANCE' AND b.is_percent = TRUE; -- 13 -> 6.8
-UPDATE item_stat_bonuses b SET amount = 17 FROM items i WHERE i.id = b.item_id AND i.code = 'MAGO_OFFHAND_ORB_CAPITAN' AND b.stat_code = 'MAG' AND b.is_percent = FALSE; -- 20 -> 17
-UPDATE item_stat_bonuses b SET amount = 14 FROM items i WHERE i.id = b.item_id AND i.code = 'MAGO_OFFHAND_ORB_CAPITAN' AND b.stat_code = 'SPD' AND b.is_percent = FALSE; -- 16 -> 14
-UPDATE item_stat_bonuses b SET amount = 23 FROM items i WHERE i.id = b.item_id AND i.code = 'MAGO_OFFHAND_CRYSTAL_CAPITAN' AND b.stat_code = 'MAG' AND b.is_percent = FALSE; -- 27 -> 23
-UPDATE item_stat_bonuses b SET amount = 4.5 FROM items i WHERE i.id = b.item_id AND i.code = 'MAGO_OFFHAND_CRYSTAL_CAPITAN' AND b.stat_code = 'CRIT_CHANCE' AND b.is_percent = TRUE; -- 13 -> 4.5
-UPDATE item_stat_bonuses b SET amount = 2 FROM items i WHERE i.id = b.item_id AND i.code = 'MAGO_HELMET_CAPITAN' AND b.stat_code = 'DEF' AND b.is_percent = FALSE; -- 7 -> 2
-UPDATE item_stat_bonuses b SET amount = 5 FROM items i WHERE i.id = b.item_id AND i.code = 'MAGO_HELMET_CAPITAN' AND b.stat_code = 'HP' AND b.is_percent = FALSE; -- 18 -> 5
-UPDATE item_stat_bonuses b SET amount = 8 FROM items i WHERE i.id = b.item_id AND i.code = 'MAGO_HELMET_CAPITAN' AND b.stat_code = 'MAGIC_DEF' AND b.is_percent = FALSE; -- 25 -> 8
-UPDATE item_stat_bonuses b SET amount = 5 FROM items i WHERE i.id = b.item_id AND i.code = 'MAGO_ARMOR_CAPITAN' AND b.stat_code = 'DEF' AND b.is_percent = FALSE; -- 11 -> 5
-UPDATE item_stat_bonuses b SET amount = 27 FROM items i WHERE i.id = b.item_id AND i.code = 'MAGO_ARMOR_CAPITAN' AND b.stat_code = 'HP' AND b.is_percent = FALSE; -- 65 -> 27
-UPDATE item_stat_bonuses b SET amount = 15 FROM items i WHERE i.id = b.item_id AND i.code = 'MAGO_ARMOR_CAPITAN' AND b.stat_code = 'MAGIC_DEF' AND b.is_percent = FALSE; -- 36 -> 15
-UPDATE item_stat_bonuses b SET amount = 19 FROM items i WHERE i.id = b.item_id AND i.code = 'MAGO_GLOVES_CAPITAN' AND b.stat_code = 'MAG' AND b.is_percent = FALSE; -- 26 -> 19
-UPDATE item_stat_bonuses b SET amount = 4.5 FROM items i WHERE i.id = b.item_id AND i.code = 'MAGO_GLOVES_CAPITAN' AND b.stat_code = 'CRIT_CHANCE' AND b.is_percent = TRUE; -- 13 -> 4.5
-UPDATE item_stat_bonuses b SET amount = 11 FROM items i WHERE i.id = b.item_id AND i.code = 'MAGO_BOOTS_CAPITAN' AND b.stat_code = 'SPD' AND b.is_percent = FALSE; -- 35 -> 11
-UPDATE item_stat_bonuses b SET amount = 3 FROM items i WHERE i.id = b.item_id AND i.code = 'MAGO_BOOTS_CAPITAN' AND b.stat_code = 'HP' AND b.is_percent = FALSE; -- 9 -> 3
-UPDATE item_stat_bonuses b SET amount = 5 FROM items i WHERE i.id = b.item_id AND i.code = 'MAGO_BOOTS_CAPITAN' AND b.stat_code = 'MAGIC_DEF' AND b.is_percent = FALSE; -- 15 -> 5
-UPDATE item_stat_bonuses b SET amount = 2.5 FROM items i WHERE i.id = b.item_id AND i.code = 'MAGO_BOOTS_CAPITAN' AND b.stat_code = 'EVASION' AND b.is_percent = TRUE; -- 5 -> 2.5
-UPDATE item_stat_bonuses b SET amount = 42 FROM items i WHERE i.id = b.item_id AND i.code = 'ARQUERO_WEAPON_CAPITAN' AND b.stat_code = 'ATK' AND b.is_percent = FALSE; -- 37 -> 42
-UPDATE item_stat_bonuses b SET amount = 6.8 FROM items i WHERE i.id = b.item_id AND i.code = 'ARQUERO_WEAPON_CAPITAN' AND b.stat_code = 'CRIT_CHANCE' AND b.is_percent = TRUE; -- 21 -> 6.8
-UPDATE item_stat_bonuses b SET amount = 14 FROM items i WHERE i.id = b.item_id AND i.code = 'ARQUERO_OFFHAND_CAPITAN' AND b.stat_code = 'ATK' AND b.is_percent = FALSE; -- 16 -> 14
-UPDATE item_stat_bonuses b SET amount = 14 FROM items i WHERE i.id = b.item_id AND i.code = 'ARQUERO_OFFHAND_CAPITAN' AND b.stat_code = 'SPD' AND b.is_percent = FALSE; -- 16 -> 14
-UPDATE item_stat_bonuses b SET amount = 8 FROM items i WHERE i.id = b.item_id AND i.code = 'ARQUERO_HELMET_CAPITAN' AND b.stat_code = 'DEF' AND b.is_percent = FALSE; -- 23 -> 8
-UPDATE item_stat_bonuses b SET amount = 6 FROM items i WHERE i.id = b.item_id AND i.code = 'ARQUERO_HELMET_CAPITAN' AND b.stat_code = 'HP' AND b.is_percent = FALSE; -- 18 -> 6
-UPDATE item_stat_bonuses b SET amount = 3 FROM items i WHERE i.id = b.item_id AND i.code = 'ARQUERO_HELMET_CAPITAN' AND b.stat_code = 'MAGIC_DEF' AND b.is_percent = FALSE; -- 8 -> 3
-UPDATE item_stat_bonuses b SET amount = 15 FROM items i WHERE i.id = b.item_id AND i.code = 'ARQUERO_ARMOR_CAPITAN' AND b.stat_code = 'DEF' AND b.is_percent = FALSE; -- 37 -> 15
-UPDATE item_stat_bonuses b SET amount = 27 FROM items i WHERE i.id = b.item_id AND i.code = 'ARQUERO_ARMOR_CAPITAN' AND b.stat_code = 'HP' AND b.is_percent = FALSE; -- 65 -> 27
-UPDATE item_stat_bonuses b SET amount = 4 FROM items i WHERE i.id = b.item_id AND i.code = 'ARQUERO_ARMOR_CAPITAN' AND b.stat_code = 'MAGIC_DEF' AND b.is_percent = FALSE; -- 11 -> 4
-UPDATE item_stat_bonuses b SET amount = 19 FROM items i WHERE i.id = b.item_id AND i.code = 'ARQUERO_GLOVES_CAPITAN' AND b.stat_code = 'ATK' AND b.is_percent = FALSE; -- 20 -> 19
-UPDATE item_stat_bonuses b SET amount = 4.5 FROM items i WHERE i.id = b.item_id AND i.code = 'ARQUERO_GLOVES_CAPITAN' AND b.stat_code = 'CRIT_CHANCE' AND b.is_percent = TRUE; -- 21 -> 4.5
-UPDATE item_stat_bonuses b SET amount = 11 FROM items i WHERE i.id = b.item_id AND i.code = 'ARQUERO_BOOTS_CAPITAN' AND b.stat_code = 'SPD' AND b.is_percent = FALSE; -- 35 -> 11
-UPDATE item_stat_bonuses b SET amount = 3 FROM items i WHERE i.id = b.item_id AND i.code = 'ARQUERO_BOOTS_CAPITAN' AND b.stat_code = 'HP' AND b.is_percent = FALSE; -- 9 -> 3
-UPDATE item_stat_bonuses b SET amount = 5 FROM items i WHERE i.id = b.item_id AND i.code = 'ARQUERO_BOOTS_CAPITAN' AND b.stat_code = 'DEF' AND b.is_percent = FALSE; -- 14 -> 5
-UPDATE item_stat_bonuses b SET amount = 2.5 FROM items i WHERE i.id = b.item_id AND i.code = 'ARQUERO_BOOTS_CAPITAN' AND b.stat_code = 'EVASION' AND b.is_percent = TRUE; -- 5 -> 2.5
-UPDATE item_stat_bonuses b SET amount = 42 FROM items i WHERE i.id = b.item_id AND i.code = 'PICARO_WEAPON_CAPITAN' AND b.stat_code = 'ATK' AND b.is_percent = FALSE; -- 37 -> 42
-UPDATE item_stat_bonuses b SET amount = 6.8 FROM items i WHERE i.id = b.item_id AND i.code = 'PICARO_WEAPON_CAPITAN' AND b.stat_code = 'CRIT_CHANCE' AND b.is_percent = TRUE; -- 24 -> 6.8
-UPDATE item_stat_bonuses b SET amount = 14 FROM items i WHERE i.id = b.item_id AND i.code = 'PICARO_OFFHAND_CAPITAN' AND b.stat_code = 'ATK' AND b.is_percent = FALSE; -- 16 -> 14
-UPDATE item_stat_bonuses b SET amount = 14 FROM items i WHERE i.id = b.item_id AND i.code = 'PICARO_OFFHAND_CAPITAN' AND b.stat_code = 'SPD' AND b.is_percent = FALSE; -- 16 -> 14
-UPDATE item_stat_bonuses b SET amount = 8 FROM items i WHERE i.id = b.item_id AND i.code = 'PICARO_HELMET_CAPITAN' AND b.stat_code = 'DEF' AND b.is_percent = FALSE; -- 21 -> 8
-UPDATE item_stat_bonuses b SET amount = 6 FROM items i WHERE i.id = b.item_id AND i.code = 'PICARO_HELMET_CAPITAN' AND b.stat_code = 'HP' AND b.is_percent = FALSE; -- 18 -> 6
-UPDATE item_stat_bonuses b SET amount = 3 FROM items i WHERE i.id = b.item_id AND i.code = 'PICARO_HELMET_CAPITAN' AND b.stat_code = 'MAGIC_DEF' AND b.is_percent = FALSE; -- 7 -> 3
-UPDATE item_stat_bonuses b SET amount = 15 FROM items i WHERE i.id = b.item_id AND i.code = 'PICARO_ARMOR_CAPITAN' AND b.stat_code = 'DEF' AND b.is_percent = FALSE; -- 34 -> 15
-UPDATE item_stat_bonuses b SET amount = 29 FROM items i WHERE i.id = b.item_id AND i.code = 'PICARO_ARMOR_CAPITAN' AND b.stat_code = 'HP' AND b.is_percent = FALSE; -- 65 -> 29
-UPDATE item_stat_bonuses b SET amount = 4 FROM items i WHERE i.id = b.item_id AND i.code = 'PICARO_ARMOR_CAPITAN' AND b.stat_code = 'MAGIC_DEF' AND b.is_percent = FALSE; -- 10 -> 4
-UPDATE item_stat_bonuses b SET amount = 19 FROM items i WHERE i.id = b.item_id AND i.code = 'PICARO_GLOVES_CAPITAN' AND b.stat_code = 'ATK' AND b.is_percent = FALSE; -- 20 -> 19
-UPDATE item_stat_bonuses b SET amount = 4.5 FROM items i WHERE i.id = b.item_id AND i.code = 'PICARO_GLOVES_CAPITAN' AND b.stat_code = 'CRIT_CHANCE' AND b.is_percent = TRUE; -- 24 -> 4.5
-UPDATE item_stat_bonuses b SET amount = 11 FROM items i WHERE i.id = b.item_id AND i.code = 'PICARO_BOOTS_CAPITAN' AND b.stat_code = 'SPD' AND b.is_percent = FALSE; -- 35 -> 11
-UPDATE item_stat_bonuses b SET amount = 3 FROM items i WHERE i.id = b.item_id AND i.code = 'PICARO_BOOTS_CAPITAN' AND b.stat_code = 'HP' AND b.is_percent = FALSE; -- 9 -> 3
-UPDATE item_stat_bonuses b SET amount = 5 FROM items i WHERE i.id = b.item_id AND i.code = 'PICARO_BOOTS_CAPITAN' AND b.stat_code = 'DEF' AND b.is_percent = FALSE; -- 14 -> 5
-UPDATE item_stat_bonuses b SET amount = 2.5 FROM items i WHERE i.id = b.item_id AND i.code = 'PICARO_BOOTS_CAPITAN' AND b.stat_code = 'EVASION' AND b.is_percent = TRUE; -- 5 -> 2.5
-UPDATE item_stat_bonuses b SET amount = 42 FROM items i WHERE i.id = b.item_id AND i.code = 'SACERDOTE_WEAPON_CAPITAN' AND b.stat_code = 'MAG' AND b.is_percent = FALSE; -- 54 -> 42
-UPDATE item_stat_bonuses b SET amount = 6.8 FROM items i WHERE i.id = b.item_id AND i.code = 'SACERDOTE_WEAPON_CAPITAN' AND b.stat_code = 'CRIT_CHANCE' AND b.is_percent = TRUE; -- 9 -> 6.8
-UPDATE item_stat_bonuses b SET amount = 12 FROM items i WHERE i.id = b.item_id AND i.code = 'SACERDOTE_OFFHAND_CAPITAN' AND b.stat_code = 'HP' AND b.is_percent = FALSE; -- 21 -> 12
-UPDATE item_stat_bonuses b SET amount = 9 FROM items i WHERE i.id = b.item_id AND i.code = 'SACERDOTE_OFFHAND_CAPITAN' AND b.stat_code = 'MAGIC_DEF' AND b.is_percent = FALSE; -- 16 -> 9
-UPDATE item_stat_bonuses b SET amount = 2 FROM items i WHERE i.id = b.item_id AND i.code = 'SACERDOTE_HELMET_CAPITAN' AND b.stat_code = 'DEF' AND b.is_percent = FALSE; -- 6 -> 2
-UPDATE item_stat_bonuses b SET amount = 6 FROM items i WHERE i.id = b.item_id AND i.code = 'SACERDOTE_HELMET_CAPITAN' AND b.stat_code = 'HP' AND b.is_percent = FALSE; -- 18 -> 6
-UPDATE item_stat_bonuses b SET amount = 8 FROM items i WHERE i.id = b.item_id AND i.code = 'SACERDOTE_HELMET_CAPITAN' AND b.stat_code = 'MAGIC_DEF' AND b.is_percent = FALSE; -- 21 -> 8
-UPDATE item_stat_bonuses b SET amount = 5 FROM items i WHERE i.id = b.item_id AND i.code = 'SACERDOTE_ARMOR_CAPITAN' AND b.stat_code = 'DEF' AND b.is_percent = FALSE; -- 9 -> 5
-UPDATE item_stat_bonuses b SET amount = 25 FROM items i WHERE i.id = b.item_id AND i.code = 'SACERDOTE_ARMOR_CAPITAN' AND b.stat_code = 'HP' AND b.is_percent = FALSE; -- 47 -> 25
-UPDATE item_stat_bonuses b SET amount = 15 FROM items i WHERE i.id = b.item_id AND i.code = 'SACERDOTE_ARMOR_CAPITAN' AND b.stat_code = 'MAGIC_DEF' AND b.is_percent = FALSE; -- 29 -> 15
-UPDATE item_stat_bonuses b SET amount = 19 FROM items i WHERE i.id = b.item_id AND i.code = 'SACERDOTE_GLOVES_CAPITAN' AND b.stat_code = 'MAG' AND b.is_percent = FALSE; -- 30 -> 19
-UPDATE item_stat_bonuses b SET amount = 4.5 FROM items i WHERE i.id = b.item_id AND i.code = 'SACERDOTE_GLOVES_CAPITAN' AND b.stat_code = 'CRIT_CHANCE' AND b.is_percent = TRUE; -- 10 -> 4.5
-UPDATE item_stat_bonuses b SET amount = 11 FROM items i WHERE i.id = b.item_id AND i.code = 'SACERDOTE_BOOTS_CAPITAN' AND b.stat_code = 'SPD' AND b.is_percent = FALSE; -- 35 -> 11
-UPDATE item_stat_bonuses b SET amount = 3 FROM items i WHERE i.id = b.item_id AND i.code = 'SACERDOTE_BOOTS_CAPITAN' AND b.stat_code = 'HP' AND b.is_percent = FALSE; -- 9 -> 3
-UPDATE item_stat_bonuses b SET amount = 4 FROM items i WHERE i.id = b.item_id AND i.code = 'SACERDOTE_BOOTS_CAPITAN' AND b.stat_code = 'MAGIC_DEF' AND b.is_percent = FALSE; -- 11 -> 4
-UPDATE item_stat_bonuses b SET amount = 2.5 FROM items i WHERE i.id = b.item_id AND i.code = 'SACERDOTE_BOOTS_CAPITAN' AND b.stat_code = 'EVASION' AND b.is_percent = TRUE; -- 5 -> 2.5
-UPDATE item_stat_bonuses b SET amount = 60 FROM items i WHERE i.id = b.item_id AND i.code = 'GUERRERO_WEAPON_TITAN_P' AND b.stat_code = 'ATK' AND b.is_percent = FALSE; -- 52 -> 60
-UPDATE item_stat_bonuses b SET amount = 8.3 FROM items i WHERE i.id = b.item_id AND i.code = 'GUERRERO_WEAPON_TITAN_P' AND b.stat_code = 'CRIT_CHANCE' AND b.is_percent = TRUE; -- 13 -> 8.3
-UPDATE item_stat_bonuses b SET amount = 89 FROM items i WHERE i.id = b.item_id AND i.code = 'GUERRERO_WEAPON2H_TITAN_P' AND b.stat_code = 'ATK' AND b.is_percent = FALSE; -- 109 -> 89
-UPDATE item_stat_bonuses b SET amount = 13 FROM items i WHERE i.id = b.item_id AND i.code = 'GUERRERO_OFFHAND_TITAN_P' AND b.stat_code = 'DEF' AND b.is_percent = FALSE; -- 17 -> 13
-UPDATE item_stat_bonuses b SET amount = 17 FROM items i WHERE i.id = b.item_id AND i.code = 'GUERRERO_OFFHAND_TITAN_P' AND b.stat_code = 'HP' AND b.is_percent = FALSE; -- 22 -> 17
-UPDATE item_stat_bonuses b SET amount = 11 FROM items i WHERE i.id = b.item_id AND i.code = 'GUERRERO_HELMET_TITAN_P' AND b.stat_code = 'DEF' AND b.is_percent = FALSE; -- 22 -> 11
-UPDATE item_stat_bonuses b SET amount = 10 FROM items i WHERE i.id = b.item_id AND i.code = 'GUERRERO_HELMET_TITAN_P' AND b.stat_code = 'HP' AND b.is_percent = FALSE; -- 21 -> 10
-UPDATE item_stat_bonuses b SET amount = 3 FROM items i WHERE i.id = b.item_id AND i.code = 'GUERRERO_HELMET_TITAN_P' AND b.stat_code = 'MAGIC_DEF' AND b.is_percent = FALSE; -- 7 -> 3
-UPDATE item_stat_bonuses b SET amount = 21 FROM items i WHERE i.id = b.item_id AND i.code = 'GUERRERO_ARMOR_TITAN_P' AND b.stat_code = 'DEF' AND b.is_percent = FALSE; -- 35 -> 21
-UPDATE item_stat_bonuses b SET amount = 33 FROM items i WHERE i.id = b.item_id AND i.code = 'GUERRERO_ARMOR_TITAN_P' AND b.stat_code = 'HP' AND b.is_percent = FALSE; -- 54 -> 33
-UPDATE item_stat_bonuses b SET amount = 6 FROM items i WHERE i.id = b.item_id AND i.code = 'GUERRERO_ARMOR_TITAN_P' AND b.stat_code = 'MAGIC_DEF' AND b.is_percent = FALSE; -- 10 -> 6
-UPDATE item_stat_bonuses b SET amount = 27 FROM items i WHERE i.id = b.item_id AND i.code = 'GUERRERO_GLOVES_TITAN_P' AND b.stat_code = 'ATK' AND b.is_percent = FALSE; -- 29 -> 27
-UPDATE item_stat_bonuses b SET amount = 5.5 FROM items i WHERE i.id = b.item_id AND i.code = 'GUERRERO_GLOVES_TITAN_P' AND b.stat_code = 'CRIT_CHANCE' AND b.is_percent = TRUE; -- 13 -> 5.5
-UPDATE item_stat_bonuses b SET amount = 16 FROM items i WHERE i.id = b.item_id AND i.code = 'GUERRERO_BOOTS_TITAN_P' AND b.stat_code = 'SPD' AND b.is_percent = FALSE; -- 40 -> 16
-UPDATE item_stat_bonuses b SET amount = 4 FROM items i WHERE i.id = b.item_id AND i.code = 'GUERRERO_BOOTS_TITAN_P' AND b.stat_code = 'HP' AND b.is_percent = FALSE; -- 10 -> 4
-UPDATE item_stat_bonuses b SET amount = 5 FROM items i WHERE i.id = b.item_id AND i.code = 'GUERRERO_BOOTS_TITAN_P' AND b.stat_code = 'DEF' AND b.is_percent = FALSE; -- 13 -> 5
-UPDATE item_stat_bonuses b SET amount = 3 FROM items i WHERE i.id = b.item_id AND i.code = 'GUERRERO_BOOTS_TITAN_P' AND b.stat_code = 'EVASION' AND b.is_percent = TRUE; -- 6 -> 3
-UPDATE item_stat_bonuses b SET amount = 60 FROM items i WHERE i.id = b.item_id AND i.code = 'MAGO_WEAPON_TITAN_P' AND b.stat_code = 'MAG' AND b.is_percent = FALSE; -- 55 -> 60
-UPDATE item_stat_bonuses b SET amount = 8.3 FROM items i WHERE i.id = b.item_id AND i.code = 'MAGO_WEAPON_TITAN_P' AND b.stat_code = 'CRIT_CHANCE' AND b.is_percent = TRUE; -- 15 -> 8.3
-UPDATE item_stat_bonuses b SET amount = 25 FROM items i WHERE i.id = b.item_id AND i.code = 'MAGO_OFFHAND_ORB_TITAN_P' AND b.stat_code = 'MAG' AND b.is_percent = FALSE; -- 23 -> 25
-UPDATE item_stat_bonuses b SET amount = 20 FROM items i WHERE i.id = b.item_id AND i.code = 'MAGO_OFFHAND_ORB_TITAN_P' AND b.stat_code = 'SPD' AND b.is_percent = FALSE; -- 18 -> 20
-UPDATE item_stat_bonuses b SET amount = 33 FROM items i WHERE i.id = b.item_id AND i.code = 'MAGO_OFFHAND_CRYSTAL_TITAN_P' AND b.stat_code = 'MAG' AND b.is_percent = FALSE; -- 31 -> 33
-UPDATE item_stat_bonuses b SET amount = 5.5 FROM items i WHERE i.id = b.item_id AND i.code = 'MAGO_OFFHAND_CRYSTAL_TITAN_P' AND b.stat_code = 'CRIT_CHANCE' AND b.is_percent = TRUE; -- 15 -> 5.5
-UPDATE item_stat_bonuses b SET amount = 3 FROM items i WHERE i.id = b.item_id AND i.code = 'MAGO_HELMET_TITAN_P' AND b.stat_code = 'DEF' AND b.is_percent = FALSE; -- 8 -> 3
-UPDATE item_stat_bonuses b SET amount = 8 FROM items i WHERE i.id = b.item_id AND i.code = 'MAGO_HELMET_TITAN_P' AND b.stat_code = 'HP' AND b.is_percent = FALSE; -- 21 -> 8
-UPDATE item_stat_bonuses b SET amount = 11 FROM items i WHERE i.id = b.item_id AND i.code = 'MAGO_HELMET_TITAN_P' AND b.stat_code = 'MAGIC_DEF' AND b.is_percent = FALSE; -- 29 -> 11
-UPDATE item_stat_bonuses b SET amount = 7 FROM items i WHERE i.id = b.item_id AND i.code = 'MAGO_ARMOR_TITAN_P' AND b.stat_code = 'DEF' AND b.is_percent = FALSE; -- 13 -> 7
-UPDATE item_stat_bonuses b SET amount = 39 FROM items i WHERE i.id = b.item_id AND i.code = 'MAGO_ARMOR_TITAN_P' AND b.stat_code = 'HP' AND b.is_percent = FALSE; -- 75 -> 39
-UPDATE item_stat_bonuses b SET amount = 21 FROM items i WHERE i.id = b.item_id AND i.code = 'MAGO_ARMOR_TITAN_P' AND b.stat_code = 'MAGIC_DEF' AND b.is_percent = FALSE; -- 41 -> 21
-UPDATE item_stat_bonuses b SET amount = 27 FROM items i WHERE i.id = b.item_id AND i.code = 'MAGO_GLOVES_TITAN_P' AND b.stat_code = 'MAG' AND b.is_percent = FALSE; -- 30 -> 27
-UPDATE item_stat_bonuses b SET amount = 5.5 FROM items i WHERE i.id = b.item_id AND i.code = 'MAGO_GLOVES_TITAN_P' AND b.stat_code = 'CRIT_CHANCE' AND b.is_percent = TRUE; -- 15 -> 5.5
-UPDATE item_stat_bonuses b SET amount = 16 FROM items i WHERE i.id = b.item_id AND i.code = 'MAGO_BOOTS_TITAN_P' AND b.stat_code = 'SPD' AND b.is_percent = FALSE; -- 40 -> 16
-UPDATE item_stat_bonuses b SET amount = 4 FROM items i WHERE i.id = b.item_id AND i.code = 'MAGO_BOOTS_TITAN_P' AND b.stat_code = 'HP' AND b.is_percent = FALSE; -- 10 -> 4
-UPDATE item_stat_bonuses b SET amount = 7 FROM items i WHERE i.id = b.item_id AND i.code = 'MAGO_BOOTS_TITAN_P' AND b.stat_code = 'MAGIC_DEF' AND b.is_percent = FALSE; -- 17 -> 7
-UPDATE item_stat_bonuses b SET amount = 3 FROM items i WHERE i.id = b.item_id AND i.code = 'MAGO_BOOTS_TITAN_P' AND b.stat_code = 'EVASION' AND b.is_percent = TRUE; -- 6 -> 3
-UPDATE item_stat_bonuses b SET amount = 60 FROM items i WHERE i.id = b.item_id AND i.code = 'ARQUERO_WEAPON_TITAN_P' AND b.stat_code = 'ATK' AND b.is_percent = FALSE; -- 43 -> 60
-UPDATE item_stat_bonuses b SET amount = 8.3 FROM items i WHERE i.id = b.item_id AND i.code = 'ARQUERO_WEAPON_TITAN_P' AND b.stat_code = 'CRIT_CHANCE' AND b.is_percent = TRUE; -- 24 -> 8.3
-UPDATE item_stat_bonuses b SET amount = 20 FROM items i WHERE i.id = b.item_id AND i.code = 'ARQUERO_OFFHAND_TITAN_P' AND b.stat_code = 'ATK' AND b.is_percent = FALSE; -- 18 -> 20
-UPDATE item_stat_bonuses b SET amount = 20 FROM items i WHERE i.id = b.item_id AND i.code = 'ARQUERO_OFFHAND_TITAN_P' AND b.stat_code = 'SPD' AND b.is_percent = FALSE; -- 18 -> 20
-UPDATE item_stat_bonuses b SET amount = 11 FROM items i WHERE i.id = b.item_id AND i.code = 'ARQUERO_HELMET_TITAN_P' AND b.stat_code = 'DEF' AND b.is_percent = FALSE; -- 26 -> 11
-UPDATE item_stat_bonuses b SET amount = 9 FROM items i WHERE i.id = b.item_id AND i.code = 'ARQUERO_HELMET_TITAN_P' AND b.stat_code = 'HP' AND b.is_percent = FALSE; -- 21 -> 9
-UPDATE item_stat_bonuses b SET amount = 4 FROM items i WHERE i.id = b.item_id AND i.code = 'ARQUERO_HELMET_TITAN_P' AND b.stat_code = 'MAGIC_DEF' AND b.is_percent = FALSE; -- 9 -> 4
-UPDATE item_stat_bonuses b SET amount = 21 FROM items i WHERE i.id = b.item_id AND i.code = 'ARQUERO_ARMOR_TITAN_P' AND b.stat_code = 'DEF' AND b.is_percent = FALSE; -- 43 -> 21
-UPDATE item_stat_bonuses b SET amount = 37 FROM items i WHERE i.id = b.item_id AND i.code = 'ARQUERO_ARMOR_TITAN_P' AND b.stat_code = 'HP' AND b.is_percent = FALSE; -- 75 -> 37
-UPDATE item_stat_bonuses b SET amount = 6 FROM items i WHERE i.id = b.item_id AND i.code = 'ARQUERO_ARMOR_TITAN_P' AND b.stat_code = 'MAGIC_DEF' AND b.is_percent = FALSE; -- 13 -> 6
-UPDATE item_stat_bonuses b SET amount = 27 FROM items i WHERE i.id = b.item_id AND i.code = 'ARQUERO_GLOVES_TITAN_P' AND b.stat_code = 'ATK' AND b.is_percent = FALSE; -- 23 -> 27
-UPDATE item_stat_bonuses b SET amount = 5.5 FROM items i WHERE i.id = b.item_id AND i.code = 'ARQUERO_GLOVES_TITAN_P' AND b.stat_code = 'CRIT_CHANCE' AND b.is_percent = TRUE; -- 24 -> 5.5
-UPDATE item_stat_bonuses b SET amount = 16 FROM items i WHERE i.id = b.item_id AND i.code = 'ARQUERO_BOOTS_TITAN_P' AND b.stat_code = 'SPD' AND b.is_percent = FALSE; -- 40 -> 16
-UPDATE item_stat_bonuses b SET amount = 4 FROM items i WHERE i.id = b.item_id AND i.code = 'ARQUERO_BOOTS_TITAN_P' AND b.stat_code = 'HP' AND b.is_percent = FALSE; -- 10 -> 4
-UPDATE item_stat_bonuses b SET amount = 6 FROM items i WHERE i.id = b.item_id AND i.code = 'ARQUERO_BOOTS_TITAN_P' AND b.stat_code = 'DEF' AND b.is_percent = FALSE; -- 16 -> 6
-UPDATE item_stat_bonuses b SET amount = 3 FROM items i WHERE i.id = b.item_id AND i.code = 'ARQUERO_BOOTS_TITAN_P' AND b.stat_code = 'EVASION' AND b.is_percent = TRUE; -- 6 -> 3
-UPDATE item_stat_bonuses b SET amount = 60 FROM items i WHERE i.id = b.item_id AND i.code = 'PICARO_WEAPON_TITAN_P' AND b.stat_code = 'ATK' AND b.is_percent = FALSE; -- 43 -> 60
-UPDATE item_stat_bonuses b SET amount = 8.3 FROM items i WHERE i.id = b.item_id AND i.code = 'PICARO_WEAPON_TITAN_P' AND b.stat_code = 'CRIT_CHANCE' AND b.is_percent = TRUE; -- 28 -> 8.3
-UPDATE item_stat_bonuses b SET amount = 20 FROM items i WHERE i.id = b.item_id AND i.code = 'PICARO_OFFHAND_TITAN_P' AND b.stat_code = 'ATK' AND b.is_percent = FALSE; -- 18 -> 20
-UPDATE item_stat_bonuses b SET amount = 20 FROM items i WHERE i.id = b.item_id AND i.code = 'PICARO_OFFHAND_TITAN_P' AND b.stat_code = 'SPD' AND b.is_percent = FALSE; -- 18 -> 20
-UPDATE item_stat_bonuses b SET amount = 11 FROM items i WHERE i.id = b.item_id AND i.code = 'PICARO_HELMET_TITAN_P' AND b.stat_code = 'DEF' AND b.is_percent = FALSE; -- 24 -> 11
-UPDATE item_stat_bonuses b SET amount = 9 FROM items i WHERE i.id = b.item_id AND i.code = 'PICARO_HELMET_TITAN_P' AND b.stat_code = 'HP' AND b.is_percent = FALSE; -- 21 -> 9
-UPDATE item_stat_bonuses b SET amount = 4 FROM items i WHERE i.id = b.item_id AND i.code = 'PICARO_HELMET_TITAN_P' AND b.stat_code = 'MAGIC_DEF' AND b.is_percent = FALSE; -- 8 -> 4
-UPDATE item_stat_bonuses b SET amount = 21 FROM items i WHERE i.id = b.item_id AND i.code = 'PICARO_ARMOR_TITAN_P' AND b.stat_code = 'DEF' AND b.is_percent = FALSE; -- 39 -> 21
-UPDATE item_stat_bonuses b SET amount = 41 FROM items i WHERE i.id = b.item_id AND i.code = 'PICARO_ARMOR_TITAN_P' AND b.stat_code = 'HP' AND b.is_percent = FALSE; -- 75 -> 41
-UPDATE item_stat_bonuses b SET amount = 7 FROM items i WHERE i.id = b.item_id AND i.code = 'PICARO_ARMOR_TITAN_P' AND b.stat_code = 'MAGIC_DEF' AND b.is_percent = FALSE; -- 12 -> 7
-UPDATE item_stat_bonuses b SET amount = 27 FROM items i WHERE i.id = b.item_id AND i.code = 'PICARO_GLOVES_TITAN_P' AND b.stat_code = 'ATK' AND b.is_percent = FALSE; -- 23 -> 27
-UPDATE item_stat_bonuses b SET amount = 5.5 FROM items i WHERE i.id = b.item_id AND i.code = 'PICARO_GLOVES_TITAN_P' AND b.stat_code = 'CRIT_CHANCE' AND b.is_percent = TRUE; -- 28 -> 5.5
-UPDATE item_stat_bonuses b SET amount = 16 FROM items i WHERE i.id = b.item_id AND i.code = 'PICARO_BOOTS_TITAN_P' AND b.stat_code = 'SPD' AND b.is_percent = FALSE; -- 40 -> 16
-UPDATE item_stat_bonuses b SET amount = 4 FROM items i WHERE i.id = b.item_id AND i.code = 'PICARO_BOOTS_TITAN_P' AND b.stat_code = 'HP' AND b.is_percent = FALSE; -- 10 -> 4
-UPDATE item_stat_bonuses b SET amount = 6 FROM items i WHERE i.id = b.item_id AND i.code = 'PICARO_BOOTS_TITAN_P' AND b.stat_code = 'DEF' AND b.is_percent = FALSE; -- 16 -> 6
-UPDATE item_stat_bonuses b SET amount = 3 FROM items i WHERE i.id = b.item_id AND i.code = 'PICARO_BOOTS_TITAN_P' AND b.stat_code = 'EVASION' AND b.is_percent = TRUE; -- 6 -> 3
-UPDATE item_stat_bonuses b SET amount = 60 FROM items i WHERE i.id = b.item_id AND i.code = 'SACERDOTE_WEAPON_TITAN_P' AND b.stat_code = 'MAG' AND b.is_percent = FALSE; -- 62 -> 60
-UPDATE item_stat_bonuses b SET amount = 8.3 FROM items i WHERE i.id = b.item_id AND i.code = 'SACERDOTE_WEAPON_TITAN_P' AND b.stat_code = 'CRIT_CHANCE' AND b.is_percent = TRUE; -- 10 -> 8.3
-UPDATE item_stat_bonuses b SET amount = 17 FROM items i WHERE i.id = b.item_id AND i.code = 'SACERDOTE_OFFHAND_TITAN_P' AND b.stat_code = 'HP' AND b.is_percent = FALSE; -- 24 -> 17
-UPDATE item_stat_bonuses b SET amount = 13 FROM items i WHERE i.id = b.item_id AND i.code = 'SACERDOTE_OFFHAND_TITAN_P' AND b.stat_code = 'MAGIC_DEF' AND b.is_percent = FALSE; -- 18 -> 13
-UPDATE item_stat_bonuses b SET amount = 3 FROM items i WHERE i.id = b.item_id AND i.code = 'SACERDOTE_HELMET_TITAN_P' AND b.stat_code = 'DEF' AND b.is_percent = FALSE; -- 7 -> 3
-UPDATE item_stat_bonuses b SET amount = 9 FROM items i WHERE i.id = b.item_id AND i.code = 'SACERDOTE_HELMET_TITAN_P' AND b.stat_code = 'HP' AND b.is_percent = FALSE; -- 21 -> 9
-UPDATE item_stat_bonuses b SET amount = 11 FROM items i WHERE i.id = b.item_id AND i.code = 'SACERDOTE_HELMET_TITAN_P' AND b.stat_code = 'MAGIC_DEF' AND b.is_percent = FALSE; -- 24 -> 11
-UPDATE item_stat_bonuses b SET amount = 6 FROM items i WHERE i.id = b.item_id AND i.code = 'SACERDOTE_ARMOR_TITAN_P' AND b.stat_code = 'DEF' AND b.is_percent = FALSE; -- 10 -> 6
-UPDATE item_stat_bonuses b SET amount = 35 FROM items i WHERE i.id = b.item_id AND i.code = 'SACERDOTE_ARMOR_TITAN_P' AND b.stat_code = 'HP' AND b.is_percent = FALSE; -- 54 -> 35
-UPDATE item_stat_bonuses b SET amount = 21 FROM items i WHERE i.id = b.item_id AND i.code = 'SACERDOTE_ARMOR_TITAN_P' AND b.stat_code = 'MAGIC_DEF' AND b.is_percent = FALSE; -- 33 -> 21
-UPDATE item_stat_bonuses b SET amount = 27 FROM items i WHERE i.id = b.item_id AND i.code = 'SACERDOTE_GLOVES_TITAN_P' AND b.stat_code = 'MAG' AND b.is_percent = FALSE; -- 35 -> 27
-UPDATE item_stat_bonuses b SET amount = 5.5 FROM items i WHERE i.id = b.item_id AND i.code = 'SACERDOTE_GLOVES_TITAN_P' AND b.stat_code = 'CRIT_CHANCE' AND b.is_percent = TRUE; -- 12 -> 5.5
-UPDATE item_stat_bonuses b SET amount = 16 FROM items i WHERE i.id = b.item_id AND i.code = 'SACERDOTE_BOOTS_TITAN_P' AND b.stat_code = 'SPD' AND b.is_percent = FALSE; -- 40 -> 16
-UPDATE item_stat_bonuses b SET amount = 4 FROM items i WHERE i.id = b.item_id AND i.code = 'SACERDOTE_BOOTS_TITAN_P' AND b.stat_code = 'HP' AND b.is_percent = FALSE; -- 10 -> 4
-UPDATE item_stat_bonuses b SET amount = 5 FROM items i WHERE i.id = b.item_id AND i.code = 'SACERDOTE_BOOTS_TITAN_P' AND b.stat_code = 'MAGIC_DEF' AND b.is_percent = FALSE; -- 13 -> 5
-UPDATE item_stat_bonuses b SET amount = 3 FROM items i WHERE i.id = b.item_id AND i.code = 'SACERDOTE_BOOTS_TITAN_P' AND b.stat_code = 'EVASION' AND b.is_percent = TRUE; -- 6 -> 3
-UPDATE item_stat_bonuses b SET amount = 17 FROM items i WHERE i.id = b.item_id AND i.code = 'BRAZALETE_CAPITAN' AND b.stat_code = 'ATK' AND b.is_percent = FALSE; -- 18 -> 17
-UPDATE item_stat_bonuses b SET amount = 23 FROM items i WHERE i.id = b.item_id AND i.code = 'BRAZALETE_CAPITAN' AND b.stat_code = 'HP' AND b.is_percent = FALSE; -- 25 -> 23
-UPDATE item_stat_bonuses b SET amount = 10 FROM items i WHERE i.id = b.item_id AND i.code = 'AMULETO_CAPITAN_MAGO' AND b.stat_code = 'MAG' AND b.is_percent = FALSE; -- 18 -> 10
-UPDATE item_stat_bonuses b SET amount = 7 FROM items i WHERE i.id = b.item_id AND i.code = 'AMULETO_CAPITAN_MAGO' AND b.stat_code = 'MAGIC_DEF' AND b.is_percent = FALSE; -- 12 -> 7
-UPDATE item_stat_bonuses b SET amount = 10 FROM items i WHERE i.id = b.item_id AND i.code = 'COLGANTE_CAPITAN' AND b.stat_code = 'SPD' AND b.is_percent = FALSE; -- 28 -> 10
-UPDATE item_stat_bonuses b SET amount = 4.5 FROM items i WHERE i.id = b.item_id AND i.code = 'COLGANTE_CAPITAN' AND b.stat_code = 'CRIT_CHANCE' AND b.is_percent = TRUE; -- 14 -> 4.5
-UPDATE item_stat_bonuses b SET amount = 2.5 FROM items i WHERE i.id = b.item_id AND i.code = 'MEDALLON_CAPITAN' AND b.stat_code = 'EVASION' AND b.is_percent = TRUE; -- 8 -> 2.5
-UPDATE item_stat_bonuses b SET amount = 4.5 FROM items i WHERE i.id = b.item_id AND i.code = 'MEDALLON_CAPITAN' AND b.stat_code = 'CRIT_CHANCE' AND b.is_percent = TRUE; -- 14 -> 4.5
-UPDATE item_stat_bonuses b SET amount = 67 FROM items i WHERE i.id = b.item_id AND i.code = 'RELICARIO_CAPITAN' AND b.stat_code = 'HP' AND b.is_percent = FALSE; -- 25 -> 67
-UPDATE item_stat_bonuses b SET amount = 24 FROM items i WHERE i.id = b.item_id AND i.code = 'BRAZALETE_TITAN' AND b.stat_code = 'ATK' AND b.is_percent = FALSE; -- 21 -> 24
-UPDATE item_stat_bonuses b SET amount = 33 FROM items i WHERE i.id = b.item_id AND i.code = 'BRAZALETE_TITAN' AND b.stat_code = 'HP' AND b.is_percent = FALSE; -- 29 -> 33
-UPDATE item_stat_bonuses b SET amount = 14 FROM items i WHERE i.id = b.item_id AND i.code = 'AMULETO_TITAN_MAGO' AND b.stat_code = 'MAG' AND b.is_percent = FALSE; -- 21 -> 14
-UPDATE item_stat_bonuses b SET amount = 10 FROM items i WHERE i.id = b.item_id AND i.code = 'AMULETO_TITAN_MAGO' AND b.stat_code = 'MAGIC_DEF' AND b.is_percent = FALSE; -- 14 -> 10
-UPDATE item_stat_bonuses b SET amount = 14 FROM items i WHERE i.id = b.item_id AND i.code = 'COLGANTE_TITAN' AND b.stat_code = 'SPD' AND b.is_percent = FALSE; -- 32 -> 14
-UPDATE item_stat_bonuses b SET amount = 5.5 FROM items i WHERE i.id = b.item_id AND i.code = 'COLGANTE_TITAN' AND b.stat_code = 'CRIT_CHANCE' AND b.is_percent = TRUE; -- 16 -> 5.5
-UPDATE item_stat_bonuses b SET amount = 3 FROM items i WHERE i.id = b.item_id AND i.code = 'MEDALLON_TITAN' AND b.stat_code = 'EVASION' AND b.is_percent = TRUE; -- 9 -> 3
-UPDATE item_stat_bonuses b SET amount = 5.5 FROM items i WHERE i.id = b.item_id AND i.code = 'MEDALLON_TITAN' AND b.stat_code = 'CRIT_CHANCE' AND b.is_percent = TRUE; -- 16 -> 5.5
-UPDATE item_stat_bonuses b SET amount = 95 FROM items i WHERE i.id = b.item_id AND i.code = 'RELICARIO_TITAN' AND b.stat_code = 'HP' AND b.is_percent = FALSE; -- 29 -> 95
-UPDATE item_stat_bonuses b SET amount = 17 FROM items i WHERE i.id = b.item_id AND i.code = 'GUERRERO_WEAPON2H_HACHA_L1' AND b.stat_code = 'ATK' AND b.is_percent = FALSE; -- 32 -> 17
-UPDATE item_stat_bonuses b SET amount = 4 FROM items i WHERE i.id = b.item_id AND i.code = 'GUERRERO_WEAPON2H_HACHA_L1' AND b.stat_code = 'DEF' AND b.is_percent = FALSE; -- 8 -> 4
-UPDATE item_stat_bonuses b SET amount = 43 FROM items i WHERE i.id = b.item_id AND i.code = 'GUERRERO_WEAPON2H_HACHA_L10' AND b.stat_code = 'ATK' AND b.is_percent = FALSE; -- 82 -> 43
-UPDATE item_stat_bonuses b SET amount = -11 FROM items i WHERE i.id = b.item_id AND i.code = 'GUERRERO_WEAPON2H_HACHA_L10' AND b.stat_code = 'DEF' AND b.is_percent = FALSE; -- -20 -> -11
-UPDATE item_stat_bonuses b SET amount = 17 FROM items i WHERE i.id = b.item_id AND i.code = 'BALLESTA' AND b.stat_code = 'ATK' AND b.is_percent = FALSE; -- 32 -> 17
-UPDATE item_stat_bonuses b SET amount = 5 FROM items i WHERE i.id = b.item_id AND i.code = 'BALLESTA' AND b.stat_code = 'CRIT_DAMAGE' AND b.is_percent = TRUE; -- 10.3 -> 5
-UPDATE item_stat_bonuses b SET amount = 43 FROM items i WHERE i.id = b.item_id AND i.code = 'ARQUERO_WEAPON2H_BALLESTA_L10' AND b.stat_code = 'ATK' AND b.is_percent = FALSE; -- 66 -> 43
-UPDATE item_stat_bonuses b SET amount = 7 FROM items i WHERE i.id = b.item_id AND i.code = 'ARQUERO_WEAPON2H_BALLESTA_L10' AND b.stat_code = 'CRIT_DAMAGE' AND b.is_percent = TRUE; -- 13 -> 7
-UPDATE item_stat_bonuses b SET amount = 1 FROM items i WHERE i.id = b.item_id AND i.code = 'ARMADURA_PESADA_COMPLETA' AND b.stat_code = 'MAGIC_DEF' AND b.is_percent = FALSE; -- 3 -> 1
-UPDATE item_stat_bonuses b SET amount = 8 FROM items i WHERE i.id = b.item_id AND i.code = 'ARMADURA_PESADA_COMPLETA' AND b.stat_code = 'HP' AND b.is_percent = FALSE; -- 23 -> 8
-UPDATE item_stat_bonuses b SET amount = 4 FROM items i WHERE i.id = b.item_id AND i.code = 'ARMADURA_PESADA_COMPLETA' AND b.stat_code = 'DEF' AND b.is_percent = FALSE; -- 12 -> 4
-UPDATE item_stat_bonuses b SET amount = 1 FROM items i WHERE i.id = b.item_id AND i.code = 'GUERRERO_HELMET_PESADA_L1' AND b.stat_code = 'MAGIC_DEF' AND b.is_percent = FALSE; -- 2 -> 1
-UPDATE item_stat_bonuses b SET amount = 3 FROM items i WHERE i.id = b.item_id AND i.code = 'GUERRERO_HELMET_PESADA_L1' AND b.stat_code = 'HP' AND b.is_percent = FALSE; -- 9 -> 3
-UPDATE item_stat_bonuses b SET amount = 2 FROM items i WHERE i.id = b.item_id AND i.code = 'GUERRERO_HELMET_PESADA_L1' AND b.stat_code = 'DEF' AND b.is_percent = FALSE; -- 7 -> 2
-UPDATE item_stat_bonuses b SET amount = 3 FROM items i WHERE i.id = b.item_id AND i.code = 'GUERRERO_GLOVES_PESADA_L1' AND b.stat_code = 'HP' AND b.is_percent = FALSE; -- 5 -> 3
-UPDATE item_stat_bonuses b SET amount = 2 FROM items i WHERE i.id = b.item_id AND i.code = 'GUERRERO_GLOVES_PESADA_L1' AND b.stat_code = 'DEF' AND b.is_percent = FALSE; -- 4 -> 2
-UPDATE item_stat_bonuses b SET amount = 1 FROM items i WHERE i.id = b.item_id AND i.code = 'GUERRERO_BOOTS_PESADA_L1' AND b.stat_code = 'EVASION' AND b.is_percent = TRUE; -- 2.8 -> 1
-UPDATE item_stat_bonuses b SET amount = 3 FROM items i WHERE i.id = b.item_id AND i.code = 'GUERRERO_BOOTS_PESADA_L1' AND b.stat_code = 'SPD' AND b.is_percent = FALSE; -- 15 -> 3
-UPDATE item_stat_bonuses b SET amount = 1 FROM items i WHERE i.id = b.item_id AND i.code = 'GUERRERO_BOOTS_PESADA_L1' AND b.stat_code = 'HP' AND b.is_percent = FALSE; -- 5 -> 1
-UPDATE item_stat_bonuses b SET amount = 1 FROM items i WHERE i.id = b.item_id AND i.code = 'GUERRERO_BOOTS_PESADA_L1' AND b.stat_code = 'DEF' AND b.is_percent = FALSE; -- 4 -> 1
-UPDATE item_stat_bonuses b SET amount = 3 FROM items i WHERE i.id = b.item_id AND i.code = 'GUERRERO_ARMOR_PESADA_L10' AND b.stat_code = 'MAGIC_DEF' AND b.is_percent = FALSE; -- 6 -> 3
-UPDATE item_stat_bonuses b SET amount = 18 FROM items i WHERE i.id = b.item_id AND i.code = 'GUERRERO_ARMOR_PESADA_L10' AND b.stat_code = 'HP' AND b.is_percent = FALSE; -- 41 -> 18
-UPDATE item_stat_bonuses b SET amount = 10 FROM items i WHERE i.id = b.item_id AND i.code = 'GUERRERO_ARMOR_PESADA_L10' AND b.stat_code = 'DEF' AND b.is_percent = FALSE; -- 23 -> 10
-UPDATE item_stat_bonuses b SET amount = 2 FROM items i WHERE i.id = b.item_id AND i.code = 'GUERRERO_HELMET_PESADA_L10' AND b.stat_code = 'MAGIC_DEF' AND b.is_percent = FALSE; -- 4 -> 2
-UPDATE item_stat_bonuses b SET amount = 6 FROM items i WHERE i.id = b.item_id AND i.code = 'GUERRERO_HELMET_PESADA_L10' AND b.stat_code = 'HP' AND b.is_percent = FALSE; -- 16 -> 6
-UPDATE item_stat_bonuses b SET amount = 5 FROM items i WHERE i.id = b.item_id AND i.code = 'GUERRERO_HELMET_PESADA_L10' AND b.stat_code = 'DEF' AND b.is_percent = FALSE; -- 13 -> 5
-UPDATE item_stat_bonuses b SET amount = 6 FROM items i WHERE i.id = b.item_id AND i.code = 'GUERRERO_GLOVES_PESADA_L10' AND b.stat_code = 'HP' AND b.is_percent = FALSE; -- 9 -> 6
-UPDATE item_stat_bonuses b SET amount = 5 FROM items i WHERE i.id = b.item_id AND i.code = 'GUERRERO_GLOVES_PESADA_L10' AND b.stat_code = 'DEF' AND b.is_percent = FALSE; -- 8 -> 5
-UPDATE item_stat_bonuses b SET amount = 1.5 FROM items i WHERE i.id = b.item_id AND i.code = 'GUERRERO_BOOTS_PESADA_L10' AND b.stat_code = 'EVASION' AND b.is_percent = TRUE; -- 3.1 -> 1.5
-UPDATE item_stat_bonuses b SET amount = 8 FROM items i WHERE i.id = b.item_id AND i.code = 'GUERRERO_BOOTS_PESADA_L10' AND b.stat_code = 'SPD' AND b.is_percent = FALSE; -- 17 -> 8
-UPDATE item_stat_bonuses b SET amount = 4 FROM items i WHERE i.id = b.item_id AND i.code = 'GUERRERO_BOOTS_PESADA_L10' AND b.stat_code = 'HP' AND b.is_percent = FALSE; -- 9 -> 4
-UPDATE item_stat_bonuses b SET amount = 4 FROM items i WHERE i.id = b.item_id AND i.code = 'GUERRERO_BOOTS_PESADA_L10' AND b.stat_code = 'DEF' AND b.is_percent = FALSE; -- 8 -> 4
-UPDATE item_stat_bonuses b SET amount = 12 FROM items i WHERE i.id = b.item_id AND i.code = 'ESPADA_MAGICA' AND b.stat_code = 'ATK' AND b.is_percent = FALSE; -- 25 -> 12
-UPDATE item_stat_bonuses b SET amount = 12 FROM items i WHERE i.id = b.item_id AND i.code = 'ESPADA_MAGICA' AND b.stat_code = 'MAG' AND b.is_percent = FALSE; -- 25 -> 12
-UPDATE item_stat_bonuses b SET amount = 28 FROM items i WHERE i.id = b.item_id AND i.code = 'GUERRERO_WEAPON_MAGICA_L10' AND b.stat_code = 'ATK' AND b.is_percent = FALSE; -- 58 -> 28
-UPDATE item_stat_bonuses b SET amount = 29 FROM items i WHERE i.id = b.item_id AND i.code = 'GUERRERO_WEAPON_MAGICA_L10' AND b.stat_code = 'MAG' AND b.is_percent = FALSE; -- 60 -> 29
-UPDATE item_stat_bonuses b SET amount = 10 FROM items i WHERE i.id = b.item_id AND i.code = 'GUERRERO_WEAPON_MAGICA_L10' AND b.stat_code = 'DEF' AND b.is_percent = FALSE; -- 20 -> 10
-UPDATE item_stat_bonuses b SET amount = 52 FROM items i WHERE i.id = b.item_id AND i.code = 'KADRIC_ESPADA_VETERANO' AND b.stat_code = 'ATK' AND b.is_percent = FALSE; -- 75 -> 52
-UPDATE item_stat_bonuses b SET amount = 21 FROM items i WHERE i.id = b.item_id AND i.code = 'KADRIC_ESPADA_VETERANO' AND b.stat_code = 'DEF' AND b.is_percent = FALSE; -- 30 -> 21
-UPDATE item_stat_bonuses b SET amount = 21 FROM items i WHERE i.id = b.item_id AND i.code = 'KADRIC_ESPADA_VETERANO' AND b.stat_code = 'SPD' AND b.is_percent = FALSE; -- 30 -> 21
+UPDATE item_stat_bonuses b SET amount = 12 FROM items i WHERE i.id = b.item_id AND i.code = 'ESPADA_DE_HIERRO' AND b.stat_code = 'ATK' AND b.is_percent = FALSE; -- 12 -> 12
+UPDATE item_stat_bonuses b SET amount = 4 FROM items i WHERE i.id = b.item_id AND i.code = 'ESPADA_DE_HIERRO' AND b.stat_code = 'DEF' AND b.is_percent = FALSE; -- 4 -> 4
+UPDATE item_stat_bonuses b SET amount = 29 FROM items i WHERE i.id = b.item_id AND i.code = 'GRAN_ESPADA_DE_HIERRO' AND b.stat_code = 'ATK' AND b.is_percent = FALSE; -- 29 -> 29
+UPDATE item_stat_bonuses b SET amount = 10 FROM items i WHERE i.id = b.item_id AND i.code = 'GRAN_ESPADA_DE_HIERRO' AND b.stat_code = 'DEF' AND b.is_percent = FALSE; -- 10 -> 10
+UPDATE item_stat_bonuses b SET amount = 3.8 FROM items i WHERE i.id = b.item_id AND i.code = 'GRAN_ESPADA_DE_HIERRO' AND b.stat_code = 'CRIT_CHANCE' AND b.is_percent = TRUE; -- 3.8 -> 3.8
+UPDATE item_stat_bonuses b SET amount = 12 FROM items i WHERE i.id = b.item_id AND i.code = 'BACULO_DE_APRENDIZ' AND b.stat_code = 'MAG' AND b.is_percent = FALSE; -- 12 -> 12
+UPDATE item_stat_bonuses b SET amount = 3 FROM items i WHERE i.id = b.item_id AND i.code = 'BACULO_DE_APRENDIZ' AND b.stat_code = 'MAGIC_DEF' AND b.is_percent = FALSE; -- 3 -> 3
+UPDATE item_stat_bonuses b SET amount = 15 FROM items i WHERE i.id = b.item_id AND i.code = 'ORBE_DE_FUEGO' AND b.stat_code = 'MAG' AND b.is_percent = FALSE; -- 15 -> 15
+UPDATE item_stat_bonuses b SET amount = 4 FROM items i WHERE i.id = b.item_id AND i.code = 'ORBE_DE_FUEGO' AND b.stat_code = 'ELEMENTAL_ATK' AND b.is_percent = FALSE; -- 4 -> 4
+UPDATE item_stat_bonuses b SET amount = 8 FROM items i WHERE i.id = b.item_id AND i.code = 'ARCO_DE_MADERA' AND b.stat_code = 'ATK' AND b.is_percent = FALSE; -- 8 -> 8
+UPDATE item_stat_bonuses b SET amount = 7 FROM items i WHERE i.id = b.item_id AND i.code = 'ARCO_DE_MADERA' AND b.stat_code = 'SPD' AND b.is_percent = FALSE; -- 7 -> 7
+UPDATE item_stat_bonuses b SET amount = 2.3 FROM items i WHERE i.id = b.item_id AND i.code = 'ARCO_DE_MADERA' AND b.stat_code = 'CRIT_CHANCE' AND b.is_percent = TRUE; -- 2.3 -> 2.3
+UPDATE item_stat_bonuses b SET amount = 17 FROM items i WHERE i.id = b.item_id AND i.code = 'ARCO_DE_PRECISION' AND b.stat_code = 'ATK' AND b.is_percent = FALSE; -- 18 -> 17
+UPDATE item_stat_bonuses b SET amount = 15 FROM items i WHERE i.id = b.item_id AND i.code = 'ARCO_DE_PRECISION' AND b.stat_code = 'SPD' AND b.is_percent = FALSE; -- 15 -> 15
+UPDATE item_stat_bonuses b SET amount = 3.8 FROM items i WHERE i.id = b.item_id AND i.code = 'ARCO_DE_PRECISION' AND b.stat_code = 'CRIT_CHANCE' AND b.is_percent = TRUE; -- 3.8 -> 3.8
+UPDATE item_stat_bonuses b SET amount = 1.5 FROM items i WHERE i.id = b.item_id AND i.code = 'ARCO_DE_PRECISION' AND b.stat_code = 'EVASION' AND b.is_percent = TRUE; -- 1.5 -> 1.5
+UPDATE item_stat_bonuses b SET amount = 7 FROM items i WHERE i.id = b.item_id AND i.code = 'DAGA_DE_HIERRO' AND b.stat_code = 'ATK' AND b.is_percent = FALSE; -- 7 -> 7
+UPDATE item_stat_bonuses b SET amount = 7 FROM items i WHERE i.id = b.item_id AND i.code = 'DAGA_DE_HIERRO' AND b.stat_code = 'SPD' AND b.is_percent = FALSE; -- 7 -> 7
+UPDATE item_stat_bonuses b SET amount = 2.3 FROM items i WHERE i.id = b.item_id AND i.code = 'DAGA_DE_HIERRO' AND b.stat_code = 'CRIT_CHANCE' AND b.is_percent = TRUE; -- 2.3 -> 2.3
+UPDATE item_stat_bonuses b SET amount = 1 FROM items i WHERE i.id = b.item_id AND i.code = 'DAGA_DE_HIERRO' AND b.stat_code = 'EVASION' AND b.is_percent = TRUE; -- 1 -> 1
+UPDATE item_stat_bonuses b SET amount = 15 FROM items i WHERE i.id = b.item_id AND i.code = 'DAGA_DE_PRECISION' AND b.stat_code = 'ATK' AND b.is_percent = FALSE; -- 15 -> 15
+UPDATE item_stat_bonuses b SET amount = 17 FROM items i WHERE i.id = b.item_id AND i.code = 'DAGA_DE_PRECISION' AND b.stat_code = 'SPD' AND b.is_percent = FALSE; -- 17 -> 17
+UPDATE item_stat_bonuses b SET amount = 3.8 FROM items i WHERE i.id = b.item_id AND i.code = 'DAGA_DE_PRECISION' AND b.stat_code = 'CRIT_CHANCE' AND b.is_percent = TRUE; -- 3.8 -> 3.8
+UPDATE item_stat_bonuses b SET amount = 1.5 FROM items i WHERE i.id = b.item_id AND i.code = 'DAGA_DE_PRECISION' AND b.stat_code = 'EVASION' AND b.is_percent = TRUE; -- 1.5 -> 1.5
+UPDATE item_stat_bonuses b SET amount = 8 FROM items i WHERE i.id = b.item_id AND i.code = 'BACULO_DE_CURACION' AND b.stat_code = 'MAG' AND b.is_percent = FALSE; -- 9 -> 8
+UPDATE item_stat_bonuses b SET amount = 5 FROM items i WHERE i.id = b.item_id AND i.code = 'BACULO_DE_CURACION' AND b.stat_code = 'MAGIC_DEF' AND b.is_percent = FALSE; -- 5 -> 5
+UPDATE item_stat_bonuses b SET amount = 23 FROM items i WHERE i.id = b.item_id AND i.code = 'BACULO_SAGRADO' AND b.stat_code = 'MAG' AND b.is_percent = FALSE; -- 22 -> 23
+UPDATE item_stat_bonuses b SET amount = 12 FROM items i WHERE i.id = b.item_id AND i.code = 'BACULO_SAGRADO' AND b.stat_code = 'MAGIC_DEF' AND b.is_percent = FALSE; -- 12 -> 12
+UPDATE item_stat_bonuses b SET amount = 39 FROM items i WHERE i.id = b.item_id AND i.code = 'ESPADA_ACERO_TEMPLADO' AND b.stat_code = 'ATK' AND b.is_percent = FALSE; -- 39 -> 39
+UPDATE item_stat_bonuses b SET amount = 9 FROM items i WHERE i.id = b.item_id AND i.code = 'ESPADA_ACERO_TEMPLADO' AND b.stat_code = 'DEF' AND b.is_percent = FALSE; -- 9 -> 9
+UPDATE item_stat_bonuses b SET amount = 11 FROM items i WHERE i.id = b.item_id AND i.code = 'PETO_CUERO_REFORZADO' AND b.stat_code = 'DEF' AND b.is_percent = FALSE; -- 11 -> 11
+UPDATE item_stat_bonuses b SET amount = 18 FROM items i WHERE i.id = b.item_id AND i.code = 'PETO_CUERO_REFORZADO' AND b.stat_code = 'HP' AND b.is_percent = FALSE; -- 18 -> 18
+UPDATE item_stat_bonuses b SET amount = 14 FROM items i WHERE i.id = b.item_id AND i.code = 'ANILLO_FUERZA_MENOR' AND b.stat_code = 'ATK' AND b.is_percent = FALSE; -- 14 -> 14
+UPDATE item_stat_bonuses b SET amount = 15 FROM items i WHERE i.id = b.item_id AND i.code = 'GUERRERO_WEAPON_PRADERA' AND b.stat_code = 'ATK' AND b.is_percent = FALSE; -- 15 -> 15
+UPDATE item_stat_bonuses b SET amount = 2.3 FROM items i WHERE i.id = b.item_id AND i.code = 'GUERRERO_WEAPON_PRADERA' AND b.stat_code = 'CRIT_CHANCE' AND b.is_percent = TRUE; -- 2.3 -> 2.3
+UPDATE item_stat_bonuses b SET amount = 3 FROM items i WHERE i.id = b.item_id AND i.code = 'GUERRERO_OFFHAND_PRADERA' AND b.stat_code = 'DEF' AND b.is_percent = FALSE; -- 3 -> 3
+UPDATE item_stat_bonuses b SET amount = 6 FROM items i WHERE i.id = b.item_id AND i.code = 'GUERRERO_OFFHAND_PRADERA' AND b.stat_code = 'HP' AND b.is_percent = FALSE; -- 6 -> 6
+UPDATE item_stat_bonuses b SET amount = 3 FROM items i WHERE i.id = b.item_id AND i.code = 'GUERRERO_HELMET_PRADERA' AND b.stat_code = 'DEF' AND b.is_percent = FALSE; -- 3 -> 3
+UPDATE item_stat_bonuses b SET amount = 1 FROM items i WHERE i.id = b.item_id AND i.code = 'GUERRERO_HELMET_PRADERA' AND b.stat_code = 'MAGIC_DEF' AND b.is_percent = FALSE; -- 1 -> 1
+UPDATE item_stat_bonuses b SET amount = 3 FROM items i WHERE i.id = b.item_id AND i.code = 'GUERRERO_HELMET_PRADERA' AND b.stat_code = 'HP' AND b.is_percent = FALSE; -- 3 -> 3
+UPDATE item_stat_bonuses b SET amount = 5 FROM items i WHERE i.id = b.item_id AND i.code = 'GUERRERO_ARMOR_PRADERA' AND b.stat_code = 'DEF' AND b.is_percent = FALSE; -- 5 -> 5
+UPDATE item_stat_bonuses b SET amount = 2 FROM items i WHERE i.id = b.item_id AND i.code = 'GUERRERO_ARMOR_PRADERA' AND b.stat_code = 'MAGIC_DEF' AND b.is_percent = FALSE; -- 2 -> 2
+UPDATE item_stat_bonuses b SET amount = 10 FROM items i WHERE i.id = b.item_id AND i.code = 'GUERRERO_ARMOR_PRADERA' AND b.stat_code = 'HP' AND b.is_percent = FALSE; -- 10 -> 10
+UPDATE item_stat_bonuses b SET amount = 7 FROM items i WHERE i.id = b.item_id AND i.code = 'GUERRERO_GLOVES_PRADERA' AND b.stat_code = 'ATK' AND b.is_percent = FALSE; -- 7 -> 7
+UPDATE item_stat_bonuses b SET amount = 1.5 FROM items i WHERE i.id = b.item_id AND i.code = 'GUERRERO_GLOVES_PRADERA' AND b.stat_code = 'CRIT_CHANCE' AND b.is_percent = TRUE; -- 1.5 -> 1.5
+UPDATE item_stat_bonuses b SET amount = 1 FROM items i WHERE i.id = b.item_id AND i.code = 'GUERRERO_BOOTS_PRADERA' AND b.stat_code = 'DEF' AND b.is_percent = FALSE; -- 1 -> 1
+UPDATE item_stat_bonuses b SET amount = 1 FROM items i WHERE i.id = b.item_id AND i.code = 'GUERRERO_BOOTS_PRADERA' AND b.stat_code = 'HP' AND b.is_percent = FALSE; -- 1 -> 1
+UPDATE item_stat_bonuses b SET amount = 4 FROM items i WHERE i.id = b.item_id AND i.code = 'GUERRERO_BOOTS_PRADERA' AND b.stat_code = 'SPD' AND b.is_percent = FALSE; -- 4 -> 4
+UPDATE item_stat_bonuses b SET amount = 1 FROM items i WHERE i.id = b.item_id AND i.code = 'GUERRERO_BOOTS_PRADERA' AND b.stat_code = 'EVASION' AND b.is_percent = TRUE; -- 1 -> 1
+UPDATE item_stat_bonuses b SET amount = 6 FROM items i WHERE i.id = b.item_id AND i.code = 'GUERRERO_ACCESSORY_PRADERA' AND b.stat_code = 'ATK' AND b.is_percent = FALSE; -- 6 -> 6
+UPDATE item_stat_bonuses b SET amount = 1.5 FROM items i WHERE i.id = b.item_id AND i.code = 'GUERRERO_ACCESSORY_PRADERA' AND b.stat_code = 'CRIT_CHANCE' AND b.is_percent = TRUE; -- 1.5 -> 1.5
+UPDATE item_stat_bonuses b SET amount = 15 FROM items i WHERE i.id = b.item_id AND i.code = 'ARQUERO_WEAPON_PRADERA' AND b.stat_code = 'ATK' AND b.is_percent = FALSE; -- 15 -> 15
+UPDATE item_stat_bonuses b SET amount = 2.3 FROM items i WHERE i.id = b.item_id AND i.code = 'ARQUERO_WEAPON_PRADERA' AND b.stat_code = 'CRIT_CHANCE' AND b.is_percent = TRUE; -- 2.3 -> 2.3
+UPDATE item_stat_bonuses b SET amount = 2 FROM items i WHERE i.id = b.item_id AND i.code = 'ARQUERO_OFFHAND_PRADERA' AND b.stat_code = 'ATK' AND b.is_percent = FALSE; -- 2 -> 2
+UPDATE item_stat_bonuses b SET amount = 5 FROM items i WHERE i.id = b.item_id AND i.code = 'ARQUERO_OFFHAND_PRADERA' AND b.stat_code = 'SPD' AND b.is_percent = FALSE; -- 5 -> 5
+UPDATE item_stat_bonuses b SET amount = 3 FROM items i WHERE i.id = b.item_id AND i.code = 'ARQUERO_HELMET_PRADERA' AND b.stat_code = 'DEF' AND b.is_percent = FALSE; -- 3 -> 3
+UPDATE item_stat_bonuses b SET amount = 1 FROM items i WHERE i.id = b.item_id AND i.code = 'ARQUERO_HELMET_PRADERA' AND b.stat_code = 'MAGIC_DEF' AND b.is_percent = FALSE; -- 1 -> 1
+UPDATE item_stat_bonuses b SET amount = 3 FROM items i WHERE i.id = b.item_id AND i.code = 'ARQUERO_HELMET_PRADERA' AND b.stat_code = 'HP' AND b.is_percent = FALSE; -- 3 -> 3
+UPDATE item_stat_bonuses b SET amount = 5 FROM items i WHERE i.id = b.item_id AND i.code = 'ARQUERO_ARMOR_PRADERA' AND b.stat_code = 'DEF' AND b.is_percent = FALSE; -- 5 -> 5
+UPDATE item_stat_bonuses b SET amount = 1 FROM items i WHERE i.id = b.item_id AND i.code = 'ARQUERO_ARMOR_PRADERA' AND b.stat_code = 'MAGIC_DEF' AND b.is_percent = FALSE; -- 1 -> 1
+UPDATE item_stat_bonuses b SET amount = 14 FROM items i WHERE i.id = b.item_id AND i.code = 'ARQUERO_ARMOR_PRADERA' AND b.stat_code = 'HP' AND b.is_percent = FALSE; -- 13 -> 14
+UPDATE item_stat_bonuses b SET amount = 7 FROM items i WHERE i.id = b.item_id AND i.code = 'ARQUERO_GLOVES_PRADERA' AND b.stat_code = 'ATK' AND b.is_percent = FALSE; -- 7 -> 7
+UPDATE item_stat_bonuses b SET amount = 1.5 FROM items i WHERE i.id = b.item_id AND i.code = 'ARQUERO_GLOVES_PRADERA' AND b.stat_code = 'CRIT_CHANCE' AND b.is_percent = TRUE; -- 1.5 -> 1.5
+UPDATE item_stat_bonuses b SET amount = 1 FROM items i WHERE i.id = b.item_id AND i.code = 'ARQUERO_BOOTS_PRADERA' AND b.stat_code = 'DEF' AND b.is_percent = FALSE; -- 1 -> 1
+UPDATE item_stat_bonuses b SET amount = 1 FROM items i WHERE i.id = b.item_id AND i.code = 'ARQUERO_BOOTS_PRADERA' AND b.stat_code = 'HP' AND b.is_percent = FALSE; -- 1 -> 1
+UPDATE item_stat_bonuses b SET amount = 4 FROM items i WHERE i.id = b.item_id AND i.code = 'ARQUERO_BOOTS_PRADERA' AND b.stat_code = 'SPD' AND b.is_percent = FALSE; -- 4 -> 4
+UPDATE item_stat_bonuses b SET amount = 1 FROM items i WHERE i.id = b.item_id AND i.code = 'ARQUERO_BOOTS_PRADERA' AND b.stat_code = 'EVASION' AND b.is_percent = TRUE; -- 1 -> 1
+UPDATE item_stat_bonuses b SET amount = 6 FROM items i WHERE i.id = b.item_id AND i.code = 'ARQUERO_ACCESSORY_PRADERA' AND b.stat_code = 'ATK' AND b.is_percent = FALSE; -- 6 -> 6
+UPDATE item_stat_bonuses b SET amount = 1.5 FROM items i WHERE i.id = b.item_id AND i.code = 'ARQUERO_ACCESSORY_PRADERA' AND b.stat_code = 'CRIT_CHANCE' AND b.is_percent = TRUE; -- 1.5 -> 1.5
+UPDATE item_stat_bonuses b SET amount = 15 FROM items i WHERE i.id = b.item_id AND i.code = 'PICARO_WEAPON_PRADERA' AND b.stat_code = 'ATK' AND b.is_percent = FALSE; -- 15 -> 15
+UPDATE item_stat_bonuses b SET amount = 2.3 FROM items i WHERE i.id = b.item_id AND i.code = 'PICARO_WEAPON_PRADERA' AND b.stat_code = 'CRIT_CHANCE' AND b.is_percent = TRUE; -- 2.3 -> 2.3
+UPDATE item_stat_bonuses b SET amount = 2 FROM items i WHERE i.id = b.item_id AND i.code = 'PICARO_OFFHAND_PRADERA' AND b.stat_code = 'ATK' AND b.is_percent = FALSE; -- 2 -> 2
+UPDATE item_stat_bonuses b SET amount = 5 FROM items i WHERE i.id = b.item_id AND i.code = 'PICARO_OFFHAND_PRADERA' AND b.stat_code = 'SPD' AND b.is_percent = FALSE; -- 5 -> 5
+UPDATE item_stat_bonuses b SET amount = 3 FROM items i WHERE i.id = b.item_id AND i.code = 'PICARO_HELMET_PRADERA' AND b.stat_code = 'DEF' AND b.is_percent = FALSE; -- 3 -> 3
+UPDATE item_stat_bonuses b SET amount = 1 FROM items i WHERE i.id = b.item_id AND i.code = 'PICARO_HELMET_PRADERA' AND b.stat_code = 'MAGIC_DEF' AND b.is_percent = FALSE; -- 1 -> 1
+UPDATE item_stat_bonuses b SET amount = 3 FROM items i WHERE i.id = b.item_id AND i.code = 'PICARO_HELMET_PRADERA' AND b.stat_code = 'HP' AND b.is_percent = FALSE; -- 3 -> 3
+UPDATE item_stat_bonuses b SET amount = 5 FROM items i WHERE i.id = b.item_id AND i.code = 'PICARO_ARMOR_PRADERA' AND b.stat_code = 'DEF' AND b.is_percent = FALSE; -- 5 -> 5
+UPDATE item_stat_bonuses b SET amount = 2 FROM items i WHERE i.id = b.item_id AND i.code = 'PICARO_ARMOR_PRADERA' AND b.stat_code = 'MAGIC_DEF' AND b.is_percent = FALSE; -- 2 -> 2
+UPDATE item_stat_bonuses b SET amount = 15 FROM items i WHERE i.id = b.item_id AND i.code = 'PICARO_ARMOR_PRADERA' AND b.stat_code = 'HP' AND b.is_percent = FALSE; -- 14 -> 15
+UPDATE item_stat_bonuses b SET amount = 7 FROM items i WHERE i.id = b.item_id AND i.code = 'PICARO_GLOVES_PRADERA' AND b.stat_code = 'ATK' AND b.is_percent = FALSE; -- 7 -> 7
+UPDATE item_stat_bonuses b SET amount = 1.5 FROM items i WHERE i.id = b.item_id AND i.code = 'PICARO_GLOVES_PRADERA' AND b.stat_code = 'CRIT_CHANCE' AND b.is_percent = TRUE; -- 1.5 -> 1.5
+UPDATE item_stat_bonuses b SET amount = 1 FROM items i WHERE i.id = b.item_id AND i.code = 'PICARO_BOOTS_PRADERA' AND b.stat_code = 'DEF' AND b.is_percent = FALSE; -- 1 -> 1
+UPDATE item_stat_bonuses b SET amount = 1 FROM items i WHERE i.id = b.item_id AND i.code = 'PICARO_BOOTS_PRADERA' AND b.stat_code = 'HP' AND b.is_percent = FALSE; -- 1 -> 1
+UPDATE item_stat_bonuses b SET amount = 4 FROM items i WHERE i.id = b.item_id AND i.code = 'PICARO_BOOTS_PRADERA' AND b.stat_code = 'SPD' AND b.is_percent = FALSE; -- 4 -> 4
+UPDATE item_stat_bonuses b SET amount = 1 FROM items i WHERE i.id = b.item_id AND i.code = 'PICARO_BOOTS_PRADERA' AND b.stat_code = 'EVASION' AND b.is_percent = TRUE; -- 1 -> 1
+UPDATE item_stat_bonuses b SET amount = 6 FROM items i WHERE i.id = b.item_id AND i.code = 'PICARO_ACCESSORY_PRADERA' AND b.stat_code = 'ATK' AND b.is_percent = FALSE; -- 6 -> 6
+UPDATE item_stat_bonuses b SET amount = 1.5 FROM items i WHERE i.id = b.item_id AND i.code = 'PICARO_ACCESSORY_PRADERA' AND b.stat_code = 'CRIT_CHANCE' AND b.is_percent = TRUE; -- 1.5 -> 1.5
+UPDATE item_stat_bonuses b SET amount = 15 FROM items i WHERE i.id = b.item_id AND i.code = 'MAGO_WEAPON_PRADERA' AND b.stat_code = 'MAG' AND b.is_percent = FALSE; -- 15 -> 15
+UPDATE item_stat_bonuses b SET amount = 2.3 FROM items i WHERE i.id = b.item_id AND i.code = 'MAGO_WEAPON_PRADERA' AND b.stat_code = 'CRIT_CHANCE' AND b.is_percent = TRUE; -- 2.3 -> 2.3
+UPDATE item_stat_bonuses b SET amount = 2 FROM items i WHERE i.id = b.item_id AND i.code = 'MAGO_OFFHAND_PRADERA' AND b.stat_code = 'MAG' AND b.is_percent = FALSE; -- 2 -> 2
+UPDATE item_stat_bonuses b SET amount = 5 FROM items i WHERE i.id = b.item_id AND i.code = 'MAGO_OFFHAND_PRADERA' AND b.stat_code = 'SPD' AND b.is_percent = FALSE; -- 5 -> 5
+UPDATE item_stat_bonuses b SET amount = 3 FROM items i WHERE i.id = b.item_id AND i.code = 'MAGO_HELMET_PRADERA' AND b.stat_code = 'MAGIC_DEF' AND b.is_percent = FALSE; -- 3 -> 3
+UPDATE item_stat_bonuses b SET amount = 1 FROM items i WHERE i.id = b.item_id AND i.code = 'MAGO_HELMET_PRADERA' AND b.stat_code = 'DEF' AND b.is_percent = FALSE; -- 1 -> 1
+UPDATE item_stat_bonuses b SET amount = 3 FROM items i WHERE i.id = b.item_id AND i.code = 'MAGO_HELMET_PRADERA' AND b.stat_code = 'HP' AND b.is_percent = FALSE; -- 3 -> 3
+UPDATE item_stat_bonuses b SET amount = 5 FROM items i WHERE i.id = b.item_id AND i.code = 'MAGO_ARMOR_PRADERA' AND b.stat_code = 'MAGIC_DEF' AND b.is_percent = FALSE; -- 5 -> 5
+UPDATE item_stat_bonuses b SET amount = 1 FROM items i WHERE i.id = b.item_id AND i.code = 'MAGO_ARMOR_PRADERA' AND b.stat_code = 'DEF' AND b.is_percent = FALSE; -- 1 -> 1
+UPDATE item_stat_bonuses b SET amount = 14 FROM items i WHERE i.id = b.item_id AND i.code = 'MAGO_ARMOR_PRADERA' AND b.stat_code = 'HP' AND b.is_percent = FALSE; -- 13 -> 14
+UPDATE item_stat_bonuses b SET amount = 7 FROM items i WHERE i.id = b.item_id AND i.code = 'MAGO_GLOVES_PRADERA' AND b.stat_code = 'MAG' AND b.is_percent = FALSE; -- 7 -> 7
+UPDATE item_stat_bonuses b SET amount = 1.5 FROM items i WHERE i.id = b.item_id AND i.code = 'MAGO_GLOVES_PRADERA' AND b.stat_code = 'CRIT_CHANCE' AND b.is_percent = TRUE; -- 1.5 -> 1.5
+UPDATE item_stat_bonuses b SET amount = 1 FROM items i WHERE i.id = b.item_id AND i.code = 'MAGO_BOOTS_PRADERA' AND b.stat_code = 'MAGIC_DEF' AND b.is_percent = FALSE; -- 1 -> 1
+UPDATE item_stat_bonuses b SET amount = 1 FROM items i WHERE i.id = b.item_id AND i.code = 'MAGO_BOOTS_PRADERA' AND b.stat_code = 'HP' AND b.is_percent = FALSE; -- 1 -> 1
+UPDATE item_stat_bonuses b SET amount = 4 FROM items i WHERE i.id = b.item_id AND i.code = 'MAGO_BOOTS_PRADERA' AND b.stat_code = 'SPD' AND b.is_percent = FALSE; -- 4 -> 4
+UPDATE item_stat_bonuses b SET amount = 1 FROM items i WHERE i.id = b.item_id AND i.code = 'MAGO_BOOTS_PRADERA' AND b.stat_code = 'EVASION' AND b.is_percent = TRUE; -- 1 -> 1
+UPDATE item_stat_bonuses b SET amount = 6 FROM items i WHERE i.id = b.item_id AND i.code = 'MAGO_ACCESSORY_PRADERA' AND b.stat_code = 'MAG' AND b.is_percent = FALSE; -- 6 -> 6
+UPDATE item_stat_bonuses b SET amount = 1.5 FROM items i WHERE i.id = b.item_id AND i.code = 'MAGO_ACCESSORY_PRADERA' AND b.stat_code = 'CRIT_CHANCE' AND b.is_percent = TRUE; -- 1.5 -> 1.5
+UPDATE item_stat_bonuses b SET amount = 15 FROM items i WHERE i.id = b.item_id AND i.code = 'SACERDOTE_WEAPON_PRADERA' AND b.stat_code = 'MAG' AND b.is_percent = FALSE; -- 15 -> 15
+UPDATE item_stat_bonuses b SET amount = 2.3 FROM items i WHERE i.id = b.item_id AND i.code = 'SACERDOTE_WEAPON_PRADERA' AND b.stat_code = 'CRIT_CHANCE' AND b.is_percent = TRUE; -- 2.3 -> 2.3
+UPDATE item_stat_bonuses b SET amount = 3 FROM items i WHERE i.id = b.item_id AND i.code = 'SACERDOTE_OFFHAND_PRADERA' AND b.stat_code = 'MAGIC_DEF' AND b.is_percent = FALSE; -- 3 -> 3
+UPDATE item_stat_bonuses b SET amount = 6 FROM items i WHERE i.id = b.item_id AND i.code = 'SACERDOTE_OFFHAND_PRADERA' AND b.stat_code = 'HP' AND b.is_percent = FALSE; -- 6 -> 6
+UPDATE item_stat_bonuses b SET amount = 3 FROM items i WHERE i.id = b.item_id AND i.code = 'SACERDOTE_HELMET_PRADERA' AND b.stat_code = 'MAGIC_DEF' AND b.is_percent = FALSE; -- 3 -> 3
+UPDATE item_stat_bonuses b SET amount = 1 FROM items i WHERE i.id = b.item_id AND i.code = 'SACERDOTE_HELMET_PRADERA' AND b.stat_code = 'DEF' AND b.is_percent = FALSE; -- 1 -> 1
+UPDATE item_stat_bonuses b SET amount = 3 FROM items i WHERE i.id = b.item_id AND i.code = 'SACERDOTE_HELMET_PRADERA' AND b.stat_code = 'HP' AND b.is_percent = FALSE; -- 3 -> 3
+UPDATE item_stat_bonuses b SET amount = 5 FROM items i WHERE i.id = b.item_id AND i.code = 'SACERDOTE_ARMOR_PRADERA' AND b.stat_code = 'MAGIC_DEF' AND b.is_percent = FALSE; -- 5 -> 5
+UPDATE item_stat_bonuses b SET amount = 2 FROM items i WHERE i.id = b.item_id AND i.code = 'SACERDOTE_ARMOR_PRADERA' AND b.stat_code = 'DEF' AND b.is_percent = FALSE; -- 2 -> 2
+UPDATE item_stat_bonuses b SET amount = 10 FROM items i WHERE i.id = b.item_id AND i.code = 'SACERDOTE_ARMOR_PRADERA' AND b.stat_code = 'HP' AND b.is_percent = FALSE; -- 10 -> 10
+UPDATE item_stat_bonuses b SET amount = 7 FROM items i WHERE i.id = b.item_id AND i.code = 'SACERDOTE_GLOVES_PRADERA' AND b.stat_code = 'MAG' AND b.is_percent = FALSE; -- 7 -> 7
+UPDATE item_stat_bonuses b SET amount = 1.5 FROM items i WHERE i.id = b.item_id AND i.code = 'SACERDOTE_GLOVES_PRADERA' AND b.stat_code = 'CRIT_CHANCE' AND b.is_percent = TRUE; -- 1.5 -> 1.5
+UPDATE item_stat_bonuses b SET amount = 1 FROM items i WHERE i.id = b.item_id AND i.code = 'SACERDOTE_BOOTS_PRADERA' AND b.stat_code = 'MAGIC_DEF' AND b.is_percent = FALSE; -- 1 -> 1
+UPDATE item_stat_bonuses b SET amount = 1 FROM items i WHERE i.id = b.item_id AND i.code = 'SACERDOTE_BOOTS_PRADERA' AND b.stat_code = 'HP' AND b.is_percent = FALSE; -- 1 -> 1
+UPDATE item_stat_bonuses b SET amount = 4 FROM items i WHERE i.id = b.item_id AND i.code = 'SACERDOTE_BOOTS_PRADERA' AND b.stat_code = 'SPD' AND b.is_percent = FALSE; -- 4 -> 4
+UPDATE item_stat_bonuses b SET amount = 1 FROM items i WHERE i.id = b.item_id AND i.code = 'SACERDOTE_BOOTS_PRADERA' AND b.stat_code = 'EVASION' AND b.is_percent = TRUE; -- 1 -> 1
+UPDATE item_stat_bonuses b SET amount = 6 FROM items i WHERE i.id = b.item_id AND i.code = 'SACERDOTE_ACCESSORY_PRADERA' AND b.stat_code = 'MAG' AND b.is_percent = FALSE; -- 6 -> 6
+UPDATE item_stat_bonuses b SET amount = 1.5 FROM items i WHERE i.id = b.item_id AND i.code = 'SACERDOTE_ACCESSORY_PRADERA' AND b.stat_code = 'CRIT_CHANCE' AND b.is_percent = TRUE; -- 1.5 -> 1.5
+UPDATE item_stat_bonuses b SET amount = 64 FROM items i WHERE i.id = b.item_id AND i.code = 'GUERRERO_WEAPON2H_MONTANAS' AND b.stat_code = 'ATK' AND b.is_percent = FALSE; -- 64 -> 64
+UPDATE item_stat_bonuses b SET amount = -19 FROM items i WHERE i.id = b.item_id AND i.code = 'GUERRERO_WEAPON2H_MONTANAS' AND b.stat_code = 'DEF' AND b.is_percent = FALSE; -- -19 -> -19
+UPDATE item_stat_bonuses b SET amount = -14 FROM items i WHERE i.id = b.item_id AND i.code = 'GUERRERO_WEAPON2H_MONTANAS' AND b.stat_code = 'SPD' AND b.is_percent = FALSE; -- -14 -> -14
+UPDATE item_stat_bonuses b SET amount = 34 FROM items i WHERE i.id = b.item_id AND i.code = 'GUERRERO_WEAPON2H_PRADERA' AND b.stat_code = 'ATK' AND b.is_percent = FALSE; -- 34 -> 34
+UPDATE item_stat_bonuses b SET amount = -8 FROM items i WHERE i.id = b.item_id AND i.code = 'GUERRERO_WEAPON2H_PRADERA' AND b.stat_code = 'DEF' AND b.is_percent = FALSE; -- -8 -> -8
+UPDATE item_stat_bonuses b SET amount = 12 FROM items i WHERE i.id = b.item_id AND i.code = 'AMULETO_DEL_BRUJO' AND b.stat_code = 'MAG' AND b.is_percent = FALSE; -- 12 -> 12
+UPDATE item_stat_bonuses b SET amount = 7 FROM items i WHERE i.id = b.item_id AND i.code = 'AMULETO_DEL_BRUJO' AND b.stat_code = 'MAGIC_DEF' AND b.is_percent = FALSE; -- 7 -> 7
+UPDATE item_stat_bonuses b SET amount = 15 FROM items i WHERE i.id = b.item_id AND i.code = 'AMULETO_DEL_BRUJO' AND b.stat_code = 'HP' AND b.is_percent = FALSE; -- 15 -> 15
+UPDATE item_stat_bonuses b SET amount = 5 FROM items i WHERE i.id = b.item_id AND i.code = 'AMULETO_DEL_CAPITAN' AND b.stat_code = 'ATK' AND b.is_percent = FALSE; -- 5 -> 5
+UPDATE item_stat_bonuses b SET amount = 4 FROM items i WHERE i.id = b.item_id AND i.code = 'AMULETO_DEL_CAPITAN' AND b.stat_code = 'DEF' AND b.is_percent = FALSE; -- 4 -> 4
+UPDATE item_stat_bonuses b SET amount = 7 FROM items i WHERE i.id = b.item_id AND i.code = 'AMULETO_DEL_CAPITAN' AND b.stat_code = 'HP' AND b.is_percent = FALSE; -- 8 -> 7
+UPDATE item_stat_bonuses b SET amount = 36 FROM items i WHERE i.id = b.item_id AND i.code = 'GUERRERO_WEAPON_CAPITAN' AND b.stat_code = 'ATK' AND b.is_percent = FALSE; -- 36 -> 36
+UPDATE item_stat_bonuses b SET amount = 6.8 FROM items i WHERE i.id = b.item_id AND i.code = 'GUERRERO_WEAPON_CAPITAN' AND b.stat_code = 'CRIT_CHANCE' AND b.is_percent = TRUE; -- 6.8 -> 6.8
+UPDATE item_stat_bonuses b SET amount = 55 FROM items i WHERE i.id = b.item_id AND i.code = 'GUERRERO_WEAPON2H_CAPITAN' AND b.stat_code = 'ATK' AND b.is_percent = FALSE; -- 55 -> 55
+UPDATE item_stat_bonuses b SET amount = 8 FROM items i WHERE i.id = b.item_id AND i.code = 'GUERRERO_OFFHAND_CAPITAN' AND b.stat_code = 'DEF' AND b.is_percent = FALSE; -- 8 -> 8
+UPDATE item_stat_bonuses b SET amount = 11 FROM items i WHERE i.id = b.item_id AND i.code = 'GUERRERO_OFFHAND_CAPITAN' AND b.stat_code = 'HP' AND b.is_percent = FALSE; -- 11 -> 11
+UPDATE item_stat_bonuses b SET amount = 7 FROM items i WHERE i.id = b.item_id AND i.code = 'GUERRERO_HELMET_CAPITAN' AND b.stat_code = 'DEF' AND b.is_percent = FALSE; -- 7 -> 7
+UPDATE item_stat_bonuses b SET amount = 6 FROM items i WHERE i.id = b.item_id AND i.code = 'GUERRERO_HELMET_CAPITAN' AND b.stat_code = 'HP' AND b.is_percent = FALSE; -- 6 -> 6
+UPDATE item_stat_bonuses b SET amount = 2 FROM items i WHERE i.id = b.item_id AND i.code = 'GUERRERO_HELMET_CAPITAN' AND b.stat_code = 'MAGIC_DEF' AND b.is_percent = FALSE; -- 2 -> 2
+UPDATE item_stat_bonuses b SET amount = 13 FROM items i WHERE i.id = b.item_id AND i.code = 'GUERRERO_ARMOR_CAPITAN' AND b.stat_code = 'DEF' AND b.is_percent = FALSE; -- 13 -> 13
+UPDATE item_stat_bonuses b SET amount = 21 FROM items i WHERE i.id = b.item_id AND i.code = 'GUERRERO_ARMOR_CAPITAN' AND b.stat_code = 'HP' AND b.is_percent = FALSE; -- 21 -> 21
+UPDATE item_stat_bonuses b SET amount = 4 FROM items i WHERE i.id = b.item_id AND i.code = 'GUERRERO_ARMOR_CAPITAN' AND b.stat_code = 'MAGIC_DEF' AND b.is_percent = FALSE; -- 4 -> 4
+UPDATE item_stat_bonuses b SET amount = 16 FROM items i WHERE i.id = b.item_id AND i.code = 'GUERRERO_GLOVES_CAPITAN' AND b.stat_code = 'ATK' AND b.is_percent = FALSE; -- 16 -> 16
+UPDATE item_stat_bonuses b SET amount = 4.5 FROM items i WHERE i.id = b.item_id AND i.code = 'GUERRERO_GLOVES_CAPITAN' AND b.stat_code = 'CRIT_CHANCE' AND b.is_percent = TRUE; -- 4.5 -> 4.5
+UPDATE item_stat_bonuses b SET amount = 10 FROM items i WHERE i.id = b.item_id AND i.code = 'GUERRERO_BOOTS_CAPITAN' AND b.stat_code = 'SPD' AND b.is_percent = FALSE; -- 10 -> 10
+UPDATE item_stat_bonuses b SET amount = 3 FROM items i WHERE i.id = b.item_id AND i.code = 'GUERRERO_BOOTS_CAPITAN' AND b.stat_code = 'HP' AND b.is_percent = FALSE; -- 3 -> 3
+UPDATE item_stat_bonuses b SET amount = 4 FROM items i WHERE i.id = b.item_id AND i.code = 'GUERRERO_BOOTS_CAPITAN' AND b.stat_code = 'DEF' AND b.is_percent = FALSE; -- 4 -> 4
+UPDATE item_stat_bonuses b SET amount = 2.5 FROM items i WHERE i.id = b.item_id AND i.code = 'GUERRERO_BOOTS_CAPITAN' AND b.stat_code = 'EVASION' AND b.is_percent = TRUE; -- 2.5 -> 2.5
+UPDATE item_stat_bonuses b SET amount = 36 FROM items i WHERE i.id = b.item_id AND i.code = 'MAGO_WEAPON_CAPITAN' AND b.stat_code = 'MAG' AND b.is_percent = FALSE; -- 36 -> 36
+UPDATE item_stat_bonuses b SET amount = 6.8 FROM items i WHERE i.id = b.item_id AND i.code = 'MAGO_WEAPON_CAPITAN' AND b.stat_code = 'CRIT_CHANCE' AND b.is_percent = TRUE; -- 6.8 -> 6.8
+UPDATE item_stat_bonuses b SET amount = 15 FROM items i WHERE i.id = b.item_id AND i.code = 'MAGO_OFFHAND_ORB_CAPITAN' AND b.stat_code = 'MAG' AND b.is_percent = FALSE; -- 15 -> 15
+UPDATE item_stat_bonuses b SET amount = 12 FROM items i WHERE i.id = b.item_id AND i.code = 'MAGO_OFFHAND_ORB_CAPITAN' AND b.stat_code = 'SPD' AND b.is_percent = FALSE; -- 12 -> 12
+UPDATE item_stat_bonuses b SET amount = 20 FROM items i WHERE i.id = b.item_id AND i.code = 'MAGO_OFFHAND_CRYSTAL_CAPITAN' AND b.stat_code = 'MAG' AND b.is_percent = FALSE; -- 20 -> 20
+UPDATE item_stat_bonuses b SET amount = 4.5 FROM items i WHERE i.id = b.item_id AND i.code = 'MAGO_OFFHAND_CRYSTAL_CAPITAN' AND b.stat_code = 'CRIT_CHANCE' AND b.is_percent = TRUE; -- 4.5 -> 4.5
+UPDATE item_stat_bonuses b SET amount = 2 FROM items i WHERE i.id = b.item_id AND i.code = 'MAGO_HELMET_CAPITAN' AND b.stat_code = 'DEF' AND b.is_percent = FALSE; -- 2 -> 2
+UPDATE item_stat_bonuses b SET amount = 4 FROM items i WHERE i.id = b.item_id AND i.code = 'MAGO_HELMET_CAPITAN' AND b.stat_code = 'HP' AND b.is_percent = FALSE; -- 4 -> 4
+UPDATE item_stat_bonuses b SET amount = 7 FROM items i WHERE i.id = b.item_id AND i.code = 'MAGO_HELMET_CAPITAN' AND b.stat_code = 'MAGIC_DEF' AND b.is_percent = FALSE; -- 7 -> 7
+UPDATE item_stat_bonuses b SET amount = 4 FROM items i WHERE i.id = b.item_id AND i.code = 'MAGO_ARMOR_CAPITAN' AND b.stat_code = 'DEF' AND b.is_percent = FALSE; -- 4 -> 4
+UPDATE item_stat_bonuses b SET amount = 24 FROM items i WHERE i.id = b.item_id AND i.code = 'MAGO_ARMOR_CAPITAN' AND b.stat_code = 'HP' AND b.is_percent = FALSE; -- 24 -> 24
+UPDATE item_stat_bonuses b SET amount = 13 FROM items i WHERE i.id = b.item_id AND i.code = 'MAGO_ARMOR_CAPITAN' AND b.stat_code = 'MAGIC_DEF' AND b.is_percent = FALSE; -- 13 -> 13
+UPDATE item_stat_bonuses b SET amount = 16 FROM items i WHERE i.id = b.item_id AND i.code = 'MAGO_GLOVES_CAPITAN' AND b.stat_code = 'MAG' AND b.is_percent = FALSE; -- 16 -> 16
+UPDATE item_stat_bonuses b SET amount = 4.5 FROM items i WHERE i.id = b.item_id AND i.code = 'MAGO_GLOVES_CAPITAN' AND b.stat_code = 'CRIT_CHANCE' AND b.is_percent = TRUE; -- 4.5 -> 4.5
+UPDATE item_stat_bonuses b SET amount = 10 FROM items i WHERE i.id = b.item_id AND i.code = 'MAGO_BOOTS_CAPITAN' AND b.stat_code = 'SPD' AND b.is_percent = FALSE; -- 10 -> 10
+UPDATE item_stat_bonuses b SET amount = 3 FROM items i WHERE i.id = b.item_id AND i.code = 'MAGO_BOOTS_CAPITAN' AND b.stat_code = 'HP' AND b.is_percent = FALSE; -- 3 -> 3
+UPDATE item_stat_bonuses b SET amount = 4 FROM items i WHERE i.id = b.item_id AND i.code = 'MAGO_BOOTS_CAPITAN' AND b.stat_code = 'MAGIC_DEF' AND b.is_percent = FALSE; -- 4 -> 4
+UPDATE item_stat_bonuses b SET amount = 2.5 FROM items i WHERE i.id = b.item_id AND i.code = 'MAGO_BOOTS_CAPITAN' AND b.stat_code = 'EVASION' AND b.is_percent = TRUE; -- 2.5 -> 2.5
+UPDATE item_stat_bonuses b SET amount = 36 FROM items i WHERE i.id = b.item_id AND i.code = 'ARQUERO_WEAPON_CAPITAN' AND b.stat_code = 'ATK' AND b.is_percent = FALSE; -- 36 -> 36
+UPDATE item_stat_bonuses b SET amount = 6.8 FROM items i WHERE i.id = b.item_id AND i.code = 'ARQUERO_WEAPON_CAPITAN' AND b.stat_code = 'CRIT_CHANCE' AND b.is_percent = TRUE; -- 6.8 -> 6.8
+UPDATE item_stat_bonuses b SET amount = 12 FROM items i WHERE i.id = b.item_id AND i.code = 'ARQUERO_OFFHAND_CAPITAN' AND b.stat_code = 'ATK' AND b.is_percent = FALSE; -- 12 -> 12
+UPDATE item_stat_bonuses b SET amount = 12 FROM items i WHERE i.id = b.item_id AND i.code = 'ARQUERO_OFFHAND_CAPITAN' AND b.stat_code = 'SPD' AND b.is_percent = FALSE; -- 12 -> 12
+UPDATE item_stat_bonuses b SET amount = 7 FROM items i WHERE i.id = b.item_id AND i.code = 'ARQUERO_HELMET_CAPITAN' AND b.stat_code = 'DEF' AND b.is_percent = FALSE; -- 7 -> 7
+UPDATE item_stat_bonuses b SET amount = 5 FROM items i WHERE i.id = b.item_id AND i.code = 'ARQUERO_HELMET_CAPITAN' AND b.stat_code = 'HP' AND b.is_percent = FALSE; -- 5 -> 5
+UPDATE item_stat_bonuses b SET amount = 2 FROM items i WHERE i.id = b.item_id AND i.code = 'ARQUERO_HELMET_CAPITAN' AND b.stat_code = 'MAGIC_DEF' AND b.is_percent = FALSE; -- 2 -> 2
+UPDATE item_stat_bonuses b SET amount = 13 FROM items i WHERE i.id = b.item_id AND i.code = 'ARQUERO_ARMOR_CAPITAN' AND b.stat_code = 'DEF' AND b.is_percent = FALSE; -- 13 -> 13
+UPDATE item_stat_bonuses b SET amount = 24 FROM items i WHERE i.id = b.item_id AND i.code = 'ARQUERO_ARMOR_CAPITAN' AND b.stat_code = 'HP' AND b.is_percent = FALSE; -- 24 -> 24
+UPDATE item_stat_bonuses b SET amount = 3 FROM items i WHERE i.id = b.item_id AND i.code = 'ARQUERO_ARMOR_CAPITAN' AND b.stat_code = 'MAGIC_DEF' AND b.is_percent = FALSE; -- 3 -> 3
+UPDATE item_stat_bonuses b SET amount = 16 FROM items i WHERE i.id = b.item_id AND i.code = 'ARQUERO_GLOVES_CAPITAN' AND b.stat_code = 'ATK' AND b.is_percent = FALSE; -- 16 -> 16
+UPDATE item_stat_bonuses b SET amount = 4.5 FROM items i WHERE i.id = b.item_id AND i.code = 'ARQUERO_GLOVES_CAPITAN' AND b.stat_code = 'CRIT_CHANCE' AND b.is_percent = TRUE; -- 4.5 -> 4.5
+UPDATE item_stat_bonuses b SET amount = 10 FROM items i WHERE i.id = b.item_id AND i.code = 'ARQUERO_BOOTS_CAPITAN' AND b.stat_code = 'SPD' AND b.is_percent = FALSE; -- 10 -> 10
+UPDATE item_stat_bonuses b SET amount = 3 FROM items i WHERE i.id = b.item_id AND i.code = 'ARQUERO_BOOTS_CAPITAN' AND b.stat_code = 'HP' AND b.is_percent = FALSE; -- 3 -> 3
+UPDATE item_stat_bonuses b SET amount = 4 FROM items i WHERE i.id = b.item_id AND i.code = 'ARQUERO_BOOTS_CAPITAN' AND b.stat_code = 'DEF' AND b.is_percent = FALSE; -- 4 -> 4
+UPDATE item_stat_bonuses b SET amount = 2.5 FROM items i WHERE i.id = b.item_id AND i.code = 'ARQUERO_BOOTS_CAPITAN' AND b.stat_code = 'EVASION' AND b.is_percent = TRUE; -- 2.5 -> 2.5
+UPDATE item_stat_bonuses b SET amount = 36 FROM items i WHERE i.id = b.item_id AND i.code = 'PICARO_WEAPON_CAPITAN' AND b.stat_code = 'ATK' AND b.is_percent = FALSE; -- 36 -> 36
+UPDATE item_stat_bonuses b SET amount = 6.8 FROM items i WHERE i.id = b.item_id AND i.code = 'PICARO_WEAPON_CAPITAN' AND b.stat_code = 'CRIT_CHANCE' AND b.is_percent = TRUE; -- 6.8 -> 6.8
+UPDATE item_stat_bonuses b SET amount = 12 FROM items i WHERE i.id = b.item_id AND i.code = 'PICARO_OFFHAND_CAPITAN' AND b.stat_code = 'ATK' AND b.is_percent = FALSE; -- 12 -> 12
+UPDATE item_stat_bonuses b SET amount = 12 FROM items i WHERE i.id = b.item_id AND i.code = 'PICARO_OFFHAND_CAPITAN' AND b.stat_code = 'SPD' AND b.is_percent = FALSE; -- 12 -> 12
+UPDATE item_stat_bonuses b SET amount = 7 FROM items i WHERE i.id = b.item_id AND i.code = 'PICARO_HELMET_CAPITAN' AND b.stat_code = 'DEF' AND b.is_percent = FALSE; -- 7 -> 7
+UPDATE item_stat_bonuses b SET amount = 5 FROM items i WHERE i.id = b.item_id AND i.code = 'PICARO_HELMET_CAPITAN' AND b.stat_code = 'HP' AND b.is_percent = FALSE; -- 5 -> 5
+UPDATE item_stat_bonuses b SET amount = 2 FROM items i WHERE i.id = b.item_id AND i.code = 'PICARO_HELMET_CAPITAN' AND b.stat_code = 'MAGIC_DEF' AND b.is_percent = FALSE; -- 2 -> 2
+UPDATE item_stat_bonuses b SET amount = 13 FROM items i WHERE i.id = b.item_id AND i.code = 'PICARO_ARMOR_CAPITAN' AND b.stat_code = 'DEF' AND b.is_percent = FALSE; -- 13 -> 13
+UPDATE item_stat_bonuses b SET amount = 25 FROM items i WHERE i.id = b.item_id AND i.code = 'PICARO_ARMOR_CAPITAN' AND b.stat_code = 'HP' AND b.is_percent = FALSE; -- 25 -> 25
+UPDATE item_stat_bonuses b SET amount = 3 FROM items i WHERE i.id = b.item_id AND i.code = 'PICARO_ARMOR_CAPITAN' AND b.stat_code = 'MAGIC_DEF' AND b.is_percent = FALSE; -- 3 -> 3
+UPDATE item_stat_bonuses b SET amount = 16 FROM items i WHERE i.id = b.item_id AND i.code = 'PICARO_GLOVES_CAPITAN' AND b.stat_code = 'ATK' AND b.is_percent = FALSE; -- 16 -> 16
+UPDATE item_stat_bonuses b SET amount = 4.5 FROM items i WHERE i.id = b.item_id AND i.code = 'PICARO_GLOVES_CAPITAN' AND b.stat_code = 'CRIT_CHANCE' AND b.is_percent = TRUE; -- 4.5 -> 4.5
+UPDATE item_stat_bonuses b SET amount = 10 FROM items i WHERE i.id = b.item_id AND i.code = 'PICARO_BOOTS_CAPITAN' AND b.stat_code = 'SPD' AND b.is_percent = FALSE; -- 10 -> 10
+UPDATE item_stat_bonuses b SET amount = 3 FROM items i WHERE i.id = b.item_id AND i.code = 'PICARO_BOOTS_CAPITAN' AND b.stat_code = 'HP' AND b.is_percent = FALSE; -- 3 -> 3
+UPDATE item_stat_bonuses b SET amount = 4 FROM items i WHERE i.id = b.item_id AND i.code = 'PICARO_BOOTS_CAPITAN' AND b.stat_code = 'DEF' AND b.is_percent = FALSE; -- 4 -> 4
+UPDATE item_stat_bonuses b SET amount = 2.5 FROM items i WHERE i.id = b.item_id AND i.code = 'PICARO_BOOTS_CAPITAN' AND b.stat_code = 'EVASION' AND b.is_percent = TRUE; -- 2.5 -> 2.5
+UPDATE item_stat_bonuses b SET amount = 36 FROM items i WHERE i.id = b.item_id AND i.code = 'SACERDOTE_WEAPON_CAPITAN' AND b.stat_code = 'MAG' AND b.is_percent = FALSE; -- 36 -> 36
+UPDATE item_stat_bonuses b SET amount = 6.8 FROM items i WHERE i.id = b.item_id AND i.code = 'SACERDOTE_WEAPON_CAPITAN' AND b.stat_code = 'CRIT_CHANCE' AND b.is_percent = TRUE; -- 6.8 -> 6.8
+UPDATE item_stat_bonuses b SET amount = 11 FROM items i WHERE i.id = b.item_id AND i.code = 'SACERDOTE_OFFHAND_CAPITAN' AND b.stat_code = 'HP' AND b.is_percent = FALSE; -- 11 -> 11
+UPDATE item_stat_bonuses b SET amount = 8 FROM items i WHERE i.id = b.item_id AND i.code = 'SACERDOTE_OFFHAND_CAPITAN' AND b.stat_code = 'MAGIC_DEF' AND b.is_percent = FALSE; -- 8 -> 8
+UPDATE item_stat_bonuses b SET amount = 2 FROM items i WHERE i.id = b.item_id AND i.code = 'SACERDOTE_HELMET_CAPITAN' AND b.stat_code = 'DEF' AND b.is_percent = FALSE; -- 2 -> 2
+UPDATE item_stat_bonuses b SET amount = 5 FROM items i WHERE i.id = b.item_id AND i.code = 'SACERDOTE_HELMET_CAPITAN' AND b.stat_code = 'HP' AND b.is_percent = FALSE; -- 5 -> 5
+UPDATE item_stat_bonuses b SET amount = 7 FROM items i WHERE i.id = b.item_id AND i.code = 'SACERDOTE_HELMET_CAPITAN' AND b.stat_code = 'MAGIC_DEF' AND b.is_percent = FALSE; -- 7 -> 7
+UPDATE item_stat_bonuses b SET amount = 4 FROM items i WHERE i.id = b.item_id AND i.code = 'SACERDOTE_ARMOR_CAPITAN' AND b.stat_code = 'DEF' AND b.is_percent = FALSE; -- 4 -> 4
+UPDATE item_stat_bonuses b SET amount = 22 FROM items i WHERE i.id = b.item_id AND i.code = 'SACERDOTE_ARMOR_CAPITAN' AND b.stat_code = 'HP' AND b.is_percent = FALSE; -- 22 -> 22
+UPDATE item_stat_bonuses b SET amount = 13 FROM items i WHERE i.id = b.item_id AND i.code = 'SACERDOTE_ARMOR_CAPITAN' AND b.stat_code = 'MAGIC_DEF' AND b.is_percent = FALSE; -- 13 -> 13
+UPDATE item_stat_bonuses b SET amount = 16 FROM items i WHERE i.id = b.item_id AND i.code = 'SACERDOTE_GLOVES_CAPITAN' AND b.stat_code = 'MAG' AND b.is_percent = FALSE; -- 16 -> 16
+UPDATE item_stat_bonuses b SET amount = 4.5 FROM items i WHERE i.id = b.item_id AND i.code = 'SACERDOTE_GLOVES_CAPITAN' AND b.stat_code = 'CRIT_CHANCE' AND b.is_percent = TRUE; -- 4.5 -> 4.5
+UPDATE item_stat_bonuses b SET amount = 10 FROM items i WHERE i.id = b.item_id AND i.code = 'SACERDOTE_BOOTS_CAPITAN' AND b.stat_code = 'SPD' AND b.is_percent = FALSE; -- 10 -> 10
+UPDATE item_stat_bonuses b SET amount = 3 FROM items i WHERE i.id = b.item_id AND i.code = 'SACERDOTE_BOOTS_CAPITAN' AND b.stat_code = 'HP' AND b.is_percent = FALSE; -- 3 -> 3
+UPDATE item_stat_bonuses b SET amount = 4 FROM items i WHERE i.id = b.item_id AND i.code = 'SACERDOTE_BOOTS_CAPITAN' AND b.stat_code = 'MAGIC_DEF' AND b.is_percent = FALSE; -- 4 -> 4
+UPDATE item_stat_bonuses b SET amount = 2.5 FROM items i WHERE i.id = b.item_id AND i.code = 'SACERDOTE_BOOTS_CAPITAN' AND b.stat_code = 'EVASION' AND b.is_percent = TRUE; -- 2.5 -> 2.5
+UPDATE item_stat_bonuses b SET amount = 49 FROM items i WHERE i.id = b.item_id AND i.code = 'GUERRERO_WEAPON_TITAN_P' AND b.stat_code = 'ATK' AND b.is_percent = FALSE; -- 49 -> 49
+UPDATE item_stat_bonuses b SET amount = 8.3 FROM items i WHERE i.id = b.item_id AND i.code = 'GUERRERO_WEAPON_TITAN_P' AND b.stat_code = 'CRIT_CHANCE' AND b.is_percent = TRUE; -- 8.3 -> 8.3
+UPDATE item_stat_bonuses b SET amount = 74 FROM items i WHERE i.id = b.item_id AND i.code = 'GUERRERO_WEAPON2H_TITAN_P' AND b.stat_code = 'ATK' AND b.is_percent = FALSE; -- 74 -> 74
+UPDATE item_stat_bonuses b SET amount = 11 FROM items i WHERE i.id = b.item_id AND i.code = 'GUERRERO_OFFHAND_TITAN_P' AND b.stat_code = 'DEF' AND b.is_percent = FALSE; -- 11 -> 11
+UPDATE item_stat_bonuses b SET amount = 14 FROM items i WHERE i.id = b.item_id AND i.code = 'GUERRERO_OFFHAND_TITAN_P' AND b.stat_code = 'HP' AND b.is_percent = FALSE; -- 14 -> 14
+UPDATE item_stat_bonuses b SET amount = 9 FROM items i WHERE i.id = b.item_id AND i.code = 'GUERRERO_HELMET_TITAN_P' AND b.stat_code = 'DEF' AND b.is_percent = FALSE; -- 9 -> 9
+UPDATE item_stat_bonuses b SET amount = 8 FROM items i WHERE i.id = b.item_id AND i.code = 'GUERRERO_HELMET_TITAN_P' AND b.stat_code = 'HP' AND b.is_percent = FALSE; -- 8 -> 8
+UPDATE item_stat_bonuses b SET amount = 2 FROM items i WHERE i.id = b.item_id AND i.code = 'GUERRERO_HELMET_TITAN_P' AND b.stat_code = 'MAGIC_DEF' AND b.is_percent = FALSE; -- 2 -> 2
+UPDATE item_stat_bonuses b SET amount = 18 FROM items i WHERE i.id = b.item_id AND i.code = 'GUERRERO_ARMOR_TITAN_P' AND b.stat_code = 'DEF' AND b.is_percent = FALSE; -- 18 -> 18
+UPDATE item_stat_bonuses b SET amount = 28 FROM items i WHERE i.id = b.item_id AND i.code = 'GUERRERO_ARMOR_TITAN_P' AND b.stat_code = 'HP' AND b.is_percent = FALSE; -- 28 -> 28
+UPDATE item_stat_bonuses b SET amount = 5 FROM items i WHERE i.id = b.item_id AND i.code = 'GUERRERO_ARMOR_TITAN_P' AND b.stat_code = 'MAGIC_DEF' AND b.is_percent = FALSE; -- 5 -> 5
+UPDATE item_stat_bonuses b SET amount = 22 FROM items i WHERE i.id = b.item_id AND i.code = 'GUERRERO_GLOVES_TITAN_P' AND b.stat_code = 'ATK' AND b.is_percent = FALSE; -- 22 -> 22
+UPDATE item_stat_bonuses b SET amount = 5.5 FROM items i WHERE i.id = b.item_id AND i.code = 'GUERRERO_GLOVES_TITAN_P' AND b.stat_code = 'CRIT_CHANCE' AND b.is_percent = TRUE; -- 5.5 -> 5.5
+UPDATE item_stat_bonuses b SET amount = 13 FROM items i WHERE i.id = b.item_id AND i.code = 'GUERRERO_BOOTS_TITAN_P' AND b.stat_code = 'SPD' AND b.is_percent = FALSE; -- 13 -> 13
+UPDATE item_stat_bonuses b SET amount = 3 FROM items i WHERE i.id = b.item_id AND i.code = 'GUERRERO_BOOTS_TITAN_P' AND b.stat_code = 'HP' AND b.is_percent = FALSE; -- 3 -> 3
+UPDATE item_stat_bonuses b SET amount = 4 FROM items i WHERE i.id = b.item_id AND i.code = 'GUERRERO_BOOTS_TITAN_P' AND b.stat_code = 'DEF' AND b.is_percent = FALSE; -- 4 -> 4
+UPDATE item_stat_bonuses b SET amount = 3 FROM items i WHERE i.id = b.item_id AND i.code = 'GUERRERO_BOOTS_TITAN_P' AND b.stat_code = 'EVASION' AND b.is_percent = TRUE; -- 3 -> 3
+UPDATE item_stat_bonuses b SET amount = 49 FROM items i WHERE i.id = b.item_id AND i.code = 'MAGO_WEAPON_TITAN_P' AND b.stat_code = 'MAG' AND b.is_percent = FALSE; -- 49 -> 49
+UPDATE item_stat_bonuses b SET amount = 8.3 FROM items i WHERE i.id = b.item_id AND i.code = 'MAGO_WEAPON_TITAN_P' AND b.stat_code = 'CRIT_CHANCE' AND b.is_percent = TRUE; -- 8.3 -> 8.3
+UPDATE item_stat_bonuses b SET amount = 20 FROM items i WHERE i.id = b.item_id AND i.code = 'MAGO_OFFHAND_ORB_TITAN_P' AND b.stat_code = 'MAG' AND b.is_percent = FALSE; -- 20 -> 20
+UPDATE item_stat_bonuses b SET amount = 16 FROM items i WHERE i.id = b.item_id AND i.code = 'MAGO_OFFHAND_ORB_TITAN_P' AND b.stat_code = 'SPD' AND b.is_percent = FALSE; -- 16 -> 16
+UPDATE item_stat_bonuses b SET amount = 27 FROM items i WHERE i.id = b.item_id AND i.code = 'MAGO_OFFHAND_CRYSTAL_TITAN_P' AND b.stat_code = 'MAG' AND b.is_percent = FALSE; -- 27 -> 27
+UPDATE item_stat_bonuses b SET amount = 5.5 FROM items i WHERE i.id = b.item_id AND i.code = 'MAGO_OFFHAND_CRYSTAL_TITAN_P' AND b.stat_code = 'CRIT_CHANCE' AND b.is_percent = TRUE; -- 5.5 -> 5.5
+UPDATE item_stat_bonuses b SET amount = 2 FROM items i WHERE i.id = b.item_id AND i.code = 'MAGO_HELMET_TITAN_P' AND b.stat_code = 'DEF' AND b.is_percent = FALSE; -- 2 -> 2
+UPDATE item_stat_bonuses b SET amount = 6 FROM items i WHERE i.id = b.item_id AND i.code = 'MAGO_HELMET_TITAN_P' AND b.stat_code = 'HP' AND b.is_percent = FALSE; -- 6 -> 6
+UPDATE item_stat_bonuses b SET amount = 9 FROM items i WHERE i.id = b.item_id AND i.code = 'MAGO_HELMET_TITAN_P' AND b.stat_code = 'MAGIC_DEF' AND b.is_percent = FALSE; -- 9 -> 9
+UPDATE item_stat_bonuses b SET amount = 6 FROM items i WHERE i.id = b.item_id AND i.code = 'MAGO_ARMOR_TITAN_P' AND b.stat_code = 'DEF' AND b.is_percent = FALSE; -- 6 -> 6
+UPDATE item_stat_bonuses b SET amount = 33 FROM items i WHERE i.id = b.item_id AND i.code = 'MAGO_ARMOR_TITAN_P' AND b.stat_code = 'HP' AND b.is_percent = FALSE; -- 33 -> 33
+UPDATE item_stat_bonuses b SET amount = 18 FROM items i WHERE i.id = b.item_id AND i.code = 'MAGO_ARMOR_TITAN_P' AND b.stat_code = 'MAGIC_DEF' AND b.is_percent = FALSE; -- 18 -> 18
+UPDATE item_stat_bonuses b SET amount = 22 FROM items i WHERE i.id = b.item_id AND i.code = 'MAGO_GLOVES_TITAN_P' AND b.stat_code = 'MAG' AND b.is_percent = FALSE; -- 22 -> 22
+UPDATE item_stat_bonuses b SET amount = 5.5 FROM items i WHERE i.id = b.item_id AND i.code = 'MAGO_GLOVES_TITAN_P' AND b.stat_code = 'CRIT_CHANCE' AND b.is_percent = TRUE; -- 5.5 -> 5.5
+UPDATE item_stat_bonuses b SET amount = 13 FROM items i WHERE i.id = b.item_id AND i.code = 'MAGO_BOOTS_TITAN_P' AND b.stat_code = 'SPD' AND b.is_percent = FALSE; -- 13 -> 13
+UPDATE item_stat_bonuses b SET amount = 3 FROM items i WHERE i.id = b.item_id AND i.code = 'MAGO_BOOTS_TITAN_P' AND b.stat_code = 'HP' AND b.is_percent = FALSE; -- 3 -> 3
+UPDATE item_stat_bonuses b SET amount = 6 FROM items i WHERE i.id = b.item_id AND i.code = 'MAGO_BOOTS_TITAN_P' AND b.stat_code = 'MAGIC_DEF' AND b.is_percent = FALSE; -- 6 -> 6
+UPDATE item_stat_bonuses b SET amount = 3 FROM items i WHERE i.id = b.item_id AND i.code = 'MAGO_BOOTS_TITAN_P' AND b.stat_code = 'EVASION' AND b.is_percent = TRUE; -- 3 -> 3
+UPDATE item_stat_bonuses b SET amount = 49 FROM items i WHERE i.id = b.item_id AND i.code = 'ARQUERO_WEAPON_TITAN_P' AND b.stat_code = 'ATK' AND b.is_percent = FALSE; -- 49 -> 49
+UPDATE item_stat_bonuses b SET amount = 8.3 FROM items i WHERE i.id = b.item_id AND i.code = 'ARQUERO_WEAPON_TITAN_P' AND b.stat_code = 'CRIT_CHANCE' AND b.is_percent = TRUE; -- 8.3 -> 8.3
+UPDATE item_stat_bonuses b SET amount = 16 FROM items i WHERE i.id = b.item_id AND i.code = 'ARQUERO_OFFHAND_TITAN_P' AND b.stat_code = 'ATK' AND b.is_percent = FALSE; -- 16 -> 16
+UPDATE item_stat_bonuses b SET amount = 16 FROM items i WHERE i.id = b.item_id AND i.code = 'ARQUERO_OFFHAND_TITAN_P' AND b.stat_code = 'SPD' AND b.is_percent = FALSE; -- 16 -> 16
+UPDATE item_stat_bonuses b SET amount = 9 FROM items i WHERE i.id = b.item_id AND i.code = 'ARQUERO_HELMET_TITAN_P' AND b.stat_code = 'DEF' AND b.is_percent = FALSE; -- 9 -> 9
+UPDATE item_stat_bonuses b SET amount = 7 FROM items i WHERE i.id = b.item_id AND i.code = 'ARQUERO_HELMET_TITAN_P' AND b.stat_code = 'HP' AND b.is_percent = FALSE; -- 7 -> 7
+UPDATE item_stat_bonuses b SET amount = 3 FROM items i WHERE i.id = b.item_id AND i.code = 'ARQUERO_HELMET_TITAN_P' AND b.stat_code = 'MAGIC_DEF' AND b.is_percent = FALSE; -- 3 -> 3
+UPDATE item_stat_bonuses b SET amount = 18 FROM items i WHERE i.id = b.item_id AND i.code = 'ARQUERO_ARMOR_TITAN_P' AND b.stat_code = 'DEF' AND b.is_percent = FALSE; -- 18 -> 18
+UPDATE item_stat_bonuses b SET amount = 31 FROM items i WHERE i.id = b.item_id AND i.code = 'ARQUERO_ARMOR_TITAN_P' AND b.stat_code = 'HP' AND b.is_percent = FALSE; -- 31 -> 31
+UPDATE item_stat_bonuses b SET amount = 5 FROM items i WHERE i.id = b.item_id AND i.code = 'ARQUERO_ARMOR_TITAN_P' AND b.stat_code = 'MAGIC_DEF' AND b.is_percent = FALSE; -- 5 -> 5
+UPDATE item_stat_bonuses b SET amount = 22 FROM items i WHERE i.id = b.item_id AND i.code = 'ARQUERO_GLOVES_TITAN_P' AND b.stat_code = 'ATK' AND b.is_percent = FALSE; -- 22 -> 22
+UPDATE item_stat_bonuses b SET amount = 5.5 FROM items i WHERE i.id = b.item_id AND i.code = 'ARQUERO_GLOVES_TITAN_P' AND b.stat_code = 'CRIT_CHANCE' AND b.is_percent = TRUE; -- 5.5 -> 5.5
+UPDATE item_stat_bonuses b SET amount = 13 FROM items i WHERE i.id = b.item_id AND i.code = 'ARQUERO_BOOTS_TITAN_P' AND b.stat_code = 'SPD' AND b.is_percent = FALSE; -- 13 -> 13
+UPDATE item_stat_bonuses b SET amount = 3 FROM items i WHERE i.id = b.item_id AND i.code = 'ARQUERO_BOOTS_TITAN_P' AND b.stat_code = 'HP' AND b.is_percent = FALSE; -- 3 -> 3
+UPDATE item_stat_bonuses b SET amount = 5 FROM items i WHERE i.id = b.item_id AND i.code = 'ARQUERO_BOOTS_TITAN_P' AND b.stat_code = 'DEF' AND b.is_percent = FALSE; -- 5 -> 5
+UPDATE item_stat_bonuses b SET amount = 3 FROM items i WHERE i.id = b.item_id AND i.code = 'ARQUERO_BOOTS_TITAN_P' AND b.stat_code = 'EVASION' AND b.is_percent = TRUE; -- 3 -> 3
+UPDATE item_stat_bonuses b SET amount = 49 FROM items i WHERE i.id = b.item_id AND i.code = 'PICARO_WEAPON_TITAN_P' AND b.stat_code = 'ATK' AND b.is_percent = FALSE; -- 49 -> 49
+UPDATE item_stat_bonuses b SET amount = 8.3 FROM items i WHERE i.id = b.item_id AND i.code = 'PICARO_WEAPON_TITAN_P' AND b.stat_code = 'CRIT_CHANCE' AND b.is_percent = TRUE; -- 8.3 -> 8.3
+UPDATE item_stat_bonuses b SET amount = 16 FROM items i WHERE i.id = b.item_id AND i.code = 'PICARO_OFFHAND_TITAN_P' AND b.stat_code = 'ATK' AND b.is_percent = FALSE; -- 16 -> 16
+UPDATE item_stat_bonuses b SET amount = 16 FROM items i WHERE i.id = b.item_id AND i.code = 'PICARO_OFFHAND_TITAN_P' AND b.stat_code = 'SPD' AND b.is_percent = FALSE; -- 16 -> 16
+UPDATE item_stat_bonuses b SET amount = 9 FROM items i WHERE i.id = b.item_id AND i.code = 'PICARO_HELMET_TITAN_P' AND b.stat_code = 'DEF' AND b.is_percent = FALSE; -- 9 -> 9
+UPDATE item_stat_bonuses b SET amount = 7 FROM items i WHERE i.id = b.item_id AND i.code = 'PICARO_HELMET_TITAN_P' AND b.stat_code = 'HP' AND b.is_percent = FALSE; -- 7 -> 7
+UPDATE item_stat_bonuses b SET amount = 3 FROM items i WHERE i.id = b.item_id AND i.code = 'PICARO_HELMET_TITAN_P' AND b.stat_code = 'MAGIC_DEF' AND b.is_percent = FALSE; -- 3 -> 3
+UPDATE item_stat_bonuses b SET amount = 18 FROM items i WHERE i.id = b.item_id AND i.code = 'PICARO_ARMOR_TITAN_P' AND b.stat_code = 'DEF' AND b.is_percent = FALSE; -- 18 -> 18
+UPDATE item_stat_bonuses b SET amount = 35 FROM items i WHERE i.id = b.item_id AND i.code = 'PICARO_ARMOR_TITAN_P' AND b.stat_code = 'HP' AND b.is_percent = FALSE; -- 35 -> 35
+UPDATE item_stat_bonuses b SET amount = 6 FROM items i WHERE i.id = b.item_id AND i.code = 'PICARO_ARMOR_TITAN_P' AND b.stat_code = 'MAGIC_DEF' AND b.is_percent = FALSE; -- 6 -> 6
+UPDATE item_stat_bonuses b SET amount = 22 FROM items i WHERE i.id = b.item_id AND i.code = 'PICARO_GLOVES_TITAN_P' AND b.stat_code = 'ATK' AND b.is_percent = FALSE; -- 22 -> 22
+UPDATE item_stat_bonuses b SET amount = 5.5 FROM items i WHERE i.id = b.item_id AND i.code = 'PICARO_GLOVES_TITAN_P' AND b.stat_code = 'CRIT_CHANCE' AND b.is_percent = TRUE; -- 5.5 -> 5.5
+UPDATE item_stat_bonuses b SET amount = 13 FROM items i WHERE i.id = b.item_id AND i.code = 'PICARO_BOOTS_TITAN_P' AND b.stat_code = 'SPD' AND b.is_percent = FALSE; -- 13 -> 13
+UPDATE item_stat_bonuses b SET amount = 3 FROM items i WHERE i.id = b.item_id AND i.code = 'PICARO_BOOTS_TITAN_P' AND b.stat_code = 'HP' AND b.is_percent = FALSE; -- 3 -> 3
+UPDATE item_stat_bonuses b SET amount = 5 FROM items i WHERE i.id = b.item_id AND i.code = 'PICARO_BOOTS_TITAN_P' AND b.stat_code = 'DEF' AND b.is_percent = FALSE; -- 5 -> 5
+UPDATE item_stat_bonuses b SET amount = 3 FROM items i WHERE i.id = b.item_id AND i.code = 'PICARO_BOOTS_TITAN_P' AND b.stat_code = 'EVASION' AND b.is_percent = TRUE; -- 3 -> 3
+UPDATE item_stat_bonuses b SET amount = 49 FROM items i WHERE i.id = b.item_id AND i.code = 'SACERDOTE_WEAPON_TITAN_P' AND b.stat_code = 'MAG' AND b.is_percent = FALSE; -- 49 -> 49
+UPDATE item_stat_bonuses b SET amount = 8.3 FROM items i WHERE i.id = b.item_id AND i.code = 'SACERDOTE_WEAPON_TITAN_P' AND b.stat_code = 'CRIT_CHANCE' AND b.is_percent = TRUE; -- 8.3 -> 8.3
+UPDATE item_stat_bonuses b SET amount = 14 FROM items i WHERE i.id = b.item_id AND i.code = 'SACERDOTE_OFFHAND_TITAN_P' AND b.stat_code = 'HP' AND b.is_percent = FALSE; -- 14 -> 14
+UPDATE item_stat_bonuses b SET amount = 11 FROM items i WHERE i.id = b.item_id AND i.code = 'SACERDOTE_OFFHAND_TITAN_P' AND b.stat_code = 'MAGIC_DEF' AND b.is_percent = FALSE; -- 11 -> 11
+UPDATE item_stat_bonuses b SET amount = 2 FROM items i WHERE i.id = b.item_id AND i.code = 'SACERDOTE_HELMET_TITAN_P' AND b.stat_code = 'DEF' AND b.is_percent = FALSE; -- 2 -> 2
+UPDATE item_stat_bonuses b SET amount = 7 FROM items i WHERE i.id = b.item_id AND i.code = 'SACERDOTE_HELMET_TITAN_P' AND b.stat_code = 'HP' AND b.is_percent = FALSE; -- 7 -> 7
+UPDATE item_stat_bonuses b SET amount = 9 FROM items i WHERE i.id = b.item_id AND i.code = 'SACERDOTE_HELMET_TITAN_P' AND b.stat_code = 'MAGIC_DEF' AND b.is_percent = FALSE; -- 9 -> 9
+UPDATE item_stat_bonuses b SET amount = 5 FROM items i WHERE i.id = b.item_id AND i.code = 'SACERDOTE_ARMOR_TITAN_P' AND b.stat_code = 'DEF' AND b.is_percent = FALSE; -- 5 -> 5
+UPDATE item_stat_bonuses b SET amount = 30 FROM items i WHERE i.id = b.item_id AND i.code = 'SACERDOTE_ARMOR_TITAN_P' AND b.stat_code = 'HP' AND b.is_percent = FALSE; -- 30 -> 30
+UPDATE item_stat_bonuses b SET amount = 18 FROM items i WHERE i.id = b.item_id AND i.code = 'SACERDOTE_ARMOR_TITAN_P' AND b.stat_code = 'MAGIC_DEF' AND b.is_percent = FALSE; -- 18 -> 18
+UPDATE item_stat_bonuses b SET amount = 22 FROM items i WHERE i.id = b.item_id AND i.code = 'SACERDOTE_GLOVES_TITAN_P' AND b.stat_code = 'MAG' AND b.is_percent = FALSE; -- 22 -> 22
+UPDATE item_stat_bonuses b SET amount = 5.5 FROM items i WHERE i.id = b.item_id AND i.code = 'SACERDOTE_GLOVES_TITAN_P' AND b.stat_code = 'CRIT_CHANCE' AND b.is_percent = TRUE; -- 5.5 -> 5.5
+UPDATE item_stat_bonuses b SET amount = 13 FROM items i WHERE i.id = b.item_id AND i.code = 'SACERDOTE_BOOTS_TITAN_P' AND b.stat_code = 'SPD' AND b.is_percent = FALSE; -- 13 -> 13
+UPDATE item_stat_bonuses b SET amount = 3 FROM items i WHERE i.id = b.item_id AND i.code = 'SACERDOTE_BOOTS_TITAN_P' AND b.stat_code = 'HP' AND b.is_percent = FALSE; -- 3 -> 3
+UPDATE item_stat_bonuses b SET amount = 4 FROM items i WHERE i.id = b.item_id AND i.code = 'SACERDOTE_BOOTS_TITAN_P' AND b.stat_code = 'MAGIC_DEF' AND b.is_percent = FALSE; -- 4 -> 4
+UPDATE item_stat_bonuses b SET amount = 3 FROM items i WHERE i.id = b.item_id AND i.code = 'SACERDOTE_BOOTS_TITAN_P' AND b.stat_code = 'EVASION' AND b.is_percent = TRUE; -- 3 -> 3
+UPDATE item_stat_bonuses b SET amount = 15 FROM items i WHERE i.id = b.item_id AND i.code = 'BRAZALETE_CAPITAN' AND b.stat_code = 'ATK' AND b.is_percent = FALSE; -- 15 -> 15
+UPDATE item_stat_bonuses b SET amount = 19 FROM items i WHERE i.id = b.item_id AND i.code = 'BRAZALETE_CAPITAN' AND b.stat_code = 'HP' AND b.is_percent = FALSE; -- 20 -> 19
+UPDATE item_stat_bonuses b SET amount = 8 FROM items i WHERE i.id = b.item_id AND i.code = 'AMULETO_CAPITAN_MAGO' AND b.stat_code = 'MAG' AND b.is_percent = FALSE; -- 8 -> 8
+UPDATE item_stat_bonuses b SET amount = 6 FROM items i WHERE i.id = b.item_id AND i.code = 'AMULETO_CAPITAN_MAGO' AND b.stat_code = 'MAGIC_DEF' AND b.is_percent = FALSE; -- 6 -> 6
+UPDATE item_stat_bonuses b SET amount = 9 FROM items i WHERE i.id = b.item_id AND i.code = 'COLGANTE_CAPITAN' AND b.stat_code = 'SPD' AND b.is_percent = FALSE; -- 9 -> 9
+UPDATE item_stat_bonuses b SET amount = 4.5 FROM items i WHERE i.id = b.item_id AND i.code = 'COLGANTE_CAPITAN' AND b.stat_code = 'CRIT_CHANCE' AND b.is_percent = TRUE; -- 4.5 -> 4.5
+UPDATE item_stat_bonuses b SET amount = 2.5 FROM items i WHERE i.id = b.item_id AND i.code = 'MEDALLON_CAPITAN' AND b.stat_code = 'EVASION' AND b.is_percent = TRUE; -- 2.5 -> 2.5
+UPDATE item_stat_bonuses b SET amount = 4.5 FROM items i WHERE i.id = b.item_id AND i.code = 'MEDALLON_CAPITAN' AND b.stat_code = 'CRIT_CHANCE' AND b.is_percent = TRUE; -- 4.5 -> 4.5
+UPDATE item_stat_bonuses b SET amount = 58 FROM items i WHERE i.id = b.item_id AND i.code = 'RELICARIO_CAPITAN' AND b.stat_code = 'HP' AND b.is_percent = FALSE; -- 58 -> 58
+UPDATE item_stat_bonuses b SET amount = 20 FROM items i WHERE i.id = b.item_id AND i.code = 'BRAZALETE_TITAN' AND b.stat_code = 'ATK' AND b.is_percent = FALSE; -- 20 -> 20
+UPDATE item_stat_bonuses b SET amount = 27 FROM items i WHERE i.id = b.item_id AND i.code = 'BRAZALETE_TITAN' AND b.stat_code = 'HP' AND b.is_percent = FALSE; -- 27 -> 27
+UPDATE item_stat_bonuses b SET amount = 11 FROM items i WHERE i.id = b.item_id AND i.code = 'AMULETO_TITAN_MAGO' AND b.stat_code = 'MAG' AND b.is_percent = FALSE; -- 11 -> 11
+UPDATE item_stat_bonuses b SET amount = 8 FROM items i WHERE i.id = b.item_id AND i.code = 'AMULETO_TITAN_MAGO' AND b.stat_code = 'MAGIC_DEF' AND b.is_percent = FALSE; -- 8 -> 8
+UPDATE item_stat_bonuses b SET amount = 12 FROM items i WHERE i.id = b.item_id AND i.code = 'COLGANTE_TITAN' AND b.stat_code = 'SPD' AND b.is_percent = FALSE; -- 12 -> 12
+UPDATE item_stat_bonuses b SET amount = 5.5 FROM items i WHERE i.id = b.item_id AND i.code = 'COLGANTE_TITAN' AND b.stat_code = 'CRIT_CHANCE' AND b.is_percent = TRUE; -- 5.5 -> 5.5
+UPDATE item_stat_bonuses b SET amount = 3 FROM items i WHERE i.id = b.item_id AND i.code = 'MEDALLON_TITAN' AND b.stat_code = 'EVASION' AND b.is_percent = TRUE; -- 3 -> 3
+UPDATE item_stat_bonuses b SET amount = 5.5 FROM items i WHERE i.id = b.item_id AND i.code = 'MEDALLON_TITAN' AND b.stat_code = 'CRIT_CHANCE' AND b.is_percent = TRUE; -- 5.5 -> 5.5
+UPDATE item_stat_bonuses b SET amount = 79 FROM items i WHERE i.id = b.item_id AND i.code = 'RELICARIO_TITAN' AND b.stat_code = 'HP' AND b.is_percent = FALSE; -- 79 -> 79
+UPDATE item_stat_bonuses b SET amount = 17 FROM items i WHERE i.id = b.item_id AND i.code = 'GUERRERO_WEAPON2H_HACHA_L1' AND b.stat_code = 'ATK' AND b.is_percent = FALSE; -- 17 -> 17
+UPDATE item_stat_bonuses b SET amount = 4 FROM items i WHERE i.id = b.item_id AND i.code = 'GUERRERO_WEAPON2H_HACHA_L1' AND b.stat_code = 'DEF' AND b.is_percent = FALSE; -- 4 -> 4
+UPDATE item_stat_bonuses b SET amount = 41 FROM items i WHERE i.id = b.item_id AND i.code = 'GUERRERO_WEAPON2H_HACHA_L10' AND b.stat_code = 'ATK' AND b.is_percent = FALSE; -- 41 -> 41
+UPDATE item_stat_bonuses b SET amount = -11 FROM items i WHERE i.id = b.item_id AND i.code = 'GUERRERO_WEAPON2H_HACHA_L10' AND b.stat_code = 'DEF' AND b.is_percent = FALSE; -- -11 -> -11
+UPDATE item_stat_bonuses b SET amount = 17 FROM items i WHERE i.id = b.item_id AND i.code = 'BALLESTA' AND b.stat_code = 'ATK' AND b.is_percent = FALSE; -- 17 -> 17
+UPDATE item_stat_bonuses b SET amount = 5 FROM items i WHERE i.id = b.item_id AND i.code = 'BALLESTA' AND b.stat_code = 'CRIT_DAMAGE' AND b.is_percent = TRUE; -- 5 -> 5
+UPDATE item_stat_bonuses b SET amount = 41 FROM items i WHERE i.id = b.item_id AND i.code = 'ARQUERO_WEAPON2H_BALLESTA_L10' AND b.stat_code = 'ATK' AND b.is_percent = FALSE; -- 41 -> 41
+UPDATE item_stat_bonuses b SET amount = 7 FROM items i WHERE i.id = b.item_id AND i.code = 'ARQUERO_WEAPON2H_BALLESTA_L10' AND b.stat_code = 'CRIT_DAMAGE' AND b.is_percent = TRUE; -- 7 -> 7
+UPDATE item_stat_bonuses b SET amount = 1 FROM items i WHERE i.id = b.item_id AND i.code = 'ARMADURA_PESADA_COMPLETA' AND b.stat_code = 'MAGIC_DEF' AND b.is_percent = FALSE; -- 1 -> 1
+UPDATE item_stat_bonuses b SET amount = 8 FROM items i WHERE i.id = b.item_id AND i.code = 'ARMADURA_PESADA_COMPLETA' AND b.stat_code = 'HP' AND b.is_percent = FALSE; -- 8 -> 8
+UPDATE item_stat_bonuses b SET amount = 4 FROM items i WHERE i.id = b.item_id AND i.code = 'ARMADURA_PESADA_COMPLETA' AND b.stat_code = 'DEF' AND b.is_percent = FALSE; -- 4 -> 4
+UPDATE item_stat_bonuses b SET amount = 1 FROM items i WHERE i.id = b.item_id AND i.code = 'GUERRERO_HELMET_PESADA_L1' AND b.stat_code = 'MAGIC_DEF' AND b.is_percent = FALSE; -- 1 -> 1
+UPDATE item_stat_bonuses b SET amount = 3 FROM items i WHERE i.id = b.item_id AND i.code = 'GUERRERO_HELMET_PESADA_L1' AND b.stat_code = 'HP' AND b.is_percent = FALSE; -- 3 -> 3
+UPDATE item_stat_bonuses b SET amount = 2 FROM items i WHERE i.id = b.item_id AND i.code = 'GUERRERO_HELMET_PESADA_L1' AND b.stat_code = 'DEF' AND b.is_percent = FALSE; -- 2 -> 2
+UPDATE item_stat_bonuses b SET amount = 3 FROM items i WHERE i.id = b.item_id AND i.code = 'GUERRERO_GLOVES_PESADA_L1' AND b.stat_code = 'HP' AND b.is_percent = FALSE; -- 3 -> 3
+UPDATE item_stat_bonuses b SET amount = 2 FROM items i WHERE i.id = b.item_id AND i.code = 'GUERRERO_GLOVES_PESADA_L1' AND b.stat_code = 'DEF' AND b.is_percent = FALSE; -- 2 -> 2
+UPDATE item_stat_bonuses b SET amount = 1 FROM items i WHERE i.id = b.item_id AND i.code = 'GUERRERO_BOOTS_PESADA_L1' AND b.stat_code = 'EVASION' AND b.is_percent = TRUE; -- 1 -> 1
+UPDATE item_stat_bonuses b SET amount = 3 FROM items i WHERE i.id = b.item_id AND i.code = 'GUERRERO_BOOTS_PESADA_L1' AND b.stat_code = 'SPD' AND b.is_percent = FALSE; -- 3 -> 3
+UPDATE item_stat_bonuses b SET amount = 1 FROM items i WHERE i.id = b.item_id AND i.code = 'GUERRERO_BOOTS_PESADA_L1' AND b.stat_code = 'HP' AND b.is_percent = FALSE; -- 1 -> 1
+UPDATE item_stat_bonuses b SET amount = 1 FROM items i WHERE i.id = b.item_id AND i.code = 'GUERRERO_BOOTS_PESADA_L1' AND b.stat_code = 'DEF' AND b.is_percent = FALSE; -- 1 -> 1
+UPDATE item_stat_bonuses b SET amount = 3 FROM items i WHERE i.id = b.item_id AND i.code = 'GUERRERO_ARMOR_PESADA_L10' AND b.stat_code = 'MAGIC_DEF' AND b.is_percent = FALSE; -- 3 -> 3
+UPDATE item_stat_bonuses b SET amount = 18 FROM items i WHERE i.id = b.item_id AND i.code = 'GUERRERO_ARMOR_PESADA_L10' AND b.stat_code = 'HP' AND b.is_percent = FALSE; -- 18 -> 18
+UPDATE item_stat_bonuses b SET amount = 10 FROM items i WHERE i.id = b.item_id AND i.code = 'GUERRERO_ARMOR_PESADA_L10' AND b.stat_code = 'DEF' AND b.is_percent = FALSE; -- 10 -> 10
+UPDATE item_stat_bonuses b SET amount = 2 FROM items i WHERE i.id = b.item_id AND i.code = 'GUERRERO_HELMET_PESADA_L10' AND b.stat_code = 'MAGIC_DEF' AND b.is_percent = FALSE; -- 2 -> 2
+UPDATE item_stat_bonuses b SET amount = 6 FROM items i WHERE i.id = b.item_id AND i.code = 'GUERRERO_HELMET_PESADA_L10' AND b.stat_code = 'HP' AND b.is_percent = FALSE; -- 6 -> 6
+UPDATE item_stat_bonuses b SET amount = 5 FROM items i WHERE i.id = b.item_id AND i.code = 'GUERRERO_HELMET_PESADA_L10' AND b.stat_code = 'DEF' AND b.is_percent = FALSE; -- 5 -> 5
+UPDATE item_stat_bonuses b SET amount = 6 FROM items i WHERE i.id = b.item_id AND i.code = 'GUERRERO_GLOVES_PESADA_L10' AND b.stat_code = 'HP' AND b.is_percent = FALSE; -- 6 -> 6
+UPDATE item_stat_bonuses b SET amount = 5 FROM items i WHERE i.id = b.item_id AND i.code = 'GUERRERO_GLOVES_PESADA_L10' AND b.stat_code = 'DEF' AND b.is_percent = FALSE; -- 5 -> 5
+UPDATE item_stat_bonuses b SET amount = 1.5 FROM items i WHERE i.id = b.item_id AND i.code = 'GUERRERO_BOOTS_PESADA_L10' AND b.stat_code = 'EVASION' AND b.is_percent = TRUE; -- 1.5 -> 1.5
+UPDATE item_stat_bonuses b SET amount = 7 FROM items i WHERE i.id = b.item_id AND i.code = 'GUERRERO_BOOTS_PESADA_L10' AND b.stat_code = 'SPD' AND b.is_percent = FALSE; -- 7 -> 7
+UPDATE item_stat_bonuses b SET amount = 4 FROM items i WHERE i.id = b.item_id AND i.code = 'GUERRERO_BOOTS_PESADA_L10' AND b.stat_code = 'HP' AND b.is_percent = FALSE; -- 4 -> 4
+UPDATE item_stat_bonuses b SET amount = 4 FROM items i WHERE i.id = b.item_id AND i.code = 'GUERRERO_BOOTS_PESADA_L10' AND b.stat_code = 'DEF' AND b.is_percent = FALSE; -- 4 -> 4
+UPDATE item_stat_bonuses b SET amount = 12 FROM items i WHERE i.id = b.item_id AND i.code = 'ESPADA_MAGICA' AND b.stat_code = 'ATK' AND b.is_percent = FALSE; -- 12 -> 12
+UPDATE item_stat_bonuses b SET amount = 12 FROM items i WHERE i.id = b.item_id AND i.code = 'ESPADA_MAGICA' AND b.stat_code = 'MAG' AND b.is_percent = FALSE; -- 12 -> 12
+UPDATE item_stat_bonuses b SET amount = 27 FROM items i WHERE i.id = b.item_id AND i.code = 'GUERRERO_WEAPON_MAGICA_L10' AND b.stat_code = 'ATK' AND b.is_percent = FALSE; -- 27 -> 27
+UPDATE item_stat_bonuses b SET amount = 28 FROM items i WHERE i.id = b.item_id AND i.code = 'GUERRERO_WEAPON_MAGICA_L10' AND b.stat_code = 'MAG' AND b.is_percent = FALSE; -- 28 -> 28
+UPDATE item_stat_bonuses b SET amount = 9 FROM items i WHERE i.id = b.item_id AND i.code = 'GUERRERO_WEAPON_MAGICA_L10' AND b.stat_code = 'DEF' AND b.is_percent = FALSE; -- 9 -> 9
+UPDATE item_stat_bonuses b SET amount = 42 FROM items i WHERE i.id = b.item_id AND i.code = 'KADRIC_ESPADA_VETERANO' AND b.stat_code = 'ATK' AND b.is_percent = FALSE; -- 43 -> 42
+UPDATE item_stat_bonuses b SET amount = 18 FROM items i WHERE i.id = b.item_id AND i.code = 'KADRIC_ESPADA_VETERANO' AND b.stat_code = 'DEF' AND b.is_percent = FALSE; -- 18 -> 18
+UPDATE item_stat_bonuses b SET amount = 18 FROM items i WHERE i.id = b.item_id AND i.code = 'KADRIC_ESPADA_VETERANO' AND b.stat_code = 'SPD' AND b.is_percent = FALSE; -- 18 -> 18
 -- pide recalcular las stats guardadas de jugadores y compañeros (lo hace el servidor)
 CREATE TABLE IF NOT EXISTS balance_versions (version TEXT PRIMARY KEY, created_at TIMESTAMPTZ NOT NULL DEFAULT now(), applied_at TIMESTAMPTZ);
 INSERT INTO balance_versions (version) SELECT 'pradera_v1' WHERE NOT EXISTS (SELECT 1 FROM balance_versions WHERE version = 'pradera_v1');
 INSERT INTO balance_versions (version) SELECT 'pradera_equipo_v1' WHERE NOT EXISTS (SELECT 1 FROM balance_versions WHERE version = 'pradera_equipo_v1');
+INSERT INTO balance_versions (version) SELECT 'pradera_v2' WHERE NOT EXISTS (SELECT 1 FROM balance_versions WHERE version = 'pradera_v2');
