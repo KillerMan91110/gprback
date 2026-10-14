@@ -1720,3 +1720,46 @@ FROM tmp_pradera_extra t JOIN items i ON i.code = t.item_code
 WHERE t.item_code IS NOT NULL
   AND NOT EXISTS (SELECT 1 FROM crafting_recipe_ingredients x WHERE x.recipe_id = t.recipe_id AND x.item_id = i.id);
 DROP TABLE tmp_pradera_extra;
+
+-- ============================================================================================
+-- Crafteo: arreglos de nombres y recetas (se puede correr varias veces; sin ON CONFLICT)
+-- ============================================================================================
+-- Los pergaminos de receta se llamaban como materiales ("Collar del Capitán (Guerrero)" junto al
+-- material "Collar del Capitán de los Lobos"): ahora "Pergamino: Set del Capitán (Guerrero)".
+UPDATE items i SET
+  name = 'Pergamino: Set ' || s.label || ' (' || c.label || ')',
+  description = 'Pergamino de recetas: léelo desde la mochila para aprender a fabricar el set ' || s.label || ' de ' || c.label || '.'
+FROM (VALUES
+  ('CAPITAN', 'del Capitán'), ('TITAN', 'del Titán'), ('TITAN_FUEGO', 'del Titán de Fuego'),
+  ('ACANTILADO', 'del Acantilado'), ('BESTIA', 'de las Profundidades'), ('CALDERA', 'de la Caldera'),
+  ('LICH', 'del Lich'), ('OCEANO', 'del Océano'), ('REY_HIELO', 'del Rey del Hielo'), ('REY_MONTANA', 'del Rey de Montaña')
+) AS s(k, label),
+(VALUES ('GUERRERO', 'Guerrero'), ('MAGO', 'Mago'), ('ARQUERO', 'Arquero'), ('PICARO', 'Pícaro'), ('SACERDOTE', 'Sacerdote')) AS c(k, label)
+WHERE i.code = 'SCROLL_' || s.k || '_' || c.k;
+
+-- dos "Amuleto del Capitán" distintos (el crafteado con colmillos y el que suelta el Capitán)
+UPDATE items SET name = 'Amuleto de Colmillos' WHERE code = 'AMULETO_DEL_CAPITAN';
+
+-- la Daga de Precisión Crafteada (Pradera) pedía Acero Refinado, que solo cae en las Montañas
+UPDATE crafting_recipe_ingredients ri SET item_id = (SELECT id FROM items WHERE code = 'LINGOTE_HIERRO')
+FROM crafting_recipes cr
+WHERE ri.recipe_id = cr.id AND cr.code = 'RECETA_DAGA_DE_PRECISION_CRAFTEADA'
+  AND ri.item_id = (SELECT id FROM items WHERE code = 'ACERO_REFINADO')
+  AND NOT EXISTS (SELECT 1 FROM crafting_recipe_ingredients x WHERE x.recipe_id = cr.id AND x.item_id = (SELECT id FROM items WHERE code = 'LINGOTE_HIERRO'));
+
+-- Piel y Cuero Crudo (casi sin uso) también se curten en Cuero Tratado
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, success_rate_percent, zone_id, description, station)
+SELECT v.code, i.id, 1, 'COMUN', 100, 1, v.descr, NULL
+FROM (VALUES
+  ('CUERO_TRATADO_PIEL', 'Curte las pieles sueltas.'),
+  ('CUERO_TRATADO_CRUDO', 'Curte el cuero crudo.')
+) AS v(code, descr)
+JOIN items i ON i.code = 'CUERO_TRATADO'
+WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes c2 WHERE c2.code = v.code);
+
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT cr.id, i.id, 2
+FROM (VALUES ('CUERO_TRATADO_PIEL', 'PIEL'), ('CUERO_TRATADO_CRUDO', 'CUERO_CRUDO')) AS v(recipe_code, item_code)
+JOIN crafting_recipes cr ON cr.code = v.recipe_code
+JOIN items i ON i.code = v.item_code
+WHERE NOT EXISTS (SELECT 1 FROM crafting_recipe_ingredients x WHERE x.recipe_id = cr.id AND x.item_id = i.id);
