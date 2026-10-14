@@ -37,6 +37,10 @@
    "tipo": "cofre",
    "sitios": 2
   },
+  "lino": {
+   "tipo": "lino",
+   "sitios": 6
+  },
   "nido_lago": {
    "tipo": "nido",
    "sitios": 2
@@ -44,6 +48,10 @@
   "hierba_campos": {
    "tipo": "hierba",
    "sitios": 3
+  },
+  "trigo": {
+   "tipo": "trigo",
+   "sitios": 6
   },
   "mineral_molino": {
    "tipo": "mineral",
@@ -68,6 +76,10 @@
   "hierba_sur": {
    "tipo": "hierba",
    "sitios": 3
+  },
+  "cuarzo": {
+   "tipo": "cuarzo",
+   "sitios": 4
   },
   "restos_ruinas": {
    "tipo": "restos",

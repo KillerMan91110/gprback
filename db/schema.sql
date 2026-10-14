@@ -1811,3 +1811,107 @@ SELECT q.id, 'COLLECT_ITEM', i.id, 8, 'Entrega 8 Insignias de Bandido.'
 FROM quests q JOIN items i ON i.code = 'INSIGNIA_DE_BANDIDO'
 WHERE q.code = 'PRADERA_DAILY_RECOMPENSA_BANDIDOS'
   AND NOT EXISTS (SELECT 1 FROM quest_objectives o WHERE o.quest_id = q.id);
+
+-- ============================================================================================
+-- Carbón desde madera y piezas sueltas con materiales refinados (repetible; sin ON CONFLICT)
+-- ============================================================================================
+-- El Carbón solo se compraba en la tienda y todo lo de metal depende de él (Lingote de Hierro).
+-- Ahora también se hace en la forja con Madera de Roble (troncos del mapa).
+UPDATE items SET is_craftable = TRUE, obtain_method = 'Tienda del herrero o crafteo (forja)',
+  description = 'Carbón para la forja. Se compra al herrero o se hace quemando madera de roble en la forja.'
+WHERE code = 'CARBON';
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, success_rate_percent, zone_id, artisan_name, description, station)
+SELECT 'CARBON_MADERA', i.id, 1, 'COMUN', 100, 1, 'Forja', 'Quema madera de roble en la forja.', 'forja'
+FROM items i WHERE i.code = 'CARBON' AND NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'CARBON_MADERA');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT cr.id, i.id, 2 FROM crafting_recipes cr JOIN items i ON i.code = 'MADERA_DE_ROBLE'
+WHERE cr.code = 'CARBON_MADERA' AND NOT EXISTS (SELECT 1 FROM crafting_recipe_ingredients x WHERE x.recipe_id = cr.id AND x.item_id = i.id);
+
+-- Espada de Hierro Crafteada: 3 Mineral + 1 Carbón → 1 Lingote de Hierro (lo mismo, ya refinado)
+DELETE FROM crafting_recipe_ingredients ri USING crafting_recipes cr, items x
+WHERE ri.recipe_id = cr.id AND x.id = ri.item_id AND cr.code = 'RECETA_ESPADA_DE_HIERRO_CRAFTEADA'
+  AND x.code IN ('MINERAL_DE_HIERRO', 'CARBON');
+-- Peto de Cuero Reforzado: 8 Cuero Crudo → 4 Cuero Tratado y 3 Mineral → 1 Lingote de Hierro
+DELETE FROM crafting_recipe_ingredients ri USING crafting_recipes cr, items x
+WHERE ri.recipe_id = cr.id AND x.id = ri.item_id AND cr.code = 'RECETA_PETO_CUERO_REFORZADO'
+  AND x.code IN ('CUERO_CRUDO', 'MINERAL_DE_HIERRO');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT cr.id, i.id, v.qty
+FROM (VALUES
+  ('RECETA_ESPADA_DE_HIERRO_CRAFTEADA', 'LINGOTE_HIERRO', 1),
+  ('RECETA_PETO_CUERO_REFORZADO', 'CUERO_TRATADO', 4),
+  ('RECETA_PETO_CUERO_REFORZADO', 'LINGOTE_HIERRO', 1)
+) AS v(recipe_code, item_code, qty)
+JOIN crafting_recipes cr ON cr.code = v.recipe_code
+JOIN items i ON i.code = v.item_code
+WHERE NOT EXISTS (SELECT 1 FROM crafting_recipe_ingredients x WHERE x.recipe_id = cr.id AND x.item_id = i.id);
+UPDATE items SET description = 'Material de crafteo. Pieles sueltas: se curten en Cuero Tratado.' WHERE code = 'PIEL';
+
+-- ============================================================================================
+-- Recolección v4: lino, cuarzo de río y trigo (repetible; sin ON CONFLICT)
+-- ============================================================================================
+-- Puntos nuevos del mapa (lib/worldNodes.js): lino → Fibra de Lino, cuarzo → Cuarzo de Río,
+-- trigo → Trigo. Con ellos: Tela de Lino (reemplaza a la Tela Común, que solo caía de monstruos,
+-- y a la Piel de Lobo en la ropa de tela), Gema Común pulida en la forja y Pan de Campo.
+INSERT INTO items (code, name, item_type, rarity, required_level, is_craftable, obtain_method, buy_price, description)
+SELECT v.* FROM (VALUES
+  ('FIBRA_LINO', 'Fibra de Lino', 'MATERIAL', 'COMUN', NULL::int, FALSE, 'Recolección (lino)', NULL::int, 'Fibra del lino silvestre de la Pradera. Se hila en Tela de Lino.'),
+  ('TELA_LINO', 'Tela de Lino', 'MATERIAL', 'COMUN', NULL, TRUE, 'Crafteo', NULL, 'Tela tejida con fibra de lino. Para la ropa de tela y los vendajes.'),
+  ('CUARZO_RIO', 'Cuarzo de Río', 'MATERIAL', 'COMUN', NULL, FALSE, 'Recolección (orillas)', NULL, 'Cristales de cuarzo de las orillas. Se pulen en la forja hasta dar una Gema Común.'),
+  ('TRIGO', 'Trigo', 'MATERIAL', 'COMUN', NULL, FALSE, 'Recolección (Campos de Espiga)', NULL, 'Espigas de trigo de la Pradera. Se muelen en harina.'),
+  ('HARINA', 'Harina', 'MATERIAL', 'COMUN', NULL, TRUE, 'Crafteo', NULL, 'Harina de trigo para hornear pan.'),
+  ('PAN_CAMPO', 'Pan de Campo', 'CONSUMABLE', 'COMUN', 1, TRUE, 'Crafteo', NULL, 'Hogaza recién horneada. Cura un poco, también fuera de combate.')
+) AS v(code, name, item_type, rarity, required_level, is_craftable, obtain_method, buy_price, description)
+WHERE NOT EXISTS (SELECT 1 FROM items i WHERE i.code = v.code);
+
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent, description, duration_turns)
+SELECT i.id, 'HEAL_HP', 60, FALSE, 'Restaura 60 HP', NULL FROM items i
+WHERE i.code = 'PAN_CAMPO' AND NOT EXISTS (SELECT 1 FROM item_stat_bonuses b WHERE b.item_id = i.id AND b.stat_code = 'HEAL_HP');
+
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, success_rate_percent, zone_id, artisan_name, description, station)
+SELECT v.code, i.id, v.qty, 'COMUN', 100, 1, v.artisan, v.descr, v.station
+FROM (VALUES
+  ('TELA_LINO', 'TELA_LINO', 1, NULL, 'Hila y teje la fibra de lino.', NULL),
+  ('GEMA_CUARZO', 'GEMA_COMUN', 1, 'Forja', 'Pule el cuarzo de río en la forja.', 'forja'),
+  ('HARINA', 'HARINA', 1, NULL, 'Muele el trigo.', NULL),
+  ('PAN_CAMPO', 'PAN_CAMPO', 2, 'Cocina', 'Hornea pan con harina y agua.', NULL)
+) AS v(code, item_code, qty, artisan, descr, station)
+JOIN items i ON i.code = v.item_code
+WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes c2 WHERE c2.code = v.code);
+
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT cr.id, i.id, v.qty
+FROM (VALUES
+  ('TELA_LINO', 'FIBRA_LINO', 3), ('GEMA_CUARZO', 'CUARZO_RIO', 3), ('HARINA', 'TRIGO', 3),
+  ('PAN_CAMPO', 'HARINA', 1), ('PAN_CAMPO', 'AGUA_PURIFICADA', 1)
+) AS v(recipe_code, item_code, qty)
+JOIN crafting_recipes cr ON cr.code = v.recipe_code
+JOIN items i ON i.code = v.item_code
+WHERE NOT EXISTS (SELECT 1 FROM crafting_recipe_ingredients x WHERE x.recipe_id = cr.id AND x.item_id = i.id);
+UPDATE items SET is_craftable = TRUE WHERE code = 'GEMA_COMUN';
+
+-- Vendaje (2 Tela Común → 1 Tela de Lino) y Peto de Cuero Reforzado (5 Tela Común → 3 Tela de Lino)
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT cr.id, i.id, v.qty
+FROM (VALUES ('VENDAJE', 1), ('RECETA_PETO_CUERO_REFORZADO', 3)) AS v(recipe_code, qty)
+JOIN crafting_recipes cr ON cr.code = v.recipe_code
+JOIN items i ON i.code = 'TELA_LINO'
+WHERE NOT EXISTS (SELECT 1 FROM crafting_recipe_ingredients x WHERE x.recipe_id = cr.id AND x.item_id = i.id);
+DELETE FROM crafting_recipe_ingredients ri USING crafting_recipes cr, items x
+WHERE ri.recipe_id = cr.id AND x.id = ri.item_id AND cr.code IN ('VENDAJE', 'RECETA_PETO_CUERO_REFORZADO') AND x.code = 'TELA_COMUN';
+
+-- Ropa de tela del mago y el sacerdote (Pradera, Capitán y Titán): la Piel de Lobo pasa a ser
+-- Tela de Lino (la mitad, redondeando hacia arriba)
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT cr.id, tl.id, (ri.quantity + 1) / 2
+FROM crafting_recipes cr
+JOIN items r ON r.id = cr.result_item_id
+JOIN crafting_recipe_ingredients ri ON ri.recipe_id = cr.id
+JOIN items pl ON pl.id = ri.item_id AND pl.code = 'PIEL_DE_LOBO'
+JOIN items tl ON tl.code = 'TELA_LINO'
+WHERE cr.zone_id = 1 AND r.item_type = 'EQUIPMENT' AND r.class_id IN (2, 5) AND r.slot IN ('ARMOR', 'HELMET', 'GLOVES', 'BOOTS')
+  AND NOT EXISTS (SELECT 1 FROM crafting_recipe_ingredients x WHERE x.recipe_id = cr.id AND x.item_id = tl.id);
+DELETE FROM crafting_recipe_ingredients ri USING crafting_recipes cr, items r, items pl
+WHERE ri.recipe_id = cr.id AND r.id = cr.result_item_id AND pl.id = ri.item_id AND pl.code = 'PIEL_DE_LOBO'
+  AND cr.zone_id = 1 AND r.item_type = 'EQUIPMENT' AND r.class_id IN (2, 5) AND r.slot IN ('ARMOR', 'HELMET', 'GLOVES', 'BOOTS')
+  AND EXISTS (SELECT 1 FROM crafting_recipe_ingredients x JOIN items tl ON tl.id = x.item_id AND tl.code = 'TELA_LINO' WHERE x.recipe_id = cr.id);
