@@ -2186,11 +2186,11 @@ UPDATE skills SET base_value = 63, scaling_multiplier = 2.13 WHERE code = 'MAGO_
 UPDATE skills SET base_value = 20, scaling_multiplier = 1.1 WHERE code = 'ARQUERO_FLECHA_BASICA';
 UPDATE skills SET base_value = 40, scaling_multiplier = 1.6 WHERE code = 'ARQUERO_DISPARO_PRECISO';
 UPDATE skills SET base_value = 35, scaling_multiplier = 1.19 WHERE code = 'ARQUERO_LLUVIA_DE_FLECHAS';
-UPDATE skills SET base_value = 53, scaling_multiplier = 1.79 WHERE code = 'ARQUERO_FLECHA_EXPLOSIVA';
+UPDATE skills SET base_value = 40, scaling_multiplier = 1.6 WHERE code = 'ARQUERO_FLECHA_EXPLOSIVA';
 UPDATE skills SET base_value = 57, scaling_multiplier = 1.95 WHERE code = 'ARQUERO_DISPARO_CERTERO';
 UPDATE skills SET base_value = 20, scaling_multiplier = 1.1 WHERE code = 'GUERRERO_GOLPE_BASICO';
 UPDATE skills SET base_value = 40, scaling_multiplier = 1.6 WHERE code = 'GUERRERO_TAJO';
-UPDATE skills SET base_value = 53, scaling_multiplier = 1.79 WHERE code = 'GUERRERO_GOLPE_MORTAL';
+UPDATE skills SET base_value = 50, scaling_multiplier = 1.7 WHERE code = 'GUERRERO_GOLPE_MORTAL';
 UPDATE skills SET base_value = 20, scaling_multiplier = 1.1 WHERE code = 'MAGO_BOLA_DE_FUEGO';
 UPDATE skills SET base_value = 44, scaling_multiplier = 1.49 WHERE code = 'ARQUERO_TORMENTA_DE_FLECHAS';
 UPDATE skills SET base_value = 20, scaling_multiplier = 1.1 WHERE code = 'PICARO_PUNALADA_RAPIDA';
@@ -2572,3 +2572,132 @@ CREATE TABLE IF NOT EXISTS balance_versions (version TEXT PRIMARY KEY, created_a
 INSERT INTO balance_versions (version) SELECT 'pradera_v1' WHERE NOT EXISTS (SELECT 1 FROM balance_versions WHERE version = 'pradera_v1');
 INSERT INTO balance_versions (version) SELECT 'pradera_equipo_v1' WHERE NOT EXISTS (SELECT 1 FROM balance_versions WHERE version = 'pradera_equipo_v1');
 INSERT INTO balance_versions (version) SELECT 'pradera_v2' WHERE NOT EXISTS (SELECT 1 FROM balance_versions WHERE version = 'pradera_v2');
+
+-- ============================================================================================
+-- Habilidades v2 (clases base, repetible; sin ON CONFLICT)
+-- * Las habilidades de nivel 1 y las pasivas se siguen recibiendo gratis. El resto las enseña el
+--   maestro de tu clase a cambio de oro desde cierto nivel (learn_method GOLD + learn_level). Los
+--   compañeros (NPC) las aprenden solos al llegar a ese nivel.
+-- * Efectos secundarios: las habilidades de daño pueden dejar un estado con 35% de probabilidad
+--   (skill_effects.chance_percent; status_code agrupa las filas de un mismo estado). Las
+--   habilidades de estado (Envenenamiento) siempre aplican.
+-- * Estados nuevos: parálisis (25% de perder el turno) y ceguera (20% de fallar los golpes).
+-- Los valores de daño los pone el bloque "Equilibrio, fases B y C" (por tramo de nivel).
+-- ============================================================================================
+ALTER TABLE skill_effects ADD COLUMN IF NOT EXISTS chance_percent NUMERIC(5,2);
+ALTER TABLE skill_effects ADD COLUMN IF NOT EXISTS status_code TEXT;
+ALTER TABLE combat_participant_buffs ADD COLUMN IF NOT EXISTS status_code TEXT;
+DO $$ BEGIN
+  ALTER TABLE skill_effects DROP CONSTRAINT IF EXISTS skill_effects_effect_type_check;
+  ALTER TABLE skill_effects ADD CONSTRAINT skill_effects_effect_type_check
+    CHECK (effect_type IN ('STAT_MOD','DOT','HOT','REVIVE','CLEANSE','NO_DAMAGE_WINDOW','GUARANTEED_CRIT','CONDITIONAL_DAMAGE','SUMMON','PARALYZE','BLIND'));
+END $$;
+
+-- Quien ya tenía una habilidad por nivel no la pierde al pasar al maestro (solo corre mientras
+-- todavía son LEVEL: la segunda vez ya no hace nada)
+INSERT INTO player_skills (player_id, skill_id)
+SELECT p.id, s.id FROM players p JOIN skills s ON s.class_id = p.current_class_id
+WHERE s.learn_method = 'LEVEL' AND p.level >= s.learn_level
+  AND s.code IN ('GUERRERO_TAJO', 'GUERRERO_GRITO_DE_GUERRA', 'GUERRERO_ESCUDO_DEFENSIVO',
+    'MAGO_ESCARCHA', 'MAGO_RAYO', 'MAGO_ESCUDO_MAGICO',
+    'ARQUERO_DISPARO_PRECISO', 'ARQUERO_LLUVIA_DE_FLECHAS', 'ARQUERO_ENFOQUE',
+    'PICARO_GOLPE_LETAL', 'PICARO_ROBAR', 'PICARO_INVISIBILIDAD', 'PICARO_VELOCIDAD_EXTREMA',
+    'SACERDOTE_BENDICION', 'SACERDOTE_ATAQUE', 'SACERDOTE_PROTECCION_DIVINA', 'SACERDOTE_CURACION_DE_GRUPO')
+  AND NOT EXISTS (SELECT 1 FROM player_skills ps WHERE ps.player_id = p.id AND ps.skill_id = s.id);
+
+-- nombre, cómo se aprende, nivel, precio, elemento, objetivo y descripción
+UPDATE skills k SET name = v.name, learn_method = v.method, learn_level = v.lvl, learn_gold_cost = v.cost,
+  element_id = COALESCE((SELECT id FROM elements WHERE code = v.elem), k.element_id),
+  target_type = COALESCE(v.target, k.target_type), description = v.descr
+FROM (VALUES
+  ('GUERRERO_GOLPE_BASICO', 'Golpe de Escudo', 'LEVEL', 1, NULL::INT, NULL, NULL, 'Golpeas con el escudo. 35% de probabilidad de debilitar al enemigo: -10% de ataque por 2 turnos.'),
+  ('GUERRERO_TAJO', 'Tajo Sangrante', 'GOLD', 5, 400, NULL, NULL, 'Un tajo profundo. 35% de probabilidad de causar sangrado: pierde 5% de su vida máxima por turno durante 3 turnos.'),
+  ('GUERRERO_GRITO_DE_GUERRA', 'Grito de Guerra', 'GOLD', 8, 800, NULL, 'ALL_ALLIES', 'Un grito que enardece a todo tu grupo: +20% de ataque por 3 turnos.'),
+  ('GUERRERO_GOLPE_MORTAL', 'Quiebra Armaduras', 'GOLD', 10, 1500, NULL, NULL, 'Un golpe pesado que parte armaduras: +40% de daño contra enemigos con mucha defensa (más de 80).'),
+  ('GUERRERO_ESCUDO_DEFENSIVO', 'Escudo Defensivo', 'GOLD', 15, 2500, NULL, NULL, 'Te cubres tras el escudo: +30% de defensa por 3 turnos. Se suma con tu pasiva.'),
+  ('MAGO_BOLA_DE_FUEGO', 'Bola de Fuego', 'LEVEL', 1, NULL, 'FIRE', NULL, 'Una bola de fuego. 35% de probabilidad de causar quemadura: pierde 4% de su vida por turno y -15% de ataque durante 2 turnos.'),
+  ('MAGO_ESCARCHA', 'Lanza de Escarcha', 'GOLD', 5, 400, 'ICE', NULL, 'Una lanza de hielo. 35% de probabilidad de ralentizar al enemigo: -25% de velocidad por 2 turnos.'),
+  ('MAGO_AMPLIFICACION', 'Concentración Arcana', 'GOLD', 8, 800, NULL, 'SELF', 'Concentras tu poder: +25% de magia por 3 turnos.'),
+  ('MAGO_RAYO', 'Rayo', 'GOLD', 10, 1500, 'LIGHTNING', NULL, 'Un rayo fulminante. 35% de probabilidad de paralizar: durante 3 turnos puede perder su turno (25%).'),
+  ('MAGO_ESCUDO_MAGICO', 'Escudo Mágico', 'GOLD', 15, 2500, NULL, NULL, 'Una barrera arcana: +20% de defensa mágica por 3 turnos.'),
+  ('ARQUERO_FLECHA_BASICA', 'Flecha Rápida', 'LEVEL', 1, NULL, 'WIND', NULL, 'Una flecha veloz de viento.'),
+  ('ARQUERO_DISPARO_PRECISO', 'Flecha Perforante', 'GOLD', 5, 400, NULL, NULL, 'Una flecha que atraviesa armaduras: +30% de daño contra enemigos con mucha defensa (más de 60).'),
+  ('ARQUERO_FLECHA_EXPLOSIVA', 'Flecha Explosiva', 'GOLD', 8, 800, 'FIRE', NULL, 'Una flecha que estalla en llamas. 35% de probabilidad de causar quemadura: pierde 4% de su vida por turno y -15% de ataque durante 2 turnos.'),
+  ('ARQUERO_LLUVIA_DE_FLECHAS', 'Lluvia de Flechas', 'GOLD', 10, 1500, 'WIND', NULL, 'Una lluvia de flechas de viento sobre todos los enemigos.'),
+  ('ARQUERO_ENFOQUE', 'Enfoque', 'GOLD', 15, 2500, NULL, NULL, 'Afinas la puntería: +30% de probabilidad de crítico por 3 turnos.'),
+  ('PICARO_PUNALADA_RAPIDA', 'Puñalada Rápida', 'LEVEL', 1, NULL, NULL, NULL, 'Una puñalada veloz. 35% de probabilidad de causar sangrado: pierde 3% de su vida máxima por turno durante 2 turnos.'),
+  ('PICARO_ENVENENAMIENTO', 'Envenenamiento', 'GOLD', 3, 300, NULL, NULL, 'Envenena al enemigo: pierde 6% de su vida máxima por turno durante 3 turnos.'),
+  ('PICARO_GOLPE_LETAL', 'Golpe Letal', 'GOLD', 5, 400, NULL, NULL, 'Un golpe a un punto vital: siempre es crítico.'),
+  ('PICARO_ROBAR', 'Robar', 'GOLD', 8, 800, NULL, NULL, 'Intenta robarle un objeto al enemigo. No hace daño.'),
+  ('PICARO_INVISIBILIDAD', 'Invisibilidad', 'GOLD', 10, 1500, NULL, NULL, 'Te desvaneces: no recibes daño durante 1 turno y tu ataque sube 50% los 2 turnos siguientes.'),
+  ('PICARO_VELOCIDAD_EXTREMA', 'Velocidad Extrema', 'GOLD', 15, 2500, NULL, NULL, 'Te mueves como una sombra: +40% de velocidad por 3 turnos.'),
+  ('SACERDOTE_BENDICION', 'Bendición de Batalla', 'GOLD', 5, 400, NULL, NULL, 'Bendices a un aliado: +15% de ataque y de magia por 3 turnos.'),
+  ('SACERDOTE_ATAQUE', 'Rayo Sagrado', 'GOLD', 8, 800, 'LIGHT', NULL, 'Un rayo de luz sagrada. 35% de probabilidad de cegar: durante 2 turnos falla el 20% de sus golpes.'),
+  ('SACERDOTE_PROTECCION_DIVINA', 'Protección Divina', 'GOLD', 10, 1500, NULL, NULL, 'Proteges a un aliado: +25% de defensa por 3 turnos.'),
+  ('SACERDOTE_PURIFICACION', 'Purificación', 'GOLD', 12, 2000, NULL, NULL, 'Quita todos los efectos negativos de un aliado.'),
+  ('SACERDOTE_CURACION_DE_GRUPO', 'Curación de Grupo', 'GOLD', 15, 2500, NULL, NULL, 'Cura a todo tu grupo.'),
+  ('SACERDOTE_PASIVA_BENDICION', 'Gracia Divina', 'LEVEL', 1, NULL, NULL, NULL, 'Regeneras 5% de tu vida por turno.')
+) AS v(code, name, method, lvl, cost, elem, target, descr)
+WHERE k.code = v.code;
+
+-- efectos: se reescriben enteros para las habilidades que cambian
+DELETE FROM skill_effects WHERE skill_id IN (SELECT id FROM skills WHERE code IN (
+  'GUERRERO_GOLPE_BASICO', 'GUERRERO_TAJO', 'GUERRERO_GOLPE_MORTAL', 'MAGO_BOLA_DE_FUEGO', 'MAGO_ESCARCHA', 'MAGO_RAYO',
+  'ARQUERO_DISPARO_PRECISO', 'ARQUERO_FLECHA_EXPLOSIVA', 'PICARO_PUNALADA_RAPIDA', 'PICARO_ENVENENAMIENTO', 'PICARO_GOLPE_LETAL',
+  'SACERDOTE_BENDICION', 'SACERDOTE_ATAQUE'));
+INSERT INTO skill_effects (skill_id, effect_type, stat_code, percent_amount, duration_turns, condition_stat, condition_comparison, condition_value, chance_percent, status_code, description)
+SELECT (SELECT id FROM skills WHERE code = v.code), v.etype, v.stat, v.pct, v.dur, v.cstat, v.ccmp, v.cval, v.chance, v.status, v.descr
+FROM (VALUES
+  ('GUERRERO_GOLPE_BASICO', 'STAT_MOD', 'ATK', -10.0, 2, NULL, NULL, NULL::NUMERIC, 35.0, 'WEAKEN', '35%: -10% de ataque al enemigo por 2 turnos.'),
+  ('GUERRERO_TAJO', 'DOT', NULL, 5.0, 3, NULL, NULL, NULL, 35.0, 'BLEED', '35%: sangrado, 5% de vida por turno durante 3 turnos.'),
+  ('GUERRERO_GOLPE_MORTAL', 'CONDITIONAL_DAMAGE', NULL, 40.0, NULL, 'DEF', '>', 80, NULL, NULL, '+40% de daño si la defensa del enemigo es mayor a 80.'),
+  ('MAGO_BOLA_DE_FUEGO', 'DOT', NULL, 4.0, 2, NULL, NULL, NULL, 35.0, 'BURN', '35%: quemadura, 4% de vida por turno durante 2 turnos.'),
+  ('MAGO_BOLA_DE_FUEGO', 'STAT_MOD', 'ATK', -15.0, 2, NULL, NULL, NULL, 35.0, 'BURN', 'La quemadura baja 15% el ataque.'),
+  ('MAGO_ESCARCHA', 'STAT_MOD', 'SPD', -25.0, 2, NULL, NULL, NULL, 35.0, 'SLOW', '35%: -25% de velocidad por 2 turnos.'),
+  ('MAGO_RAYO', 'PARALYZE', NULL, NULL, 3, NULL, NULL, NULL, 35.0, 'PARALYZE', '35%: parálisis por 3 turnos (25% de perder el turno).'),
+  ('ARQUERO_DISPARO_PRECISO', 'CONDITIONAL_DAMAGE', NULL, 30.0, NULL, 'DEF', '>', 60, NULL, NULL, '+30% de daño si la defensa del enemigo es mayor a 60.'),
+  ('ARQUERO_FLECHA_EXPLOSIVA', 'DOT', NULL, 4.0, 2, NULL, NULL, NULL, 35.0, 'BURN', '35%: quemadura, 4% de vida por turno durante 2 turnos.'),
+  ('ARQUERO_FLECHA_EXPLOSIVA', 'STAT_MOD', 'ATK', -15.0, 2, NULL, NULL, NULL, 35.0, 'BURN', 'La quemadura baja 15% el ataque.'),
+  ('PICARO_PUNALADA_RAPIDA', 'DOT', NULL, 3.0, 2, NULL, NULL, NULL, 35.0, 'BLEED', '35%: sangrado, 3% de vida por turno durante 2 turnos.'),
+  ('PICARO_ENVENENAMIENTO', 'DOT', NULL, 6.0, 3, NULL, NULL, NULL, NULL, 'POISON', 'Veneno: 6% de vida por turno durante 3 turnos.'),
+  ('PICARO_GOLPE_LETAL', 'GUARANTEED_CRIT', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 'Siempre es crítico.'),
+  ('SACERDOTE_BENDICION', 'STAT_MOD', 'ATK', 15.0, 3, NULL, NULL, NULL, NULL, NULL, '+15% de ataque a un aliado por 3 turnos.'),
+  ('SACERDOTE_BENDICION', 'STAT_MOD', 'MAG', 15.0, 3, NULL, NULL, NULL, NULL, NULL, '+15% de magia a un aliado por 3 turnos.'),
+  ('SACERDOTE_ATAQUE', 'BLIND', NULL, 20.0, 2, NULL, NULL, NULL, 35.0, 'BLIND', '35%: ceguera por 2 turnos (falla el 20% de sus golpes).')
+) AS v(code, etype, stat, pct, dur, cstat, ccmp, cval, chance, status, descr)
+WHERE (SELECT id FROM skills WHERE code = v.code) IS NOT NULL;
+
+-- ============================================================================================
+-- Tiempos de espera y Provocar (repetible; sin ON CONFLICT)
+-- * skills.cooldown_rounds = cada cuántas rondas se puede usar la habilidad (2 = una ronda sí y
+--   otra no). Se lleva por combatiente en combat_skill_cooldowns. Las de nivel 1 no tienen.
+-- * Escudo Defensivo del Guerrero además provoca: durante 2 turnos los enemigos lo atacan a él.
+-- ============================================================================================
+CREATE TABLE IF NOT EXISTS combat_skill_cooldowns (
+  session_id     INT NOT NULL REFERENCES combat_sessions(id) ON DELETE CASCADE,
+  participant_id INT NOT NULL REFERENCES combat_participants(id) ON DELETE CASCADE,
+  skill_id       INT NOT NULL REFERENCES skills(id) ON DELETE CASCADE,
+  ready_round    INT NOT NULL,
+  PRIMARY KEY (participant_id, skill_id)
+);
+CREATE INDEX IF NOT EXISTS idx_combat_skill_cooldowns_session ON combat_skill_cooldowns(session_id);
+DO $$ BEGIN
+  ALTER TABLE skill_effects DROP CONSTRAINT IF EXISTS skill_effects_effect_type_check;
+  ALTER TABLE skill_effects ADD CONSTRAINT skill_effects_effect_type_check
+    CHECK (effect_type IN ('STAT_MOD','DOT','HOT','REVIVE','CLEANSE','NO_DAMAGE_WINDOW','GUARANTEED_CRIT','CONDITIONAL_DAMAGE','SUMMON','PARALYZE','BLIND','TAUNT'));
+END $$;
+
+UPDATE skills k SET cooldown_rounds = v.cd FROM (VALUES
+  ('GUERRERO_TAJO', 2), ('GUERRERO_GRITO_DE_GUERRA', 3), ('GUERRERO_GOLPE_MORTAL', 3), ('GUERRERO_ESCUDO_DEFENSIVO', 4),
+  ('MAGO_ESCARCHA', 2), ('MAGO_AMPLIFICACION', 3), ('MAGO_RAYO', 3), ('MAGO_ESCUDO_MAGICO', 3),
+  ('ARQUERO_DISPARO_PRECISO', 2), ('ARQUERO_FLECHA_EXPLOSIVA', 2), ('ARQUERO_LLUVIA_DE_FLECHAS', 3), ('ARQUERO_ENFOQUE', 3),
+  ('PICARO_ENVENENAMIENTO', 3), ('PICARO_GOLPE_LETAL', 2), ('PICARO_ROBAR', 3), ('PICARO_INVISIBILIDAD', 4), ('PICARO_VELOCIDAD_EXTREMA', 3),
+  ('SACERDOTE_BENDICION', 3), ('SACERDOTE_ATAQUE', 2), ('SACERDOTE_PROTECCION_DIVINA', 3), ('SACERDOTE_PURIFICACION', 2), ('SACERDOTE_CURACION_DE_GRUPO', 3)
+) AS v(code, cd) WHERE k.code = v.code;
+
+-- Provocar
+DELETE FROM skill_effects WHERE effect_type = 'TAUNT' AND skill_id = (SELECT id FROM skills WHERE code = 'GUERRERO_ESCUDO_DEFENSIVO');
+INSERT INTO skill_effects (skill_id, effect_type, duration_turns, status_code, description)
+SELECT id, 'TAUNT', 2, 'TAUNT', 'Provocas: durante 2 turnos los enemigos te atacan a ti.' FROM skills WHERE code = 'GUERRERO_ESCUDO_DEFENSIVO';
+UPDATE skills SET description = 'Te cubres tras el escudo y provocas: +30% de defensa por 3 turnos y durante 2 turnos los enemigos te atacan a ti.'
+WHERE code = 'GUERRERO_ESCUDO_DEFENSIVO';

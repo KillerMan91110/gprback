@@ -326,7 +326,7 @@ router.get('/:playerId/skills', async (req, res, next) => {
 
     const skillsResult = await db.query(
       `SELECT s.id, s.code, s.name, s.skill_type, s.damage_school, s.target_type, s.mana_cost,
-              s.hits, s.description, e.code AS element_code
+              s.hits, s.description, s.cooldown_rounds, e.code AS element_code
        FROM skills s
        LEFT JOIN elements e ON e.id = s.element_id
        WHERE s.is_passive = FALSE AND s.skill_type != 'PASIVA'
@@ -352,6 +352,7 @@ router.get('/:playerId/skills', async (req, res, next) => {
         manaCost: s.mana_cost,
         hits: s.hits,
         description: s.description,
+        cooldownRounds: s.cooldown_rounds,
         supported,
         unsupportedReason: supported ? null : 'Esta habilidad todavía no está disponible en combate.',
       };
@@ -399,20 +400,20 @@ router.get('/:playerId/class-skills', async (req, res, next) => {
     let skillsRes;
     if (isNpc) {
       skillsRes = await db.query(
-        `SELECT s.id, s.name, s.skill_type, s.is_passive, s.learn_method, s.learn_level,
+        `SELECT s.id, s.name, s.skill_type, s.is_passive, s.learn_method, s.learn_level, s.cooldown_rounds,
                 s.mana_cost, s.target_type, s.damage_school, s.hits, s.description,
                 TRUE AS learned
          FROM skills s
          WHERE (s.class_id = ANY($1::int[])
                 OR (s.class_id IS NULL AND NOT EXISTS (SELECT 1 FROM monster_skills ms WHERE ms.skill_id = s.id)))
-           AND s.learn_method = 'LEVEL'
+           AND s.learn_method IN ('LEVEL', 'GOLD')
            AND s.learn_level <= $2
          ORDER BY s.is_passive DESC, s.learn_level, s.name`,
         [classIds, level]
       );
     } else {
       skillsRes = await db.query(
-        `SELECT s.id, s.name, s.skill_type, s.is_passive, s.learn_method, s.learn_level,
+        `SELECT s.id, s.name, s.skill_type, s.is_passive, s.learn_method, s.learn_level, s.cooldown_rounds,
                 s.mana_cost, s.target_type, s.damage_school, s.hits, s.description,
                 ((s.learn_method = 'LEVEL' AND s.learn_level <= $2)
                  OR EXISTS(SELECT 1 FROM player_skills ps WHERE ps.player_id = $1 AND ps.skill_id = s.id)
@@ -429,7 +430,7 @@ router.get('/:playerId/class-skills', async (req, res, next) => {
 
     const skillIds = skillsRes.rows.map((s) => s.id);
     const effectsRes = await db.query(
-      `SELECT skill_id, effect_type, stat_code, percent_amount, flat_amount, duration_turns
+      `SELECT skill_id, effect_type, stat_code, percent_amount, flat_amount, duration_turns, chance_percent, status_code, description
        FROM skill_effects
        WHERE skill_id = ANY($1::int[])
        ORDER BY skill_id, id`,
@@ -444,6 +445,9 @@ router.get('/:playerId/class-skills', async (req, res, next) => {
         percentAmount: e.percent_amount != null ? Number(e.percent_amount) : null,
         flatAmount: e.flat_amount != null ? Number(e.flat_amount) : null,
         durationTurns: e.duration_turns,
+        chancePercent: e.chance_percent != null ? Number(e.chance_percent) : null,
+        statusCode: e.status_code ?? null,
+        description: e.description ?? null,
       });
     }
 
@@ -456,6 +460,7 @@ router.get('/:playerId/class-skills', async (req, res, next) => {
       isPassive: s.is_passive,
       learnMethod: s.learn_method,
       learnLevel: s.learn_level,
+      cooldownRounds: s.cooldown_rounds,
       learned: s.learned,
       manaCost: s.mana_cost,
       targetType: s.target_type,
@@ -477,7 +482,7 @@ router.get('/:playerId/guild/skills', async (req, res, next) => {
   const requestedClassId = req.query.classId ? Number(req.query.classId) : null;
 
   try {
-    const playerResult = await db.query('SELECT current_class_id, evolution_class_id, gold FROM players WHERE id = $1', [playerId]);
+    const playerResult = await db.query('SELECT current_class_id, evolution_class_id, gold, level FROM players WHERE id = $1', [playerId]);
     if (!playerResult.rows.length) {
       return res.status(404).json({ error: 'Jugador no encontrado' });
     }
@@ -487,7 +492,7 @@ router.get('/:playerId/guild/skills', async (req, res, next) => {
     const isOwnClass = classChain.includes(classId);
 
     const skillsResult = await db.query(
-      `SELECT s.id, s.code, s.name, s.learn_method, s.learn_gold_cost, s.learn_requirement_text, s.description,
+      `SELECT s.id, s.code, s.name, s.learn_method, s.learn_level, s.learn_gold_cost, s.learn_requirement_text, s.description,
               ps.player_id IS NOT NULL AS learned,
               EXISTS (
                 SELECT 1 FROM quests q
@@ -497,7 +502,7 @@ router.get('/:playerId/guild/skills', async (req, res, next) => {
        FROM skills s
        LEFT JOIN player_skills ps ON ps.skill_id = s.id AND ps.player_id = $1
        WHERE s.class_id = $2 AND s.learn_method IN ('GOLD', 'QUEST')
-       ORDER BY s.learn_method, s.name`,
+       ORDER BY s.learn_method, s.learn_level NULLS LAST, s.name`,
       [playerId, classId]
     );
 
@@ -509,12 +514,15 @@ router.get('/:playerId/guild/skills', async (req, res, next) => {
       learnMethod: s.learn_method,
       goldCost: s.learn_gold_cost,
       requirementText: s.learn_requirement_text,
+      learnLevel: s.learn_level,
+      // el maestro enseña desde ese nivel
+      levelLocked: s.learn_level != null && Number(player.level) < s.learn_level,
       learned: s.learned,
-      locked: !isOwnClass || (s.learn_method === 'QUEST' && !s.quest_completed),
+      locked: !isOwnClass || (s.learn_method === 'QUEST' && !s.quest_completed) || (s.learn_level != null && Number(player.level) < s.learn_level),
       affordable: isOwnClass && s.learn_method === 'GOLD' ? Number(player.gold) >= s.learn_gold_cost : null,
     }));
 
-    res.json({ gold: Number(player.gold), classId, isOwnClass, skills });
+    res.json({ gold: Number(player.gold), level: Number(player.level), classId, isOwnClass, skills });
   } catch (error) {
     next(error);
   }
@@ -532,7 +540,7 @@ router.post('/:playerId/guild/learn-skill', requireNear('maestros'), async (req,
     }
     const skill = skillResult.rows[0];
 
-    const playerResult = await db.query('SELECT current_class_id, evolution_class_id, gold FROM players WHERE id = $1', [playerId]);
+    const playerResult = await db.query('SELECT current_class_id, evolution_class_id, gold, level FROM players WHERE id = $1', [playerId]);
     if (!playerResult.rows.length) {
       return res.status(404).json({ error: 'Jugador no encontrado' });
     }
@@ -544,6 +552,9 @@ router.post('/:playerId/guild/learn-skill', requireNear('maestros'), async (req,
     }
     if (!['GOLD', 'QUEST'].includes(skill.learn_method)) {
       return res.status(400).json({ error: 'Esa skill no se puede aprender en el gremio' });
+    }
+    if (skill.learn_level != null && Number(player.level) < skill.learn_level) {
+      return res.status(400).json({ error: `Tu maestro te la enseña desde el nivel ${skill.learn_level}` });
     }
 
     const already = await db.query('SELECT 1 FROM player_skills WHERE player_id = $1 AND skill_id = $2', [playerId, skillId]);
@@ -607,6 +618,10 @@ router.post('/:playerId/npcs/:npcId/learn-skill', requireNear('maestros'), async
     }
     if (!['GOLD', 'QUEST'].includes(skill.learn_method)) {
       return res.status(400).json({ error: 'Esa skill no se puede aprender en el gremio' });
+    }
+    // las técnicas del maestro con nivel las aprenden los compañeros solos al llegar a ese nivel
+    if (skill.learn_method === 'GOLD' && skill.learn_level != null) {
+      return res.status(400).json({ error: `Tus compañeros la aprenden solos al llegar al nivel ${skill.learn_level}` });
     }
 
     const already = await db.query('SELECT 1 FROM npc_skills WHERE npc_id = $1 AND skill_id = $2', [npcId, skillId]);
@@ -3126,14 +3141,14 @@ router.get('/:playerId/npcs/:npcId/skills', async (req, res, next) => {
 
     const skillsRes = await db.query(
       `SELECT s.id, s.code, s.name, s.skill_type, s.damage_school, s.description, s.mana_cost, s.target_type,
-              s.learn_level, s.base_value, s.scaling_stat, s.scaling_multiplier, s.hits,
+              s.cooldown_rounds, s.learn_level, s.base_value, s.scaling_stat, s.scaling_multiplier, s.hits,
               s.element_id, e.name AS element_name, e.code AS element_code,
               (s.skill_type IN ('ATAQUE', 'CURACION', 'BUFF', 'DEBUFF', 'ESPECIAL', 'ESTADO_ALTERADO') AND NOT s.is_passive) AS supported_in_combat
        FROM skills s
        LEFT JOIN elements e ON e.id = s.element_id
        WHERE NOT s.is_passive
          AND (
-           (s.class_id = $1 AND s.learn_method = 'LEVEL' AND s.learn_level <= $2)
+           (s.class_id = $1 AND s.learn_method IN ('LEVEL', 'GOLD') AND s.learn_level <= $2)
            OR EXISTS (SELECT 1 FROM npc_skills ns WHERE ns.npc_id = $3 AND ns.skill_id = s.id)
          )
        ORDER BY s.learn_level, s.id`,
@@ -3148,6 +3163,7 @@ router.get('/:playerId/npcs/:npcId/skills', async (req, res, next) => {
       manaCost: Number(s.mana_cost),
       targetType: s.target_type,
       learnLevel: s.learn_level,
+      cooldownRounds: s.cooldown_rounds,
       baseValue: Number(s.base_value),
       scalingStat: s.scaling_stat,
       scalingMultiplier: Number(s.scaling_multiplier),

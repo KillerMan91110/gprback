@@ -175,7 +175,8 @@ async function buildSql(data) {
     WHERE class_id <= 5 AND base_value IS NOT NULL AND skill_type IN ('ATAQUE', 'CURACION')`)).rows;
   for (const sk of skills) {
     let v;
-    if (sk.learn_method === 'LEVEL') {
+    // por nivel o enseñadas por el maestro desde un nivel: valor del tramo de ese nivel
+    if (sk.learn_method === 'LEVEL' || (sk.learn_method === 'GOLD' && sk.learn_level != null)) {
       const t = EQ.skillTier(sk.learn_level ?? 1);
       const f = sk.target_type === 'ALL_ENEMIES' || sk.target_type === 'ALL_ALLIES' ? EQ.AOE_FACTOR : 1;
       v = { base: Math.round(t.base * f), mult: Math.round(t.mult * f * 100) / 100 };

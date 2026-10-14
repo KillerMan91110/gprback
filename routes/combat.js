@@ -523,13 +523,16 @@ async function loadParticipants(sessionId) {
        ORDER BY cp.id`,
       [sessionId]
     ),
-    db.query('SELECT participant_id, stat_code, applied_flat FROM combat_participant_buffs WHERE session_id = $1', [sessionId]),
+    db.query('SELECT id, participant_id, stat_code, applied_flat FROM combat_participant_buffs WHERE session_id = $1', [sessionId]),
   ]);
   const all = participantsResult.rows;
   for (const p of all) {
     p.temp_resist = {};
     p.no_damage_window = false;
     p.damage_taken_bonus = 0;
+    p.paralysis = null;
+    p.blind_miss = 0;
+    p.taunting = false;
     for (const buff of buffsResult.rows) {
       if (buff.participant_id !== p.id) continue;
       if (buff.stat_code.startsWith('RESIST_')) {
@@ -539,6 +542,13 @@ async function loadParticipants(sessionId) {
         p.no_damage_window = true;
       } else if (buff.stat_code === 'DAMAGE_TAKEN') {
         p.damage_taken_bonus += Number(buff.applied_flat);
+      } else if (buff.stat_code === 'PARALYZE') {
+        // applied_flat = última ronda en la que ya se sorteó si pierde el turno
+        p.paralysis = { buffId: buff.id, checkedRound: Number(buff.applied_flat) };
+      } else if (buff.stat_code === 'BLIND') {
+        p.blind_miss += Number(buff.applied_flat);
+      } else if (buff.stat_code === 'TAUNT') {
+        p.taunting = true;
       }
     }
   }
@@ -621,6 +631,15 @@ async function getCombatZoneName(participants) {
 // Sombra Doble (Asesino Umbrío): antes de que un enemigo confirme su objetivo, chance de que se
 // "confunda" y golpee a otro participante al azar (de cualquier bando, aliado o enemigo del
 // confundido). Devuelve el nuevo target si redirige, o null si no corresponde/no dispara.
+// Objetivo de un enemigo entre los héroes vivos: si alguno provoca (Escudo Defensivo del
+// Guerrero) y no está invisible, va contra él; si no, al azar.
+function pickHeroTarget(heroes) {
+  const alive = heroes.filter((p) => p.hp > 0);
+  const taunters = alive.filter((p) => p.taunting && !p.no_damage_window);
+  const pool = taunters.length ? taunters : alive;
+  return pool.length ? pool[Math.floor(Math.random() * pool.length)] : null;
+}
+
 async function maybeRedirectTarget(originalTarget, participants) {
   if (!originalTarget || originalTarget.hp <= 0) return null;
   const innate = await applyInnateTrigger('ON_ENEMY_TARGETS_ME', { actor: originalTarget, target: null, allies: [], enemies: [] });
@@ -1003,6 +1022,92 @@ function applyStatDelta(participant, statCode, delta) {
   else if (statCode === 'EVASION') participant.evasion = (participant.evasion || 0) + delta;
 }
 
+// Técnicas que el maestro de tu orden ya te puede enseñar al pasar de fromLevel a toLevel (para
+// avisarlo al subir de nivel)
+async function teachableSkillNames(playerId, fromLevel, toLevel) {
+  const pr = await db.query('SELECT current_class_id, evolution_class_id FROM players WHERE id = $1', [playerId]);
+  if (!pr.rows.length) return [];
+  const chain = await getClassAncestorChain(pr.rows[0].evolution_class_id || pr.rows[0].current_class_id);
+  const r = await db.query(
+    `SELECT s.name FROM skills s
+     WHERE s.learn_method = 'GOLD' AND s.learn_level > $2 AND s.learn_level <= $3 AND s.class_id = ANY($4::int[])
+       AND NOT EXISTS (SELECT 1 FROM player_skills ps WHERE ps.player_id = $1 AND ps.skill_id = s.id)
+     ORDER BY s.learn_level, s.id`,
+    [playerId, fromLevel, toLevel, chain]
+  );
+  return r.rows.map((x) => x.name);
+}
+
+// ---- Estados de las habilidades (sangrado, quemadura, parálisis…) ----
+// Los efectos secundarios de las habilidades de daño están en skill_effects con chance_percent
+// (35%): cada estado (status_code) se sortea UNA vez por objetivo golpeado y, si sale, se aplican
+// todas sus filas (la quemadura es daño por turno + menos ataque). Las habilidades de estado
+// (Envenenamiento…) no pasan por aquí: esas siempre aplican.
+const STATUS_NAMES = { BLEED: 'sangrado', BURN: 'quemadura', SLOW: 'ralentización', PARALYZE: 'parálisis', BLIND: 'ceguera', WEAKEN: 'debilidad', POISON: 'veneno' };
+const DOT_NAMES = { BLEED: 'sangrado', BURN: 'quemadura', POISON: 'veneno' };
+// paralizado: probabilidad de perder el turno (se sortea una vez por ronda)
+const PARALYSIS_SKIP_PERCENT = 25;
+
+async function applyStatusEffect(sessionId, target, effect, skillId, actor) {
+  const status = effect.status_code ?? null;
+  const dur = Number(effect.duration_turns);
+  if (['DOT', 'PARALYZE', 'BLIND'].includes(effect.effect_type)) {
+    // DOT: % de vida por ronda; BLIND: % de fallar sus golpes; PARALYZE: empieza sin ronda sorteada
+    const flat = effect.effect_type === 'PARALYZE' ? 0 : Number(effect.percent_amount || 0);
+    await db.query('DELETE FROM combat_participant_buffs WHERE participant_id = $1 AND stat_code = $2 AND skill_id = $3', [target.id, effect.effect_type, skillId]);
+    await db.query(
+      'INSERT INTO combat_participant_buffs(session_id,participant_id,stat_code,applied_flat,rounds_remaining,is_debuff,skill_id,status_code) VALUES($1,$2,$3,$4,$5,TRUE,$6,$7)',
+      [sessionId, target.id, effect.effect_type, flat, dur, skillId, status]
+    );
+  } else if (effect.effect_type === 'STAT_MOD' && dur) {
+    await applyStatModBuff(sessionId, target, effect, true, [], skillId, actor);
+    if (status) {
+      await db.query('UPDATE combat_participant_buffs SET status_code = $1 WHERE participant_id = $2 AND skill_id = $3 AND stat_code = $4',
+        [status, target.id, skillId, effect.stat_code]);
+    }
+  }
+}
+
+async function applyOnHitStatuses(sessionId, actor, skill, results, descParts) {
+  if (skill.skill_type !== 'ATAQUE') return;
+  const rows = (await db.query(
+    `SELECT effect_type, stat_code, percent_amount, duration_turns, chance_percent, status_code
+     FROM skill_effects WHERE skill_id = $1 AND chance_percent IS NOT NULL ORDER BY id`,
+    [skill.id]
+  )).rows;
+  if (!rows.length) return;
+  const groups = {};
+  for (const r of rows) (groups[r.status_code ?? r.effect_type] ??= []).push(r);
+  for (const res of results) {
+    const t = res.target;
+    if (res.evaded || t.hp <= 0) continue;
+    // el World Boss no sufre daño por turno ni pierde turnos
+    const worldBoss = t.monster_code?.startsWith(WORLD_BOSS_CODE_PREFIX);
+    for (const [status, effects] of Object.entries(groups)) {
+      if (Math.random() * 100 >= Number(effects[0].chance_percent)) continue;
+      if (worldBoss && effects.some((e) => e.effect_type === 'DOT' || e.effect_type === 'PARALYZE')) continue;
+      for (const e of effects) await applyStatusEffect(sessionId, t, e, skill.id, actor);
+      descParts.push(`¡${t.name} sufre ${STATUS_NAMES[status] ?? status.toLowerCase()}!`);
+    }
+  }
+}
+
+// Parálisis: al empezar su turno, una vez por ronda, puede quedarse sin actuar
+async function paralysisSkip(sessionId, round, actor) {
+  if (!actor.paralysis || actor.paralysis.checkedRound === round) return false;
+  await db.query('UPDATE combat_participant_buffs SET applied_flat = $1 WHERE id = $2', [round, actor.paralysis.buffId]);
+  actor.paralysis.checkedRound = round;
+  if (Math.random() * 100 >= PARALYSIS_SKIP_PERCENT) return false;
+  actor.has_acted_this_round = true;
+  actor.is_defending = false;
+  await persistParticipant(actor);
+  await insertLog(sessionId, round, {
+    actorId: actor.id, targetId: actor.id, action: 'SKILL', success: false,
+    description: `${actor.name} está paralizado y no puede moverse.`,
+  });
+  return true;
+}
+
 // Aplica un efecto STAT_MOD (imbue, resist, DAMAGE_TAKEN, o stat regular) a un participante.
 // skillId: si se pasa, la misma skill no puede acumular el mismo efecto (solo refresca duración).
 // Distintas skills con el mismo stat_code SÍ pueden acumularse (ej. dos imbues distintos de fuego).
@@ -1287,7 +1392,7 @@ async function startNewRound(sessionId, participants) {
       // Va en la ronda que termina: getLastActingSide mira la ronda nueva y no debe contarlo.
       await insertLog(sessionId, newRound - 1, {
         actorId: p.id, targetId: p.id, action: 'SKILL', damage: dotDmg, hp_after: p.hp,
-        description: `${p.name} sufre ${dotDmg} de daño por veneno.`,
+        description: `${p.name} sufre ${dotDmg} de daño por ${DOT_NAMES[dot.status_code] ?? 'veneno'}.`,
       });
     }
   }
@@ -1311,7 +1416,7 @@ async function startNewRound(sessionId, participants) {
           const max = await maxShieldOf(p);
           await db.query("UPDATE combat_participant_buffs SET applied_flat = $1 WHERE participant_id = $2 AND stat_code = 'SHIELD'", [max, p.id]);
           await cripta.onBreakEnd(sessionId, p, newRound - 1, insertLog);
-        } else if (buff.stat_code.startsWith('RESIST_') || buff.stat_code === 'DOT' || buff.stat_code === 'NO_DAMAGE' || buff.stat_code === 'DAMAGE_TAKEN' || buff.stat_code === 'HOT' || buff.stat_code === 'SHIELD' || buff.stat_code === 'FURY') {
+        } else if (buff.stat_code.startsWith('RESIST_') || buff.stat_code === 'DOT' || buff.stat_code === 'NO_DAMAGE' || buff.stat_code === 'DAMAGE_TAKEN' || buff.stat_code === 'HOT' || buff.stat_code === 'SHIELD' || buff.stat_code === 'FURY' || buff.stat_code === 'PARALYZE' || buff.stat_code === 'BLIND' || buff.stat_code === 'TAUNT') {
           // Solo borrar la fila: estos efectos no tienen stat persistido que revertir
         } else {
           applyStatDelta(p, buff.stat_code, -Number(buff.applied_flat));
@@ -1895,7 +2000,10 @@ async function finalizeSession(sessionId, status, participants) {
         const heroXp = Math.round(splitXp * heroXpMult * levelMult * blessMult * utilXpMult);
         const levelResult = await leveling.applyXpGain(hp.player_id, heroXp);
         if (levelResult && levelResult.leveledUp) {
-          rewards.levelUps.push({ playerId: hp.player_id, newLevel: levelResult.newLevel });
+          rewards.levelUps.push({
+            playerId: hp.player_id, newLevel: levelResult.newLevel,
+            teachable: await teachableSkillNames(hp.player_id, hp.level, levelResult.newLevel),
+          });
           aurelia.announceLevelUp(hp.player_id, levelResult.newLevel);
         }
         if (hp !== heroP) {
@@ -2071,6 +2179,7 @@ async function advanceEnemyTurns(sessionId) {
     }
     if (side === 'PLAYER') {
       const actor = combat.nextActor(participants.player);
+      if (await paralysisSkip(sessionId, round, actor)) continue;
       if (actor.is_preparing_trap) {
         await resolveTrapActivation(sessionId, round, actor, participants);
         continue;
@@ -2088,6 +2197,7 @@ async function advanceEnemyTurns(sessionId) {
     }
 
     const actor = combat.nextActor(participants.enemy);
+    if (await paralysisSkip(sessionId, round, actor)) continue;
     if (actor.is_preparing_trap) {
       await resolveTrapActivation(sessionId, round, actor, participants);
       continue;
@@ -2162,7 +2272,7 @@ async function advanceEnemyTurns(sessionId) {
           skillTargets = aliveEnemies;
         } else if (skill.target_type === 'ENEMY') {
           if (!alivePlayers.length) continue;
-          skillTargets = [alivePlayers[Math.floor(Math.random() * alivePlayers.length)]];
+          skillTargets = [pickHeroTarget(alivePlayers)];
         } else if (skill.target_type === 'ALL_ENEMIES') {
           skillTargets = alivePlayers;
         }
@@ -2278,6 +2388,7 @@ async function advanceEnemyTurns(sessionId) {
           for (const r of results) await consumeCritImmunityIfUsed(r.target, r);
           for (const r of results) await checkOnceForCombatSave(r.target);
           for (const r of results) await persistParticipant(r.target);
+          await applyOnHitStatuses(sessionId, actor, skill, results, skillDescParts);
           for (const r of results) {
             if (!r.evaded) continue;
             if (r.target.player_id) await incrementCounter(r.target.player_id, 'ATAQUES_ESQUIVADOS');
@@ -2334,7 +2445,7 @@ async function advanceEnemyTurns(sessionId) {
 
     if (!skillActionDone) {
     // Ataque básico
-    let target = combat.pickRandomAliveTarget(participants.player);
+    let target = pickHeroTarget(participants.player) ?? combat.pickRandomAliveTarget(participants.player);
     target = await maybeRedirectTarget(target, participants) || target;
 
     if (target.no_damage_window) {
@@ -2485,7 +2596,7 @@ async function fetchSessionState(sessionId) {
 
   // Estados activos (venenos, mejoras, maldiciones, invisibilidad…) para mostrarlos en combate
   const buffRes = await db.query(
-    `SELECT b.participant_id, b.stat_code, b.applied_flat, b.rounds_remaining, b.is_debuff, s.name AS skill_name
+    `SELECT b.participant_id, b.stat_code, b.applied_flat, b.rounds_remaining, b.is_debuff, b.status_code, s.name AS skill_name
      FROM combat_participant_buffs b
      LEFT JOIN skills s ON s.id = b.skill_id
      WHERE b.session_id = $1
@@ -2509,6 +2620,7 @@ async function fetchSessionState(sessionId) {
       amount: Number(b.applied_flat),
       rounds: b.rounds_remaining,
       debuff: b.is_debuff,
+      status: b.status_code ?? null,
       source: b.skill_name ?? null,
     });
   }
@@ -2528,8 +2640,16 @@ async function fetchSessionState(sessionId) {
     }
   }
 
+  // rondas que faltan para volver a usar cada habilidad: { participante: { skillId: rondas } }
+  const cdRes = await db.query('SELECT participant_id, skill_id, ready_round FROM combat_skill_cooldowns WHERE session_id = $1', [sessionId]);
+  const cooldownsById = {};
+  for (const c of cdRes.rows) {
+    const left = c.ready_round - sessionResult.rows[0].current_round;
+    if (left > 0) (cooldownsById[c.participant_id] ??= {})[c.skill_id] = left;
+  }
   const enrichedParticipants = participants.all.map((p) => ({
     ...p,
+    cooldowns: cooldownsById[p.id] ?? {},
     is_ai_controlled: abandonedIds.includes(p.player_id ?? p.owner_player_id),
     // World Boss: el nivel real no se expone al jugador (ver hydrateMonsters, mismo criterio).
     level: p.monster_code?.startsWith(WORLD_BOSS_CODE_PREFIX) ? null : p.level,
@@ -3455,14 +3575,20 @@ router.post('/sessions/:id/action', async (req, res, next) => {
         return res.status(400).json({ error: `No te alcanza el maná (necesitas ${skill.mana_cost})` });
       }
 
-      // Cooldown genérico entre usos de una misma skill (hoy solo Predicción lo usa).
+      // Tiempo de espera: cooldown_rounds = cada cuántas rondas se puede usar (2 = una ronda sí y
+      // otra no). Se guarda por combatiente y habilidad en combat_skill_cooldowns.
       if (skill.cooldown_rounds != null) {
-        if (actor.cd_skill_id === skill.id && actor.cd_round != null &&
-            (session.current_round - actor.cd_round) < skill.cooldown_rounds) {
-          const roundsLeft = skill.cooldown_rounds - (session.current_round - actor.cd_round);
-          return res.status(400).json({ error: `Esa habilidad está en cooldown (${roundsLeft} ronda(s) más).` });
+        const cd = await db.query('SELECT ready_round FROM combat_skill_cooldowns WHERE participant_id = $1 AND skill_id = $2', [actor.id, skill.id]);
+        const readyRound = cd.rows[0]?.ready_round;
+        if (readyRound != null && session.current_round < readyRound) {
+          const roundsLeft = readyRound - session.current_round;
+          return res.status(400).json({ error: `${skill.name} estará lista en ${roundsLeft} ${roundsLeft === 1 ? 'ronda' : 'rondas'}.` });
         }
-        await db.query('UPDATE combat_participants SET cd_skill_id = $1, cd_round = $2 WHERE id = $3', [skill.id, session.current_round, actor.id]);
+        await db.query('DELETE FROM combat_skill_cooldowns WHERE participant_id = $1 AND skill_id = $2', [actor.id, skill.id]);
+        await db.query(
+          'INSERT INTO combat_skill_cooldowns(session_id, participant_id, skill_id, ready_round) VALUES ($1, $2, $3, $4)',
+          [sessionId, actor.id, skill.id, session.current_round + Number(skill.cooldown_rounds)]
+        );
       }
 
       // Efectos de skills ESPECIAL necesarios antes de seleccionar objetivo (REVIVE apunta a muertos)
@@ -3581,6 +3707,16 @@ router.post('/sessions/:id/action', async (req, res, next) => {
           if (effect.effect_type === 'STAT_MOD') {
             for (const target of targets) {
               await applyStatModBuff(sessionId, target, effect, isDebuff, buffDescParts, skillId, actor);
+            }
+          } else if (effect.effect_type === 'TAUNT') {
+            // Provocar: los enemigos atacan a este héroe mientras dure
+            for (const target of targets) {
+              await db.query("DELETE FROM combat_participant_buffs WHERE participant_id = $1 AND stat_code = 'TAUNT'", [target.id]);
+              await db.query(
+                "INSERT INTO combat_participant_buffs(session_id,participant_id,stat_code,applied_flat,rounds_remaining,is_debuff,skill_id,status_code) VALUES($1,$2,'TAUNT',0,$3,FALSE,$4,'TAUNT')",
+                [sessionId, target.id, Number(effect.duration_turns), skillId]
+              );
+              buffDescParts.push(`${target.name} provoca a los enemigos (${effect.duration_turns}T)`);
             }
           } else if (effect.effect_type === 'HOT') {
             let pct = Number(effect.percent_amount || 0);
@@ -3917,6 +4053,8 @@ router.post('/sessions/:id/action', async (req, res, next) => {
         }
 
         for (const r of results) await persistParticipant(r.target);
+        const statusParts = [];
+        await applyOnHitStatuses(sessionId, actor, skill, results, statusParts);
         if (actor.player_id === req.playerId) {
           const deadTargets = results.filter((r) => r.target.hp <= 0).map((r) => r.target);
           await questProgress.registerAction(req.playerId, {
@@ -4054,7 +4192,7 @@ router.post('/sessions/:id/action', async (req, res, next) => {
           crit: results.some((r) => r.crit),
           description: skill.skill_type === 'CURACION'
             ? `${actor.name} usa ${skill.name} y cura a ${summary}.`
-            : `${actor.name} usa ${skill.name} sobre ${summary}.`,
+            : `${actor.name} usa ${skill.name} sobre ${summary}.${statusParts.length ? ` ${statusParts.join(' ')}` : ''}`,
           hp_after: results[0].target.hp,
           mana_after: actor.mana,
         };
