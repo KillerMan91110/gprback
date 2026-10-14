@@ -16,7 +16,16 @@ const { incrementCounter } = require('../lib/counters');
 const { applyInnateTrigger } = require('../lib/innates');
 const { getPlayerGuildRow } = require('../lib/guilds');
 // servicios de la ciudad: hay que estar junto a quien los ofrece (ver lib/cercania.js)
-const { requireNear } = require('../lib/cercania');
+const { requireNear, lejosDe, SERVICIOS } = require('../lib/cercania');
+const { isFestival } = require('../lib/aurelia');
+
+// Crafteo: dónde se fabrica cada receta (crafting_recipes.station). Sin lugar, en cualquier lado
+// (pociones, comidas, vendajes, refinados simples); el equipo y los lingotes en una forja; el agua
+// en el Pilar de Aethra. Devuelve null si estás donde hace falta, o el aviso para el jugador.
+function stationProblem(playerId, station) {
+  const s = station && SERVICIOS[station];
+  return s ? lejosDe(playerId, s.lugares, s.nombre) : null;
+}
 const npcSell = require('../lib/npcSell');
 
 const router = express.Router();
@@ -1689,11 +1698,18 @@ router.get('/:playerId/achievements', async (req, res, next) => {
 // GET /api/player/:playerId/craft/available
 // Solo recetas de zonas desbloqueadas + recetas scroll ya aprendidas.
 // Incluye para cada ingrediente cuánto tiene vs cuánto necesita.
+// GET /api/player/:playerId/craft/stations — ¿estás junto a una forja / al Pilar? (null = sí; si no,
+// el aviso). El taller lo pregunta cada pocos segundos mientras está abierto (es barato, a
+// diferencia de /craft/available que arma todas las recetas).
+router.get('/:playerId/craft/stations', (req, res) => {
+  res.json({ forja: stationProblem(req.params.playerId, 'forja'), pilar: stationProblem(req.params.playerId, 'pilar') });
+});
+
 router.get('/:playerId/craft/available', async (req, res, next) => {
   const { playerId } = req.params;
   try {
     const recipesResult = await db.query(
-      `SELECT cr.id, cr.code, i.name AS result_name, cr.result_quantity,
+      `SELECT cr.id, cr.code, i.name AS result_name, cr.result_quantity, cr.station,
               cr.rarity, cr.success_rate_percent, cr.artisan_name, cr.description,
               cr.scroll_item_id, si.name AS scroll_item_name,
               cr.required_class_id, c.name AS required_class_name, c.code AS required_class_code,
@@ -1712,6 +1728,10 @@ router.get('/:playerId/craft/available', async (req, res, next) => {
       [playerId]
     );
 
+    // ¿estás en una forja / junto al Pilar? (una vez por lugar, no por receta)
+    const stationNote = {};
+    for (const st of Object.keys(SERVICIOS).filter((k) => k === 'forja' || k === 'pilar')) stationNote[st] = stationProblem(playerId, st);
+    const festival = isFestival();
     const available = [];
     for (const recipe of recipesResult.rows) {
       const ingredients = await db.query(
@@ -1734,8 +1754,11 @@ router.get('/:playerId/craft/available', async (req, res, next) => {
         id: recipe.id,
         code: recipe.code,
         resultName: recipe.result_name,
-        resultQuantity: recipe.result_quantity,
+        resultQuantity: recipe.station === 'pilar' && festival ? recipe.result_quantity * 2 : recipe.result_quantity,
         resultType: recipe.result_item_type,
+        // dónde se fabrica y si estás ahí (stationNote: el aviso si no)
+        station: recipe.station,
+        stationNote: recipe.station ? stationNote[recipe.station] ?? null : null,
         resultItemId: recipe.result_item_id,
         resultSlot: recipe.result_slot,
         rarity: recipe.rarity,
@@ -1758,7 +1781,7 @@ router.get('/:playerId/craft/available', async (req, res, next) => {
 
 // POST /api/players/:playerId/craft
 // body: { recipeCode, quantity? }  — quantity por defecto 1, máx 99
-router.post('/:playerId/craft', requireNear('taller'), async (req, res, next) => {
+router.post('/:playerId/craft', async (req, res, next) => {
   const { playerId } = req.params;
   const { recipeCode } = req.body;
   const qty = Math.max(1, Math.min(99, parseInt(req.body.quantity) || 1));
@@ -1770,7 +1793,7 @@ router.post('/:playerId/craft', requireNear('taller'), async (req, res, next) =>
   try {
     const recipeResult = await db.query(
       `SELECT cr.id, cr.result_item_id, i.name AS result_name, i.item_type AS result_item_type, cr.result_quantity,
-              cr.rarity, cr.success_rate_percent, cr.zone_id, cr.scroll_item_id
+              cr.rarity, cr.success_rate_percent, cr.zone_id, cr.scroll_item_id, cr.station
        FROM crafting_recipes cr
        JOIN items i ON i.id = cr.result_item_id
        WHERE cr.code = $1`,
@@ -1780,6 +1803,12 @@ router.post('/:playerId/craft', requireNear('taller'), async (req, res, next) =>
       return res.status(404).json({ error: 'Receta no encontrada' });
     }
     const recipe = recipeResult.rows[0];
+
+    // el equipo se fabrica en una forja y el agua en el Pilar; lo demás en cualquier lado
+    const lejos = req.bot ? null : stationProblem(playerId, recipe.station);
+    if (lejos) return res.status(403).json({ error: lejos, lejos: true });
+    // Festival de Aethra (domingos): cada frasco llenado en el Pilar rinde el doble
+    if (recipe.station === 'pilar' && isFestival()) recipe.result_quantity *= 2;
 
     // Verificar zona desbloqueada
     if (recipe.zone_id) {
@@ -1872,12 +1901,15 @@ router.post('/:playerId/craft', requireNear('taller'), async (req, res, next) =>
     // los ingredientes descontados sin haber entregado el item crafteado.
     const client = await db.pool.connect();
     const results = [];
+    // lo que se perdió en los intentos fallidos (el taller lo muestra al fallar)
+    const lost = [];
     try {
       await client.query('BEGIN');
       // Ingredientes: los exitosos consumen cantidad completa, los fallidos consumen % según rareza.
       for (const ingredient of ingredients.rows) {
         const successCost = ingredient.quantity * successCount;
         const failCost = calcFailLoss(ingredient.quantity * failCount, FAILURE_LOSS_PERCENT[recipe.rarity] ?? 0);
+        if (failCost > 0) lost.push({ name: ingredient.item_name, quantity: failCost });
         if (successCost + failCost > 0) await inventory.removeItem(playerId, ingredient.item_id, successCost + failCost, 0, null, client);
       }
 
@@ -1927,6 +1959,7 @@ router.post('/:playerId/craft', requireNear('taller'), async (req, res, next) =>
       totalGained,
       luck: totalLuck,
       results,
+      lost,
       message: successCount === 0
         ? `El crafteo falló ${failCount} vez${failCount > 1 ? 'es' : ''}, perdiste parte de los materiales`
         : luckyCount > 0

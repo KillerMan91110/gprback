@@ -4139,6 +4139,13 @@ router.post('/sessions/:id/action', async (req, res, next) => {
             [sessionId, targetParticipant.id, amount, hotDuration]
           );
           buffParts.push(`obtuvo regeneración por ${hotDuration} rondas`);
+        } else if (bonus.stat_code === 'CURE_DOT') {
+          // Antídoto: quita los venenos (DOT) que tenga encima
+          const cured = await db.query(
+            "DELETE FROM combat_participant_buffs WHERE session_id = $1 AND participant_id = $2 AND stat_code = 'DOT' RETURNING id",
+            [sessionId, targetParticipant.id]
+          );
+          buffParts.push(cured.rows.length ? 'se curó del veneno' : 'no estaba envenenado');
         } else if (bonus.stat_code === 'HEAL_HP') {
           const before = targetParticipant.hp;
           targetParticipant.hp = Math.min(targetParticipant.max_hp, targetParticipant.hp + amount);
