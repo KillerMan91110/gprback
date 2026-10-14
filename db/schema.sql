@@ -1763,3 +1763,51 @@ FROM (VALUES ('CUERO_TRATADO_PIEL', 'PIEL'), ('CUERO_TRATADO_CRUDO', 'CUERO_CRUD
 JOIN crafting_recipes cr ON cr.code = v.recipe_code
 JOIN items i ON i.code = v.item_code
 WHERE NOT EXISTS (SELECT 1 FROM crafting_recipe_ingredients x WHERE x.recipe_id = cr.id AND x.item_id = i.id);
+
+-- ============================================================================================
+-- Botín de la Pradera que no servía para nada: ahora tiene uso (repetible; sin ON CONFLICT)
+-- ============================================================================================
+-- Insignia de Bandido (Bandido Corrupto, 30%): la piden los accesorios de la Pradera y se
+-- entregan en el tablón de Ren ("Recompensa por bandidos", diaria).
+-- Gema Común (Araña, Chamán): anillo y collar de la Pradera.
+-- Polvo Arcano (Chamán): orbe y cristal del mago (Pradera, Capitán y Titán).
+-- Agua Fresca (Rata): también se purifica en el Pilar de Aethra.
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT cr.id, x.id, v.qty
+FROM (VALUES
+  ('Anillo de Pradera', 'INSIGNIA_DE_BANDIDO', 2), ('Amuleto de Pradera', 'INSIGNIA_DE_BANDIDO', 2),
+  ('Collar de Pradera', 'INSIGNIA_DE_BANDIDO', 2), ('Brazalete de Pradera', 'INSIGNIA_DE_BANDIDO', 2),
+  ('Anillo de Pradera', 'GEMA_COMUN', 1), ('Collar de Pradera', 'GEMA_COMUN', 1),
+  ('Orbe de Pradera', 'POLVO_ARCANO', 1), ('Cristal de Pradera', 'POLVO_ARCANO', 1),
+  ('Orbe del Capitán', 'POLVO_ARCANO', 2), ('Cristal del Capitán', 'POLVO_ARCANO', 2),
+  ('Orbe del Titán', 'POLVO_ARCANO', 3), ('Cristal del Titán', 'POLVO_ARCANO', 3)
+) AS v(result_name, item_code, qty)
+JOIN items r ON r.name = v.result_name AND r.item_type = 'EQUIPMENT'
+JOIN crafting_recipes cr ON cr.result_item_id = r.id AND cr.zone_id = 1
+JOIN items x ON x.code = v.item_code
+WHERE NOT EXISTS (SELECT 1 FROM crafting_recipe_ingredients e WHERE e.recipe_id = cr.id AND e.item_id = x.id);
+
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, success_rate_percent, zone_id, artisan_name, description, station)
+SELECT 'AGUA_PURIFICADA_FRESCA', i.id, 1, 'COMUN', 100, 1, 'Pilar de Aethra',
+  'Purifica el agua fresca en el Pilar de Aethra. Los domingos (Festival de Aethra) rinde el doble.', 'pilar'
+FROM items i
+WHERE i.code = 'AGUA_PURIFICADA' AND NOT EXISTS (SELECT 1 FROM crafting_recipes c2 WHERE c2.code = 'AGUA_PURIFICADA_FRESCA');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT cr.id, i.id, 1 FROM crafting_recipes cr JOIN items i ON i.code = 'AGUA_FRESCA'
+WHERE cr.code = 'AGUA_PURIFICADA_FRESCA'
+  AND NOT EXISTS (SELECT 1 FROM crafting_recipe_ingredients x WHERE x.recipe_id = cr.id AND x.item_id = i.id);
+UPDATE items SET description = 'Agua de manantial. Purifícala en el Pilar de Aethra para usarla en pociones.' WHERE code = 'AGUA_FRESCA';
+UPDATE items SET description = 'Insignia de un bandido de la Pradera. Ren paga por ellas (tablón de la Aldea Espiga) y sirve para los accesorios de la Pradera.' WHERE code = 'INSIGNIA_DE_BANDIDO';
+
+-- Recompensa por bandidos: misión diaria del tablón de Ren (entregar 8 insignias)
+INSERT INTO quests (code, name, quest_type, zone_id, min_level, npc_name, location_name, is_repeatable, repeat_cooldown_hours,
+  reputation_reward, gold_reward, xp_reward, difficulty_stars, description)
+SELECT 'PRADERA_DAILY_RECOMPENSA_BANDIDOS', 'Recompensa por Bandidos', 'DIARIA', 1, 3, 'Guardabosque Local', 'Aldea Espiga', TRUE, 6,
+  15, 350, 700, 1,
+  'Los bandidos corruptos asaltan los caminos de la Pradera. Ren paga por cada lote de insignias que le traigas como prueba.'
+WHERE NOT EXISTS (SELECT 1 FROM quests WHERE code = 'PRADERA_DAILY_RECOMPENSA_BANDIDOS');
+INSERT INTO quest_objectives (quest_id, objective_type, item_id, target_count, description)
+SELECT q.id, 'COLLECT_ITEM', i.id, 8, 'Entrega 8 Insignias de Bandido.'
+FROM quests q JOIN items i ON i.code = 'INSIGNIA_DE_BANDIDO'
+WHERE q.code = 'PRADERA_DAILY_RECOMPENSA_BANDIDOS'
+  AND NOT EXISTS (SELECT 1 FROM quest_objectives o WHERE o.quest_id = q.id);

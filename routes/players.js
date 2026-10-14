@@ -1486,6 +1486,11 @@ router.post('/:playerId/quests/:questId/complete', async (req, res, next) => {
         error: `Objetivo incompleto: ${unmetObjective.description || 'todavía faltan requisitos por cumplir'}`,
       });
     }
+    // misiones de entregar objetos (COLLECT_ITEM): al entregarlas se los lleva el NPC. Antes solo
+    // se miraba que los tuvieras, así que las diarias repetibles se cobraban siempre con los mismos.
+    for (const o of quest.objectives.filter((x) => x.objective_type === 'COLLECT_ITEM' && x.item_id)) {
+      await inventory.removeItem(playerId, o.item_id, o.target_count, 0, null);
+    }
 
     // El bonus de XP/oro lo da el rango que el jugador tiene AL COMPLETAR la quest (antes de
     // que esta misma entrega lo suba de rango), igual que xpBonus/moneyBonus en
