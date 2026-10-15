@@ -28,6 +28,7 @@ function stationProblem(playerId, station) {
   return s ? lejosDe(playerId, s.lugares, s.nombre) : null;
 }
 const npcSell = require('../lib/npcSell');
+const comida = require('../lib/comida');
 
 const router = express.Router();
 
@@ -2091,9 +2092,18 @@ router.post('/:playerId/craft', async (req, res, next) => {
 
 // POST /api/player/:playerId/dismantle
 // body: { itemId, quantity? } — desmantela un ítem crafteado y devuelve materiales.
+// GET /api/player/:playerId/food-buff — la comida activa ("bien alimentado") o null
+router.get('/:playerId/food-buff', async (req, res, next) => {
+  try {
+    const foods = await comida.activeFor([Number(req.params.playerId)]);
+    res.json({ foodBuff: foods[req.params.playerId] ?? null });
+  } catch (err) { next(err); }
+});
+
 // POST /api/player/:playerId/use-item  body: { itemId, targetNpcId? }
 // Usa un consumible fuera de combate sobre el héroe o un NPC del grupo.
-// Ignora buffs de stats (ALL_STATS, BUFF_*) y HOT — solo tienen sentido en combate.
+// Las comidas con bonos de combate (BUFF_*, ALL_STATS) dejan al héroe "bien alimentado" un rato: los
+// combates que empiece mientras dure arrancan con esos bonos (lib/comida.js). El HOT se ignora.
 router.post('/:playerId/use-item', async (req, res, next) => {
   const { playerId } = req.params;
   const { itemId, targetNpcId } = req.body;
@@ -2191,10 +2201,14 @@ router.post('/:playerId/use-item', async (req, res, next) => {
       }
     }
 
-    if (applied.length === 0) {
+    // bonos de combate: solo el héroe queda "bien alimentado"
+    const foodEffects = targetNpcId ? [] : comida.effectsOf(bonuses.rows, qualityMult);
+    if (applied.length === 0 && !foodEffects.length) {
       return res.status(400).json({ error: `${targetName} ya tiene el HP y Maná al máximo` });
     }
 
+    let foodBuff = null;
+    if (foodEffects.length) await comida.ensureTable();
     const client = await db.pool.connect();
     try {
       await client.query('BEGIN');
@@ -2204,6 +2218,7 @@ router.post('/:playerId/use-item', async (req, res, next) => {
         await client.query('UPDATE players SET hp = $1, mana = $2, updated_at = now() WHERE id = $3', [newHp, newMana, playerId]);
       }
       await inventory.removeItem(playerId, itemId, 1, 0, bestTier, client);
+      if (foodEffects.length) foodBuff = await comida.eat(playerId, item, foodEffects, client);
       await client.query('COMMIT');
     } catch (e) {
       await client.query('ROLLBACK');
@@ -2225,11 +2240,13 @@ router.post('/:playerId/use-item', async (req, res, next) => {
       const casterName = casterRes.rows[0]?.nickname ?? 'El jugador';
       message = `${casterName} usó ${item.name} en ${targetName}: ${targetName} ${effectDesc}`;
     } else {
-      message = `Usaste ${item.name}: ${effectDesc}`;
+      message = effectDesc ? `Usaste ${item.name}: ${effectDesc}` : `Comiste ${item.name}`;
     }
+    if (foodBuff) message += `. Bien alimentado ${comida.FOOD_MINUTES} min: tus combates empiezan con ${foodBuff.text}.`;
 
     res.json({
       message,
+      foodBuff,
       targetNpcId: targetNpcId ?? null,
       hp: newHp,
       maxHp: target.max_hp,

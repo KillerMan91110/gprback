@@ -170,6 +170,8 @@ app.use('/api/player/:playerId/worldboss', worldBossPlayerRouter);
 app.use('/api/player/:playerId/daily-event', dailyEventRouter);
 // la Cripta del Vigía (antes que /world para que no la tape)
 app.use('/api/player/:playerId/world/cripta', require('./routes/cripta'));
+// la Mina Profunda (Montañas Grises): el mismo molde de mazmorra que la Cripta (lib/mina.js)
+app.use('/api/player/:playerId/world/mina_profunda', require('./routes/mazmorra')(require('./lib/mina')));
 app.use('/api/player/:playerId/world', worldRouter);
 app.use('/api/player/:playerId/puestos', puestosRouter);
 

@@ -13,8 +13,9 @@ const questProgress = require('../lib/questProgress');
 const achievements = require('../lib/achievements');
 const aurelia = require('../lib/aurelia');
 const coleccion = require('../lib/coleccion');
+const comida = require('../lib/comida');
 const mythic = require('../lib/mythic');
-const cripta = require('../lib/cripta');
+const mazmorras = require('../lib/mazmorras');
 const huntRewards = require('../lib/huntRewards');
 const eventos = require('../lib/eventos');
 const { handleWorldBossFinalize, handleDailyEventFinalize, WORLD_BOSS_CODE_PREFIX } = require('../lib/eventFinalize');
@@ -121,6 +122,8 @@ async function hasActiveCombatSession(playerId) {
 }
 
 async function hydratePlayers(playerIds) {
+  // "bien alimentado": la comida que tomó antes de salir (lib/comida.js) suma sus bonos a esta pelea
+  const foods = await comida.activeFor(playerIds).catch(() => ({}));
   const result = await db.query(
     `SELECT id, nickname, hp, max_hp, mana, max_mana, atk, def, mag, magic_def, spd, crit, luck,
             level, current_class_id, evolution_class_id,
@@ -177,7 +180,7 @@ async function hydratePlayers(playerIds) {
       gold_reward: 0,
       owner_player_id: p.id,
     };
-  }));
+  })).then((list) => list.map((c) => comida.applyTo(c, foods[c.player_id]?.effects)));
 }
 
 async function hydratePartyNpcs(playerId, ownerPlayerId = null, slotLimit = null) {
@@ -1295,8 +1298,8 @@ async function applyBreakAndFury(sessionId, round, actor, participants, hpBefore
     const broken = await db.query("SELECT 1 FROM combat_participant_buffs WHERE participant_id = $1 AND stat_code = 'BREAK'", [enemy.id]);
     if (broken.rows.length) continue;
     let weak = false;
-    // el Vigía de la cripta cambia de debilidad (lib/cripta.js): manda la de este momento
-    const forcedWeak = enemy.monster_code === cripta.BOSS_CODE ? await cripta.weakElementOf(enemy.id) : null;
+    // los jefes de mazmorra cambian de debilidad (lib/mazmorra.js): manda la de este momento
+    const forcedWeak = mazmorras.isBoss(enemy.monster_code) ? await mazmorras.weakElementOf(enemy.id) : null;
     if (forcedWeak != null) {
       weak = elementId === forcedWeak;
     } else if (elementId) {
@@ -1423,7 +1426,7 @@ async function startNewRound(sessionId, participants) {
           // se recupera de la rotura: escudo lleno otra vez
           const max = await maxShieldOf(p);
           await db.query("UPDATE combat_participant_buffs SET applied_flat = $1 WHERE participant_id = $2 AND stat_code = 'SHIELD'", [max, p.id]);
-          await cripta.onBreakEnd(sessionId, p, newRound - 1, insertLog);
+          await mazmorras.onBreakEnd(sessionId, p, newRound - 1, insertLog);
         } else if (buff.stat_code.startsWith('RESIST_') || buff.stat_code === 'DOT' || buff.stat_code === 'NO_DAMAGE' || buff.stat_code === 'DAMAGE_TAKEN' || buff.stat_code === 'HOT' || buff.stat_code === 'SHIELD' || buff.stat_code === 'FURY' || buff.stat_code === 'PARALYZE' || buff.stat_code === 'BLIND' || buff.stat_code === 'TAUNT') {
           // Solo borrar la fila: estos efectos no tienen stat persistido que revertir
         } else {
@@ -2103,8 +2106,8 @@ async function finalizeSession(sessionId, status, participants) {
   // jefe mítico: resta la vida compartida (también si huiste) y reparte si cayó
   const mythicSummary = await mythic.handleFinalize(sessionId, participants).catch((err) => { console.error('[mythic] finalize', err.message); return null; });
   if (mythicSummary && rewards) rewards.mythic = mythicSummary;
-  // cripta del Vigía: guardianes vencidos, puerta y cofre del jefe
-  const cryptSummary = await cripta.handleFinalize(sessionId, status, participants, aurelia.addNews).catch((err) => { console.error('[cripta] finalize', err.message); return null; });
+  // mazmorras (Cripta del Vigía, Mina Profunda): guardianes vencidos, puerta y cofre del jefe
+  const cryptSummary = await mazmorras.handleFinalize(sessionId, status, participants, aurelia.addNews).catch((err) => { console.error('[mazmorra] finalize', err.message); return null; });
   if (cryptSummary && rewards) rewards.crypt = cryptSummary;
   // El extra del Evento del Día (oro/monedas/xp fijos del catálogo + bono de nivel bajo + material)
   // se escribe directo a la DB adentro de handleDailyEventFinalize, pero eso NO alcanza al `rewards`
@@ -2215,7 +2218,7 @@ async function advanceEnemyTurns(sessionId) {
       continue;
     }
     // el Vigía de la cripta: marca a un héroe con su faro y al turno siguiente le dispara
-    if (await cripta.bossTurn({ sessionId, round, actor, participants, persistParticipant, insertLog, markNearDeathIfLow })) continue;
+    if (await mazmorras.bossTurn({ sessionId, round, actor, participants, persistParticipant, insertLog, markNearDeathIfLow })) continue;
     if (round === 1) {
       await applyInnateTrigger('ON_COMBAT_START', { actor, target: null, allies: [], enemies: [] });
     }
@@ -2694,7 +2697,7 @@ async function fetchSessionState(sessionId) {
     imbued_element_code: elementCodes[p.imbued_element_id] ?? null,
     resistances: p.monster_code
       ? (weakNow[p.id] != null
-        ? { ...Object.fromEntries(Object.entries(resistByMonster[p.monster_code] ?? {}).filter(([, v]) => v > 0)), [cripta.ELEMENT_CODE[weakNow[p.id]]]: -50 }
+        ? { ...Object.fromEntries(Object.entries(resistByMonster[p.monster_code] ?? {}).filter(([, v]) => v > 0)), [mazmorras.ELEMENT_CODE[weakNow[p.id]]]: -50 }
         : (resistByMonster[p.monster_code] ?? {}))
       : undefined,
     effects: effectsById[p.id] ?? [],
@@ -2849,6 +2852,29 @@ router.post('/zones/:zoneId/explore', async (req, res, next) => {
       );
     }
 
+    // Mundo 2D: la zona de encuentro del mapa donde empezó la pelea dice qué monstruos viven ahí
+    // (areaMonsters). Los comunes y raros salen de esa lista, así cada monstruo está en su lugar
+    // (en el Lago Helado, sierpes y espectros; no las arpías de la Garganta). Los jefes no cambian.
+    const areaCodes = Array.isArray(req.body?.areaMonsters)
+      ? req.body.areaMonsters.filter((c) => typeof c === 'string').slice(0, 8)
+      : [];
+    const plainRoll = eligible.rows.length > 0 && eligible.rows.every((r) => r.rarity === 'COMMON' || r.rarity === 'RARE');
+    if (areaCodes.length && !forcedBoss.rows.length && plainRoll) {
+      const inArea = eligible.rows.filter((r) => areaCodes.includes(r.code));
+      if (inArea.length) {
+        eligible = { rows: inArea };
+      } else {
+        const listed = (await db.query(
+          `SELECT code, min_spawn_level, max_spawn_level, rarity
+           FROM monsters WHERE zone_id = $1 AND code = ANY($2::text[]) AND rarity IN ('COMMON', 'RARE')`,
+          [zone.id, areaCodes]
+        )).rows;
+        const same = listed.filter((r) => r.rarity === eligible.rows[0].rarity);
+        const commons = listed.filter((r) => r.rarity === 'COMMON');
+        if (same.length || commons.length) eligible = { rows: same.length ? same : commons };
+      }
+    }
+
     if (!eligible.rows.length && !lead) {
       return res.status(400).json({ error: 'No hay monstruos disponibles en esta zona para tu nivel' });
     }
@@ -2971,6 +2997,12 @@ router.post('/zones/:zoneId/explore', async (req, res, next) => {
     if (aliveHero.length === 0 && aliveNpcs.length === 0) {
       return res.status(400).json({ error: 'Toda tu formación está derrotada. Ve al gremio a curarte.' });
     }
+    // en el mundo 2D (manda su posición) el héroe caído no entra a pelear aunque le queden
+    // compañeros: la pantalla de combate es la de tu héroe y el combate quedaba trabado, sin nadie
+    // que lo jugara y bloqueando cualquier otro. Primero despierta en tu refugio.
+    if (req.body?.worldPos && aliveHero.length === 0) {
+      return res.status(400).json({ error: 'Estás sin fuerzas: despierta en tu refugio antes de volver a pelear.' });
+    }
 
     const sessionResult = await createCombatSessionWithClaim(
       (client) => client.query("INSERT INTO combat_sessions DEFAULT VALUES RETURNING *"),
@@ -3005,9 +3037,10 @@ router.post('/sessions', async (req, res, next) => {
   if (monsters.some((m) => coleccion.isMythic(m?.code))) {
     return res.status(400).json({ error: 'Al jefe mítico solo se lo enfrenta durante su cacería' });
   }
-  // los de la cripta solo se pelean allá abajo (routes/cripta.js)
-  if (monsters.some((m) => cripta.isCryptMonster(m?.code))) {
-    return res.status(400).json({ error: 'Esos guardianes solo se enfrentan en la Cripta del Vigía' });
+  // los de las mazmorras solo se pelean allá abajo (routes/mazmorra.js)
+  const dungeonOf = monsters.map((m) => mazmorras.ofMonster(m?.code)).find(Boolean);
+  if (dungeonOf) {
+    return res.status(400).json({ error: `Esos guardianes solo se enfrentan en ${dungeonOf.texts.name}` });
   }
   if (monsters.some((m) => m?.code === mythic.MINION_CODE) && !(await mythic.activeHunt())) {
     return res.status(400).json({ error: 'Los lobos espectrales ya se desvanecieron' });

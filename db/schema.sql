@@ -4872,3 +4872,3041 @@ UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 
 DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_SACERDOTE_WEAPON_VIGIA_CAIDO');
 INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
 SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_SACERDOTE_WEAPON_VIGIA_CAIDO'), i.id, v.n FROM (VALUES ('OJO_DEL_VIGIA', 3), ('MEDALLA_VIGIA', 4), ('TELA_LINO', 3), ('CUARZO_RIO', 2)) AS v(code, n) JOIN items i ON i.code = v.code;
+
+-- ============================================================================================
+-- Monstruos de las Montañas Grises (repetible; sin ON CONFLICT). Zona 2, nivel 16-30: 12 comunes
+-- (7 nuevos: Cabra Montés, Lobo de las Nieves, Murciélago de Caverna, Oso de las Cumbres, Sierpe de
+-- Hielo, Arpía del Eco y Elemental de Tormenta), 2 raros y los 2 jefes. Stats por fórmula
+-- (lib/equilibrio.js, perfiles en scripts/equilibrio/generar.js). Cada uno suelta su material
+-- propio (sin repetir entre monstruos) y tiene su habilidad con su estado.
+-- ============================================================================================
+
+-- materiales propios de cada monstruo
+INSERT INTO items (code, name, item_type, rarity, obtain_method, description)
+SELECT 'CUERNO_CABRA_MONTES', 'Cuerno de Cabra Montés', 'MATERIAL', 'COMUN', 'Drop de monstruo', 'Cuerno en espiral, duro como el hierro. Lo sueltan las Cabras Montesas del Paso de la Montaña.'
+WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'CUERNO_CABRA_MONTES');
+UPDATE items SET name = 'Cuerno de Cabra Montés', item_type = 'MATERIAL', rarity = 'COMUN', obtain_method = 'Drop de monstruo', description = 'Cuerno en espiral, duro como el hierro. Lo sueltan las Cabras Montesas del Paso de la Montaña.' WHERE code = 'CUERNO_CABRA_MONTES';
+INSERT INTO items (code, name, item_type, rarity, obtain_method, description)
+SELECT 'COLMILLO_DE_ORCO', 'Colmillo de Orco', 'MATERIAL', 'COMUN', 'Drop de monstruo', 'Colmillo amarillento de los Orcos de Montaña que asaltan las caravanas del Paso.'
+WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'COLMILLO_DE_ORCO');
+UPDATE items SET name = 'Colmillo de Orco', item_type = 'MATERIAL', rarity = 'COMUN', obtain_method = 'Drop de monstruo', description = 'Colmillo amarillento de los Orcos de Montaña que asaltan las caravanas del Paso.' WHERE code = 'COLMILLO_DE_ORCO';
+INSERT INTO items (code, name, item_type, rarity, obtain_method, description)
+SELECT 'PIEL_LOBO_NIEVE', 'Piel de Lobo de las Nieves', 'MATERIAL', 'COMUN', 'Drop de monstruo', 'Piel blanca y espesa que no deja pasar el frío. La sueltan los Lobos de las Nieves del Paso y el Pinar Nevado.'
+WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'PIEL_LOBO_NIEVE');
+UPDATE items SET name = 'Piel de Lobo de las Nieves', item_type = 'MATERIAL', rarity = 'COMUN', obtain_method = 'Drop de monstruo', description = 'Piel blanca y espesa que no deja pasar el frío. La sueltan los Lobos de las Nieves del Paso y el Pinar Nevado.' WHERE code = 'PIEL_LOBO_NIEVE';
+INSERT INTO items (code, name, item_type, rarity, obtain_method, description)
+SELECT 'PICO_CORROMPIDO', 'Pico Corrompido', 'MATERIAL', 'COMUN', 'Drop de monstruo', 'La punta de un pico minero manchada de una savia negra. La sueltan los Mineros Corrompidos de las Minas Abandonadas.'
+WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'PICO_CORROMPIDO');
+UPDATE items SET name = 'Pico Corrompido', item_type = 'MATERIAL', rarity = 'COMUN', obtain_method = 'Drop de monstruo', description = 'La punta de un pico minero manchada de una savia negra. La sueltan los Mineros Corrompidos de las Minas Abandonadas.' WHERE code = 'PICO_CORROMPIDO';
+INSERT INTO items (code, name, item_type, rarity, obtain_method, description)
+SELECT 'MEMBRANA_MURCIELAGO', 'Membrana de Murciélago', 'MATERIAL', 'COMUN', 'Drop de monstruo', 'Ala fina y resistente de los Murciélagos de Caverna de las Minas Abandonadas.'
+WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'MEMBRANA_MURCIELAGO');
+UPDATE items SET name = 'Membrana de Murciélago', item_type = 'MATERIAL', rarity = 'COMUN', obtain_method = 'Drop de monstruo', description = 'Ala fina y resistente de los Murciélagos de Caverna de las Minas Abandonadas.' WHERE code = 'MEMBRANA_MURCIELAGO';
+INSERT INTO items (code, name, item_type, rarity, obtain_method, description)
+SELECT 'FRAGMENTO_PIEDRA_VIVA', 'Fragmento de Piedra Viva', 'MATERIAL', 'COMUN', 'Drop de monstruo', 'Trozo de roca que todavía late. Lo sueltan los Centinelas de Piedra de las minas y la Garganta del Eco.'
+WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'FRAGMENTO_PIEDRA_VIVA');
+UPDATE items SET name = 'Fragmento de Piedra Viva', item_type = 'MATERIAL', rarity = 'COMUN', obtain_method = 'Drop de monstruo', description = 'Trozo de roca que todavía late. Lo sueltan los Centinelas de Piedra de las minas y la Garganta del Eco.' WHERE code = 'FRAGMENTO_PIEDRA_VIVA';
+INSERT INTO items (code, name, item_type, rarity, obtain_method, description)
+SELECT 'ESENCIA_ESPECTRAL_HELADA', 'Esencia Espectral Helada', 'MATERIAL', 'COMUN', 'Drop de monstruo', 'Neblina fría encerrada en escarcha. La sueltan los Espectros Helados del Pinar Nevado y el Lago Helado.'
+WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'ESENCIA_ESPECTRAL_HELADA');
+UPDATE items SET name = 'Esencia Espectral Helada', item_type = 'MATERIAL', rarity = 'COMUN', obtain_method = 'Drop de monstruo', description = 'Neblina fría encerrada en escarcha. La sueltan los Espectros Helados del Pinar Nevado y el Lago Helado.' WHERE code = 'ESENCIA_ESPECTRAL_HELADA';
+INSERT INTO items (code, name, item_type, rarity, obtain_method, description)
+SELECT 'GARRA_OSO_CUMBRES', 'Garra de Oso de las Cumbres', 'MATERIAL', 'COMUN', 'Drop de monstruo', 'Garra negra y curva, más larga que un dedo. La sueltan los Osos de las Cumbres del Pinar Nevado y la Cumbre del Rey.'
+WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'GARRA_OSO_CUMBRES');
+UPDATE items SET name = 'Garra de Oso de las Cumbres', item_type = 'MATERIAL', rarity = 'COMUN', obtain_method = 'Drop de monstruo', description = 'Garra negra y curva, más larga que un dedo. La sueltan los Osos de las Cumbres del Pinar Nevado y la Cumbre del Rey.' WHERE code = 'GARRA_OSO_CUMBRES';
+INSERT INTO items (code, name, item_type, rarity, obtain_method, description)
+SELECT 'ESCAMA_SIERPE_HIELO', 'Escama de Sierpe de Hielo', 'MATERIAL', 'COMUN', 'Drop de monstruo', 'Escama azul transparente como el hielo del lago. La sueltan las Sierpes de Hielo del Lago Helado.'
+WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'ESCAMA_SIERPE_HIELO');
+UPDATE items SET name = 'Escama de Sierpe de Hielo', item_type = 'MATERIAL', rarity = 'COMUN', obtain_method = 'Drop de monstruo', description = 'Escama azul transparente como el hielo del lago. La sueltan las Sierpes de Hielo del Lago Helado.' WHERE code = 'ESCAMA_SIERPE_HIELO';
+INSERT INTO items (code, name, item_type, rarity, obtain_method, description)
+SELECT 'PIEL_DE_TROLL', 'Piel de Troll', 'MATERIAL', 'COMUN', 'Drop de monstruo', 'Cuero grueso y verdoso que se cierra solo si se corta. Lo sueltan los Trolls Salvajes de la Garganta del Eco y los Acantilados.'
+WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'PIEL_DE_TROLL');
+UPDATE items SET name = 'Piel de Troll', item_type = 'MATERIAL', rarity = 'COMUN', obtain_method = 'Drop de monstruo', description = 'Cuero grueso y verdoso que se cierra solo si se corta. Lo sueltan los Trolls Salvajes de la Garganta del Eco y los Acantilados.' WHERE code = 'PIEL_DE_TROLL';
+INSERT INTO items (code, name, item_type, rarity, obtain_method, description)
+SELECT 'PLUMA_ARPIA_ECO', 'Pluma de Arpía del Eco', 'MATERIAL', 'COMUN', 'Drop de monstruo', 'Pluma gris que zumba con el viento. La sueltan las Arpías del Eco de la Garganta y las Cornisas.'
+WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'PLUMA_ARPIA_ECO');
+UPDATE items SET name = 'Pluma de Arpía del Eco', item_type = 'MATERIAL', rarity = 'COMUN', obtain_method = 'Drop de monstruo', description = 'Pluma gris que zumba con el viento. La sueltan las Arpías del Eco de la Garganta y las Cornisas.' WHERE code = 'PLUMA_ARPIA_ECO';
+INSERT INTO items (code, name, item_type, rarity, obtain_method, description)
+SELECT 'NUCLEO_TORMENTA', 'Núcleo de Tormenta', 'MATERIAL', 'POCO_COMUN', 'Drop de monstruo', 'Esfera de cristal con un relámpago atrapado adentro. La sueltan los Elementales de Tormenta de los Acantilados del Trueno y la Cumbre.'
+WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'NUCLEO_TORMENTA');
+UPDATE items SET name = 'Núcleo de Tormenta', item_type = 'MATERIAL', rarity = 'POCO_COMUN', obtain_method = 'Drop de monstruo', description = 'Esfera de cristal con un relámpago atrapado adentro. La sueltan los Elementales de Tormenta de los Acantilados del Trueno y la Cumbre.' WHERE code = 'NUCLEO_TORMENTA';
+INSERT INTO items (code, name, item_type, rarity, obtain_method, description)
+SELECT 'CRISTAL_GIGANTE_HIELO', 'Cristal de Gigante de Hielo', 'MATERIAL', 'POCO_COMUN', 'Drop de monstruo', 'Cristal que crece en la espalda de los Gigantes de Hielo. Nunca se derrite.'
+WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'CRISTAL_GIGANTE_HIELO');
+UPDATE items SET name = 'Cristal de Gigante de Hielo', item_type = 'MATERIAL', rarity = 'POCO_COMUN', obtain_method = 'Drop de monstruo', description = 'Cristal que crece en la espalda de los Gigantes de Hielo. Nunca se derrite.' WHERE code = 'CRISTAL_GIGANTE_HIELO';
+INSERT INTO items (code, name, item_type, rarity, obtain_method, description)
+SELECT 'VARA_BRUJO_MONTANA', 'Vara del Brujo de Montaña', 'MATERIAL', 'POCO_COMUN', 'Drop de monstruo', 'Bastón de pino retorcido con una piedra que chispea. Lo suelta el Brujo de la Montaña en los Acantilados del Trueno.'
+WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'VARA_BRUJO_MONTANA');
+UPDATE items SET name = 'Vara del Brujo de Montaña', item_type = 'MATERIAL', rarity = 'POCO_COMUN', obtain_method = 'Drop de monstruo', description = 'Bastón de pino retorcido con una piedra que chispea. Lo suelta el Brujo de la Montaña en los Acantilados del Trueno.' WHERE code = 'VARA_BRUJO_MONTANA';
+INSERT INTO items (code, name, item_type, rarity, obtain_method, description)
+SELECT 'INSIGNIA_GUARDIA_REAL', 'Insignia de la Guardia Real', 'MATERIAL', 'POCO_COMUN', 'Drop de monstruo', 'Placa de hierro con el rayo del Rey de la Montaña. La llevan los Guardias de la Tormenta de la Cumbre. Sin ella no se forja el set del Rey.'
+WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'INSIGNIA_GUARDIA_REAL');
+UPDATE items SET name = 'Insignia de la Guardia Real', item_type = 'MATERIAL', rarity = 'POCO_COMUN', obtain_method = 'Drop de monstruo', description = 'Placa de hierro con el rayo del Rey de la Montaña. La llevan los Guardias de la Tormenta de la Cumbre. Sin ella no se forja el set del Rey.' WHERE code = 'INSIGNIA_GUARDIA_REAL';
+
+-- habilidades nuevas
+
+-- Cornada
+INSERT INTO skills (code, name, skill_type, damage_school, element_id, target_type, base_value, scaling_stat, scaling_multiplier, hits, mana_cost, is_passive, learn_method, learn_level, learn_gold_cost, description)
+SELECT 'MONSTRUO_CORNADA', 'Cornada', 'ATAQUE', 'FISICO', NULL, 'ENEMY', 5, 'ATK', 1.35, 1, 12, FALSE, 'LEVEL', 1, 0, 'Embiste con los cuernos por delante. Puede derribar al objetivo.'
+WHERE NOT EXISTS (SELECT 1 FROM skills WHERE code = 'MONSTRUO_CORNADA');
+UPDATE skills SET name = 'Cornada', skill_type = 'ATAQUE', damage_school = 'FISICO', element_id = NULL, target_type = 'ENEMY', base_value = 5, scaling_stat = 'ATK', scaling_multiplier = 1.35, hits = 1, mana_cost = 12, is_passive = FALSE, learn_method = 'LEVEL', learn_level = 1, learn_gold_cost = 0, description = 'Embiste con los cuernos por delante. Puede derribar al objetivo.' WHERE code = 'MONSTRUO_CORNADA';
+DELETE FROM skill_effects WHERE skill_id = (SELECT id FROM skills WHERE code = 'MONSTRUO_CORNADA');
+INSERT INTO skill_effects (skill_id, effect_type, stat_code, percent_amount, duration_turns, chance_percent, status_code, description)
+SELECT (SELECT id FROM skills WHERE code = 'MONSTRUO_CORNADA'), v.* FROM (VALUES ('PARALYZE', NULL, NULL::numeric, 4, 20::numeric, 'PARALYZE', 'Derribado: puede perder su turno durante 4 rondas.'))
+  AS v(effect_type, stat_code, percent_amount, duration_turns, chance_percent, status_code, description);
+
+-- Mordida Helada
+INSERT INTO skills (code, name, skill_type, damage_school, element_id, target_type, base_value, scaling_stat, scaling_multiplier, hits, mana_cost, is_passive, learn_method, learn_level, learn_gold_cost, description)
+SELECT 'MONSTRUO_MORDIDA_HELADA', 'Mordida Helada', 'ATAQUE', 'FISICO', (SELECT id FROM elements WHERE code = 'ICE'), 'ENEMY', 4, 'ATK', 1.25, 1, 10, FALSE, 'LEVEL', 1, 0, 'Una mordida que congela la herida y entumece al objetivo.'
+WHERE NOT EXISTS (SELECT 1 FROM skills WHERE code = 'MONSTRUO_MORDIDA_HELADA');
+UPDATE skills SET name = 'Mordida Helada', skill_type = 'ATAQUE', damage_school = 'FISICO', element_id = (SELECT id FROM elements WHERE code = 'ICE'), target_type = 'ENEMY', base_value = 4, scaling_stat = 'ATK', scaling_multiplier = 1.25, hits = 1, mana_cost = 10, is_passive = FALSE, learn_method = 'LEVEL', learn_level = 1, learn_gold_cost = 0, description = 'Una mordida que congela la herida y entumece al objetivo.' WHERE code = 'MONSTRUO_MORDIDA_HELADA';
+DELETE FROM skill_effects WHERE skill_id = (SELECT id FROM skills WHERE code = 'MONSTRUO_MORDIDA_HELADA');
+INSERT INTO skill_effects (skill_id, effect_type, stat_code, percent_amount, duration_turns, chance_percent, status_code, description)
+SELECT (SELECT id FROM skills WHERE code = 'MONSTRUO_MORDIDA_HELADA'), v.* FROM (VALUES ('STAT_MOD', 'SPD', -25::numeric, 4, 35::numeric, 'SLOW', 'Congelado: -25% de velocidad durante 4 rondas.'))
+  AS v(effect_type, stat_code, percent_amount, duration_turns, chance_percent, status_code, description);
+
+-- Golpe de Pico
+INSERT INTO skills (code, name, skill_type, damage_school, element_id, target_type, base_value, scaling_stat, scaling_multiplier, hits, mana_cost, is_passive, learn_method, learn_level, learn_gold_cost, description)
+SELECT 'MONSTRUO_GOLPE_PICO', 'Golpe de Pico', 'ATAQUE', 'FISICO', NULL, 'ENEMY', 4, 'ATK', 1.3, 1, 10, FALSE, 'LEVEL', 1, 0, 'Clava el pico minero. Puede dejar sangrando al objetivo.'
+WHERE NOT EXISTS (SELECT 1 FROM skills WHERE code = 'MONSTRUO_GOLPE_PICO');
+UPDATE skills SET name = 'Golpe de Pico', skill_type = 'ATAQUE', damage_school = 'FISICO', element_id = NULL, target_type = 'ENEMY', base_value = 4, scaling_stat = 'ATK', scaling_multiplier = 1.3, hits = 1, mana_cost = 10, is_passive = FALSE, learn_method = 'LEVEL', learn_level = 1, learn_gold_cost = 0, description = 'Clava el pico minero. Puede dejar sangrando al objetivo.' WHERE code = 'MONSTRUO_GOLPE_PICO';
+DELETE FROM skill_effects WHERE skill_id = (SELECT id FROM skills WHERE code = 'MONSTRUO_GOLPE_PICO');
+INSERT INTO skill_effects (skill_id, effect_type, stat_code, percent_amount, duration_turns, chance_percent, status_code, description)
+SELECT (SELECT id FROM skills WHERE code = 'MONSTRUO_GOLPE_PICO'), v.* FROM (VALUES ('DOT', NULL, 5::numeric, 4, 30::numeric, 'BLEED', 'Sangrado: 5% del HP máximo por ronda durante 4 rondas.'))
+  AS v(effect_type, stat_code, percent_amount, duration_turns, chance_percent, status_code, description);
+
+-- Chillido Ensordecedor
+INSERT INTO skills (code, name, skill_type, damage_school, element_id, target_type, base_value, scaling_stat, scaling_multiplier, hits, mana_cost, is_passive, learn_method, learn_level, learn_gold_cost, description)
+SELECT 'MONSTRUO_CHILLIDO', 'Chillido Ensordecedor', 'ATAQUE', 'FISICO', NULL, 'ALL_ENEMIES', 2, 'ATK', 0.75, 1, 15, FALSE, 'LEVEL', 1, 0, 'Un chillido que retumba en la cueva y aturde a todos.'
+WHERE NOT EXISTS (SELECT 1 FROM skills WHERE code = 'MONSTRUO_CHILLIDO');
+UPDATE skills SET name = 'Chillido Ensordecedor', skill_type = 'ATAQUE', damage_school = 'FISICO', element_id = NULL, target_type = 'ALL_ENEMIES', base_value = 2, scaling_stat = 'ATK', scaling_multiplier = 0.75, hits = 1, mana_cost = 15, is_passive = FALSE, learn_method = 'LEVEL', learn_level = 1, learn_gold_cost = 0, description = 'Un chillido que retumba en la cueva y aturde a todos.' WHERE code = 'MONSTRUO_CHILLIDO';
+DELETE FROM skill_effects WHERE skill_id = (SELECT id FROM skills WHERE code = 'MONSTRUO_CHILLIDO');
+INSERT INTO skill_effects (skill_id, effect_type, stat_code, percent_amount, duration_turns, chance_percent, status_code, description)
+SELECT (SELECT id FROM skills WHERE code = 'MONSTRUO_CHILLIDO'), v.* FROM (VALUES ('BLIND', NULL, 20::numeric, 4, 30::numeric, 'BLIND', 'Aturdido por el ruido: 20% de fallar sus golpes durante 4 rondas.'))
+  AS v(effect_type, stat_code, percent_amount, duration_turns, chance_percent, status_code, description);
+
+-- Piel de Piedra
+INSERT INTO skills (code, name, skill_type, damage_school, element_id, target_type, base_value, scaling_stat, scaling_multiplier, hits, mana_cost, is_passive, learn_method, learn_level, learn_gold_cost, description)
+SELECT 'MONSTRUO_PIEL_PIEDRA', 'Piel de Piedra', 'BUFF', NULL, NULL, 'SELF', NULL, NULL, NULL, 1, 10, FALSE, 'LEVEL', 1, 0, 'Endurece su cuerpo de roca. +35% de defensa durante 2 rondas.'
+WHERE NOT EXISTS (SELECT 1 FROM skills WHERE code = 'MONSTRUO_PIEL_PIEDRA');
+UPDATE skills SET name = 'Piel de Piedra', skill_type = 'BUFF', damage_school = NULL, element_id = NULL, target_type = 'SELF', base_value = NULL, scaling_stat = NULL, scaling_multiplier = NULL, hits = 1, mana_cost = 10, is_passive = FALSE, learn_method = 'LEVEL', learn_level = 1, learn_gold_cost = 0, description = 'Endurece su cuerpo de roca. +35% de defensa durante 2 rondas.' WHERE code = 'MONSTRUO_PIEL_PIEDRA';
+DELETE FROM skill_effects WHERE skill_id = (SELECT id FROM skills WHERE code = 'MONSTRUO_PIEL_PIEDRA');
+INSERT INTO skill_effects (skill_id, effect_type, stat_code, percent_amount, duration_turns, chance_percent, status_code, description)
+SELECT (SELECT id FROM skills WHERE code = 'MONSTRUO_PIEL_PIEDRA'), v.* FROM (VALUES ('STAT_MOD', 'DEF', 35::numeric, 2, NULL::numeric, NULL, '+35% de defensa durante 2 rondas.'))
+  AS v(effect_type, stat_code, percent_amount, duration_turns, chance_percent, status_code, description);
+
+-- Toque Gélido
+INSERT INTO skills (code, name, skill_type, damage_school, element_id, target_type, base_value, scaling_stat, scaling_multiplier, hits, mana_cost, is_passive, learn_method, learn_level, learn_gold_cost, description)
+SELECT 'MONSTRUO_TOQUE_GELIDO', 'Toque Gélido', 'ATAQUE', 'MAGICO', (SELECT id FROM elements WHERE code = 'ICE'), 'ENEMY', 4, 'MAG', 1.3, 1, 12, FALSE, 'LEVEL', 1, 0, 'Una mano helada atraviesa al objetivo y le roba el calor.'
+WHERE NOT EXISTS (SELECT 1 FROM skills WHERE code = 'MONSTRUO_TOQUE_GELIDO');
+UPDATE skills SET name = 'Toque Gélido', skill_type = 'ATAQUE', damage_school = 'MAGICO', element_id = (SELECT id FROM elements WHERE code = 'ICE'), target_type = 'ENEMY', base_value = 4, scaling_stat = 'MAG', scaling_multiplier = 1.3, hits = 1, mana_cost = 12, is_passive = FALSE, learn_method = 'LEVEL', learn_level = 1, learn_gold_cost = 0, description = 'Una mano helada atraviesa al objetivo y le roba el calor.' WHERE code = 'MONSTRUO_TOQUE_GELIDO';
+DELETE FROM skill_effects WHERE skill_id = (SELECT id FROM skills WHERE code = 'MONSTRUO_TOQUE_GELIDO');
+INSERT INTO skill_effects (skill_id, effect_type, stat_code, percent_amount, duration_turns, chance_percent, status_code, description)
+SELECT (SELECT id FROM skills WHERE code = 'MONSTRUO_TOQUE_GELIDO'), v.* FROM (VALUES ('STAT_MOD', 'SPD', -25::numeric, 4, 40::numeric, 'SLOW', 'Congelado: -25% de velocidad durante 4 rondas.'))
+  AS v(effect_type, stat_code, percent_amount, duration_turns, chance_percent, status_code, description);
+
+-- Zarpazo
+INSERT INTO skills (code, name, skill_type, damage_school, element_id, target_type, base_value, scaling_stat, scaling_multiplier, hits, mana_cost, is_passive, learn_method, learn_level, learn_gold_cost, description)
+SELECT 'MONSTRUO_ZARPAZO', 'Zarpazo', 'ATAQUE', 'FISICO', NULL, 'ENEMY', 5, 'ATK', 1.4, 1, 12, FALSE, 'LEVEL', 1, 0, 'Un zarpazo con garras largas como dagas. Puede dejar sangrando al objetivo.'
+WHERE NOT EXISTS (SELECT 1 FROM skills WHERE code = 'MONSTRUO_ZARPAZO');
+UPDATE skills SET name = 'Zarpazo', skill_type = 'ATAQUE', damage_school = 'FISICO', element_id = NULL, target_type = 'ENEMY', base_value = 5, scaling_stat = 'ATK', scaling_multiplier = 1.4, hits = 1, mana_cost = 12, is_passive = FALSE, learn_method = 'LEVEL', learn_level = 1, learn_gold_cost = 0, description = 'Un zarpazo con garras largas como dagas. Puede dejar sangrando al objetivo.' WHERE code = 'MONSTRUO_ZARPAZO';
+DELETE FROM skill_effects WHERE skill_id = (SELECT id FROM skills WHERE code = 'MONSTRUO_ZARPAZO');
+INSERT INTO skill_effects (skill_id, effect_type, stat_code, percent_amount, duration_turns, chance_percent, status_code, description)
+SELECT (SELECT id FROM skills WHERE code = 'MONSTRUO_ZARPAZO'), v.* FROM (VALUES ('DOT', NULL, 6::numeric, 4, 35::numeric, 'BLEED', 'Sangrado: 6% del HP máximo por ronda durante 4 rondas.'))
+  AS v(effect_type, stat_code, percent_amount, duration_turns, chance_percent, status_code, description);
+
+-- Aliento Helado
+INSERT INTO skills (code, name, skill_type, damage_school, element_id, target_type, base_value, scaling_stat, scaling_multiplier, hits, mana_cost, is_passive, learn_method, learn_level, learn_gold_cost, description)
+SELECT 'MONSTRUO_ALIENTO_HELADO', 'Aliento Helado', 'ATAQUE', 'MAGICO', (SELECT id FROM elements WHERE code = 'ICE'), 'ALL_ENEMIES', 3, 'MAG', 0.8, 1, 20, FALSE, 'LEVEL', 1, 0, 'Sopla escarcha sobre todos sus enemigos.'
+WHERE NOT EXISTS (SELECT 1 FROM skills WHERE code = 'MONSTRUO_ALIENTO_HELADO');
+UPDATE skills SET name = 'Aliento Helado', skill_type = 'ATAQUE', damage_school = 'MAGICO', element_id = (SELECT id FROM elements WHERE code = 'ICE'), target_type = 'ALL_ENEMIES', base_value = 3, scaling_stat = 'MAG', scaling_multiplier = 0.8, hits = 1, mana_cost = 20, is_passive = FALSE, learn_method = 'LEVEL', learn_level = 1, learn_gold_cost = 0, description = 'Sopla escarcha sobre todos sus enemigos.' WHERE code = 'MONSTRUO_ALIENTO_HELADO';
+DELETE FROM skill_effects WHERE skill_id = (SELECT id FROM skills WHERE code = 'MONSTRUO_ALIENTO_HELADO');
+INSERT INTO skill_effects (skill_id, effect_type, stat_code, percent_amount, duration_turns, chance_percent, status_code, description)
+SELECT (SELECT id FROM skills WHERE code = 'MONSTRUO_ALIENTO_HELADO'), v.* FROM (VALUES ('STAT_MOD', 'SPD', -25::numeric, 4, 30::numeric, 'SLOW', 'Congelado: -25% de velocidad durante 4 rondas.'))
+  AS v(effect_type, stat_code, percent_amount, duration_turns, chance_percent, status_code, description);
+
+-- Regeneración
+INSERT INTO skills (code, name, skill_type, damage_school, element_id, target_type, base_value, scaling_stat, scaling_multiplier, hits, mana_cost, is_passive, learn_method, learn_level, learn_gold_cost, description)
+SELECT 'MONSTRUO_REGENERACION', 'Regeneración', 'BUFF', NULL, NULL, 'SELF', NULL, NULL, NULL, 1, 15, FALSE, 'LEVEL', 1, 0, 'Sus heridas se cierran solas: recupera 6% de su vida por ronda durante 3 rondas.'
+WHERE NOT EXISTS (SELECT 1 FROM skills WHERE code = 'MONSTRUO_REGENERACION');
+UPDATE skills SET name = 'Regeneración', skill_type = 'BUFF', damage_school = NULL, element_id = NULL, target_type = 'SELF', base_value = NULL, scaling_stat = NULL, scaling_multiplier = NULL, hits = 1, mana_cost = 15, is_passive = FALSE, learn_method = 'LEVEL', learn_level = 1, learn_gold_cost = 0, description = 'Sus heridas se cierran solas: recupera 6% de su vida por ronda durante 3 rondas.' WHERE code = 'MONSTRUO_REGENERACION';
+DELETE FROM skill_effects WHERE skill_id = (SELECT id FROM skills WHERE code = 'MONSTRUO_REGENERACION');
+INSERT INTO skill_effects (skill_id, effect_type, stat_code, percent_amount, duration_turns, chance_percent, status_code, description)
+SELECT (SELECT id FROM skills WHERE code = 'MONSTRUO_REGENERACION'), v.* FROM (VALUES ('HOT', NULL, 6::numeric, 3, NULL::numeric, NULL, 'Recupera 6% del HP máximo por ronda durante 3 rondas.'))
+  AS v(effect_type, stat_code, percent_amount, duration_turns, chance_percent, status_code, description);
+
+-- Picado
+INSERT INTO skills (code, name, skill_type, damage_school, element_id, target_type, base_value, scaling_stat, scaling_multiplier, hits, mana_cost, is_passive, learn_method, learn_level, learn_gold_cost, description)
+SELECT 'MONSTRUO_PICADO', 'Picado', 'ATAQUE', 'FISICO', NULL, 'ENEMY', 4, 'ATK', 1.3, 1, 10, FALSE, 'LEVEL', 1, 0, 'Se lanza en picada con las garras por delante. Puede dejar sin fuerzas al objetivo.'
+WHERE NOT EXISTS (SELECT 1 FROM skills WHERE code = 'MONSTRUO_PICADO');
+UPDATE skills SET name = 'Picado', skill_type = 'ATAQUE', damage_school = 'FISICO', element_id = NULL, target_type = 'ENEMY', base_value = 4, scaling_stat = 'ATK', scaling_multiplier = 1.3, hits = 1, mana_cost = 10, is_passive = FALSE, learn_method = 'LEVEL', learn_level = 1, learn_gold_cost = 0, description = 'Se lanza en picada con las garras por delante. Puede dejar sin fuerzas al objetivo.' WHERE code = 'MONSTRUO_PICADO';
+DELETE FROM skill_effects WHERE skill_id = (SELECT id FROM skills WHERE code = 'MONSTRUO_PICADO');
+INSERT INTO skill_effects (skill_id, effect_type, stat_code, percent_amount, duration_turns, chance_percent, status_code, description)
+SELECT (SELECT id FROM skills WHERE code = 'MONSTRUO_PICADO'), v.* FROM (VALUES ('STAT_MOD', 'ATK', -10::numeric, 4, 35::numeric, 'WEAKEN', 'Debilidad: -10% de ataque durante 4 rondas.'))
+  AS v(effect_type, stat_code, percent_amount, duration_turns, chance_percent, status_code, description);
+
+-- Descarga de Tormenta
+INSERT INTO skills (code, name, skill_type, damage_school, element_id, target_type, base_value, scaling_stat, scaling_multiplier, hits, mana_cost, is_passive, learn_method, learn_level, learn_gold_cost, description)
+SELECT 'MONSTRUO_DESCARGA', 'Descarga de Tormenta', 'ATAQUE', 'MAGICO', (SELECT id FROM elements WHERE code = 'LIGHTNING'), 'ALL_ENEMIES', 3, 'MAG', 0.8, 1, 20, FALSE, 'LEVEL', 1, 0, 'Llama a los rayos de la tormenta sobre todos sus enemigos. Puede dejarlos paralizados.'
+WHERE NOT EXISTS (SELECT 1 FROM skills WHERE code = 'MONSTRUO_DESCARGA');
+UPDATE skills SET name = 'Descarga de Tormenta', skill_type = 'ATAQUE', damage_school = 'MAGICO', element_id = (SELECT id FROM elements WHERE code = 'LIGHTNING'), target_type = 'ALL_ENEMIES', base_value = 3, scaling_stat = 'MAG', scaling_multiplier = 0.8, hits = 1, mana_cost = 20, is_passive = FALSE, learn_method = 'LEVEL', learn_level = 1, learn_gold_cost = 0, description = 'Llama a los rayos de la tormenta sobre todos sus enemigos. Puede dejarlos paralizados.' WHERE code = 'MONSTRUO_DESCARGA';
+DELETE FROM skill_effects WHERE skill_id = (SELECT id FROM skills WHERE code = 'MONSTRUO_DESCARGA');
+INSERT INTO skill_effects (skill_id, effect_type, stat_code, percent_amount, duration_turns, chance_percent, status_code, description)
+SELECT (SELECT id FROM skills WHERE code = 'MONSTRUO_DESCARGA'), v.* FROM (VALUES ('PARALYZE', NULL, NULL::numeric, 4, 20::numeric, 'PARALYZE', 'Parálisis: puede perder su turno durante 4 rondas.'))
+  AS v(effect_type, stat_code, percent_amount, duration_turns, chance_percent, status_code, description);
+
+-- Avalancha
+INSERT INTO skills (code, name, skill_type, damage_school, element_id, target_type, base_value, scaling_stat, scaling_multiplier, hits, mana_cost, is_passive, learn_method, learn_level, learn_gold_cost, description)
+SELECT 'MONSTRUO_AVALANCHA', 'Avalancha', 'ATAQUE', 'FISICO', (SELECT id FROM elements WHERE code = 'ICE'), 'ALL_ENEMIES', 4, 'ATK', 0.85, 1, 25, FALSE, 'LEVEL', 1, 0, 'Golpea la montaña y hace caer nieve y rocas sobre todos.'
+WHERE NOT EXISTS (SELECT 1 FROM skills WHERE code = 'MONSTRUO_AVALANCHA');
+UPDATE skills SET name = 'Avalancha', skill_type = 'ATAQUE', damage_school = 'FISICO', element_id = (SELECT id FROM elements WHERE code = 'ICE'), target_type = 'ALL_ENEMIES', base_value = 4, scaling_stat = 'ATK', scaling_multiplier = 0.85, hits = 1, mana_cost = 25, is_passive = FALSE, learn_method = 'LEVEL', learn_level = 1, learn_gold_cost = 0, description = 'Golpea la montaña y hace caer nieve y rocas sobre todos.' WHERE code = 'MONSTRUO_AVALANCHA';
+DELETE FROM skill_effects WHERE skill_id = (SELECT id FROM skills WHERE code = 'MONSTRUO_AVALANCHA');
+INSERT INTO skill_effects (skill_id, effect_type, stat_code, percent_amount, duration_turns, chance_percent, status_code, description)
+SELECT (SELECT id FROM skills WHERE code = 'MONSTRUO_AVALANCHA'), v.* FROM (VALUES ('STAT_MOD', 'SPD', -25::numeric, 4, 30::numeric, 'SLOW', 'Sepultado: -25% de velocidad durante 4 rondas.'))
+  AS v(effect_type, stat_code, percent_amount, duration_turns, chance_percent, status_code, description);
+
+-- Lanzazo del Rey
+INSERT INTO skills (code, name, skill_type, damage_school, element_id, target_type, base_value, scaling_stat, scaling_multiplier, hits, mana_cost, is_passive, learn_method, learn_level, learn_gold_cost, description)
+SELECT 'MONSTRUO_LANZAZO', 'Lanzazo del Rey', 'ATAQUE', 'FISICO', (SELECT id FROM elements WHERE code = 'LIGHTNING'), 'ENEMY', 5, 'ATK', 1.35, 1, 12, FALSE, 'LEVEL', 1, 0, 'Clava la lanza cargada de rayo. Puede dejar paralizado al objetivo.'
+WHERE NOT EXISTS (SELECT 1 FROM skills WHERE code = 'MONSTRUO_LANZAZO');
+UPDATE skills SET name = 'Lanzazo del Rey', skill_type = 'ATAQUE', damage_school = 'FISICO', element_id = (SELECT id FROM elements WHERE code = 'LIGHTNING'), target_type = 'ENEMY', base_value = 5, scaling_stat = 'ATK', scaling_multiplier = 1.35, hits = 1, mana_cost = 12, is_passive = FALSE, learn_method = 'LEVEL', learn_level = 1, learn_gold_cost = 0, description = 'Clava la lanza cargada de rayo. Puede dejar paralizado al objetivo.' WHERE code = 'MONSTRUO_LANZAZO';
+DELETE FROM skill_effects WHERE skill_id = (SELECT id FROM skills WHERE code = 'MONSTRUO_LANZAZO');
+INSERT INTO skill_effects (skill_id, effect_type, stat_code, percent_amount, duration_turns, chance_percent, status_code, description)
+SELECT (SELECT id FROM skills WHERE code = 'MONSTRUO_LANZAZO'), v.* FROM (VALUES ('PARALYZE', NULL, NULL::numeric, 4, 20::numeric, 'PARALYZE', 'Parálisis: puede perder su turno durante 4 rondas.'))
+  AS v(effect_type, stat_code, percent_amount, duration_turns, chance_percent, status_code, description);
+
+-- Escudo de Tormenta
+INSERT INTO skills (code, name, skill_type, damage_school, element_id, target_type, base_value, scaling_stat, scaling_multiplier, hits, mana_cost, is_passive, learn_method, learn_level, learn_gold_cost, description)
+SELECT 'MONSTRUO_ESCUDO_TORMENTA', 'Escudo de Tormenta', 'BUFF', NULL, NULL, 'SELF', NULL, NULL, NULL, 1, 12, FALSE, 'LEVEL', 1, 0, 'Se rodea de rayos que lo protegen. +30% de defensa y +30% de defensa mágica durante 2 rondas.'
+WHERE NOT EXISTS (SELECT 1 FROM skills WHERE code = 'MONSTRUO_ESCUDO_TORMENTA');
+UPDATE skills SET name = 'Escudo de Tormenta', skill_type = 'BUFF', damage_school = NULL, element_id = NULL, target_type = 'SELF', base_value = NULL, scaling_stat = NULL, scaling_multiplier = NULL, hits = 1, mana_cost = 12, is_passive = FALSE, learn_method = 'LEVEL', learn_level = 1, learn_gold_cost = 0, description = 'Se rodea de rayos que lo protegen. +30% de defensa y +30% de defensa mágica durante 2 rondas.' WHERE code = 'MONSTRUO_ESCUDO_TORMENTA';
+DELETE FROM skill_effects WHERE skill_id = (SELECT id FROM skills WHERE code = 'MONSTRUO_ESCUDO_TORMENTA');
+INSERT INTO skill_effects (skill_id, effect_type, stat_code, percent_amount, duration_turns, chance_percent, status_code, description)
+SELECT (SELECT id FROM skills WHERE code = 'MONSTRUO_ESCUDO_TORMENTA'), v.* FROM (VALUES ('STAT_MOD', 'DEF', 30::numeric, 2, NULL::numeric, NULL, '+30% de defensa durante 2 rondas.'), ('STAT_MOD', 'MAGIC_DEF', 30::numeric, 2, NULL::numeric, NULL, '+30% de defensa mágica durante 2 rondas.'))
+  AS v(effect_type, stat_code, percent_amount, duration_turns, chance_percent, status_code, description);
+
+-- Cabra Montés
+INSERT INTO monsters (code, name, zone_id, rarity, base_level, min_spawn_level, max_spawn_level, base_hp, base_atk, base_def, base_magic_atk, base_magic_def, base_spd, base_evasion, base_crit_chance, base_crit_damage, xp_reward, gold_reward, description, category, element_id)
+SELECT 'CABRA_MONTES', 'Cabra Montés', 2, 'COMMON', 16, 16, 19, 1116, 78, 102, 39, 97, 52, 13.5, 9, 50, 500, 145, 'Cabra de cuernos en espiral que salta de roca en roca. Embiste a quien se acerca a su ladera.', 'BESTIA', NULL
+WHERE NOT EXISTS (SELECT 1 FROM monsters WHERE code = 'CABRA_MONTES');
+UPDATE monsters SET name = 'Cabra Montés', zone_id = 2, rarity = 'COMMON', base_level = 16, min_spawn_level = 16, max_spawn_level = 19, base_hp = 1116, base_atk = 78, base_def = 102, base_magic_atk = 39, base_magic_def = 97, base_spd = 52, base_evasion = 13.5, base_crit_chance = 9, base_crit_damage = 50, xp_reward = 500, gold_reward = 145, description = 'Cabra de cuernos en espiral que salta de roca en roca. Embiste a quien se acerca a su ladera.', category = 'BESTIA', element_id = NULL WHERE code = 'CABRA_MONTES';
+DELETE FROM monster_level_scalings WHERE monster_id = (SELECT id FROM monsters WHERE code = 'CABRA_MONTES');
+INSERT INTO monster_level_scalings (monster_id, level, hp, atk, def, magic_atk, magic_def, spd, evasion, crit_chance, crit_damage, elemental_damage)
+SELECT (SELECT id FROM monsters WHERE code = 'CABRA_MONTES'), v.* FROM (VALUES
+  (16, 1116, 78, 102, 39, 97, 52, 13.5, 9, 50, 0),
+  (19, 1330, 90, 116, 45, 111, 60, 14.4, 9.6, 50, 0),
+  (30, 2114, 137, 168, 68, 160, 88, 17.7, 11.8, 50, 0)
+) AS v(level, hp, atk, def, magic_atk, magic_def, spd, evasion, crit_chance, crit_damage, elemental_damage);
+DELETE FROM monster_element_resistances WHERE monster_id = (SELECT id FROM monsters WHERE code = 'CABRA_MONTES');
+INSERT INTO monster_element_resistances (monster_id, element_id, resistance_percent)
+SELECT (SELECT id FROM monsters WHERE code = 'CABRA_MONTES'), e.id, COALESCE(v.pct, 0) FROM elements e LEFT JOIN (VALUES ('EARTH', 15), ('WIND', -20)) AS v(code, pct) ON v.code = e.code;
+DELETE FROM monster_drops WHERE monster_id = (SELECT id FROM monsters WHERE code = 'CABRA_MONTES');
+INSERT INTO monster_drops (monster_id, item_id, drop_chance_percent, min_quantity, max_quantity)
+SELECT (SELECT id FROM monsters WHERE code = 'CABRA_MONTES'), i.id, v.pct, v.mn, v.mx FROM (VALUES ('CUERNO_CABRA_MONTES', 30, 1, 2), ('HIERBA_CURATIVA', 10, 1, 2), ('HUEVO_POCO_COMUN', 3, 1, 1)) AS v(code, pct, mn, mx)
+JOIN items i ON i.code = v.code;
+DELETE FROM monster_skills WHERE monster_id = (SELECT id FROM monsters WHERE code = 'CABRA_MONTES');
+INSERT INTO monster_skills (monster_id, skill_id, use_chance_percent)
+SELECT (SELECT id FROM monsters WHERE code = 'CABRA_MONTES'), s.id, v.pct FROM (VALUES ('MONSTRUO_CORNADA', 25)) AS v(code, pct) JOIN skills s ON s.code = v.code;
+
+-- Orco de Montaña
+INSERT INTO monsters (code, name, zone_id, rarity, base_level, min_spawn_level, max_spawn_level, base_hp, base_atk, base_def, base_magic_atk, base_magic_def, base_spd, base_evasion, base_crit_chance, base_crit_damage, xp_reward, gold_reward, description, category, element_id)
+SELECT 'ORCO_MONTANA', 'Orco de Montaña', 2, 'COMMON', 16, 16, 20, 1293, 81, 112, 41, 82, 38, 9.5, 9, 50, 500, 145, 'Orco de piel gris y hacha mellada. Bajan en bandas a asaltar las caravanas del Paso.', 'HUMANOIDE', NULL
+WHERE NOT EXISTS (SELECT 1 FROM monsters WHERE code = 'ORCO_MONTANA');
+UPDATE monsters SET name = 'Orco de Montaña', zone_id = 2, rarity = 'COMMON', base_level = 16, min_spawn_level = 16, max_spawn_level = 20, base_hp = 1293, base_atk = 81, base_def = 112, base_magic_atk = 41, base_magic_def = 82, base_spd = 38, base_evasion = 9.5, base_crit_chance = 9, base_crit_damage = 50, xp_reward = 500, gold_reward = 145, description = 'Orco de piel gris y hacha mellada. Bajan en bandas a asaltar las caravanas del Paso.', category = 'HUMANOIDE', element_id = NULL WHERE code = 'ORCO_MONTANA';
+DELETE FROM monster_level_scalings WHERE monster_id = (SELECT id FROM monsters WHERE code = 'ORCO_MONTANA');
+INSERT INTO monster_level_scalings (monster_id, level, hp, atk, def, magic_atk, magic_def, spd, evasion, crit_chance, crit_damage, elemental_damage)
+SELECT (SELECT id FROM monsters WHERE code = 'ORCO_MONTANA'), v.* FROM (VALUES
+  (16, 1293, 81, 112, 41, 82, 38, 9.5, 9, 50, 0),
+  (20, 1623, 99, 133, 50, 98, 46, 10.7, 9.8, 50, 0),
+  (30, 2448, 143, 186, 72, 136, 65, 13.7, 11.8, 50, 0)
+) AS v(level, hp, atk, def, magic_atk, magic_def, spd, evasion, crit_chance, crit_damage, elemental_damage);
+DELETE FROM monster_element_resistances WHERE monster_id = (SELECT id FROM monsters WHERE code = 'ORCO_MONTANA');
+INSERT INTO monster_element_resistances (monster_id, element_id, resistance_percent)
+SELECT (SELECT id FROM monsters WHERE code = 'ORCO_MONTANA'), e.id, COALESCE(v.pct, 0) FROM elements e LEFT JOIN (VALUES ('EARTH', 15), ('FIRE', -20)) AS v(code, pct) ON v.code = e.code;
+DELETE FROM monster_drops WHERE monster_id = (SELECT id FROM monsters WHERE code = 'ORCO_MONTANA');
+INSERT INTO monster_drops (monster_id, item_id, drop_chance_percent, min_quantity, max_quantity)
+SELECT (SELECT id FROM monsters WHERE code = 'ORCO_MONTANA'), i.id, v.pct, v.mn, v.mx FROM (VALUES ('COLMILLO_DE_ORCO', 30, 1, 2), ('MINERAL_DE_ACERO', 8, 1, 1), ('CARBON', 10, 1, 2), ('HUEVO_POCO_COMUN', 3, 1, 1)) AS v(code, pct, mn, mx)
+JOIN items i ON i.code = v.code;
+DELETE FROM monster_skills WHERE monster_id = (SELECT id FROM monsters WHERE code = 'ORCO_MONTANA');
+INSERT INTO monster_skills (monster_id, skill_id, use_chance_percent)
+SELECT (SELECT id FROM monsters WHERE code = 'ORCO_MONTANA'), s.id, v.pct FROM (VALUES ('MONSTRUO_GOLPE_BRUTAL', 25)) AS v(code, pct) JOIN skills s ON s.code = v.code;
+
+-- Lobo de las Nieves
+INSERT INTO monsters (code, name, zone_id, rarity, base_level, min_spawn_level, max_spawn_level, base_hp, base_atk, base_def, base_magic_atk, base_magic_def, base_spd, base_evasion, base_crit_chance, base_crit_damage, xp_reward, gold_reward, description, category, element_id)
+SELECT 'LOBO_NIEVE', 'Lobo de las Nieves', 2, 'COMMON', 17, 17, 23, 1250, 78, 112, 39, 96, 53, 9.8, 12.2, 50, 525, 150, 'Lobo de pelaje blanco que caza en manada entre la nieve. Su mordida congela la herida.', 'BESTIA', (SELECT id FROM elements WHERE code = 'ICE')
+WHERE NOT EXISTS (SELECT 1 FROM monsters WHERE code = 'LOBO_NIEVE');
+UPDATE monsters SET name = 'Lobo de las Nieves', zone_id = 2, rarity = 'COMMON', base_level = 17, min_spawn_level = 17, max_spawn_level = 23, base_hp = 1250, base_atk = 78, base_def = 112, base_magic_atk = 39, base_magic_def = 96, base_spd = 53, base_evasion = 9.8, base_crit_chance = 12.2, base_crit_damage = 50, xp_reward = 525, gold_reward = 150, description = 'Lobo de pelaje blanco que caza en manada entre la nieve. Su mordida congela la herida.', category = 'BESTIA', element_id = (SELECT id FROM elements WHERE code = 'ICE') WHERE code = 'LOBO_NIEVE';
+DELETE FROM monster_level_scalings WHERE monster_id = (SELECT id FROM monsters WHERE code = 'LOBO_NIEVE');
+INSERT INTO monster_level_scalings (monster_id, level, hp, atk, def, magic_atk, magic_def, spd, evasion, crit_chance, crit_damage, elemental_damage)
+SELECT (SELECT id FROM monsters WHERE code = 'LOBO_NIEVE'), v.* FROM (VALUES
+  (17, 1250, 78, 112, 39, 96, 53, 9.8, 12.2, 50, 0),
+  (23, 1700, 102, 142, 51, 122, 68, 11.6, 13.4, 50, 0),
+  (30, 2225, 130, 177, 65, 152, 85, 13.7, 14.8, 50, 0)
+) AS v(level, hp, atk, def, magic_atk, magic_def, spd, evasion, crit_chance, crit_damage, elemental_damage);
+DELETE FROM monster_element_resistances WHERE monster_id = (SELECT id FROM monsters WHERE code = 'LOBO_NIEVE');
+INSERT INTO monster_element_resistances (monster_id, element_id, resistance_percent)
+SELECT (SELECT id FROM monsters WHERE code = 'LOBO_NIEVE'), e.id, COALESCE(v.pct, 0) FROM elements e LEFT JOIN (VALUES ('ICE', 40), ('FIRE', -40)) AS v(code, pct) ON v.code = e.code;
+DELETE FROM monster_drops WHERE monster_id = (SELECT id FROM monsters WHERE code = 'LOBO_NIEVE');
+INSERT INTO monster_drops (monster_id, item_id, drop_chance_percent, min_quantity, max_quantity)
+SELECT (SELECT id FROM monsters WHERE code = 'LOBO_NIEVE'), i.id, v.pct, v.mn, v.mx FROM (VALUES ('PIEL_LOBO_NIEVE', 30, 1, 2), ('CUERO_CRUDO', 12, 1, 2), ('HUEVO_POCO_COMUN', 3, 1, 1)) AS v(code, pct, mn, mx)
+JOIN items i ON i.code = v.code;
+DELETE FROM monster_skills WHERE monster_id = (SELECT id FROM monsters WHERE code = 'LOBO_NIEVE');
+INSERT INTO monster_skills (monster_id, skill_id, use_chance_percent)
+SELECT (SELECT id FROM monsters WHERE code = 'LOBO_NIEVE'), s.id, v.pct FROM (VALUES ('MONSTRUO_MORDIDA_HELADA', 30), ('MONSTRUO_AULLIDO_MANADA', 15)) AS v(code, pct) JOIN skills s ON s.code = v.code;
+
+-- Minero Corrompido
+INSERT INTO monsters (code, name, zone_id, rarity, base_level, min_spawn_level, max_spawn_level, base_hp, base_atk, base_def, base_magic_atk, base_magic_def, base_spd, base_evasion, base_crit_chance, base_crit_damage, xp_reward, gold_reward, description, category, element_id)
+SELECT 'MINERO_CORROMPIDO', 'Minero Corrompido', 2, 'COMMON', 17, 17, 21, 1250, 82, 123, 41, 91, 42, 9.8, 9.2, 50, 525, 150, 'Minero enano que se quedó en las Minas Abandonadas cuando las cerraron. Algo en lo profundo le ennegreció los ojos.', 'HUMANOIDE', (SELECT id FROM elements WHERE code = 'EARTH')
+WHERE NOT EXISTS (SELECT 1 FROM monsters WHERE code = 'MINERO_CORROMPIDO');
+UPDATE monsters SET name = 'Minero Corrompido', zone_id = 2, rarity = 'COMMON', base_level = 17, min_spawn_level = 17, max_spawn_level = 21, base_hp = 1250, base_atk = 82, base_def = 123, base_magic_atk = 41, base_magic_def = 91, base_spd = 42, base_evasion = 9.8, base_crit_chance = 9.2, base_crit_damage = 50, xp_reward = 525, gold_reward = 150, description = 'Minero enano que se quedó en las Minas Abandonadas cuando las cerraron. Algo en lo profundo le ennegreció los ojos.', category = 'HUMANOIDE', element_id = (SELECT id FROM elements WHERE code = 'EARTH') WHERE code = 'MINERO_CORROMPIDO';
+DELETE FROM monster_level_scalings WHERE monster_id = (SELECT id FROM monsters WHERE code = 'MINERO_CORROMPIDO');
+INSERT INTO monster_level_scalings (monster_id, level, hp, atk, def, magic_atk, magic_def, spd, evasion, crit_chance, crit_damage, elemental_damage)
+SELECT (SELECT id FROM monsters WHERE code = 'MINERO_CORROMPIDO'), v.* FROM (VALUES
+  (17, 1250, 82, 123, 41, 91, 42, 9.8, 9.2, 50, 0),
+  (21, 1550, 99, 145, 49, 108, 50, 11, 10, 50, 0),
+  (30, 2225, 137, 195, 68, 144, 68, 13.7, 11.8, 50, 0)
+) AS v(level, hp, atk, def, magic_atk, magic_def, spd, evasion, crit_chance, crit_damage, elemental_damage);
+DELETE FROM monster_element_resistances WHERE monster_id = (SELECT id FROM monsters WHERE code = 'MINERO_CORROMPIDO');
+INSERT INTO monster_element_resistances (monster_id, element_id, resistance_percent)
+SELECT (SELECT id FROM monsters WHERE code = 'MINERO_CORROMPIDO'), e.id, COALESCE(v.pct, 0) FROM elements e LEFT JOIN (VALUES ('EARTH', 20), ('DARK', 20), ('LIGHT', -40)) AS v(code, pct) ON v.code = e.code;
+DELETE FROM monster_drops WHERE monster_id = (SELECT id FROM monsters WHERE code = 'MINERO_CORROMPIDO');
+INSERT INTO monster_drops (monster_id, item_id, drop_chance_percent, min_quantity, max_quantity)
+SELECT (SELECT id FROM monsters WHERE code = 'MINERO_CORROMPIDO'), i.id, v.pct, v.mn, v.mx FROM (VALUES ('PICO_CORROMPIDO', 30, 1, 2), ('MINERAL_DE_HIERRO', 12, 1, 2), ('CARBON', 15, 1, 2), ('MINERAL_DE_ACERO', 8, 1, 1)) AS v(code, pct, mn, mx)
+JOIN items i ON i.code = v.code;
+DELETE FROM monster_skills WHERE monster_id = (SELECT id FROM monsters WHERE code = 'MINERO_CORROMPIDO');
+INSERT INTO monster_skills (monster_id, skill_id, use_chance_percent)
+SELECT (SELECT id FROM monsters WHERE code = 'MINERO_CORROMPIDO'), s.id, v.pct FROM (VALUES ('MONSTRUO_GOLPE_PICO', 30)) AS v(code, pct) JOIN skills s ON s.code = v.code;
+
+-- Murciélago de Caverna
+INSERT INTO monsters (code, name, zone_id, rarity, base_level, min_spawn_level, max_spawn_level, base_hp, base_atk, base_def, base_magic_atk, base_magic_def, base_spd, base_evasion, base_crit_chance, base_crit_damage, xp_reward, gold_reward, description, category, element_id)
+SELECT 'MURCIELAGO_CAVERNA', 'Murciélago de Caverna', 2, 'COMMON', 17, 17, 21, 1000, 70, 90, 35, 102, 61, 15.8, 9.2, 50, 525, 150, 'Murciélago grande como un perro que anida en los túneles de las minas. Su chillido aturde.', 'BESTIA', (SELECT id FROM elements WHERE code = 'DARK')
+WHERE NOT EXISTS (SELECT 1 FROM monsters WHERE code = 'MURCIELAGO_CAVERNA');
+UPDATE monsters SET name = 'Murciélago de Caverna', zone_id = 2, rarity = 'COMMON', base_level = 17, min_spawn_level = 17, max_spawn_level = 21, base_hp = 1000, base_atk = 70, base_def = 90, base_magic_atk = 35, base_magic_def = 102, base_spd = 61, base_evasion = 15.8, base_crit_chance = 9.2, base_crit_damage = 50, xp_reward = 525, gold_reward = 150, description = 'Murciélago grande como un perro que anida en los túneles de las minas. Su chillido aturde.', category = 'BESTIA', element_id = (SELECT id FROM elements WHERE code = 'DARK') WHERE code = 'MURCIELAGO_CAVERNA';
+DELETE FROM monster_level_scalings WHERE monster_id = (SELECT id FROM monsters WHERE code = 'MURCIELAGO_CAVERNA');
+INSERT INTO monster_level_scalings (monster_id, level, hp, atk, def, magic_atk, magic_def, spd, evasion, crit_chance, crit_damage, elemental_damage)
+SELECT (SELECT id FROM monsters WHERE code = 'MURCIELAGO_CAVERNA'), v.* FROM (VALUES
+  (17, 1000, 70, 90, 35, 102, 61, 15.8, 9.2, 50, 0),
+  (21, 1240, 85, 106, 42, 120, 73, 17, 10, 50, 0),
+  (30, 1780, 117, 142, 59, 160, 99, 19.7, 11.8, 50, 0)
+) AS v(level, hp, atk, def, magic_atk, magic_def, spd, evasion, crit_chance, crit_damage, elemental_damage);
+DELETE FROM monster_element_resistances WHERE monster_id = (SELECT id FROM monsters WHERE code = 'MURCIELAGO_CAVERNA');
+INSERT INTO monster_element_resistances (monster_id, element_id, resistance_percent)
+SELECT (SELECT id FROM monsters WHERE code = 'MURCIELAGO_CAVERNA'), e.id, COALESCE(v.pct, 0) FROM elements e LEFT JOIN (VALUES ('DARK', 25), ('LIGHT', -40), ('WIND', -20)) AS v(code, pct) ON v.code = e.code;
+DELETE FROM monster_drops WHERE monster_id = (SELECT id FROM monsters WHERE code = 'MURCIELAGO_CAVERNA');
+INSERT INTO monster_drops (monster_id, item_id, drop_chance_percent, min_quantity, max_quantity)
+SELECT (SELECT id FROM monsters WHERE code = 'MURCIELAGO_CAVERNA'), i.id, v.pct, v.mn, v.mx FROM (VALUES ('MEMBRANA_MURCIELAGO', 30, 1, 2), ('POLVO_ARCANO', 6, 1, 1), ('HUEVO_POCO_COMUN', 3, 1, 1)) AS v(code, pct, mn, mx)
+JOIN items i ON i.code = v.code;
+DELETE FROM monster_skills WHERE monster_id = (SELECT id FROM monsters WHERE code = 'MURCIELAGO_CAVERNA');
+INSERT INTO monster_skills (monster_id, skill_id, use_chance_percent)
+SELECT (SELECT id FROM monsters WHERE code = 'MURCIELAGO_CAVERNA'), s.id, v.pct FROM (VALUES ('MONSTRUO_CHILLIDO', 30)) AS v(code, pct) JOIN skills s ON s.code = v.code;
+
+-- Centinela de Piedra
+INSERT INTO monsters (code, name, zone_id, rarity, base_level, min_spawn_level, max_spawn_level, base_hp, base_atk, base_def, base_magic_atk, base_magic_def, base_spd, base_evasion, base_crit_chance, base_crit_damage, xp_reward, gold_reward, description, category, element_id)
+SELECT 'CENTINELA_PIEDRA', 'Centinela de Piedra', 2, 'COMMON', 19, 19, 26, 1540, 86, 171, 43, 116, 32, 10.4, 9.6, 50, 575, 165, 'Guardián de roca tallado por los enanos para vigilar las vetas. Sigue cumpliendo la orden, aunque ya no queda nadie.', 'ELEMENTAL', (SELECT id FROM elements WHERE code = 'EARTH')
+WHERE NOT EXISTS (SELECT 1 FROM monsters WHERE code = 'CENTINELA_PIEDRA');
+UPDATE monsters SET name = 'Centinela de Piedra', zone_id = 2, rarity = 'COMMON', base_level = 19, min_spawn_level = 19, max_spawn_level = 26, base_hp = 1540, base_atk = 86, base_def = 171, base_magic_atk = 43, base_magic_def = 116, base_spd = 32, base_evasion = 10.4, base_crit_chance = 9.6, base_crit_damage = 50, xp_reward = 575, gold_reward = 165, description = 'Guardián de roca tallado por los enanos para vigilar las vetas. Sigue cumpliendo la orden, aunque ya no queda nadie.', category = 'ELEMENTAL', element_id = (SELECT id FROM elements WHERE code = 'EARTH') WHERE code = 'CENTINELA_PIEDRA';
+DELETE FROM monster_level_scalings WHERE monster_id = (SELECT id FROM monsters WHERE code = 'CENTINELA_PIEDRA');
+INSERT INTO monster_level_scalings (monster_id, level, hp, atk, def, magic_atk, magic_def, spd, evasion, crit_chance, crit_damage, elemental_damage)
+SELECT (SELECT id FROM monsters WHERE code = 'CENTINELA_PIEDRA'), v.* FROM (VALUES
+  (19, 1540, 86, 171, 43, 116, 32, 10.4, 9.6, 50, 0),
+  (26, 2118, 114, 220, 57, 149, 42, 12.5, 11, 50, 0),
+  (30, 2448, 130, 248, 65, 168, 48, 13.7, 11.8, 50, 0)
+) AS v(level, hp, atk, def, magic_atk, magic_def, spd, evasion, crit_chance, crit_damage, elemental_damage);
+DELETE FROM monster_element_resistances WHERE monster_id = (SELECT id FROM monsters WHERE code = 'CENTINELA_PIEDRA');
+INSERT INTO monster_element_resistances (monster_id, element_id, resistance_percent)
+SELECT (SELECT id FROM monsters WHERE code = 'CENTINELA_PIEDRA'), e.id, COALESCE(v.pct, 0) FROM elements e LEFT JOIN (VALUES ('EARTH', 35), ('FIRE', 15), ('WIND', -40)) AS v(code, pct) ON v.code = e.code;
+DELETE FROM monster_drops WHERE monster_id = (SELECT id FROM monsters WHERE code = 'CENTINELA_PIEDRA');
+INSERT INTO monster_drops (monster_id, item_id, drop_chance_percent, min_quantity, max_quantity)
+SELECT (SELECT id FROM monsters WHERE code = 'CENTINELA_PIEDRA'), i.id, v.pct, v.mn, v.mx FROM (VALUES ('FRAGMENTO_PIEDRA_VIVA', 30, 1, 2), ('POLVO_DE_PIEDRA', 15, 1, 2), ('GEMA_COMUN', 5, 1, 1)) AS v(code, pct, mn, mx)
+JOIN items i ON i.code = v.code;
+DELETE FROM monster_skills WHERE monster_id = (SELECT id FROM monsters WHERE code = 'CENTINELA_PIEDRA');
+INSERT INTO monster_skills (monster_id, skill_id, use_chance_percent)
+SELECT (SELECT id FROM monsters WHERE code = 'CENTINELA_PIEDRA'), s.id, v.pct FROM (VALUES ('MONSTRUO_PIEL_PIEDRA', 25)) AS v(code, pct) JOIN skills s ON s.code = v.code;
+
+-- Espectro Helado
+INSERT INTO monsters (code, name, zone_id, rarity, base_level, min_spawn_level, max_spawn_level, base_hp, base_atk, base_def, base_magic_atk, base_magic_def, base_spd, base_evasion, base_crit_chance, base_crit_damage, xp_reward, gold_reward, description, category, element_id)
+SELECT 'ESPECTRO_HELADO', 'Espectro Helado', 2, 'COMMON', 20, 20, 24, 1254, 36, 95, 95, 150, 48, 14.7, 9.8, 50, 600, 170, 'El alma de un viajero que se perdió en la nieve. Vaga entre los pinos buscando calor.', 'ESPECTRO', (SELECT id FROM elements WHERE code = 'ICE')
+WHERE NOT EXISTS (SELECT 1 FROM monsters WHERE code = 'ESPECTRO_HELADO');
+UPDATE monsters SET name = 'Espectro Helado', zone_id = 2, rarity = 'COMMON', base_level = 20, min_spawn_level = 20, max_spawn_level = 24, base_hp = 1254, base_atk = 36, base_def = 95, base_magic_atk = 95, base_magic_def = 150, base_spd = 48, base_evasion = 14.7, base_crit_chance = 9.8, base_crit_damage = 50, xp_reward = 600, gold_reward = 170, description = 'El alma de un viajero que se perdió en la nieve. Vaga entre los pinos buscando calor.', category = 'ESPECTRO', element_id = (SELECT id FROM elements WHERE code = 'ICE') WHERE code = 'ESPECTRO_HELADO';
+DELETE FROM monster_level_scalings WHERE monster_id = (SELECT id FROM monsters WHERE code = 'ESPECTRO_HELADO');
+INSERT INTO monster_level_scalings (monster_id, level, hp, atk, def, magic_atk, magic_def, spd, evasion, crit_chance, crit_damage, elemental_damage)
+SELECT (SELECT id FROM monsters WHERE code = 'ESPECTRO_HELADO'), v.* FROM (VALUES
+  (20, 1254, 36, 95, 95, 150, 48, 14.7, 9.8, 50, 0),
+  (24, 1509, 42, 110, 111, 173, 56, 15.9, 10.6, 50, 0),
+  (30, 1891, 52, 133, 137, 208, 68, 17.7, 11.8, 50, 0)
+) AS v(level, hp, atk, def, magic_atk, magic_def, spd, evasion, crit_chance, crit_damage, elemental_damage);
+DELETE FROM monster_element_resistances WHERE monster_id = (SELECT id FROM monsters WHERE code = 'ESPECTRO_HELADO');
+INSERT INTO monster_element_resistances (monster_id, element_id, resistance_percent)
+SELECT (SELECT id FROM monsters WHERE code = 'ESPECTRO_HELADO'), e.id, COALESCE(v.pct, 0) FROM elements e LEFT JOIN (VALUES ('ICE', 50), ('DARK', 20), ('FIRE', -50), ('LIGHT', -30)) AS v(code, pct) ON v.code = e.code;
+DELETE FROM monster_drops WHERE monster_id = (SELECT id FROM monsters WHERE code = 'ESPECTRO_HELADO');
+INSERT INTO monster_drops (monster_id, item_id, drop_chance_percent, min_quantity, max_quantity)
+SELECT (SELECT id FROM monsters WHERE code = 'ESPECTRO_HELADO'), i.id, v.pct, v.mn, v.mx FROM (VALUES ('ESENCIA_ESPECTRAL_HELADA', 30, 1, 2), ('POLVO_ARCANO', 10, 1, 1)) AS v(code, pct, mn, mx)
+JOIN items i ON i.code = v.code;
+DELETE FROM monster_skills WHERE monster_id = (SELECT id FROM monsters WHERE code = 'ESPECTRO_HELADO');
+INSERT INTO monster_skills (monster_id, skill_id, use_chance_percent)
+SELECT (SELECT id FROM monsters WHERE code = 'ESPECTRO_HELADO'), s.id, v.pct FROM (VALUES ('MONSTRUO_TOQUE_GELIDO', 30)) AS v(code, pct) JOIN skills s ON s.code = v.code;
+
+-- Oso de las Cumbres
+INSERT INTO monsters (code, name, zone_id, rarity, base_level, min_spawn_level, max_spawn_level, base_hp, base_atk, base_def, base_magic_atk, base_magic_def, base_spd, base_evasion, base_crit_chance, base_crit_damage, xp_reward, gold_reward, description, category, element_id)
+SELECT 'OSO_CUMBRES', 'Oso de las Cumbres', 2, 'COMMON', 21, 21, 30, 2093, 108, 145, 54, 102, 43, 11, 10, 50, 625, 175, 'Oso enorme de pelo pardo y escarcha en el lomo. Defiende su territorio a zarpazos.', 'BESTIA', NULL
+WHERE NOT EXISTS (SELECT 1 FROM monsters WHERE code = 'OSO_CUMBRES');
+UPDATE monsters SET name = 'Oso de las Cumbres', zone_id = 2, rarity = 'COMMON', base_level = 21, min_spawn_level = 21, max_spawn_level = 30, base_hp = 2093, base_atk = 108, base_def = 145, base_magic_atk = 54, base_magic_def = 102, base_spd = 43, base_evasion = 11, base_crit_chance = 10, base_crit_damage = 50, xp_reward = 625, gold_reward = 175, description = 'Oso enorme de pelo pardo y escarcha en el lomo. Defiende su territorio a zarpazos.', category = 'BESTIA', element_id = NULL WHERE code = 'OSO_CUMBRES';
+DELETE FROM monster_level_scalings WHERE monster_id = (SELECT id FROM monsters WHERE code = 'OSO_CUMBRES');
+INSERT INTO monster_level_scalings (monster_id, level, hp, atk, def, magic_atk, magic_def, spd, evasion, crit_chance, crit_damage, elemental_damage)
+SELECT (SELECT id FROM monsters WHERE code = 'OSO_CUMBRES'), v.* FROM (VALUES
+  (21, 2093, 108, 145, 54, 102, 43, 11, 10, 50, 0),
+  (30, 3004, 150, 195, 75, 136, 58, 13.7, 11.8, 50, 0)
+) AS v(level, hp, atk, def, magic_atk, magic_def, spd, evasion, crit_chance, crit_damage, elemental_damage);
+DELETE FROM monster_element_resistances WHERE monster_id = (SELECT id FROM monsters WHERE code = 'OSO_CUMBRES');
+INSERT INTO monster_element_resistances (monster_id, element_id, resistance_percent)
+SELECT (SELECT id FROM monsters WHERE code = 'OSO_CUMBRES'), e.id, COALESCE(v.pct, 0) FROM elements e LEFT JOIN (VALUES ('ICE', 25), ('FIRE', -25)) AS v(code, pct) ON v.code = e.code;
+DELETE FROM monster_drops WHERE monster_id = (SELECT id FROM monsters WHERE code = 'OSO_CUMBRES');
+INSERT INTO monster_drops (monster_id, item_id, drop_chance_percent, min_quantity, max_quantity)
+SELECT (SELECT id FROM monsters WHERE code = 'OSO_CUMBRES'), i.id, v.pct, v.mn, v.mx FROM (VALUES ('GARRA_OSO_CUMBRES', 30, 1, 2), ('MIEL_ABEJA_ANTIGUA', 6, 1, 1), ('HUEVO_POCO_COMUN', 3, 1, 1)) AS v(code, pct, mn, mx)
+JOIN items i ON i.code = v.code;
+DELETE FROM monster_skills WHERE monster_id = (SELECT id FROM monsters WHERE code = 'OSO_CUMBRES');
+INSERT INTO monster_skills (monster_id, skill_id, use_chance_percent)
+SELECT (SELECT id FROM monsters WHERE code = 'OSO_CUMBRES'), s.id, v.pct FROM (VALUES ('MONSTRUO_ZARPAZO', 30)) AS v(code, pct) JOIN skills s ON s.code = v.code;
+
+-- Sierpe de Hielo
+INSERT INTO monsters (code, name, zone_id, rarity, base_level, min_spawn_level, max_spawn_level, base_hp, base_atk, base_def, base_magic_atk, base_magic_def, base_spd, base_evasion, base_crit_chance, base_crit_damage, xp_reward, gold_reward, description, category, element_id)
+SELECT 'SIERPE_HIELO', 'Sierpe de Hielo', 2, 'COMMON', 21, 21, 25, 1628, 38, 132, 99, 137, 53, 11, 10, 50, 625, 175, 'Serpiente larga de escamas transparentes que nada bajo el hielo del lago. Su aliento congela.', 'DRACOIDE', (SELECT id FROM elements WHERE code = 'ICE')
+WHERE NOT EXISTS (SELECT 1 FROM monsters WHERE code = 'SIERPE_HIELO');
+UPDATE monsters SET name = 'Sierpe de Hielo', zone_id = 2, rarity = 'COMMON', base_level = 21, min_spawn_level = 21, max_spawn_level = 25, base_hp = 1628, base_atk = 38, base_def = 132, base_magic_atk = 99, base_magic_def = 137, base_spd = 53, base_evasion = 11, base_crit_chance = 10, base_crit_damage = 50, xp_reward = 625, gold_reward = 175, description = 'Serpiente larga de escamas transparentes que nada bajo el hielo del lago. Su aliento congela.', category = 'DRACOIDE', element_id = (SELECT id FROM elements WHERE code = 'ICE') WHERE code = 'SIERPE_HIELO';
+DELETE FROM monster_level_scalings WHERE monster_id = (SELECT id FROM monsters WHERE code = 'SIERPE_HIELO');
+INSERT INTO monster_level_scalings (monster_id, level, hp, atk, def, magic_atk, magic_def, spd, evasion, crit_chance, crit_damage, elemental_damage)
+SELECT (SELECT id FROM monsters WHERE code = 'SIERPE_HIELO'), v.* FROM (VALUES
+  (21, 1628, 38, 132, 99, 137, 53, 11, 10, 50, 0),
+  (25, 1943, 44, 152, 116, 158, 61, 12.2, 10.8, 50, 0),
+  (30, 2336, 52, 177, 137, 184, 71, 13.7, 11.8, 50, 0)
+) AS v(level, hp, atk, def, magic_atk, magic_def, spd, evasion, crit_chance, crit_damage, elemental_damage);
+DELETE FROM monster_element_resistances WHERE monster_id = (SELECT id FROM monsters WHERE code = 'SIERPE_HIELO');
+INSERT INTO monster_element_resistances (monster_id, element_id, resistance_percent)
+SELECT (SELECT id FROM monsters WHERE code = 'SIERPE_HIELO'), e.id, COALESCE(v.pct, 0) FROM elements e LEFT JOIN (VALUES ('ICE', 50), ('WATER', 25), ('LIGHTNING', -40), ('FIRE', -30)) AS v(code, pct) ON v.code = e.code;
+DELETE FROM monster_drops WHERE monster_id = (SELECT id FROM monsters WHERE code = 'SIERPE_HIELO');
+INSERT INTO monster_drops (monster_id, item_id, drop_chance_percent, min_quantity, max_quantity)
+SELECT (SELECT id FROM monsters WHERE code = 'SIERPE_HIELO'), i.id, v.pct, v.mn, v.mx FROM (VALUES ('ESCAMA_SIERPE_HIELO', 30, 1, 2), ('GEMA_COMUN', 5, 1, 1), ('HUEVO_POCO_COMUN', 3, 1, 1)) AS v(code, pct, mn, mx)
+JOIN items i ON i.code = v.code;
+DELETE FROM monster_skills WHERE monster_id = (SELECT id FROM monsters WHERE code = 'SIERPE_HIELO');
+INSERT INTO monster_skills (monster_id, skill_id, use_chance_percent)
+SELECT (SELECT id FROM monsters WHERE code = 'SIERPE_HIELO'), s.id, v.pct FROM (VALUES ('MONSTRUO_ALIENTO_HELADO', 30)) AS v(code, pct) JOIN skills s ON s.code = v.code;
+
+-- Troll Salvaje
+INSERT INTO monsters (code, name, zone_id, rarity, base_level, min_spawn_level, max_spawn_level, base_hp, base_atk, base_def, base_magic_atk, base_magic_def, base_spd, base_evasion, base_crit_chance, base_crit_damage, xp_reward, gold_reward, description, category, element_id)
+SELECT 'TROLL_SALVAJE', 'Troll Salvaje', 2, 'COMMON', 22, 22, 27, 2275, 108, 130, 54, 99, 39, 11.3, 10.2, 50, 650, 180, 'Troll de la Garganta del Eco, alto como dos hombres. Sus heridas se cierran solas si no se lo remata rápido.', 'HUMANOIDE', NULL
+WHERE NOT EXISTS (SELECT 1 FROM monsters WHERE code = 'TROLL_SALVAJE');
+UPDATE monsters SET name = 'Troll Salvaje', zone_id = 2, rarity = 'COMMON', base_level = 22, min_spawn_level = 22, max_spawn_level = 27, base_hp = 2275, base_atk = 108, base_def = 130, base_magic_atk = 54, base_magic_def = 99, base_spd = 39, base_evasion = 11.3, base_crit_chance = 10.2, base_crit_damage = 50, xp_reward = 650, gold_reward = 180, description = 'Troll de la Garganta del Eco, alto como dos hombres. Sus heridas se cierran solas si no se lo remata rápido.', category = 'HUMANOIDE', element_id = NULL WHERE code = 'TROLL_SALVAJE';
+DELETE FROM monster_level_scalings WHERE monster_id = (SELECT id FROM monsters WHERE code = 'TROLL_SALVAJE');
+INSERT INTO monster_level_scalings (monster_id, level, hp, atk, def, magic_atk, magic_def, spd, evasion, crit_chance, crit_damage, elemental_damage)
+SELECT (SELECT id FROM monsters WHERE code = 'TROLL_SALVAJE'), v.* FROM (VALUES
+  (22, 2275, 108, 130, 54, 99, 39, 11.3, 10.2, 50, 0),
+  (27, 2800, 130, 154, 65, 117, 47, 12.8, 11.2, 50, 0),
+  (30, 3115, 143, 168, 72, 128, 51, 13.7, 11.8, 50, 0)
+) AS v(level, hp, atk, def, magic_atk, magic_def, spd, evasion, crit_chance, crit_damage, elemental_damage);
+DELETE FROM monster_element_resistances WHERE monster_id = (SELECT id FROM monsters WHERE code = 'TROLL_SALVAJE');
+INSERT INTO monster_element_resistances (monster_id, element_id, resistance_percent)
+SELECT (SELECT id FROM monsters WHERE code = 'TROLL_SALVAJE'), e.id, COALESCE(v.pct, 0) FROM elements e LEFT JOIN (VALUES ('EARTH', 20), ('FIRE', -40)) AS v(code, pct) ON v.code = e.code;
+DELETE FROM monster_drops WHERE monster_id = (SELECT id FROM monsters WHERE code = 'TROLL_SALVAJE');
+INSERT INTO monster_drops (monster_id, item_id, drop_chance_percent, min_quantity, max_quantity)
+SELECT (SELECT id FROM monsters WHERE code = 'TROLL_SALVAJE'), i.id, v.pct, v.mn, v.mx FROM (VALUES ('PIEL_DE_TROLL', 30, 1, 2), ('MINERAL_DE_ACERO', 8, 1, 1), ('POLVO_DE_PIEDRA', 10, 1, 2)) AS v(code, pct, mn, mx)
+JOIN items i ON i.code = v.code;
+DELETE FROM monster_skills WHERE monster_id = (SELECT id FROM monsters WHERE code = 'TROLL_SALVAJE');
+INSERT INTO monster_skills (monster_id, skill_id, use_chance_percent)
+SELECT (SELECT id FROM monsters WHERE code = 'TROLL_SALVAJE'), s.id, v.pct FROM (VALUES ('MONSTRUO_REGENERACION', 25), ('MONSTRUO_GOLPE_BRUTAL', 20)) AS v(code, pct) JOIN skills s ON s.code = v.code;
+
+-- Arpía del Eco
+INSERT INTO monsters (code, name, zone_id, rarity, base_level, min_spawn_level, max_spawn_level, base_hp, base_atk, base_def, base_magic_atk, base_magic_def, base_spd, base_evasion, base_crit_chance, base_crit_damage, xp_reward, gold_reward, description, category, element_id)
+SELECT 'ARPIA_ECO', 'Arpía del Eco', 2, 'COMMON', 22, 22, 27, 1381, 103, 116, 51, 124, 70, 16.3, 13.2, 50, 650, 180, 'Mitad mujer, mitad ave, anida en las paredes de la Garganta. Repite tus palabras para atraerte al borde.', 'BESTIA', (SELECT id FROM elements WHERE code = 'WIND')
+WHERE NOT EXISTS (SELECT 1 FROM monsters WHERE code = 'ARPIA_ECO');
+UPDATE monsters SET name = 'Arpía del Eco', zone_id = 2, rarity = 'COMMON', base_level = 22, min_spawn_level = 22, max_spawn_level = 27, base_hp = 1381, base_atk = 103, base_def = 116, base_magic_atk = 51, base_magic_def = 124, base_spd = 70, base_evasion = 16.3, base_crit_chance = 13.2, base_crit_damage = 50, xp_reward = 650, gold_reward = 180, description = 'Mitad mujer, mitad ave, anida en las paredes de la Garganta. Repite tus palabras para atraerte al borde.', category = 'BESTIA', element_id = (SELECT id FROM elements WHERE code = 'WIND') WHERE code = 'ARPIA_ECO';
+DELETE FROM monster_level_scalings WHERE monster_id = (SELECT id FROM monsters WHERE code = 'ARPIA_ECO');
+INSERT INTO monster_level_scalings (monster_id, level, hp, atk, def, magic_atk, magic_def, spd, evasion, crit_chance, crit_damage, elemental_damage)
+SELECT (SELECT id FROM monsters WHERE code = 'ARPIA_ECO'), v.* FROM (VALUES
+  (22, 1381, 103, 116, 51, 124, 70, 16.3, 13.2, 50, 0),
+  (27, 1700, 124, 138, 62, 147, 84, 17.8, 14.2, 50, 0),
+  (30, 1891, 137, 150, 68, 160, 92, 18.7, 14.8, 50, 0)
+) AS v(level, hp, atk, def, magic_atk, magic_def, spd, evasion, crit_chance, crit_damage, elemental_damage);
+DELETE FROM monster_element_resistances WHERE monster_id = (SELECT id FROM monsters WHERE code = 'ARPIA_ECO');
+INSERT INTO monster_element_resistances (monster_id, element_id, resistance_percent)
+SELECT (SELECT id FROM monsters WHERE code = 'ARPIA_ECO'), e.id, COALESCE(v.pct, 0) FROM elements e LEFT JOIN (VALUES ('WIND', 40), ('EARTH', -30), ('LIGHTNING', -20)) AS v(code, pct) ON v.code = e.code;
+DELETE FROM monster_drops WHERE monster_id = (SELECT id FROM monsters WHERE code = 'ARPIA_ECO');
+INSERT INTO monster_drops (monster_id, item_id, drop_chance_percent, min_quantity, max_quantity)
+SELECT (SELECT id FROM monsters WHERE code = 'ARPIA_ECO'), i.id, v.pct, v.mn, v.mx FROM (VALUES ('PLUMA_ARPIA_ECO', 30, 1, 2), ('PLUMA', 15, 1, 2), ('HUEVO_POCO_COMUN', 3, 1, 1)) AS v(code, pct, mn, mx)
+JOIN items i ON i.code = v.code;
+DELETE FROM monster_skills WHERE monster_id = (SELECT id FROM monsters WHERE code = 'ARPIA_ECO');
+INSERT INTO monster_skills (monster_id, skill_id, use_chance_percent)
+SELECT (SELECT id FROM monsters WHERE code = 'ARPIA_ECO'), s.id, v.pct FROM (VALUES ('MONSTRUO_PICADO', 30)) AS v(code, pct) JOIN skills s ON s.code = v.code;
+
+-- Elemental de Tormenta
+INSERT INTO monsters (code, name, zone_id, rarity, base_level, min_spawn_level, max_spawn_level, base_hp, base_atk, base_def, base_magic_atk, base_magic_def, base_spd, base_evasion, base_crit_chance, base_crit_damage, xp_reward, gold_reward, description, category, element_id)
+SELECT 'ELEMENTAL_TORMENTA', 'Elemental de Tormenta', 2, 'COMMON', 24, 24, 30, 1686, 42, 132, 111, 166, 64, 11.9, 10.6, 50, 700, 195, 'Nube con forma de cuerpo, llena de relámpagos. Aparecen donde cae un rayo de la tormenta del Rey.', 'ELEMENTAL', (SELECT id FROM elements WHERE code = 'LIGHTNING')
+WHERE NOT EXISTS (SELECT 1 FROM monsters WHERE code = 'ELEMENTAL_TORMENTA');
+UPDATE monsters SET name = 'Elemental de Tormenta', zone_id = 2, rarity = 'COMMON', base_level = 24, min_spawn_level = 24, max_spawn_level = 30, base_hp = 1686, base_atk = 42, base_def = 132, base_magic_atk = 111, base_magic_def = 166, base_spd = 64, base_evasion = 11.9, base_crit_chance = 10.6, base_crit_damage = 50, xp_reward = 700, gold_reward = 195, description = 'Nube con forma de cuerpo, llena de relámpagos. Aparecen donde cae un rayo de la tormenta del Rey.', category = 'ELEMENTAL', element_id = (SELECT id FROM elements WHERE code = 'LIGHTNING') WHERE code = 'ELEMENTAL_TORMENTA';
+DELETE FROM monster_level_scalings WHERE monster_id = (SELECT id FROM monsters WHERE code = 'ELEMENTAL_TORMENTA');
+INSERT INTO monster_level_scalings (monster_id, level, hp, atk, def, magic_atk, magic_def, spd, evasion, crit_chance, crit_damage, elemental_damage)
+SELECT (SELECT id FROM monsters WHERE code = 'ELEMENTAL_TORMENTA'), v.* FROM (VALUES
+  (24, 1686, 42, 132, 111, 166, 64, 11.9, 10.6, 50, 0),
+  (30, 2114, 52, 159, 137, 200, 78, 13.7, 11.8, 50, 0)
+) AS v(level, hp, atk, def, magic_atk, magic_def, spd, evasion, crit_chance, crit_damage, elemental_damage);
+DELETE FROM monster_element_resistances WHERE monster_id = (SELECT id FROM monsters WHERE code = 'ELEMENTAL_TORMENTA');
+INSERT INTO monster_element_resistances (monster_id, element_id, resistance_percent)
+SELECT (SELECT id FROM monsters WHERE code = 'ELEMENTAL_TORMENTA'), e.id, COALESCE(v.pct, 0) FROM elements e LEFT JOIN (VALUES ('LIGHTNING', 60), ('WATER', -20), ('EARTH', -40)) AS v(code, pct) ON v.code = e.code;
+DELETE FROM monster_drops WHERE monster_id = (SELECT id FROM monsters WHERE code = 'ELEMENTAL_TORMENTA');
+INSERT INTO monster_drops (monster_id, item_id, drop_chance_percent, min_quantity, max_quantity)
+SELECT (SELECT id FROM monsters WHERE code = 'ELEMENTAL_TORMENTA'), i.id, v.pct, v.mn, v.mx FROM (VALUES ('NUCLEO_TORMENTA', 25, 1, 1), ('POLVO_ARCANO', 10, 1, 1), ('GEMA_DE_PRECISION', 4, 1, 1)) AS v(code, pct, mn, mx)
+JOIN items i ON i.code = v.code;
+DELETE FROM monster_skills WHERE monster_id = (SELECT id FROM monsters WHERE code = 'ELEMENTAL_TORMENTA');
+INSERT INTO monster_skills (monster_id, skill_id, use_chance_percent)
+SELECT (SELECT id FROM monsters WHERE code = 'ELEMENTAL_TORMENTA'), s.id, v.pct FROM (VALUES ('MONSTRUO_DESCARGA', 30), ('MONSTRUO_CADENA_RAYO', 25)) AS v(code, pct) JOIN skills s ON s.code = v.code;
+
+-- Gigante de Hielo
+INSERT INTO monsters (code, name, zone_id, rarity, base_level, min_spawn_level, max_spawn_level, base_hp, base_atk, base_def, base_magic_atk, base_magic_def, base_spd, base_evasion, base_crit_chance, base_crit_damage, xp_reward, gold_reward, description, category, element_id)
+SELECT 'GIGANTE_HIELO', 'Gigante de Hielo', 2, 'RARE', 23, 23, 30, 3672, 135, 180, 67, 141, 43, 11.6, 10.4, 50, 1620, 375, 'Gigante con cristales de hielo creciéndole en la espalda. Baja de las cumbres cuando la tormenta lo despierta.', 'HUMANOIDE', (SELECT id FROM elements WHERE code = 'ICE')
+WHERE NOT EXISTS (SELECT 1 FROM monsters WHERE code = 'GIGANTE_HIELO');
+UPDATE monsters SET name = 'Gigante de Hielo', zone_id = 2, rarity = 'RARE', base_level = 23, min_spawn_level = 23, max_spawn_level = 30, base_hp = 3672, base_atk = 135, base_def = 180, base_magic_atk = 67, base_magic_def = 141, base_spd = 43, base_evasion = 11.6, base_crit_chance = 10.4, base_crit_damage = 50, xp_reward = 1620, gold_reward = 375, description = 'Gigante con cristales de hielo creciéndole en la espalda. Baja de las cumbres cuando la tormenta lo despierta.', category = 'HUMANOIDE', element_id = (SELECT id FROM elements WHERE code = 'ICE') WHERE code = 'GIGANTE_HIELO';
+DELETE FROM monster_level_scalings WHERE monster_id = (SELECT id FROM monsters WHERE code = 'GIGANTE_HIELO');
+INSERT INTO monster_level_scalings (monster_id, level, hp, atk, def, magic_atk, magic_def, spd, evasion, crit_chance, crit_damage, elemental_damage)
+SELECT (SELECT id FROM monsters WHERE code = 'GIGANTE_HIELO'), v.* FROM (VALUES
+  (23, 3672, 135, 180, 67, 141, 43, 11.6, 10.4, 50, 0),
+  (30, 4806, 172, 224, 86, 176, 54, 13.7, 11.8, 50, 0)
+) AS v(level, hp, atk, def, magic_atk, magic_def, spd, evasion, crit_chance, crit_damage, elemental_damage);
+DELETE FROM monster_element_resistances WHERE monster_id = (SELECT id FROM monsters WHERE code = 'GIGANTE_HIELO');
+INSERT INTO monster_element_resistances (monster_id, element_id, resistance_percent)
+SELECT (SELECT id FROM monsters WHERE code = 'GIGANTE_HIELO'), e.id, COALESCE(v.pct, 0) FROM elements e LEFT JOIN (VALUES ('ICE', 50), ('FIRE', -40)) AS v(code, pct) ON v.code = e.code;
+DELETE FROM monster_drops WHERE monster_id = (SELECT id FROM monsters WHERE code = 'GIGANTE_HIELO');
+INSERT INTO monster_drops (monster_id, item_id, drop_chance_percent, min_quantity, max_quantity)
+SELECT (SELECT id FROM monsters WHERE code = 'GIGANTE_HIELO'), i.id, v.pct, v.mn, v.mx FROM (VALUES ('CRISTAL_GIGANTE_HIELO', 30, 1, 2), ('ACERO_REFINADO', 10, 1, 1), ('PIEDRA_ENCANT_MAYOR', 8, 1, 1), ('HUEVO_RARO', 4, 1, 1)) AS v(code, pct, mn, mx)
+JOIN items i ON i.code = v.code;
+DELETE FROM monster_skills WHERE monster_id = (SELECT id FROM monsters WHERE code = 'GIGANTE_HIELO');
+INSERT INTO monster_skills (monster_id, skill_id, use_chance_percent)
+SELECT (SELECT id FROM monsters WHERE code = 'GIGANTE_HIELO'), s.id, v.pct FROM (VALUES ('MONSTRUO_AVALANCHA', 30), ('MONSTRUO_VENTISCA', 25), ('MONSTRUO_GOLPE_BRUTAL', 20)) AS v(code, pct) JOIN skills s ON s.code = v.code;
+
+-- Brujo de la Montaña
+INSERT INTO monsters (code, name, zone_id, rarity, base_level, min_spawn_level, max_spawn_level, base_hp, base_atk, base_def, base_magic_atk, base_magic_def, base_spd, base_evasion, base_crit_chance, base_crit_damage, xp_reward, gold_reward, description, category, element_id)
+SELECT 'BRUJO_MONTANA', 'Brujo de la Montaña', 2, 'RARE', 22, 22, 27, 2633, 47, 128, 123, 171, 55, 11.3, 10.2, 50, 1560, 365, 'Hechicero que vive solo en los Acantilados del Trueno. Dicen que llama a los rayos con su vara.', 'HUMANOIDE', (SELECT id FROM elements WHERE code = 'LIGHTNING')
+WHERE NOT EXISTS (SELECT 1 FROM monsters WHERE code = 'BRUJO_MONTANA');
+UPDATE monsters SET name = 'Brujo de la Montaña', zone_id = 2, rarity = 'RARE', base_level = 22, min_spawn_level = 22, max_spawn_level = 27, base_hp = 2633, base_atk = 47, base_def = 128, base_magic_atk = 123, base_magic_def = 171, base_spd = 55, base_evasion = 11.3, base_crit_chance = 10.2, base_crit_damage = 50, xp_reward = 1560, gold_reward = 365, description = 'Hechicero que vive solo en los Acantilados del Trueno. Dicen que llama a los rayos con su vara.', category = 'HUMANOIDE', element_id = (SELECT id FROM elements WHERE code = 'LIGHTNING') WHERE code = 'BRUJO_MONTANA';
+DELETE FROM monster_level_scalings WHERE monster_id = (SELECT id FROM monsters WHERE code = 'BRUJO_MONTANA');
+INSERT INTO monster_level_scalings (monster_id, level, hp, atk, def, magic_atk, magic_def, spd, evasion, crit_chance, crit_damage, elemental_damage)
+SELECT (SELECT id FROM monsters WHERE code = 'BRUJO_MONTANA'), v.* FROM (VALUES
+  (22, 2633, 47, 128, 123, 171, 55, 11.3, 10.2, 50, 0),
+  (27, 3240, 57, 151, 149, 201, 65, 12.8, 11.2, 50, 0),
+  (30, 3605, 62, 165, 164, 220, 71, 13.7, 11.8, 50, 0)
+) AS v(level, hp, atk, def, magic_atk, magic_def, spd, evasion, crit_chance, crit_damage, elemental_damage);
+DELETE FROM monster_element_resistances WHERE monster_id = (SELECT id FROM monsters WHERE code = 'BRUJO_MONTANA');
+INSERT INTO monster_element_resistances (monster_id, element_id, resistance_percent)
+SELECT (SELECT id FROM monsters WHERE code = 'BRUJO_MONTANA'), e.id, COALESCE(v.pct, 0) FROM elements e LEFT JOIN (VALUES ('LIGHTNING', 40), ('DARK', 20), ('LIGHT', -30)) AS v(code, pct) ON v.code = e.code;
+DELETE FROM monster_drops WHERE monster_id = (SELECT id FROM monsters WHERE code = 'BRUJO_MONTANA');
+INSERT INTO monster_drops (monster_id, item_id, drop_chance_percent, min_quantity, max_quantity)
+SELECT (SELECT id FROM monsters WHERE code = 'BRUJO_MONTANA'), i.id, v.pct, v.mn, v.mx FROM (VALUES ('VARA_BRUJO_MONTANA', 30, 1, 1), ('GEMA_DE_PRECISION', 10, 1, 1), ('POLVO_ARCANO', 15, 1, 2), ('HUEVO_RARO', 4, 1, 1)) AS v(code, pct, mn, mx)
+JOIN items i ON i.code = v.code;
+DELETE FROM monster_skills WHERE monster_id = (SELECT id FROM monsters WHERE code = 'BRUJO_MONTANA');
+INSERT INTO monster_skills (monster_id, skill_id, use_chance_percent)
+SELECT (SELECT id FROM monsters WHERE code = 'BRUJO_MONTANA'), s.id, v.pct FROM (VALUES ('MONSTRUO_CADENA_RAYO', 35), ('MONSTRUO_MALDICION_OSCURA', 25), ('MONSTRUO_DESCARGA', 20)) AS v(code, pct) JOIN skills s ON s.code = v.code;
+
+-- Guardia de la Tormenta
+INSERT INTO monsters (code, name, zone_id, rarity, base_level, min_spawn_level, max_spawn_level, base_hp, base_atk, base_def, base_magic_atk, base_magic_def, base_spd, base_evasion, base_crit_chance, base_crit_damage, xp_reward, gold_reward, description, category, element_id)
+SELECT 'GUARDIA_TORMENTA', 'Guardia de la Tormenta', 2, 'COMMON', 27, 27, 30, 2100, 130, 194, 65, 147, 56, 12.8, 11.2, 50, 775, 210, 'Soldado de la guardia del Rey de la Montaña que juró cuidar la Cumbre. Murió en la tormenta y siguió de guardia.', 'ESPECTRO', (SELECT id FROM elements WHERE code = 'LIGHTNING')
+WHERE NOT EXISTS (SELECT 1 FROM monsters WHERE code = 'GUARDIA_TORMENTA');
+UPDATE monsters SET name = 'Guardia de la Tormenta', zone_id = 2, rarity = 'COMMON', base_level = 27, min_spawn_level = 27, max_spawn_level = 30, base_hp = 2100, base_atk = 130, base_def = 194, base_magic_atk = 65, base_magic_def = 147, base_spd = 56, base_evasion = 12.8, base_crit_chance = 11.2, base_crit_damage = 50, xp_reward = 775, gold_reward = 210, description = 'Soldado de la guardia del Rey de la Montaña que juró cuidar la Cumbre. Murió en la tormenta y siguió de guardia.', category = 'ESPECTRO', element_id = (SELECT id FROM elements WHERE code = 'LIGHTNING') WHERE code = 'GUARDIA_TORMENTA';
+DELETE FROM monster_level_scalings WHERE monster_id = (SELECT id FROM monsters WHERE code = 'GUARDIA_TORMENTA');
+INSERT INTO monster_level_scalings (monster_id, level, hp, atk, def, magic_atk, magic_def, spd, evasion, crit_chance, crit_damage, elemental_damage)
+SELECT (SELECT id FROM monsters WHERE code = 'GUARDIA_TORMENTA'), v.* FROM (VALUES
+  (27, 2100, 130, 194, 65, 147, 56, 12.8, 11.2, 50, 0),
+  (30, 2336, 143, 212, 72, 160, 61, 13.7, 11.8, 50, 0)
+) AS v(level, hp, atk, def, magic_atk, magic_def, spd, evasion, crit_chance, crit_damage, elemental_damage);
+DELETE FROM monster_element_resistances WHERE monster_id = (SELECT id FROM monsters WHERE code = 'GUARDIA_TORMENTA');
+INSERT INTO monster_element_resistances (monster_id, element_id, resistance_percent)
+SELECT (SELECT id FROM monsters WHERE code = 'GUARDIA_TORMENTA'), e.id, COALESCE(v.pct, 0) FROM elements e LEFT JOIN (VALUES ('LIGHTNING', 40), ('DARK', 20), ('LIGHT', -40), ('EARTH', -20)) AS v(code, pct) ON v.code = e.code;
+DELETE FROM monster_drops WHERE monster_id = (SELECT id FROM monsters WHERE code = 'GUARDIA_TORMENTA');
+INSERT INTO monster_drops (monster_id, item_id, drop_chance_percent, min_quantity, max_quantity)
+SELECT (SELECT id FROM monsters WHERE code = 'GUARDIA_TORMENTA'), i.id, v.pct, v.mn, v.mx FROM (VALUES ('INSIGNIA_GUARDIA_REAL', 30, 1, 2), ('ACERO_REFINADO', 10, 1, 1), ('HUEVO_POCO_COMUN', 3, 1, 1)) AS v(code, pct, mn, mx)
+JOIN items i ON i.code = v.code;
+DELETE FROM monster_skills WHERE monster_id = (SELECT id FROM monsters WHERE code = 'GUARDIA_TORMENTA');
+INSERT INTO monster_skills (monster_id, skill_id, use_chance_percent)
+SELECT (SELECT id FROM monsters WHERE code = 'GUARDIA_TORMENTA'), s.id, v.pct FROM (VALUES ('MONSTRUO_LANZAZO', 30), ('MONSTRUO_ESCUDO_TORMENTA', 20)) AS v(code, pct) JOIN skills s ON s.code = v.code;
+
+-- Señor del Acantilado
+INSERT INTO monsters (code, name, zone_id, rarity, base_level, min_spawn_level, max_spawn_level, base_hp, base_atk, base_def, base_magic_atk, base_magic_def, base_spd, base_evasion, base_crit_chance, base_crit_damage, xp_reward, gold_reward, description, category, element_id)
+SELECT 'SENOR_ACANTILADO', 'Señor del Acantilado', 2, 'MINIBOSS', 27, 27, 27, 7000, 165, 194, 83, 167, 81, 12.8, 11.2, 50, 0, 0, 'Caudillo de los Acantilados del Trueno, con armadura de piedra y una lanza que atrae los rayos.', 'HUMANOIDE', (SELECT id FROM elements WHERE code = 'LIGHTNING')
+WHERE NOT EXISTS (SELECT 1 FROM monsters WHERE code = 'SENOR_ACANTILADO');
+UPDATE monsters SET name = 'Señor del Acantilado', zone_id = 2, rarity = 'MINIBOSS', base_level = 27, min_spawn_level = 27, max_spawn_level = 27, base_hp = 7000, base_atk = 165, base_def = 194, base_magic_atk = 83, base_magic_def = 167, base_spd = 81, base_evasion = 12.8, base_crit_chance = 11.2, base_crit_damage = 50, description = 'Caudillo de los Acantilados del Trueno, con armadura de piedra y una lanza que atrae los rayos.', category = 'HUMANOIDE', element_id = (SELECT id FROM elements WHERE code = 'LIGHTNING') WHERE code = 'SENOR_ACANTILADO';
+DELETE FROM monster_level_scalings WHERE monster_id = (SELECT id FROM monsters WHERE code = 'SENOR_ACANTILADO');
+INSERT INTO monster_level_scalings (monster_id, level, hp, atk, def, magic_atk, magic_def, spd, evasion, crit_chance, crit_damage, elemental_damage)
+SELECT (SELECT id FROM monsters WHERE code = 'SENOR_ACANTILADO'), v.* FROM (VALUES
+  (27, 7000, 165, 194, 83, 167, 81, 12.8, 11.2, 50, 0),
+  (30, 7788, 182, 212, 91, 182, 88, 13.7, 11.8, 50, 0)
+) AS v(level, hp, atk, def, magic_atk, magic_def, spd, evasion, crit_chance, crit_damage, elemental_damage);
+DELETE FROM monster_element_resistances WHERE monster_id = (SELECT id FROM monsters WHERE code = 'SENOR_ACANTILADO');
+INSERT INTO monster_element_resistances (monster_id, element_id, resistance_percent)
+SELECT (SELECT id FROM monsters WHERE code = 'SENOR_ACANTILADO'), e.id, COALESCE(v.pct, 0) FROM elements e LEFT JOIN (VALUES ('LIGHTNING', 40), ('WIND', 15), ('EARTH', -25)) AS v(code, pct) ON v.code = e.code;
+DELETE FROM monster_skills WHERE monster_id = (SELECT id FROM monsters WHERE code = 'SENOR_ACANTILADO');
+INSERT INTO monster_skills (monster_id, skill_id, use_chance_percent)
+SELECT (SELECT id FROM monsters WHERE code = 'SENOR_ACANTILADO'), s.id, v.pct FROM (VALUES ('MONSTRUO_DESCARGA', 35), ('MONSTRUO_GOLPE_BRUTAL', 30), ('MONSTRUO_AULLIDO_GUERRA', 25)) AS v(code, pct) JOIN skills s ON s.code = v.code;
+
+-- Rey de la Montaña
+INSERT INTO monsters (code, name, zone_id, rarity, base_level, min_spawn_level, max_spawn_level, base_hp, base_atk, base_def, base_magic_atk, base_magic_def, base_spd, base_evasion, base_crit_chance, base_crit_damage, xp_reward, gold_reward, description, category, element_id)
+SELECT 'REY_MONTANA', 'Rey de la Montaña', 2, 'LEGENDARY', 30, 30, 30, 13350, 208, 230, 104, 208, 82, 13.7, 11.8, 50, 0, 0, 'El antiguo rey enano que hizo un pacto con la tormenta. Desde la Cumbre manda los rayos sobre toda la sierra.', 'HUMANOIDE', (SELECT id FROM elements WHERE code = 'LIGHTNING')
+WHERE NOT EXISTS (SELECT 1 FROM monsters WHERE code = 'REY_MONTANA');
+UPDATE monsters SET name = 'Rey de la Montaña', zone_id = 2, rarity = 'LEGENDARY', base_level = 30, min_spawn_level = 30, max_spawn_level = 30, base_hp = 13350, base_atk = 208, base_def = 230, base_magic_atk = 104, base_magic_def = 208, base_spd = 82, base_evasion = 13.7, base_crit_chance = 11.8, base_crit_damage = 50, description = 'El antiguo rey enano que hizo un pacto con la tormenta. Desde la Cumbre manda los rayos sobre toda la sierra.', category = 'HUMANOIDE', element_id = (SELECT id FROM elements WHERE code = 'LIGHTNING') WHERE code = 'REY_MONTANA';
+DELETE FROM monster_level_scalings WHERE monster_id = (SELECT id FROM monsters WHERE code = 'REY_MONTANA');
+INSERT INTO monster_level_scalings (monster_id, level, hp, atk, def, magic_atk, magic_def, spd, evasion, crit_chance, crit_damage, elemental_damage)
+SELECT (SELECT id FROM monsters WHERE code = 'REY_MONTANA'), v.* FROM (VALUES
+  (30, 13350, 208, 230, 104, 208, 82, 13.7, 11.8, 50, 0)
+) AS v(level, hp, atk, def, magic_atk, magic_def, spd, evasion, crit_chance, crit_damage, elemental_damage);
+DELETE FROM monster_element_resistances WHERE monster_id = (SELECT id FROM monsters WHERE code = 'REY_MONTANA');
+INSERT INTO monster_element_resistances (monster_id, element_id, resistance_percent)
+SELECT (SELECT id FROM monsters WHERE code = 'REY_MONTANA'), e.id, COALESCE(v.pct, 0) FROM elements e LEFT JOIN (VALUES ('LIGHTNING', 50), ('ICE', 30), ('EARTH', -20)) AS v(code, pct) ON v.code = e.code;
+DELETE FROM monster_skills WHERE monster_id = (SELECT id FROM monsters WHERE code = 'REY_MONTANA');
+INSERT INTO monster_skills (monster_id, skill_id, use_chance_percent)
+SELECT (SELECT id FROM monsters WHERE code = 'REY_MONTANA'), s.id, v.pct FROM (VALUES ('MONSTRUO_AVALANCHA', 30), ('MONSTRUO_DESCARGA', 30), ('MONSTRUO_GOLPE_BRUTAL', 30), ('MONSTRUO_AULLIDO_GUERRA', 20)) AS v(code, pct) JOIN skills s ON s.code = v.code;
+-- ============================================================================================
+-- Equipo y crafteo de las Montañas Grises (repetible; sin ON CONFLICT). Cuatro tramos para las 5
+-- clases base, con stats por fórmula (lib/equilibrio.itemStats), cada uno algo mejor que el anterior:
+--   Montañas nv 17 raro (materiales del Paso y las Minas; para quien no trae el set del Titán)
+--   Escarcha nv 21 épico (NUEVO: Pinar Nevado, Lago Helado y Garganta, + Cristal de Gigante)
+--   Acantilado nv 26 épico (pergamino y Yelmo del Señor del Acantilado, Núcleos de Tormenta)
+--   Rey de la Montaña nv 30 legendario (pergamino y Corona del Rey)
+-- Antes: Montañas era peor que el set del Titán (nv 14), el Acantilado pedía nv 30 y el Rey nv 35
+-- (nivel de la zona 3), y todas las recetas usaban los mismos 2-3 materiales.
+-- Se fabrica en la forja del Bastión de Hierro (lib/cercania.js).
+-- ============================================================================================
+INSERT INTO items (code, name, item_type, rarity, obtain_method, description)
+SELECT v.code, v.name, 'MATERIAL', 'COMUN', 'Recolección', v.descr FROM (VALUES
+  ('MADERA_PINO', 'Madera de Pino Nevado', 'Madera dura y resinosa de los pinos de las Montañas Grises. Para arcos, varitas y báculos.'),
+  ('FLOR_DE_NIEVE', 'Flor de Nieve', 'Florecita blanca que solo abre con el frío. La recogen los sacerdotes del Bastión para sus vestiduras y remedios.')
+) AS v(code, name, descr) WHERE NOT EXISTS (SELECT 1 FROM items i WHERE i.code = v.code);
+UPDATE items SET obtain_method = 'Crafteo y botín', description = 'Acero limpio fundido en la forja del Bastión con Mineral de Acero y Carbón. Base del equipo de guerreros y pícaros de las Montañas.' WHERE code = 'ACERO_REFINADO';
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station, description)
+SELECT 'RECETA_ACERO_REFINADO', (SELECT id FROM items WHERE code = 'ACERO_REFINADO'), 1, 'POCO_COMUN', 16, 95, 1, 'Durgan, en la forja del Bastión de Hierro', 2, 'forja', 'Funde Mineral de Acero con Carbón.'
+WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECETA_ACERO_REFINADO');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'ACERO_REFINADO'), result_quantity = 1, rarity = 'POCO_COMUN', required_level = 16, success_rate_percent = 95, artisan_name = 'Durgan, en la forja del Bastión de Hierro', zone_id = 2, station = 'forja' WHERE code = 'RECETA_ACERO_REFINADO';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECETA_ACERO_REFINADO');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECETA_ACERO_REFINADO'), i.id, v.n FROM (VALUES ('MINERAL_DE_ACERO', 2), ('CARBON', 1)) AS v(code, n) JOIN items i ON i.code = v.code;
+
+-- ---------------------------------------------------------------- montanas (nv 17, RARO)
+-- Gran Espada de Troll
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'GUERRERO_WEAPON2H_MONTANAS', 'Gran Espada de Troll', 'EQUIPMENT', 'WEAPON', TRUE, 'RARO', 1, 17, TRUE, 'CRAFT', 'Forjada en el Bastión de Hierro con lo que dejan los monstruos del Paso de la Montaña y las Minas Abandonadas.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'GUERRERO_WEAPON2H_MONTANAS');
+UPDATE items SET name = 'Gran Espada de Troll', item_type = 'EQUIPMENT', slot = 'WEAPON', is_two_handed = TRUE, rarity = 'RARO', class_id = 1, required_level = 17, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Forjada en el Bastión de Hierro con lo que dejan los monstruos del Paso de la Montaña y las Minas Abandonadas.' WHERE code = 'GUERRERO_WEAPON2H_MONTANAS';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'GUERRERO_WEAPON2H_MONTANAS');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'GUERRERO_WEAPON2H_MONTANAS'), v.* FROM (VALUES ('ATK', 69, FALSE), ('DEF', -21, FALSE), ('SPD', -15, FALSE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station, scroll_item_id)
+SELECT 'RECIPE_GUERRERO_WEAPON2H_MONTANAS', (SELECT id FROM items WHERE code = 'GUERRERO_WEAPON2H_MONTANAS'), 1, 'RARO', 17, 1, 90, 1, 'Durgan, en la forja del Bastión de Hierro', 2, 'forja', NULL WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_GUERRERO_WEAPON2H_MONTANAS');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'GUERRERO_WEAPON2H_MONTANAS'), result_quantity = 1, rarity = 'RARO', required_level = 17, required_class_id = 1, success_rate_percent = 90, craft_time_minutes = 1, artisan_name = 'Durgan, en la forja del Bastión de Hierro', zone_id = 2, station = 'forja', scroll_item_id = NULL WHERE code = 'RECIPE_GUERRERO_WEAPON2H_MONTANAS';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_GUERRERO_WEAPON2H_MONTANAS');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_GUERRERO_WEAPON2H_MONTANAS'), i.id, v.n FROM (VALUES ('COLMILLO_DE_ORCO', 3), ('ACERO_REFINADO', 2), ('CUERNO_CABRA_MONTES', 2)) AS v(code, n) JOIN items i ON i.code = v.code;
+-- Diadema de Montaña
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'SACERDOTE_HELMET_MONTANAS', 'Diadema de Montaña', 'EQUIPMENT', 'HELMET', FALSE, 'RARO', 5, 17, TRUE, 'CRAFT', 'Forjada en el Bastión de Hierro con lo que dejan los monstruos del Paso de la Montaña y las Minas Abandonadas.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'SACERDOTE_HELMET_MONTANAS');
+UPDATE items SET name = 'Diadema de Montaña', item_type = 'EQUIPMENT', slot = 'HELMET', is_two_handed = FALSE, rarity = 'RARO', class_id = 5, required_level = 17, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Forjada en el Bastión de Hierro con lo que dejan los monstruos del Paso de la Montaña y las Minas Abandonadas.' WHERE code = 'SACERDOTE_HELMET_MONTANAS';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'SACERDOTE_HELMET_MONTANAS');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'SACERDOTE_HELMET_MONTANAS'), v.* FROM (VALUES ('MAGIC_DEF', 8, FALSE), ('DEF', 2, FALSE), ('HP', 9, FALSE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station, scroll_item_id)
+SELECT 'RECIPE_SACERDOTE_HELMET_MONTANAS', (SELECT id FROM items WHERE code = 'SACERDOTE_HELMET_MONTANAS'), 1, 'RARO', 17, 5, 90, 1, 'Durgan, en la forja del Bastión de Hierro', 2, 'forja', NULL WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_SACERDOTE_HELMET_MONTANAS');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'SACERDOTE_HELMET_MONTANAS'), result_quantity = 1, rarity = 'RARO', required_level = 17, required_class_id = 5, success_rate_percent = 90, craft_time_minutes = 1, artisan_name = 'Durgan, en la forja del Bastión de Hierro', zone_id = 2, station = 'forja', scroll_item_id = NULL WHERE code = 'RECIPE_SACERDOTE_HELMET_MONTANAS';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_SACERDOTE_HELMET_MONTANAS');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_SACERDOTE_HELMET_MONTANAS'), i.id, v.n FROM (VALUES ('FLOR_DE_NIEVE', 2), ('CUERNO_CABRA_MONTES', 1)) AS v(code, n) JOIN items i ON i.code = v.code;
+-- Vestidura de Montaña
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'SACERDOTE_ARMOR_MONTANAS', 'Vestidura de Montaña', 'EQUIPMENT', 'ARMOR', FALSE, 'RARO', 5, 17, TRUE, 'CRAFT', 'Forjada en el Bastión de Hierro con lo que dejan los monstruos del Paso de la Montaña y las Minas Abandonadas.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'SACERDOTE_ARMOR_MONTANAS');
+UPDATE items SET name = 'Vestidura de Montaña', item_type = 'EQUIPMENT', slot = 'ARMOR', is_two_handed = FALSE, rarity = 'RARO', class_id = 5, required_level = 17, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Forjada en el Bastión de Hierro con lo que dejan los monstruos del Paso de la Montaña y las Minas Abandonadas.' WHERE code = 'SACERDOTE_ARMOR_MONTANAS';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'SACERDOTE_ARMOR_MONTANAS');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'SACERDOTE_ARMOR_MONTANAS'), v.* FROM (VALUES ('MAGIC_DEF', 17, FALSE), ('DEF', 5, FALSE), ('HP', 27, FALSE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station, scroll_item_id)
+SELECT 'RECIPE_SACERDOTE_ARMOR_MONTANAS', (SELECT id FROM items WHERE code = 'SACERDOTE_ARMOR_MONTANAS'), 1, 'RARO', 17, 5, 90, 1, 'Durgan, en la forja del Bastión de Hierro', 2, 'forja', NULL WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_SACERDOTE_ARMOR_MONTANAS');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'SACERDOTE_ARMOR_MONTANAS'), result_quantity = 1, rarity = 'RARO', required_level = 17, required_class_id = 5, success_rate_percent = 90, craft_time_minutes = 1, artisan_name = 'Durgan, en la forja del Bastión de Hierro', zone_id = 2, station = 'forja', scroll_item_id = NULL WHERE code = 'RECIPE_SACERDOTE_ARMOR_MONTANAS';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_SACERDOTE_ARMOR_MONTANAS');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_SACERDOTE_ARMOR_MONTANAS'), i.id, v.n FROM (VALUES ('CUERNO_CABRA_MONTES', 3), ('FLOR_DE_NIEVE', 3), ('MADERA_PINO', 1)) AS v(code, n) JOIN items i ON i.code = v.code;
+-- Guantes Bendecidos de Montaña
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'SACERDOTE_GLOVES_MONTANAS', 'Guantes Bendecidos de Montaña', 'EQUIPMENT', 'GLOVES', FALSE, 'RARO', 5, 17, TRUE, 'CRAFT', 'Forjada en el Bastión de Hierro con lo que dejan los monstruos del Paso de la Montaña y las Minas Abandonadas.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'SACERDOTE_GLOVES_MONTANAS');
+UPDATE items SET name = 'Guantes Bendecidos de Montaña', item_type = 'EQUIPMENT', slot = 'GLOVES', is_two_handed = FALSE, rarity = 'RARO', class_id = 5, required_level = 17, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Forjada en el Bastión de Hierro con lo que dejan los monstruos del Paso de la Montaña y las Minas Abandonadas.' WHERE code = 'SACERDOTE_GLOVES_MONTANAS';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'SACERDOTE_GLOVES_MONTANAS');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'SACERDOTE_GLOVES_MONTANAS'), v.* FROM (VALUES ('MAG', 21, FALSE), ('CRIT_CHANCE', 3.5, TRUE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station, scroll_item_id)
+SELECT 'RECIPE_SACERDOTE_GLOVES_MONTANAS', (SELECT id FROM items WHERE code = 'SACERDOTE_GLOVES_MONTANAS'), 1, 'RARO', 17, 5, 90, 1, 'Durgan, en la forja del Bastión de Hierro', 2, 'forja', NULL WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_SACERDOTE_GLOVES_MONTANAS');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'SACERDOTE_GLOVES_MONTANAS'), result_quantity = 1, rarity = 'RARO', required_level = 17, required_class_id = 5, success_rate_percent = 90, craft_time_minutes = 1, artisan_name = 'Durgan, en la forja del Bastión de Hierro', zone_id = 2, station = 'forja', scroll_item_id = NULL WHERE code = 'RECIPE_SACERDOTE_GLOVES_MONTANAS';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_SACERDOTE_GLOVES_MONTANAS');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_SACERDOTE_GLOVES_MONTANAS'), i.id, v.n FROM (VALUES ('FLOR_DE_NIEVE', 2), ('CUERNO_CABRA_MONTES', 1)) AS v(code, n) JOIN items i ON i.code = v.code;
+-- Sandalias de Montaña
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'SACERDOTE_BOOTS_MONTANAS', 'Sandalias de Montaña', 'EQUIPMENT', 'BOOTS', FALSE, 'RARO', 5, 17, TRUE, 'CRAFT', 'Forjada en el Bastión de Hierro con lo que dejan los monstruos del Paso de la Montaña y las Minas Abandonadas.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'SACERDOTE_BOOTS_MONTANAS');
+UPDATE items SET name = 'Sandalias de Montaña', item_type = 'EQUIPMENT', slot = 'BOOTS', is_two_handed = FALSE, rarity = 'RARO', class_id = 5, required_level = 17, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Forjada en el Bastión de Hierro con lo que dejan los monstruos del Paso de la Montaña y las Minas Abandonadas.' WHERE code = 'SACERDOTE_BOOTS_MONTANAS';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'SACERDOTE_BOOTS_MONTANAS');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'SACERDOTE_BOOTS_MONTANAS'), v.* FROM (VALUES ('MAGIC_DEF', 3, FALSE), ('HP', 3, FALSE), ('SPD', 12, FALSE), ('EVASION', 2, TRUE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station, scroll_item_id)
+SELECT 'RECIPE_SACERDOTE_BOOTS_MONTANAS', (SELECT id FROM items WHERE code = 'SACERDOTE_BOOTS_MONTANAS'), 1, 'RARO', 17, 5, 90, 1, 'Durgan, en la forja del Bastión de Hierro', 2, 'forja', NULL WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_SACERDOTE_BOOTS_MONTANAS');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'SACERDOTE_BOOTS_MONTANAS'), result_quantity = 1, rarity = 'RARO', required_level = 17, required_class_id = 5, success_rate_percent = 90, craft_time_minutes = 1, artisan_name = 'Durgan, en la forja del Bastión de Hierro', zone_id = 2, station = 'forja', scroll_item_id = NULL WHERE code = 'RECIPE_SACERDOTE_BOOTS_MONTANAS';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_SACERDOTE_BOOTS_MONTANAS');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_SACERDOTE_BOOTS_MONTANAS'), i.id, v.n FROM (VALUES ('FLOR_DE_NIEVE', 2), ('CUERNO_CABRA_MONTES', 1)) AS v(code, n) JOIN items i ON i.code = v.code;
+-- Collar de Montaña
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'SACERDOTE_ACCESSORY_MONTANAS', 'Collar de Montaña', 'EQUIPMENT', 'ACCESSORY', FALSE, 'RARO', NULL, 17, TRUE, 'CRAFT', 'Forjada en el Bastión de Hierro con lo que dejan los monstruos del Paso de la Montaña y las Minas Abandonadas.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'SACERDOTE_ACCESSORY_MONTANAS');
+UPDATE items SET name = 'Collar de Montaña', item_type = 'EQUIPMENT', slot = 'ACCESSORY', is_two_handed = FALSE, rarity = 'RARO', class_id = NULL, required_level = 17, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Forjada en el Bastión de Hierro con lo que dejan los monstruos del Paso de la Montaña y las Minas Abandonadas.' WHERE code = 'SACERDOTE_ACCESSORY_MONTANAS';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'SACERDOTE_ACCESSORY_MONTANAS');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'SACERDOTE_ACCESSORY_MONTANAS'), v.* FROM (VALUES ('MAG', 18, FALSE), ('CRIT_CHANCE', 3.5, TRUE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station, scroll_item_id)
+SELECT 'RECIPE_SACERDOTE_ACCESSORY_MONTANAS', (SELECT id FROM items WHERE code = 'SACERDOTE_ACCESSORY_MONTANAS'), 1, 'RARO', 17, NULL, 90, 1, 'Durgan, en la forja del Bastión de Hierro', 2, 'forja', NULL WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_SACERDOTE_ACCESSORY_MONTANAS');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'SACERDOTE_ACCESSORY_MONTANAS'), result_quantity = 1, rarity = 'RARO', required_level = 17, required_class_id = NULL, success_rate_percent = 90, craft_time_minutes = 1, artisan_name = 'Durgan, en la forja del Bastión de Hierro', zone_id = 2, station = 'forja', scroll_item_id = NULL WHERE code = 'RECIPE_SACERDOTE_ACCESSORY_MONTANAS';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_SACERDOTE_ACCESSORY_MONTANAS');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_SACERDOTE_ACCESSORY_MONTANAS'), i.id, v.n FROM (VALUES ('FRAGMENTO_PIEDRA_VIVA', 2), ('CUERNO_CABRA_MONTES', 2), ('GEMA_COMUN', 1)) AS v(code, n) JOIN items i ON i.code = v.code;
+-- Espada de Montaña
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'GUERRERO_WEAPON_MONTANAS', 'Espada de Montaña', 'EQUIPMENT', 'WEAPON', FALSE, 'RARO', 1, 17, TRUE, 'CRAFT', 'Forjada en el Bastión de Hierro con lo que dejan los monstruos del Paso de la Montaña y las Minas Abandonadas.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'GUERRERO_WEAPON_MONTANAS');
+UPDATE items SET name = 'Espada de Montaña', item_type = 'EQUIPMENT', slot = 'WEAPON', is_two_handed = FALSE, rarity = 'RARO', class_id = 1, required_level = 17, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Forjada en el Bastión de Hierro con lo que dejan los monstruos del Paso de la Montaña y las Minas Abandonadas.' WHERE code = 'GUERRERO_WEAPON_MONTANAS';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'GUERRERO_WEAPON_MONTANAS');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'GUERRERO_WEAPON_MONTANAS'), v.* FROM (VALUES ('ATK', 46, FALSE), ('CRIT_CHANCE', 5.3, TRUE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station, scroll_item_id)
+SELECT 'RECIPE_GUERRERO_WEAPON_MONTANAS', (SELECT id FROM items WHERE code = 'GUERRERO_WEAPON_MONTANAS'), 1, 'RARO', 17, 1, 90, 1, 'Durgan, en la forja del Bastión de Hierro', 2, 'forja', NULL WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_GUERRERO_WEAPON_MONTANAS');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'GUERRERO_WEAPON_MONTANAS'), result_quantity = 1, rarity = 'RARO', required_level = 17, required_class_id = 1, success_rate_percent = 90, craft_time_minutes = 1, artisan_name = 'Durgan, en la forja del Bastión de Hierro', zone_id = 2, station = 'forja', scroll_item_id = NULL WHERE code = 'RECIPE_GUERRERO_WEAPON_MONTANAS';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_GUERRERO_WEAPON_MONTANAS');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_GUERRERO_WEAPON_MONTANAS'), i.id, v.n FROM (VALUES ('COLMILLO_DE_ORCO', 3), ('ACERO_REFINADO', 2), ('CUERNO_CABRA_MONTES', 2)) AS v(code, n) JOIN items i ON i.code = v.code;
+-- Escudo de Montaña
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'GUERRERO_OFFHAND_MONTANAS', 'Escudo de Montaña', 'EQUIPMENT', 'OFFHAND', FALSE, 'RARO', 1, 17, TRUE, 'CRAFT', 'Forjada en el Bastión de Hierro con lo que dejan los monstruos del Paso de la Montaña y las Minas Abandonadas.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'GUERRERO_OFFHAND_MONTANAS');
+UPDATE items SET name = 'Escudo de Montaña', item_type = 'EQUIPMENT', slot = 'OFFHAND', is_two_handed = FALSE, rarity = 'RARO', class_id = 1, required_level = 17, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Forjada en el Bastión de Hierro con lo que dejan los monstruos del Paso de la Montaña y las Minas Abandonadas.' WHERE code = 'GUERRERO_OFFHAND_MONTANAS';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'GUERRERO_OFFHAND_MONTANAS');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'GUERRERO_OFFHAND_MONTANAS'), v.* FROM (VALUES ('DEF', 10, FALSE), ('HP', 14, FALSE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station, scroll_item_id)
+SELECT 'RECIPE_GUERRERO_OFFHAND_MONTANAS', (SELECT id FROM items WHERE code = 'GUERRERO_OFFHAND_MONTANAS'), 1, 'RARO', 17, 1, 90, 1, 'Durgan, en la forja del Bastión de Hierro', 2, 'forja', NULL WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_GUERRERO_OFFHAND_MONTANAS');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'GUERRERO_OFFHAND_MONTANAS'), result_quantity = 1, rarity = 'RARO', required_level = 17, required_class_id = 1, success_rate_percent = 90, craft_time_minutes = 1, artisan_name = 'Durgan, en la forja del Bastión de Hierro', zone_id = 2, station = 'forja', scroll_item_id = NULL WHERE code = 'RECIPE_GUERRERO_OFFHAND_MONTANAS';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_GUERRERO_OFFHAND_MONTANAS');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_GUERRERO_OFFHAND_MONTANAS'), i.id, v.n FROM (VALUES ('COLMILLO_DE_ORCO', 2), ('ACERO_REFINADO', 1)) AS v(code, n) JOIN items i ON i.code = v.code;
+-- Yelmo de Montaña
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'GUERRERO_HELMET_MONTANAS', 'Yelmo de Montaña', 'EQUIPMENT', 'HELMET', FALSE, 'RARO', 1, 17, TRUE, 'CRAFT', 'Forjada en el Bastión de Hierro con lo que dejan los monstruos del Paso de la Montaña y las Minas Abandonadas.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'GUERRERO_HELMET_MONTANAS');
+UPDATE items SET name = 'Yelmo de Montaña', item_type = 'EQUIPMENT', slot = 'HELMET', is_two_handed = FALSE, rarity = 'RARO', class_id = 1, required_level = 17, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Forjada en el Bastión de Hierro con lo que dejan los monstruos del Paso de la Montaña y las Minas Abandonadas.' WHERE code = 'GUERRERO_HELMET_MONTANAS';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'GUERRERO_HELMET_MONTANAS');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'GUERRERO_HELMET_MONTANAS'), v.* FROM (VALUES ('DEF', 8, FALSE), ('MAGIC_DEF', 2, FALSE), ('HP', 9, FALSE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station, scroll_item_id)
+SELECT 'RECIPE_GUERRERO_HELMET_MONTANAS', (SELECT id FROM items WHERE code = 'GUERRERO_HELMET_MONTANAS'), 1, 'RARO', 17, 1, 90, 1, 'Durgan, en la forja del Bastión de Hierro', 2, 'forja', NULL WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_GUERRERO_HELMET_MONTANAS');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'GUERRERO_HELMET_MONTANAS'), result_quantity = 1, rarity = 'RARO', required_level = 17, required_class_id = 1, success_rate_percent = 90, craft_time_minutes = 1, artisan_name = 'Durgan, en la forja del Bastión de Hierro', zone_id = 2, station = 'forja', scroll_item_id = NULL WHERE code = 'RECIPE_GUERRERO_HELMET_MONTANAS';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_GUERRERO_HELMET_MONTANAS');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_GUERRERO_HELMET_MONTANAS'), i.id, v.n FROM (VALUES ('COLMILLO_DE_ORCO', 2), ('ACERO_REFINADO', 1)) AS v(code, n) JOIN items i ON i.code = v.code;
+-- Armadura de Montaña
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'GUERRERO_ARMOR_MONTANAS', 'Armadura de Montaña', 'EQUIPMENT', 'ARMOR', FALSE, 'RARO', 1, 17, TRUE, 'CRAFT', 'Forjada en el Bastión de Hierro con lo que dejan los monstruos del Paso de la Montaña y las Minas Abandonadas.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'GUERRERO_ARMOR_MONTANAS');
+UPDATE items SET name = 'Armadura de Montaña', item_type = 'EQUIPMENT', slot = 'ARMOR', is_two_handed = FALSE, rarity = 'RARO', class_id = 1, required_level = 17, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Forjada en el Bastión de Hierro con lo que dejan los monstruos del Paso de la Montaña y las Minas Abandonadas.' WHERE code = 'GUERRERO_ARMOR_MONTANAS';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'GUERRERO_ARMOR_MONTANAS');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'GUERRERO_ARMOR_MONTANAS'), v.* FROM (VALUES ('DEF', 17, FALSE), ('MAGIC_DEF', 5, FALSE), ('HP', 27, FALSE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station, scroll_item_id)
+SELECT 'RECIPE_GUERRERO_ARMOR_MONTANAS', (SELECT id FROM items WHERE code = 'GUERRERO_ARMOR_MONTANAS'), 1, 'RARO', 17, 1, 90, 1, 'Durgan, en la forja del Bastión de Hierro', 2, 'forja', NULL WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_GUERRERO_ARMOR_MONTANAS');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'GUERRERO_ARMOR_MONTANAS'), result_quantity = 1, rarity = 'RARO', required_level = 17, required_class_id = 1, success_rate_percent = 90, craft_time_minutes = 1, artisan_name = 'Durgan, en la forja del Bastión de Hierro', zone_id = 2, station = 'forja', scroll_item_id = NULL WHERE code = 'RECIPE_GUERRERO_ARMOR_MONTANAS';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_GUERRERO_ARMOR_MONTANAS');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_GUERRERO_ARMOR_MONTANAS'), i.id, v.n FROM (VALUES ('COLMILLO_DE_ORCO', 3), ('ACERO_REFINADO', 2), ('CUERNO_CABRA_MONTES', 2)) AS v(code, n) JOIN items i ON i.code = v.code;
+-- Guanteletes de Montaña
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'GUERRERO_GLOVES_MONTANAS', 'Guanteletes de Montaña', 'EQUIPMENT', 'GLOVES', FALSE, 'RARO', 1, 17, TRUE, 'CRAFT', 'Forjada en el Bastión de Hierro con lo que dejan los monstruos del Paso de la Montaña y las Minas Abandonadas.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'GUERRERO_GLOVES_MONTANAS');
+UPDATE items SET name = 'Guanteletes de Montaña', item_type = 'EQUIPMENT', slot = 'GLOVES', is_two_handed = FALSE, rarity = 'RARO', class_id = 1, required_level = 17, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Forjada en el Bastión de Hierro con lo que dejan los monstruos del Paso de la Montaña y las Minas Abandonadas.' WHERE code = 'GUERRERO_GLOVES_MONTANAS';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'GUERRERO_GLOVES_MONTANAS');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'GUERRERO_GLOVES_MONTANAS'), v.* FROM (VALUES ('ATK', 21, FALSE), ('CRIT_CHANCE', 3.5, TRUE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station, scroll_item_id)
+SELECT 'RECIPE_GUERRERO_GLOVES_MONTANAS', (SELECT id FROM items WHERE code = 'GUERRERO_GLOVES_MONTANAS'), 1, 'RARO', 17, 1, 90, 1, 'Durgan, en la forja del Bastión de Hierro', 2, 'forja', NULL WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_GUERRERO_GLOVES_MONTANAS');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'GUERRERO_GLOVES_MONTANAS'), result_quantity = 1, rarity = 'RARO', required_level = 17, required_class_id = 1, success_rate_percent = 90, craft_time_minutes = 1, artisan_name = 'Durgan, en la forja del Bastión de Hierro', zone_id = 2, station = 'forja', scroll_item_id = NULL WHERE code = 'RECIPE_GUERRERO_GLOVES_MONTANAS';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_GUERRERO_GLOVES_MONTANAS');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_GUERRERO_GLOVES_MONTANAS'), i.id, v.n FROM (VALUES ('COLMILLO_DE_ORCO', 2), ('ACERO_REFINADO', 1)) AS v(code, n) JOIN items i ON i.code = v.code;
+-- Botas de Montaña
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'GUERRERO_BOOTS_MONTANAS', 'Botas de Montaña', 'EQUIPMENT', 'BOOTS', FALSE, 'RARO', 1, 17, TRUE, 'CRAFT', 'Forjada en el Bastión de Hierro con lo que dejan los monstruos del Paso de la Montaña y las Minas Abandonadas.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'GUERRERO_BOOTS_MONTANAS');
+UPDATE items SET name = 'Botas de Montaña', item_type = 'EQUIPMENT', slot = 'BOOTS', is_two_handed = FALSE, rarity = 'RARO', class_id = 1, required_level = 17, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Forjada en el Bastión de Hierro con lo que dejan los monstruos del Paso de la Montaña y las Minas Abandonadas.' WHERE code = 'GUERRERO_BOOTS_MONTANAS';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'GUERRERO_BOOTS_MONTANAS');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'GUERRERO_BOOTS_MONTANAS'), v.* FROM (VALUES ('DEF', 3, FALSE), ('HP', 3, FALSE), ('SPD', 12, FALSE), ('EVASION', 2, TRUE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station, scroll_item_id)
+SELECT 'RECIPE_GUERRERO_BOOTS_MONTANAS', (SELECT id FROM items WHERE code = 'GUERRERO_BOOTS_MONTANAS'), 1, 'RARO', 17, 1, 90, 1, 'Durgan, en la forja del Bastión de Hierro', 2, 'forja', NULL WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_GUERRERO_BOOTS_MONTANAS');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'GUERRERO_BOOTS_MONTANAS'), result_quantity = 1, rarity = 'RARO', required_level = 17, required_class_id = 1, success_rate_percent = 90, craft_time_minutes = 1, artisan_name = 'Durgan, en la forja del Bastión de Hierro', zone_id = 2, station = 'forja', scroll_item_id = NULL WHERE code = 'RECIPE_GUERRERO_BOOTS_MONTANAS';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_GUERRERO_BOOTS_MONTANAS');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_GUERRERO_BOOTS_MONTANAS'), i.id, v.n FROM (VALUES ('COLMILLO_DE_ORCO', 2), ('ACERO_REFINADO', 1)) AS v(code, n) JOIN items i ON i.code = v.code;
+-- Amuleto de Montaña
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'GUERRERO_ACCESSORY_MONTANAS', 'Amuleto de Montaña', 'EQUIPMENT', 'ACCESSORY', FALSE, 'RARO', NULL, 17, TRUE, 'CRAFT', 'Forjada en el Bastión de Hierro con lo que dejan los monstruos del Paso de la Montaña y las Minas Abandonadas.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'GUERRERO_ACCESSORY_MONTANAS');
+UPDATE items SET name = 'Amuleto de Montaña', item_type = 'EQUIPMENT', slot = 'ACCESSORY', is_two_handed = FALSE, rarity = 'RARO', class_id = NULL, required_level = 17, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Forjada en el Bastión de Hierro con lo que dejan los monstruos del Paso de la Montaña y las Minas Abandonadas.' WHERE code = 'GUERRERO_ACCESSORY_MONTANAS';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'GUERRERO_ACCESSORY_MONTANAS');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'GUERRERO_ACCESSORY_MONTANAS'), v.* FROM (VALUES ('ATK', 18, FALSE), ('CRIT_CHANCE', 3.5, TRUE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station, scroll_item_id)
+SELECT 'RECIPE_GUERRERO_ACCESSORY_MONTANAS', (SELECT id FROM items WHERE code = 'GUERRERO_ACCESSORY_MONTANAS'), 1, 'RARO', 17, NULL, 90, 1, 'Durgan, en la forja del Bastión de Hierro', 2, 'forja', NULL WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_GUERRERO_ACCESSORY_MONTANAS');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'GUERRERO_ACCESSORY_MONTANAS'), result_quantity = 1, rarity = 'RARO', required_level = 17, required_class_id = NULL, success_rate_percent = 90, craft_time_minutes = 1, artisan_name = 'Durgan, en la forja del Bastión de Hierro', zone_id = 2, station = 'forja', scroll_item_id = NULL WHERE code = 'RECIPE_GUERRERO_ACCESSORY_MONTANAS';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_GUERRERO_ACCESSORY_MONTANAS');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_GUERRERO_ACCESSORY_MONTANAS'), i.id, v.n FROM (VALUES ('FRAGMENTO_PIEDRA_VIVA', 2), ('COLMILLO_DE_ORCO', 2), ('GEMA_COMUN', 1)) AS v(code, n) JOIN items i ON i.code = v.code;
+-- Arco de Montaña
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'ARQUERO_WEAPON_MONTANAS', 'Arco de Montaña', 'EQUIPMENT', 'WEAPON', FALSE, 'RARO', 3, 17, TRUE, 'CRAFT', 'Forjada en el Bastión de Hierro con lo que dejan los monstruos del Paso de la Montaña y las Minas Abandonadas.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'ARQUERO_WEAPON_MONTANAS');
+UPDATE items SET name = 'Arco de Montaña', item_type = 'EQUIPMENT', slot = 'WEAPON', is_two_handed = FALSE, rarity = 'RARO', class_id = 3, required_level = 17, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Forjada en el Bastión de Hierro con lo que dejan los monstruos del Paso de la Montaña y las Minas Abandonadas.' WHERE code = 'ARQUERO_WEAPON_MONTANAS';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'ARQUERO_WEAPON_MONTANAS');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'ARQUERO_WEAPON_MONTANAS'), v.* FROM (VALUES ('ATK', 46, FALSE), ('CRIT_CHANCE', 5.3, TRUE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station, scroll_item_id)
+SELECT 'RECIPE_ARQUERO_WEAPON_MONTANAS', (SELECT id FROM items WHERE code = 'ARQUERO_WEAPON_MONTANAS'), 1, 'RARO', 17, 3, 90, 1, 'Durgan, en la forja del Bastión de Hierro', 2, 'forja', NULL WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_ARQUERO_WEAPON_MONTANAS');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'ARQUERO_WEAPON_MONTANAS'), result_quantity = 1, rarity = 'RARO', required_level = 17, required_class_id = 3, success_rate_percent = 90, craft_time_minutes = 1, artisan_name = 'Durgan, en la forja del Bastión de Hierro', zone_id = 2, station = 'forja', scroll_item_id = NULL WHERE code = 'RECIPE_ARQUERO_WEAPON_MONTANAS';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_ARQUERO_WEAPON_MONTANAS');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_ARQUERO_WEAPON_MONTANAS'), i.id, v.n FROM (VALUES ('PIEL_LOBO_NIEVE', 3), ('MADERA_PINO', 2), ('CUERNO_CABRA_MONTES', 2)) AS v(code, n) JOIN items i ON i.code = v.code;
+-- Carcaj de Montaña
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'ARQUERO_OFFHAND_MONTANAS', 'Carcaj de Montaña', 'EQUIPMENT', 'OFFHAND', FALSE, 'RARO', 3, 17, TRUE, 'CRAFT', 'Forjada en el Bastión de Hierro con lo que dejan los monstruos del Paso de la Montaña y las Minas Abandonadas.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'ARQUERO_OFFHAND_MONTANAS');
+UPDATE items SET name = 'Carcaj de Montaña', item_type = 'EQUIPMENT', slot = 'OFFHAND', is_two_handed = FALSE, rarity = 'RARO', class_id = 3, required_level = 17, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Forjada en el Bastión de Hierro con lo que dejan los monstruos del Paso de la Montaña y las Minas Abandonadas.' WHERE code = 'ARQUERO_OFFHAND_MONTANAS';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'ARQUERO_OFFHAND_MONTANAS');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'ARQUERO_OFFHAND_MONTANAS'), v.* FROM (VALUES ('ATK', 11, FALSE), ('SPD', 15, FALSE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station, scroll_item_id)
+SELECT 'RECIPE_ARQUERO_OFFHAND_MONTANAS', (SELECT id FROM items WHERE code = 'ARQUERO_OFFHAND_MONTANAS'), 1, 'RARO', 17, 3, 90, 1, 'Durgan, en la forja del Bastión de Hierro', 2, 'forja', NULL WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_ARQUERO_OFFHAND_MONTANAS');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'ARQUERO_OFFHAND_MONTANAS'), result_quantity = 1, rarity = 'RARO', required_level = 17, required_class_id = 3, success_rate_percent = 90, craft_time_minutes = 1, artisan_name = 'Durgan, en la forja del Bastión de Hierro', zone_id = 2, station = 'forja', scroll_item_id = NULL WHERE code = 'RECIPE_ARQUERO_OFFHAND_MONTANAS';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_ARQUERO_OFFHAND_MONTANAS');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_ARQUERO_OFFHAND_MONTANAS'), i.id, v.n FROM (VALUES ('PIEL_LOBO_NIEVE', 2), ('CUERNO_CABRA_MONTES', 1)) AS v(code, n) JOIN items i ON i.code = v.code;
+-- Capucha de Montaña
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'ARQUERO_HELMET_MONTANAS', 'Capucha de Montaña', 'EQUIPMENT', 'HELMET', FALSE, 'RARO', 3, 17, TRUE, 'CRAFT', 'Forjada en el Bastión de Hierro con lo que dejan los monstruos del Paso de la Montaña y las Minas Abandonadas.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'ARQUERO_HELMET_MONTANAS');
+UPDATE items SET name = 'Capucha de Montaña', item_type = 'EQUIPMENT', slot = 'HELMET', is_two_handed = FALSE, rarity = 'RARO', class_id = 3, required_level = 17, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Forjada en el Bastión de Hierro con lo que dejan los monstruos del Paso de la Montaña y las Minas Abandonadas.' WHERE code = 'ARQUERO_HELMET_MONTANAS';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'ARQUERO_HELMET_MONTANAS');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'ARQUERO_HELMET_MONTANAS'), v.* FROM (VALUES ('DEF', 8, FALSE), ('MAGIC_DEF', 2, FALSE), ('HP', 7, FALSE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station, scroll_item_id)
+SELECT 'RECIPE_ARQUERO_HELMET_MONTANAS', (SELECT id FROM items WHERE code = 'ARQUERO_HELMET_MONTANAS'), 1, 'RARO', 17, 3, 90, 1, 'Durgan, en la forja del Bastión de Hierro', 2, 'forja', NULL WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_ARQUERO_HELMET_MONTANAS');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'ARQUERO_HELMET_MONTANAS'), result_quantity = 1, rarity = 'RARO', required_level = 17, required_class_id = 3, success_rate_percent = 90, craft_time_minutes = 1, artisan_name = 'Durgan, en la forja del Bastión de Hierro', zone_id = 2, station = 'forja', scroll_item_id = NULL WHERE code = 'RECIPE_ARQUERO_HELMET_MONTANAS';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_ARQUERO_HELMET_MONTANAS');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_ARQUERO_HELMET_MONTANAS'), i.id, v.n FROM (VALUES ('PIEL_LOBO_NIEVE', 2), ('CUERNO_CABRA_MONTES', 1)) AS v(code, n) JOIN items i ON i.code = v.code;
+-- Gabán de Montaña
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'ARQUERO_ARMOR_MONTANAS', 'Gabán de Montaña', 'EQUIPMENT', 'ARMOR', FALSE, 'RARO', 3, 17, TRUE, 'CRAFT', 'Forjada en el Bastión de Hierro con lo que dejan los monstruos del Paso de la Montaña y las Minas Abandonadas.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'ARQUERO_ARMOR_MONTANAS');
+UPDATE items SET name = 'Gabán de Montaña', item_type = 'EQUIPMENT', slot = 'ARMOR', is_two_handed = FALSE, rarity = 'RARO', class_id = 3, required_level = 17, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Forjada en el Bastión de Hierro con lo que dejan los monstruos del Paso de la Montaña y las Minas Abandonadas.' WHERE code = 'ARQUERO_ARMOR_MONTANAS';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'ARQUERO_ARMOR_MONTANAS');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'ARQUERO_ARMOR_MONTANAS'), v.* FROM (VALUES ('DEF', 17, FALSE), ('MAGIC_DEF', 5, FALSE), ('HP', 31, FALSE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station, scroll_item_id)
+SELECT 'RECIPE_ARQUERO_ARMOR_MONTANAS', (SELECT id FROM items WHERE code = 'ARQUERO_ARMOR_MONTANAS'), 1, 'RARO', 17, 3, 90, 1, 'Durgan, en la forja del Bastión de Hierro', 2, 'forja', NULL WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_ARQUERO_ARMOR_MONTANAS');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'ARQUERO_ARMOR_MONTANAS'), result_quantity = 1, rarity = 'RARO', required_level = 17, required_class_id = 3, success_rate_percent = 90, craft_time_minutes = 1, artisan_name = 'Durgan, en la forja del Bastión de Hierro', zone_id = 2, station = 'forja', scroll_item_id = NULL WHERE code = 'RECIPE_ARQUERO_ARMOR_MONTANAS';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_ARQUERO_ARMOR_MONTANAS');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_ARQUERO_ARMOR_MONTANAS'), i.id, v.n FROM (VALUES ('PIEL_LOBO_NIEVE', 3), ('MADERA_PINO', 2), ('CUERNO_CABRA_MONTES', 2)) AS v(code, n) JOIN items i ON i.code = v.code;
+-- Guantes de Montaña
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'ARQUERO_GLOVES_MONTANAS', 'Guantes de Montaña', 'EQUIPMENT', 'GLOVES', FALSE, 'RARO', 3, 17, TRUE, 'CRAFT', 'Forjada en el Bastión de Hierro con lo que dejan los monstruos del Paso de la Montaña y las Minas Abandonadas.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'ARQUERO_GLOVES_MONTANAS');
+UPDATE items SET name = 'Guantes de Montaña', item_type = 'EQUIPMENT', slot = 'GLOVES', is_two_handed = FALSE, rarity = 'RARO', class_id = 3, required_level = 17, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Forjada en el Bastión de Hierro con lo que dejan los monstruos del Paso de la Montaña y las Minas Abandonadas.' WHERE code = 'ARQUERO_GLOVES_MONTANAS';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'ARQUERO_GLOVES_MONTANAS');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'ARQUERO_GLOVES_MONTANAS'), v.* FROM (VALUES ('ATK', 21, FALSE), ('CRIT_CHANCE', 3.5, TRUE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station, scroll_item_id)
+SELECT 'RECIPE_ARQUERO_GLOVES_MONTANAS', (SELECT id FROM items WHERE code = 'ARQUERO_GLOVES_MONTANAS'), 1, 'RARO', 17, 3, 90, 1, 'Durgan, en la forja del Bastión de Hierro', 2, 'forja', NULL WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_ARQUERO_GLOVES_MONTANAS');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'ARQUERO_GLOVES_MONTANAS'), result_quantity = 1, rarity = 'RARO', required_level = 17, required_class_id = 3, success_rate_percent = 90, craft_time_minutes = 1, artisan_name = 'Durgan, en la forja del Bastión de Hierro', zone_id = 2, station = 'forja', scroll_item_id = NULL WHERE code = 'RECIPE_ARQUERO_GLOVES_MONTANAS';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_ARQUERO_GLOVES_MONTANAS');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_ARQUERO_GLOVES_MONTANAS'), i.id, v.n FROM (VALUES ('PIEL_LOBO_NIEVE', 2), ('CUERNO_CABRA_MONTES', 1)) AS v(code, n) JOIN items i ON i.code = v.code;
+-- Botas de Montaña
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'ARQUERO_BOOTS_MONTANAS', 'Botas de Montaña', 'EQUIPMENT', 'BOOTS', FALSE, 'RARO', 3, 17, TRUE, 'CRAFT', 'Forjada en el Bastión de Hierro con lo que dejan los monstruos del Paso de la Montaña y las Minas Abandonadas.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'ARQUERO_BOOTS_MONTANAS');
+UPDATE items SET name = 'Botas de Montaña', item_type = 'EQUIPMENT', slot = 'BOOTS', is_two_handed = FALSE, rarity = 'RARO', class_id = 3, required_level = 17, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Forjada en el Bastión de Hierro con lo que dejan los monstruos del Paso de la Montaña y las Minas Abandonadas.' WHERE code = 'ARQUERO_BOOTS_MONTANAS';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'ARQUERO_BOOTS_MONTANAS');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'ARQUERO_BOOTS_MONTANAS'), v.* FROM (VALUES ('DEF', 4, FALSE), ('HP', 3, FALSE), ('SPD', 12, FALSE), ('EVASION', 2, TRUE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station, scroll_item_id)
+SELECT 'RECIPE_ARQUERO_BOOTS_MONTANAS', (SELECT id FROM items WHERE code = 'ARQUERO_BOOTS_MONTANAS'), 1, 'RARO', 17, 3, 90, 1, 'Durgan, en la forja del Bastión de Hierro', 2, 'forja', NULL WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_ARQUERO_BOOTS_MONTANAS');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'ARQUERO_BOOTS_MONTANAS'), result_quantity = 1, rarity = 'RARO', required_level = 17, required_class_id = 3, success_rate_percent = 90, craft_time_minutes = 1, artisan_name = 'Durgan, en la forja del Bastión de Hierro', zone_id = 2, station = 'forja', scroll_item_id = NULL WHERE code = 'RECIPE_ARQUERO_BOOTS_MONTANAS';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_ARQUERO_BOOTS_MONTANAS');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_ARQUERO_BOOTS_MONTANAS'), i.id, v.n FROM (VALUES ('PIEL_LOBO_NIEVE', 2), ('CUERNO_CABRA_MONTES', 1)) AS v(code, n) JOIN items i ON i.code = v.code;
+-- Brazalete de Montaña
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'ARQUERO_ACCESSORY_MONTANAS', 'Brazalete de Montaña', 'EQUIPMENT', 'ACCESSORY', FALSE, 'RARO', NULL, 17, TRUE, 'CRAFT', 'Forjada en el Bastión de Hierro con lo que dejan los monstruos del Paso de la Montaña y las Minas Abandonadas.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'ARQUERO_ACCESSORY_MONTANAS');
+UPDATE items SET name = 'Brazalete de Montaña', item_type = 'EQUIPMENT', slot = 'ACCESSORY', is_two_handed = FALSE, rarity = 'RARO', class_id = NULL, required_level = 17, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Forjada en el Bastión de Hierro con lo que dejan los monstruos del Paso de la Montaña y las Minas Abandonadas.' WHERE code = 'ARQUERO_ACCESSORY_MONTANAS';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'ARQUERO_ACCESSORY_MONTANAS');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'ARQUERO_ACCESSORY_MONTANAS'), v.* FROM (VALUES ('ATK', 18, FALSE), ('CRIT_CHANCE', 3.5, TRUE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station, scroll_item_id)
+SELECT 'RECIPE_ARQUERO_ACCESSORY_MONTANAS', (SELECT id FROM items WHERE code = 'ARQUERO_ACCESSORY_MONTANAS'), 1, 'RARO', 17, NULL, 90, 1, 'Durgan, en la forja del Bastión de Hierro', 2, 'forja', NULL WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_ARQUERO_ACCESSORY_MONTANAS');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'ARQUERO_ACCESSORY_MONTANAS'), result_quantity = 1, rarity = 'RARO', required_level = 17, required_class_id = NULL, success_rate_percent = 90, craft_time_minutes = 1, artisan_name = 'Durgan, en la forja del Bastión de Hierro', zone_id = 2, station = 'forja', scroll_item_id = NULL WHERE code = 'RECIPE_ARQUERO_ACCESSORY_MONTANAS';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_ARQUERO_ACCESSORY_MONTANAS');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_ARQUERO_ACCESSORY_MONTANAS'), i.id, v.n FROM (VALUES ('FRAGMENTO_PIEDRA_VIVA', 2), ('PIEL_LOBO_NIEVE', 2), ('GEMA_COMUN', 1)) AS v(code, n) JOIN items i ON i.code = v.code;
+-- Daga de Montaña
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'PICARO_WEAPON_MONTANAS', 'Daga de Montaña', 'EQUIPMENT', 'WEAPON', FALSE, 'RARO', 4, 17, TRUE, 'CRAFT', 'Forjada en el Bastión de Hierro con lo que dejan los monstruos del Paso de la Montaña y las Minas Abandonadas.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'PICARO_WEAPON_MONTANAS');
+UPDATE items SET name = 'Daga de Montaña', item_type = 'EQUIPMENT', slot = 'WEAPON', is_two_handed = FALSE, rarity = 'RARO', class_id = 4, required_level = 17, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Forjada en el Bastión de Hierro con lo que dejan los monstruos del Paso de la Montaña y las Minas Abandonadas.' WHERE code = 'PICARO_WEAPON_MONTANAS';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'PICARO_WEAPON_MONTANAS');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'PICARO_WEAPON_MONTANAS'), v.* FROM (VALUES ('ATK', 46, FALSE), ('CRIT_CHANCE', 5.3, TRUE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station, scroll_item_id)
+SELECT 'RECIPE_PICARO_WEAPON_MONTANAS', (SELECT id FROM items WHERE code = 'PICARO_WEAPON_MONTANAS'), 1, 'RARO', 17, 4, 90, 1, 'Durgan, en la forja del Bastión de Hierro', 2, 'forja', NULL WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_PICARO_WEAPON_MONTANAS');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'PICARO_WEAPON_MONTANAS'), result_quantity = 1, rarity = 'RARO', required_level = 17, required_class_id = 4, success_rate_percent = 90, craft_time_minutes = 1, artisan_name = 'Durgan, en la forja del Bastión de Hierro', zone_id = 2, station = 'forja', scroll_item_id = NULL WHERE code = 'RECIPE_PICARO_WEAPON_MONTANAS';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_PICARO_WEAPON_MONTANAS');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_PICARO_WEAPON_MONTANAS'), i.id, v.n FROM (VALUES ('PIEL_LOBO_NIEVE', 3), ('MEMBRANA_MURCIELAGO', 2), ('ACERO_REFINADO', 1)) AS v(code, n) JOIN items i ON i.code = v.code;
+-- Daga Gemela de Montaña
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'PICARO_OFFHAND_MONTANAS', 'Daga Gemela de Montaña', 'EQUIPMENT', 'OFFHAND', FALSE, 'RARO', 4, 17, TRUE, 'CRAFT', 'Forjada en el Bastión de Hierro con lo que dejan los monstruos del Paso de la Montaña y las Minas Abandonadas.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'PICARO_OFFHAND_MONTANAS');
+UPDATE items SET name = 'Daga Gemela de Montaña', item_type = 'EQUIPMENT', slot = 'OFFHAND', is_two_handed = FALSE, rarity = 'RARO', class_id = 4, required_level = 17, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Forjada en el Bastión de Hierro con lo que dejan los monstruos del Paso de la Montaña y las Minas Abandonadas.' WHERE code = 'PICARO_OFFHAND_MONTANAS';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'PICARO_OFFHAND_MONTANAS');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'PICARO_OFFHAND_MONTANAS'), v.* FROM (VALUES ('ATK', 11, FALSE), ('SPD', 15, FALSE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station, scroll_item_id)
+SELECT 'RECIPE_PICARO_OFFHAND_MONTANAS', (SELECT id FROM items WHERE code = 'PICARO_OFFHAND_MONTANAS'), 1, 'RARO', 17, 4, 90, 1, 'Durgan, en la forja del Bastión de Hierro', 2, 'forja', NULL WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_PICARO_OFFHAND_MONTANAS');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'PICARO_OFFHAND_MONTANAS'), result_quantity = 1, rarity = 'RARO', required_level = 17, required_class_id = 4, success_rate_percent = 90, craft_time_minutes = 1, artisan_name = 'Durgan, en la forja del Bastión de Hierro', zone_id = 2, station = 'forja', scroll_item_id = NULL WHERE code = 'RECIPE_PICARO_OFFHAND_MONTANAS';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_PICARO_OFFHAND_MONTANAS');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_PICARO_OFFHAND_MONTANAS'), i.id, v.n FROM (VALUES ('MEMBRANA_MURCIELAGO', 2), ('PIEL_LOBO_NIEVE', 1)) AS v(code, n) JOIN items i ON i.code = v.code;
+-- Máscara de Montaña
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'PICARO_HELMET_MONTANAS', 'Máscara de Montaña', 'EQUIPMENT', 'HELMET', FALSE, 'RARO', 4, 17, TRUE, 'CRAFT', 'Forjada en el Bastión de Hierro con lo que dejan los monstruos del Paso de la Montaña y las Minas Abandonadas.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'PICARO_HELMET_MONTANAS');
+UPDATE items SET name = 'Máscara de Montaña', item_type = 'EQUIPMENT', slot = 'HELMET', is_two_handed = FALSE, rarity = 'RARO', class_id = 4, required_level = 17, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Forjada en el Bastión de Hierro con lo que dejan los monstruos del Paso de la Montaña y las Minas Abandonadas.' WHERE code = 'PICARO_HELMET_MONTANAS';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'PICARO_HELMET_MONTANAS');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'PICARO_HELMET_MONTANAS'), v.* FROM (VALUES ('DEF', 8, FALSE), ('MAGIC_DEF', 3, FALSE), ('HP', 8, FALSE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station, scroll_item_id)
+SELECT 'RECIPE_PICARO_HELMET_MONTANAS', (SELECT id FROM items WHERE code = 'PICARO_HELMET_MONTANAS'), 1, 'RARO', 17, 4, 90, 1, 'Durgan, en la forja del Bastión de Hierro', 2, 'forja', NULL WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_PICARO_HELMET_MONTANAS');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'PICARO_HELMET_MONTANAS'), result_quantity = 1, rarity = 'RARO', required_level = 17, required_class_id = 4, success_rate_percent = 90, craft_time_minutes = 1, artisan_name = 'Durgan, en la forja del Bastión de Hierro', zone_id = 2, station = 'forja', scroll_item_id = NULL WHERE code = 'RECIPE_PICARO_HELMET_MONTANAS';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_PICARO_HELMET_MONTANAS');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_PICARO_HELMET_MONTANAS'), i.id, v.n FROM (VALUES ('MEMBRANA_MURCIELAGO', 2), ('PIEL_LOBO_NIEVE', 1)) AS v(code, n) JOIN items i ON i.code = v.code;
+-- Cuero de Montaña
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'PICARO_ARMOR_MONTANAS', 'Cuero de Montaña', 'EQUIPMENT', 'ARMOR', FALSE, 'RARO', 4, 17, TRUE, 'CRAFT', 'Forjada en el Bastión de Hierro con lo que dejan los monstruos del Paso de la Montaña y las Minas Abandonadas.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'PICARO_ARMOR_MONTANAS');
+UPDATE items SET name = 'Cuero de Montaña', item_type = 'EQUIPMENT', slot = 'ARMOR', is_two_handed = FALSE, rarity = 'RARO', class_id = 4, required_level = 17, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Forjada en el Bastión de Hierro con lo que dejan los monstruos del Paso de la Montaña y las Minas Abandonadas.' WHERE code = 'PICARO_ARMOR_MONTANAS';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'PICARO_ARMOR_MONTANAS');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'PICARO_ARMOR_MONTANAS'), v.* FROM (VALUES ('DEF', 17, FALSE), ('MAGIC_DEF', 5, FALSE), ('HP', 33, FALSE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station, scroll_item_id)
+SELECT 'RECIPE_PICARO_ARMOR_MONTANAS', (SELECT id FROM items WHERE code = 'PICARO_ARMOR_MONTANAS'), 1, 'RARO', 17, 4, 90, 1, 'Durgan, en la forja del Bastión de Hierro', 2, 'forja', NULL WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_PICARO_ARMOR_MONTANAS');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'PICARO_ARMOR_MONTANAS'), result_quantity = 1, rarity = 'RARO', required_level = 17, required_class_id = 4, success_rate_percent = 90, craft_time_minutes = 1, artisan_name = 'Durgan, en la forja del Bastión de Hierro', zone_id = 2, station = 'forja', scroll_item_id = NULL WHERE code = 'RECIPE_PICARO_ARMOR_MONTANAS';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_PICARO_ARMOR_MONTANAS');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_PICARO_ARMOR_MONTANAS'), i.id, v.n FROM (VALUES ('PIEL_LOBO_NIEVE', 3), ('MEMBRANA_MURCIELAGO', 2), ('ACERO_REFINADO', 1)) AS v(code, n) JOIN items i ON i.code = v.code;
+-- Guantes de Montaña
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'PICARO_GLOVES_MONTANAS', 'Guantes de Montaña', 'EQUIPMENT', 'GLOVES', FALSE, 'RARO', 4, 17, TRUE, 'CRAFT', 'Forjada en el Bastión de Hierro con lo que dejan los monstruos del Paso de la Montaña y las Minas Abandonadas.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'PICARO_GLOVES_MONTANAS');
+UPDATE items SET name = 'Guantes de Montaña', item_type = 'EQUIPMENT', slot = 'GLOVES', is_two_handed = FALSE, rarity = 'RARO', class_id = 4, required_level = 17, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Forjada en el Bastión de Hierro con lo que dejan los monstruos del Paso de la Montaña y las Minas Abandonadas.' WHERE code = 'PICARO_GLOVES_MONTANAS';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'PICARO_GLOVES_MONTANAS');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'PICARO_GLOVES_MONTANAS'), v.* FROM (VALUES ('ATK', 21, FALSE), ('CRIT_CHANCE', 3.5, TRUE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station, scroll_item_id)
+SELECT 'RECIPE_PICARO_GLOVES_MONTANAS', (SELECT id FROM items WHERE code = 'PICARO_GLOVES_MONTANAS'), 1, 'RARO', 17, 4, 90, 1, 'Durgan, en la forja del Bastión de Hierro', 2, 'forja', NULL WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_PICARO_GLOVES_MONTANAS');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'PICARO_GLOVES_MONTANAS'), result_quantity = 1, rarity = 'RARO', required_level = 17, required_class_id = 4, success_rate_percent = 90, craft_time_minutes = 1, artisan_name = 'Durgan, en la forja del Bastión de Hierro', zone_id = 2, station = 'forja', scroll_item_id = NULL WHERE code = 'RECIPE_PICARO_GLOVES_MONTANAS';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_PICARO_GLOVES_MONTANAS');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_PICARO_GLOVES_MONTANAS'), i.id, v.n FROM (VALUES ('MEMBRANA_MURCIELAGO', 2), ('PIEL_LOBO_NIEVE', 1)) AS v(code, n) JOIN items i ON i.code = v.code;
+-- Botas de Montaña
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'PICARO_BOOTS_MONTANAS', 'Botas de Montaña', 'EQUIPMENT', 'BOOTS', FALSE, 'RARO', 4, 17, TRUE, 'CRAFT', 'Forjada en el Bastión de Hierro con lo que dejan los monstruos del Paso de la Montaña y las Minas Abandonadas.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'PICARO_BOOTS_MONTANAS');
+UPDATE items SET name = 'Botas de Montaña', item_type = 'EQUIPMENT', slot = 'BOOTS', is_two_handed = FALSE, rarity = 'RARO', class_id = 4, required_level = 17, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Forjada en el Bastión de Hierro con lo que dejan los monstruos del Paso de la Montaña y las Minas Abandonadas.' WHERE code = 'PICARO_BOOTS_MONTANAS';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'PICARO_BOOTS_MONTANAS');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'PICARO_BOOTS_MONTANAS'), v.* FROM (VALUES ('DEF', 4, FALSE), ('HP', 3, FALSE), ('SPD', 12, FALSE), ('EVASION', 2, TRUE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station, scroll_item_id)
+SELECT 'RECIPE_PICARO_BOOTS_MONTANAS', (SELECT id FROM items WHERE code = 'PICARO_BOOTS_MONTANAS'), 1, 'RARO', 17, 4, 90, 1, 'Durgan, en la forja del Bastión de Hierro', 2, 'forja', NULL WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_PICARO_BOOTS_MONTANAS');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'PICARO_BOOTS_MONTANAS'), result_quantity = 1, rarity = 'RARO', required_level = 17, required_class_id = 4, success_rate_percent = 90, craft_time_minutes = 1, artisan_name = 'Durgan, en la forja del Bastión de Hierro', zone_id = 2, station = 'forja', scroll_item_id = NULL WHERE code = 'RECIPE_PICARO_BOOTS_MONTANAS';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_PICARO_BOOTS_MONTANAS');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_PICARO_BOOTS_MONTANAS'), i.id, v.n FROM (VALUES ('MEMBRANA_MURCIELAGO', 2), ('PIEL_LOBO_NIEVE', 1)) AS v(code, n) JOIN items i ON i.code = v.code;
+-- Anillo de Montaña
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'PICARO_ACCESSORY_MONTANAS', 'Anillo de Montaña', 'EQUIPMENT', 'ACCESSORY', FALSE, 'RARO', NULL, 17, TRUE, 'CRAFT', 'Forjada en el Bastión de Hierro con lo que dejan los monstruos del Paso de la Montaña y las Minas Abandonadas.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'PICARO_ACCESSORY_MONTANAS');
+UPDATE items SET name = 'Anillo de Montaña', item_type = 'EQUIPMENT', slot = 'ACCESSORY', is_two_handed = FALSE, rarity = 'RARO', class_id = NULL, required_level = 17, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Forjada en el Bastión de Hierro con lo que dejan los monstruos del Paso de la Montaña y las Minas Abandonadas.' WHERE code = 'PICARO_ACCESSORY_MONTANAS';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'PICARO_ACCESSORY_MONTANAS');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'PICARO_ACCESSORY_MONTANAS'), v.* FROM (VALUES ('ATK', 18, FALSE), ('CRIT_CHANCE', 3.5, TRUE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station, scroll_item_id)
+SELECT 'RECIPE_PICARO_ACCESSORY_MONTANAS', (SELECT id FROM items WHERE code = 'PICARO_ACCESSORY_MONTANAS'), 1, 'RARO', 17, NULL, 90, 1, 'Durgan, en la forja del Bastión de Hierro', 2, 'forja', NULL WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_PICARO_ACCESSORY_MONTANAS');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'PICARO_ACCESSORY_MONTANAS'), result_quantity = 1, rarity = 'RARO', required_level = 17, required_class_id = NULL, success_rate_percent = 90, craft_time_minutes = 1, artisan_name = 'Durgan, en la forja del Bastión de Hierro', zone_id = 2, station = 'forja', scroll_item_id = NULL WHERE code = 'RECIPE_PICARO_ACCESSORY_MONTANAS';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_PICARO_ACCESSORY_MONTANAS');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_PICARO_ACCESSORY_MONTANAS'), i.id, v.n FROM (VALUES ('FRAGMENTO_PIEDRA_VIVA', 2), ('MEMBRANA_MURCIELAGO', 2), ('GEMA_COMUN', 1)) AS v(code, n) JOIN items i ON i.code = v.code;
+-- Báculo Arcano de Montaña
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'MAGO_WEAPON_MONTANAS', 'Báculo Arcano de Montaña', 'EQUIPMENT', 'WEAPON', FALSE, 'RARO', 2, 17, TRUE, 'CRAFT', 'Forjada en el Bastión de Hierro con lo que dejan los monstruos del Paso de la Montaña y las Minas Abandonadas.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'MAGO_WEAPON_MONTANAS');
+UPDATE items SET name = 'Báculo Arcano de Montaña', item_type = 'EQUIPMENT', slot = 'WEAPON', is_two_handed = FALSE, rarity = 'RARO', class_id = 2, required_level = 17, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Forjada en el Bastión de Hierro con lo que dejan los monstruos del Paso de la Montaña y las Minas Abandonadas.' WHERE code = 'MAGO_WEAPON_MONTANAS';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'MAGO_WEAPON_MONTANAS');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'MAGO_WEAPON_MONTANAS'), v.* FROM (VALUES ('MAG', 46, FALSE), ('CRIT_CHANCE', 5.3, TRUE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station, scroll_item_id)
+SELECT 'RECIPE_MAGO_WEAPON_MONTANAS', (SELECT id FROM items WHERE code = 'MAGO_WEAPON_MONTANAS'), 1, 'RARO', 17, 2, 90, 1, 'Durgan, en la forja del Bastión de Hierro', 2, 'forja', NULL WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_MAGO_WEAPON_MONTANAS');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'MAGO_WEAPON_MONTANAS'), result_quantity = 1, rarity = 'RARO', required_level = 17, required_class_id = 2, success_rate_percent = 90, craft_time_minutes = 1, artisan_name = 'Durgan, en la forja del Bastión de Hierro', zone_id = 2, station = 'forja', scroll_item_id = NULL WHERE code = 'RECIPE_MAGO_WEAPON_MONTANAS';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_MAGO_WEAPON_MONTANAS');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_MAGO_WEAPON_MONTANAS'), i.id, v.n FROM (VALUES ('MEMBRANA_MURCIELAGO', 3), ('PICO_CORROMPIDO', 2), ('MADERA_PINO', 2)) AS v(code, n) JOIN items i ON i.code = v.code;
+-- Orbe de Montaña
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'MAGO_OFFHAND_MONTANAS', 'Orbe de Montaña', 'EQUIPMENT', 'OFFHAND', FALSE, 'RARO', 2, 17, TRUE, 'CRAFT', 'Forjada en el Bastión de Hierro con lo que dejan los monstruos del Paso de la Montaña y las Minas Abandonadas.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'MAGO_OFFHAND_MONTANAS');
+UPDATE items SET name = 'Orbe de Montaña', item_type = 'EQUIPMENT', slot = 'OFFHAND', is_two_handed = FALSE, rarity = 'RARO', class_id = 2, required_level = 17, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Forjada en el Bastión de Hierro con lo que dejan los monstruos del Paso de la Montaña y las Minas Abandonadas.' WHERE code = 'MAGO_OFFHAND_MONTANAS';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'MAGO_OFFHAND_MONTANAS');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'MAGO_OFFHAND_MONTANAS'), v.* FROM (VALUES ('MAG', 14, FALSE), ('SPD', 15, FALSE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station, scroll_item_id)
+SELECT 'RECIPE_MAGO_OFFHAND_MONTANAS', (SELECT id FROM items WHERE code = 'MAGO_OFFHAND_MONTANAS'), 1, 'RARO', 17, 2, 90, 1, 'Durgan, en la forja del Bastión de Hierro', 2, 'forja', NULL WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_MAGO_OFFHAND_MONTANAS');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'MAGO_OFFHAND_MONTANAS'), result_quantity = 1, rarity = 'RARO', required_level = 17, required_class_id = 2, success_rate_percent = 90, craft_time_minutes = 1, artisan_name = 'Durgan, en la forja del Bastión de Hierro', zone_id = 2, station = 'forja', scroll_item_id = NULL WHERE code = 'RECIPE_MAGO_OFFHAND_MONTANAS';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_MAGO_OFFHAND_MONTANAS');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_MAGO_OFFHAND_MONTANAS'), i.id, v.n FROM (VALUES ('MEMBRANA_MURCIELAGO', 2), ('PICO_CORROMPIDO', 1)) AS v(code, n) JOIN items i ON i.code = v.code;
+-- Capirote de Montaña
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'MAGO_HELMET_MONTANAS', 'Capirote de Montaña', 'EQUIPMENT', 'HELMET', FALSE, 'RARO', 2, 17, TRUE, 'CRAFT', 'Forjada en el Bastión de Hierro con lo que dejan los monstruos del Paso de la Montaña y las Minas Abandonadas.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'MAGO_HELMET_MONTANAS');
+UPDATE items SET name = 'Capirote de Montaña', item_type = 'EQUIPMENT', slot = 'HELMET', is_two_handed = FALSE, rarity = 'RARO', class_id = 2, required_level = 17, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Forjada en el Bastión de Hierro con lo que dejan los monstruos del Paso de la Montaña y las Minas Abandonadas.' WHERE code = 'MAGO_HELMET_MONTANAS';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'MAGO_HELMET_MONTANAS');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'MAGO_HELMET_MONTANAS'), v.* FROM (VALUES ('MAGIC_DEF', 8, FALSE), ('DEF', 2, FALSE), ('HP', 7, FALSE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station, scroll_item_id)
+SELECT 'RECIPE_MAGO_HELMET_MONTANAS', (SELECT id FROM items WHERE code = 'MAGO_HELMET_MONTANAS'), 1, 'RARO', 17, 2, 90, 1, 'Durgan, en la forja del Bastión de Hierro', 2, 'forja', NULL WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_MAGO_HELMET_MONTANAS');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'MAGO_HELMET_MONTANAS'), result_quantity = 1, rarity = 'RARO', required_level = 17, required_class_id = 2, success_rate_percent = 90, craft_time_minutes = 1, artisan_name = 'Durgan, en la forja del Bastión de Hierro', zone_id = 2, station = 'forja', scroll_item_id = NULL WHERE code = 'RECIPE_MAGO_HELMET_MONTANAS';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_MAGO_HELMET_MONTANAS');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_MAGO_HELMET_MONTANAS'), i.id, v.n FROM (VALUES ('MEMBRANA_MURCIELAGO', 2), ('PICO_CORROMPIDO', 1)) AS v(code, n) JOIN items i ON i.code = v.code;
+-- Túnica de Montaña
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'MAGO_ARMOR_MONTANAS', 'Túnica de Montaña', 'EQUIPMENT', 'ARMOR', FALSE, 'RARO', 2, 17, TRUE, 'CRAFT', 'Forjada en el Bastión de Hierro con lo que dejan los monstruos del Paso de la Montaña y las Minas Abandonadas.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'MAGO_ARMOR_MONTANAS');
+UPDATE items SET name = 'Túnica de Montaña', item_type = 'EQUIPMENT', slot = 'ARMOR', is_two_handed = FALSE, rarity = 'RARO', class_id = 2, required_level = 17, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Forjada en el Bastión de Hierro con lo que dejan los monstruos del Paso de la Montaña y las Minas Abandonadas.' WHERE code = 'MAGO_ARMOR_MONTANAS';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'MAGO_ARMOR_MONTANAS');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'MAGO_ARMOR_MONTANAS'), v.* FROM (VALUES ('MAGIC_DEF', 17, FALSE), ('DEF', 5, FALSE), ('HP', 31, FALSE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station, scroll_item_id)
+SELECT 'RECIPE_MAGO_ARMOR_MONTANAS', (SELECT id FROM items WHERE code = 'MAGO_ARMOR_MONTANAS'), 1, 'RARO', 17, 2, 90, 1, 'Durgan, en la forja del Bastión de Hierro', 2, 'forja', NULL WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_MAGO_ARMOR_MONTANAS');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'MAGO_ARMOR_MONTANAS'), result_quantity = 1, rarity = 'RARO', required_level = 17, required_class_id = 2, success_rate_percent = 90, craft_time_minutes = 1, artisan_name = 'Durgan, en la forja del Bastión de Hierro', zone_id = 2, station = 'forja', scroll_item_id = NULL WHERE code = 'RECIPE_MAGO_ARMOR_MONTANAS';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_MAGO_ARMOR_MONTANAS');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_MAGO_ARMOR_MONTANAS'), i.id, v.n FROM (VALUES ('MEMBRANA_MURCIELAGO', 3), ('PICO_CORROMPIDO', 2), ('MADERA_PINO', 2)) AS v(code, n) JOIN items i ON i.code = v.code;
+-- Guantes de Tela de Montaña
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'MAGO_GLOVES_MONTANAS', 'Guantes de Tela de Montaña', 'EQUIPMENT', 'GLOVES', FALSE, 'RARO', 2, 17, TRUE, 'CRAFT', 'Forjada en el Bastión de Hierro con lo que dejan los monstruos del Paso de la Montaña y las Minas Abandonadas.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'MAGO_GLOVES_MONTANAS');
+UPDATE items SET name = 'Guantes de Tela de Montaña', item_type = 'EQUIPMENT', slot = 'GLOVES', is_two_handed = FALSE, rarity = 'RARO', class_id = 2, required_level = 17, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Forjada en el Bastión de Hierro con lo que dejan los monstruos del Paso de la Montaña y las Minas Abandonadas.' WHERE code = 'MAGO_GLOVES_MONTANAS';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'MAGO_GLOVES_MONTANAS');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'MAGO_GLOVES_MONTANAS'), v.* FROM (VALUES ('MAG', 21, FALSE), ('CRIT_CHANCE', 3.5, TRUE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station, scroll_item_id)
+SELECT 'RECIPE_MAGO_GLOVES_MONTANAS', (SELECT id FROM items WHERE code = 'MAGO_GLOVES_MONTANAS'), 1, 'RARO', 17, 2, 90, 1, 'Durgan, en la forja del Bastión de Hierro', 2, 'forja', NULL WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_MAGO_GLOVES_MONTANAS');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'MAGO_GLOVES_MONTANAS'), result_quantity = 1, rarity = 'RARO', required_level = 17, required_class_id = 2, success_rate_percent = 90, craft_time_minutes = 1, artisan_name = 'Durgan, en la forja del Bastión de Hierro', zone_id = 2, station = 'forja', scroll_item_id = NULL WHERE code = 'RECIPE_MAGO_GLOVES_MONTANAS';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_MAGO_GLOVES_MONTANAS');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_MAGO_GLOVES_MONTANAS'), i.id, v.n FROM (VALUES ('MEMBRANA_MURCIELAGO', 2), ('PICO_CORROMPIDO', 1)) AS v(code, n) JOIN items i ON i.code = v.code;
+-- Sandalias de Montaña
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'MAGO_BOOTS_MONTANAS', 'Sandalias de Montaña', 'EQUIPMENT', 'BOOTS', FALSE, 'RARO', 2, 17, TRUE, 'CRAFT', 'Forjada en el Bastión de Hierro con lo que dejan los monstruos del Paso de la Montaña y las Minas Abandonadas.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'MAGO_BOOTS_MONTANAS');
+UPDATE items SET name = 'Sandalias de Montaña', item_type = 'EQUIPMENT', slot = 'BOOTS', is_two_handed = FALSE, rarity = 'RARO', class_id = 2, required_level = 17, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Forjada en el Bastión de Hierro con lo que dejan los monstruos del Paso de la Montaña y las Minas Abandonadas.' WHERE code = 'MAGO_BOOTS_MONTANAS';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'MAGO_BOOTS_MONTANAS');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'MAGO_BOOTS_MONTANAS'), v.* FROM (VALUES ('MAGIC_DEF', 4, FALSE), ('HP', 3, FALSE), ('SPD', 12, FALSE), ('EVASION', 2, TRUE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station, scroll_item_id)
+SELECT 'RECIPE_MAGO_BOOTS_MONTANAS', (SELECT id FROM items WHERE code = 'MAGO_BOOTS_MONTANAS'), 1, 'RARO', 17, 2, 90, 1, 'Durgan, en la forja del Bastión de Hierro', 2, 'forja', NULL WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_MAGO_BOOTS_MONTANAS');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'MAGO_BOOTS_MONTANAS'), result_quantity = 1, rarity = 'RARO', required_level = 17, required_class_id = 2, success_rate_percent = 90, craft_time_minutes = 1, artisan_name = 'Durgan, en la forja del Bastión de Hierro', zone_id = 2, station = 'forja', scroll_item_id = NULL WHERE code = 'RECIPE_MAGO_BOOTS_MONTANAS';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_MAGO_BOOTS_MONTANAS');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_MAGO_BOOTS_MONTANAS'), i.id, v.n FROM (VALUES ('MEMBRANA_MURCIELAGO', 2), ('PICO_CORROMPIDO', 1)) AS v(code, n) JOIN items i ON i.code = v.code;
+-- Cristal de Montaña
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'MAGO_ACCESSORY_MONTANAS', 'Cristal de Montaña', 'EQUIPMENT', 'OFFHAND', FALSE, 'RARO', 2, 17, TRUE, 'CRAFT', 'Forjada en el Bastión de Hierro con lo que dejan los monstruos del Paso de la Montaña y las Minas Abandonadas.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'MAGO_ACCESSORY_MONTANAS');
+UPDATE items SET name = 'Cristal de Montaña', item_type = 'EQUIPMENT', slot = 'OFFHAND', is_two_handed = FALSE, rarity = 'RARO', class_id = 2, required_level = 17, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Forjada en el Bastión de Hierro con lo que dejan los monstruos del Paso de la Montaña y las Minas Abandonadas.' WHERE code = 'MAGO_ACCESSORY_MONTANAS';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'MAGO_ACCESSORY_MONTANAS');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'MAGO_ACCESSORY_MONTANAS'), v.* FROM (VALUES ('MAG', 25, FALSE), ('CRIT_CHANCE', 3.5, TRUE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station, scroll_item_id)
+SELECT 'RECIPE_MAGO_ACCESSORY_MONTANAS', (SELECT id FROM items WHERE code = 'MAGO_ACCESSORY_MONTANAS'), 1, 'RARO', 17, 2, 90, 1, 'Durgan, en la forja del Bastión de Hierro', 2, 'forja', NULL WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_MAGO_ACCESSORY_MONTANAS');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'MAGO_ACCESSORY_MONTANAS'), result_quantity = 1, rarity = 'RARO', required_level = 17, required_class_id = 2, success_rate_percent = 90, craft_time_minutes = 1, artisan_name = 'Durgan, en la forja del Bastión de Hierro', zone_id = 2, station = 'forja', scroll_item_id = NULL WHERE code = 'RECIPE_MAGO_ACCESSORY_MONTANAS';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_MAGO_ACCESSORY_MONTANAS');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_MAGO_ACCESSORY_MONTANAS'), i.id, v.n FROM (VALUES ('MEMBRANA_MURCIELAGO', 2), ('PICO_CORROMPIDO', 1)) AS v(code, n) JOIN items i ON i.code = v.code;
+-- Báculo Sagrado de Montaña
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'SACERDOTE_WEAPON_MONTANAS', 'Báculo Sagrado de Montaña', 'EQUIPMENT', 'WEAPON', FALSE, 'RARO', 5, 17, TRUE, 'CRAFT', 'Forjada en el Bastión de Hierro con lo que dejan los monstruos del Paso de la Montaña y las Minas Abandonadas.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'SACERDOTE_WEAPON_MONTANAS');
+UPDATE items SET name = 'Báculo Sagrado de Montaña', item_type = 'EQUIPMENT', slot = 'WEAPON', is_two_handed = FALSE, rarity = 'RARO', class_id = 5, required_level = 17, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Forjada en el Bastión de Hierro con lo que dejan los monstruos del Paso de la Montaña y las Minas Abandonadas.' WHERE code = 'SACERDOTE_WEAPON_MONTANAS';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'SACERDOTE_WEAPON_MONTANAS');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'SACERDOTE_WEAPON_MONTANAS'), v.* FROM (VALUES ('MAG', 46, FALSE), ('CRIT_CHANCE', 5.3, TRUE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station, scroll_item_id)
+SELECT 'RECIPE_SACERDOTE_WEAPON_MONTANAS', (SELECT id FROM items WHERE code = 'SACERDOTE_WEAPON_MONTANAS'), 1, 'RARO', 17, 5, 90, 1, 'Durgan, en la forja del Bastión de Hierro', 2, 'forja', NULL WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_SACERDOTE_WEAPON_MONTANAS');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'SACERDOTE_WEAPON_MONTANAS'), result_quantity = 1, rarity = 'RARO', required_level = 17, required_class_id = 5, success_rate_percent = 90, craft_time_minutes = 1, artisan_name = 'Durgan, en la forja del Bastión de Hierro', zone_id = 2, station = 'forja', scroll_item_id = NULL WHERE code = 'RECIPE_SACERDOTE_WEAPON_MONTANAS';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_SACERDOTE_WEAPON_MONTANAS');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_SACERDOTE_WEAPON_MONTANAS'), i.id, v.n FROM (VALUES ('CUERNO_CABRA_MONTES', 3), ('FLOR_DE_NIEVE', 3), ('MADERA_PINO', 1)) AS v(code, n) JOIN items i ON i.code = v.code;
+-- Símbolo Sagrado de Montaña
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'SACERDOTE_OFFHAND_MONTANAS', 'Símbolo Sagrado de Montaña', 'EQUIPMENT', 'OFFHAND', FALSE, 'RARO', 5, 17, TRUE, 'CRAFT', 'Forjada en el Bastión de Hierro con lo que dejan los monstruos del Paso de la Montaña y las Minas Abandonadas.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'SACERDOTE_OFFHAND_MONTANAS');
+UPDATE items SET name = 'Símbolo Sagrado de Montaña', item_type = 'EQUIPMENT', slot = 'OFFHAND', is_two_handed = FALSE, rarity = 'RARO', class_id = 5, required_level = 17, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Forjada en el Bastión de Hierro con lo que dejan los monstruos del Paso de la Montaña y las Minas Abandonadas.' WHERE code = 'SACERDOTE_OFFHAND_MONTANAS';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'SACERDOTE_OFFHAND_MONTANAS');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'SACERDOTE_OFFHAND_MONTANAS'), v.* FROM (VALUES ('MAGIC_DEF', 10, FALSE), ('HP', 14, FALSE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station, scroll_item_id)
+SELECT 'RECIPE_SACERDOTE_OFFHAND_MONTANAS', (SELECT id FROM items WHERE code = 'SACERDOTE_OFFHAND_MONTANAS'), 1, 'RARO', 17, 5, 90, 1, 'Durgan, en la forja del Bastión de Hierro', 2, 'forja', NULL WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_SACERDOTE_OFFHAND_MONTANAS');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'SACERDOTE_OFFHAND_MONTANAS'), result_quantity = 1, rarity = 'RARO', required_level = 17, required_class_id = 5, success_rate_percent = 90, craft_time_minutes = 1, artisan_name = 'Durgan, en la forja del Bastión de Hierro', zone_id = 2, station = 'forja', scroll_item_id = NULL WHERE code = 'RECIPE_SACERDOTE_OFFHAND_MONTANAS';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_SACERDOTE_OFFHAND_MONTANAS');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_SACERDOTE_OFFHAND_MONTANAS'), i.id, v.n FROM (VALUES ('FLOR_DE_NIEVE', 2), ('CUERNO_CABRA_MONTES', 1)) AS v(code, n) JOIN items i ON i.code = v.code;
+
+-- ---------------------------------------------------------------- escarcha (nv 21, EPICO)
+-- Espada de la Escarcha
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'GUERRERO_WEAPON_ESCARCHA', 'Espada de la Escarcha', 'EQUIPMENT', 'WEAPON', FALSE, 'EPICO', 1, 21, TRUE, 'CRAFT', 'Hecha con garras, escamas y escarcha del Pinar Nevado, el Lago Helado y la Garganta del Eco.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'GUERRERO_WEAPON_ESCARCHA');
+UPDATE items SET name = 'Espada de la Escarcha', item_type = 'EQUIPMENT', slot = 'WEAPON', is_two_handed = FALSE, rarity = 'EPICO', class_id = 1, required_level = 21, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Hecha con garras, escamas y escarcha del Pinar Nevado, el Lago Helado y la Garganta del Eco.' WHERE code = 'GUERRERO_WEAPON_ESCARCHA';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'GUERRERO_WEAPON_ESCARCHA');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'GUERRERO_WEAPON_ESCARCHA'), v.* FROM (VALUES ('ATK', 58, FALSE), ('CRIT_CHANCE', 6.8, TRUE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station, scroll_item_id)
+SELECT 'RECIPE_GUERRERO_WEAPON_ESCARCHA', (SELECT id FROM items WHERE code = 'GUERRERO_WEAPON_ESCARCHA'), 1, 'EPICO', 21, 1, 80, 1, 'Durgan, en la forja del Bastión de Hierro', 2, 'forja', NULL WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_GUERRERO_WEAPON_ESCARCHA');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'GUERRERO_WEAPON_ESCARCHA'), result_quantity = 1, rarity = 'EPICO', required_level = 21, required_class_id = 1, success_rate_percent = 80, craft_time_minutes = 1, artisan_name = 'Durgan, en la forja del Bastión de Hierro', zone_id = 2, station = 'forja', scroll_item_id = NULL WHERE code = 'RECIPE_GUERRERO_WEAPON_ESCARCHA';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_GUERRERO_WEAPON_ESCARCHA');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_GUERRERO_WEAPON_ESCARCHA'), i.id, v.n FROM (VALUES ('GARRA_OSO_CUMBRES', 3), ('PIEL_DE_TROLL', 3), ('ACERO_REFINADO', 2), ('CRISTAL_GIGANTE_HIELO', 1)) AS v(code, n) JOIN items i ON i.code = v.code;
+-- Gran Espada de la Escarcha
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'GUERRERO_WEAPON2H_ESCARCHA', 'Gran Espada de la Escarcha', 'EQUIPMENT', 'WEAPON', TRUE, 'EPICO', 1, 21, TRUE, 'CRAFT', 'Hecha con garras, escamas y escarcha del Pinar Nevado, el Lago Helado y la Garganta del Eco.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'GUERRERO_WEAPON2H_ESCARCHA');
+UPDATE items SET name = 'Gran Espada de la Escarcha', item_type = 'EQUIPMENT', slot = 'WEAPON', is_two_handed = TRUE, rarity = 'EPICO', class_id = 1, required_level = 21, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Hecha con garras, escamas y escarcha del Pinar Nevado, el Lago Helado y la Garganta del Eco.' WHERE code = 'GUERRERO_WEAPON2H_ESCARCHA';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'GUERRERO_WEAPON2H_ESCARCHA');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'GUERRERO_WEAPON2H_ESCARCHA'), v.* FROM (VALUES ('ATK', 87, FALSE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station, scroll_item_id)
+SELECT 'RECIPE_GUERRERO_WEAPON2H_ESCARCHA', (SELECT id FROM items WHERE code = 'GUERRERO_WEAPON2H_ESCARCHA'), 1, 'EPICO', 21, 1, 80, 1, 'Durgan, en la forja del Bastión de Hierro', 2, 'forja', NULL WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_GUERRERO_WEAPON2H_ESCARCHA');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'GUERRERO_WEAPON2H_ESCARCHA'), result_quantity = 1, rarity = 'EPICO', required_level = 21, required_class_id = 1, success_rate_percent = 80, craft_time_minutes = 1, artisan_name = 'Durgan, en la forja del Bastión de Hierro', zone_id = 2, station = 'forja', scroll_item_id = NULL WHERE code = 'RECIPE_GUERRERO_WEAPON2H_ESCARCHA';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_GUERRERO_WEAPON2H_ESCARCHA');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_GUERRERO_WEAPON2H_ESCARCHA'), i.id, v.n FROM (VALUES ('GARRA_OSO_CUMBRES', 3), ('PIEL_DE_TROLL', 3), ('ACERO_REFINADO', 2), ('CRISTAL_GIGANTE_HIELO', 1)) AS v(code, n) JOIN items i ON i.code = v.code;
+-- Escudo de la Escarcha
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'GUERRERO_OFFHAND_ESCARCHA', 'Escudo de la Escarcha', 'EQUIPMENT', 'OFFHAND', FALSE, 'EPICO', 1, 21, TRUE, 'CRAFT', 'Hecha con garras, escamas y escarcha del Pinar Nevado, el Lago Helado y la Garganta del Eco.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'GUERRERO_OFFHAND_ESCARCHA');
+UPDATE items SET name = 'Escudo de la Escarcha', item_type = 'EQUIPMENT', slot = 'OFFHAND', is_two_handed = FALSE, rarity = 'EPICO', class_id = 1, required_level = 21, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Hecha con garras, escamas y escarcha del Pinar Nevado, el Lago Helado y la Garganta del Eco.' WHERE code = 'GUERRERO_OFFHAND_ESCARCHA';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'GUERRERO_OFFHAND_ESCARCHA');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'GUERRERO_OFFHAND_ESCARCHA'), v.* FROM (VALUES ('DEF', 13, FALSE), ('HP', 16, FALSE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station, scroll_item_id)
+SELECT 'RECIPE_GUERRERO_OFFHAND_ESCARCHA', (SELECT id FROM items WHERE code = 'GUERRERO_OFFHAND_ESCARCHA'), 1, 'EPICO', 21, 1, 80, 1, 'Durgan, en la forja del Bastión de Hierro', 2, 'forja', NULL WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_GUERRERO_OFFHAND_ESCARCHA');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'GUERRERO_OFFHAND_ESCARCHA'), result_quantity = 1, rarity = 'EPICO', required_level = 21, required_class_id = 1, success_rate_percent = 80, craft_time_minutes = 1, artisan_name = 'Durgan, en la forja del Bastión de Hierro', zone_id = 2, station = 'forja', scroll_item_id = NULL WHERE code = 'RECIPE_GUERRERO_OFFHAND_ESCARCHA';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_GUERRERO_OFFHAND_ESCARCHA');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_GUERRERO_OFFHAND_ESCARCHA'), i.id, v.n FROM (VALUES ('GARRA_OSO_CUMBRES', 2), ('PIEL_DE_TROLL', 2)) AS v(code, n) JOIN items i ON i.code = v.code;
+-- Yelmo de la Escarcha
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'GUERRERO_HELMET_ESCARCHA', 'Yelmo de la Escarcha', 'EQUIPMENT', 'HELMET', FALSE, 'EPICO', 1, 21, TRUE, 'CRAFT', 'Hecha con garras, escamas y escarcha del Pinar Nevado, el Lago Helado y la Garganta del Eco.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'GUERRERO_HELMET_ESCARCHA');
+UPDATE items SET name = 'Yelmo de la Escarcha', item_type = 'EQUIPMENT', slot = 'HELMET', is_two_handed = FALSE, rarity = 'EPICO', class_id = 1, required_level = 21, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Hecha con garras, escamas y escarcha del Pinar Nevado, el Lago Helado y la Garganta del Eco.' WHERE code = 'GUERRERO_HELMET_ESCARCHA';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'GUERRERO_HELMET_ESCARCHA');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'GUERRERO_HELMET_ESCARCHA'), v.* FROM (VALUES ('DEF', 10, FALSE), ('HP', 10, FALSE), ('MAGIC_DEF', 3, FALSE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station, scroll_item_id)
+SELECT 'RECIPE_GUERRERO_HELMET_ESCARCHA', (SELECT id FROM items WHERE code = 'GUERRERO_HELMET_ESCARCHA'), 1, 'EPICO', 21, 1, 80, 1, 'Durgan, en la forja del Bastión de Hierro', 2, 'forja', NULL WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_GUERRERO_HELMET_ESCARCHA');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'GUERRERO_HELMET_ESCARCHA'), result_quantity = 1, rarity = 'EPICO', required_level = 21, required_class_id = 1, success_rate_percent = 80, craft_time_minutes = 1, artisan_name = 'Durgan, en la forja del Bastión de Hierro', zone_id = 2, station = 'forja', scroll_item_id = NULL WHERE code = 'RECIPE_GUERRERO_HELMET_ESCARCHA';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_GUERRERO_HELMET_ESCARCHA');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_GUERRERO_HELMET_ESCARCHA'), i.id, v.n FROM (VALUES ('GARRA_OSO_CUMBRES', 2), ('PIEL_DE_TROLL', 2)) AS v(code, n) JOIN items i ON i.code = v.code;
+-- Armadura de la Escarcha
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'GUERRERO_ARMOR_ESCARCHA', 'Armadura de la Escarcha', 'EQUIPMENT', 'ARMOR', FALSE, 'EPICO', 1, 21, TRUE, 'CRAFT', 'Hecha con garras, escamas y escarcha del Pinar Nevado, el Lago Helado y la Garganta del Eco.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'GUERRERO_ARMOR_ESCARCHA');
+UPDATE items SET name = 'Armadura de la Escarcha', item_type = 'EQUIPMENT', slot = 'ARMOR', is_two_handed = FALSE, rarity = 'EPICO', class_id = 1, required_level = 21, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Hecha con garras, escamas y escarcha del Pinar Nevado, el Lago Helado y la Garganta del Eco.' WHERE code = 'GUERRERO_ARMOR_ESCARCHA';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'GUERRERO_ARMOR_ESCARCHA');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'GUERRERO_ARMOR_ESCARCHA'), v.* FROM (VALUES ('DEF', 21, FALSE), ('HP', 33, FALSE), ('MAGIC_DEF', 6, FALSE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station, scroll_item_id)
+SELECT 'RECIPE_GUERRERO_ARMOR_ESCARCHA', (SELECT id FROM items WHERE code = 'GUERRERO_ARMOR_ESCARCHA'), 1, 'EPICO', 21, 1, 80, 1, 'Durgan, en la forja del Bastión de Hierro', 2, 'forja', NULL WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_GUERRERO_ARMOR_ESCARCHA');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'GUERRERO_ARMOR_ESCARCHA'), result_quantity = 1, rarity = 'EPICO', required_level = 21, required_class_id = 1, success_rate_percent = 80, craft_time_minutes = 1, artisan_name = 'Durgan, en la forja del Bastión de Hierro', zone_id = 2, station = 'forja', scroll_item_id = NULL WHERE code = 'RECIPE_GUERRERO_ARMOR_ESCARCHA';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_GUERRERO_ARMOR_ESCARCHA');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_GUERRERO_ARMOR_ESCARCHA'), i.id, v.n FROM (VALUES ('GARRA_OSO_CUMBRES', 3), ('PIEL_DE_TROLL', 3), ('ACERO_REFINADO', 2), ('CRISTAL_GIGANTE_HIELO', 1)) AS v(code, n) JOIN items i ON i.code = v.code;
+-- Guanteletes de la Escarcha
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'GUERRERO_GLOVES_ESCARCHA', 'Guanteletes de la Escarcha', 'EQUIPMENT', 'GLOVES', FALSE, 'EPICO', 1, 21, TRUE, 'CRAFT', 'Hecha con garras, escamas y escarcha del Pinar Nevado, el Lago Helado y la Garganta del Eco.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'GUERRERO_GLOVES_ESCARCHA');
+UPDATE items SET name = 'Guanteletes de la Escarcha', item_type = 'EQUIPMENT', slot = 'GLOVES', is_two_handed = FALSE, rarity = 'EPICO', class_id = 1, required_level = 21, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Hecha con garras, escamas y escarcha del Pinar Nevado, el Lago Helado y la Garganta del Eco.' WHERE code = 'GUERRERO_GLOVES_ESCARCHA';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'GUERRERO_GLOVES_ESCARCHA');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'GUERRERO_GLOVES_ESCARCHA'), v.* FROM (VALUES ('ATK', 26, FALSE), ('CRIT_CHANCE', 4.5, TRUE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station, scroll_item_id)
+SELECT 'RECIPE_GUERRERO_GLOVES_ESCARCHA', (SELECT id FROM items WHERE code = 'GUERRERO_GLOVES_ESCARCHA'), 1, 'EPICO', 21, 1, 80, 1, 'Durgan, en la forja del Bastión de Hierro', 2, 'forja', NULL WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_GUERRERO_GLOVES_ESCARCHA');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'GUERRERO_GLOVES_ESCARCHA'), result_quantity = 1, rarity = 'EPICO', required_level = 21, required_class_id = 1, success_rate_percent = 80, craft_time_minutes = 1, artisan_name = 'Durgan, en la forja del Bastión de Hierro', zone_id = 2, station = 'forja', scroll_item_id = NULL WHERE code = 'RECIPE_GUERRERO_GLOVES_ESCARCHA';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_GUERRERO_GLOVES_ESCARCHA');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_GUERRERO_GLOVES_ESCARCHA'), i.id, v.n FROM (VALUES ('GARRA_OSO_CUMBRES', 2), ('PIEL_DE_TROLL', 2)) AS v(code, n) JOIN items i ON i.code = v.code;
+-- Botas de la Escarcha
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'GUERRERO_BOOTS_ESCARCHA', 'Botas de la Escarcha', 'EQUIPMENT', 'BOOTS', FALSE, 'EPICO', 1, 21, TRUE, 'CRAFT', 'Hecha con garras, escamas y escarcha del Pinar Nevado, el Lago Helado y la Garganta del Eco.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'GUERRERO_BOOTS_ESCARCHA');
+UPDATE items SET name = 'Botas de la Escarcha', item_type = 'EQUIPMENT', slot = 'BOOTS', is_two_handed = FALSE, rarity = 'EPICO', class_id = 1, required_level = 21, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Hecha con garras, escamas y escarcha del Pinar Nevado, el Lago Helado y la Garganta del Eco.' WHERE code = 'GUERRERO_BOOTS_ESCARCHA';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'GUERRERO_BOOTS_ESCARCHA');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'GUERRERO_BOOTS_ESCARCHA'), v.* FROM (VALUES ('SPD', 16, FALSE), ('HP', 4, FALSE), ('DEF', 5, FALSE), ('EVASION', 2.5, TRUE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station, scroll_item_id)
+SELECT 'RECIPE_GUERRERO_BOOTS_ESCARCHA', (SELECT id FROM items WHERE code = 'GUERRERO_BOOTS_ESCARCHA'), 1, 'EPICO', 21, 1, 80, 1, 'Durgan, en la forja del Bastión de Hierro', 2, 'forja', NULL WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_GUERRERO_BOOTS_ESCARCHA');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'GUERRERO_BOOTS_ESCARCHA'), result_quantity = 1, rarity = 'EPICO', required_level = 21, required_class_id = 1, success_rate_percent = 80, craft_time_minutes = 1, artisan_name = 'Durgan, en la forja del Bastión de Hierro', zone_id = 2, station = 'forja', scroll_item_id = NULL WHERE code = 'RECIPE_GUERRERO_BOOTS_ESCARCHA';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_GUERRERO_BOOTS_ESCARCHA');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_GUERRERO_BOOTS_ESCARCHA'), i.id, v.n FROM (VALUES ('GARRA_OSO_CUMBRES', 2), ('PIEL_DE_TROLL', 2)) AS v(code, n) JOIN items i ON i.code = v.code;
+-- Varita de la Escarcha
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'MAGO_WEAPON_ESCARCHA', 'Varita de la Escarcha', 'EQUIPMENT', 'WEAPON', FALSE, 'EPICO', 2, 21, TRUE, 'CRAFT', 'Hecha con garras, escamas y escarcha del Pinar Nevado, el Lago Helado y la Garganta del Eco.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'MAGO_WEAPON_ESCARCHA');
+UPDATE items SET name = 'Varita de la Escarcha', item_type = 'EQUIPMENT', slot = 'WEAPON', is_two_handed = FALSE, rarity = 'EPICO', class_id = 2, required_level = 21, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Hecha con garras, escamas y escarcha del Pinar Nevado, el Lago Helado y la Garganta del Eco.' WHERE code = 'MAGO_WEAPON_ESCARCHA';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'MAGO_WEAPON_ESCARCHA');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'MAGO_WEAPON_ESCARCHA'), v.* FROM (VALUES ('MAG', 58, FALSE), ('CRIT_CHANCE', 6.8, TRUE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station, scroll_item_id)
+SELECT 'RECIPE_MAGO_WEAPON_ESCARCHA', (SELECT id FROM items WHERE code = 'MAGO_WEAPON_ESCARCHA'), 1, 'EPICO', 21, 2, 80, 1, 'Durgan, en la forja del Bastión de Hierro', 2, 'forja', NULL WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_MAGO_WEAPON_ESCARCHA');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'MAGO_WEAPON_ESCARCHA'), result_quantity = 1, rarity = 'EPICO', required_level = 21, required_class_id = 2, success_rate_percent = 80, craft_time_minutes = 1, artisan_name = 'Durgan, en la forja del Bastión de Hierro', zone_id = 2, station = 'forja', scroll_item_id = NULL WHERE code = 'RECIPE_MAGO_WEAPON_ESCARCHA';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_MAGO_WEAPON_ESCARCHA');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_MAGO_WEAPON_ESCARCHA'), i.id, v.n FROM (VALUES ('ESENCIA_ESPECTRAL_HELADA', 3), ('ESCAMA_SIERPE_HIELO', 2), ('MADERA_PINO', 2), ('CRISTAL_GIGANTE_HIELO', 1)) AS v(code, n) JOIN items i ON i.code = v.code;
+-- Orbe de la Escarcha
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'MAGO_OFFHAND_ORB_ESCARCHA', 'Orbe de la Escarcha', 'EQUIPMENT', 'OFFHAND', FALSE, 'EPICO', 2, 21, TRUE, 'CRAFT', 'Hecha con garras, escamas y escarcha del Pinar Nevado, el Lago Helado y la Garganta del Eco.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'MAGO_OFFHAND_ORB_ESCARCHA');
+UPDATE items SET name = 'Orbe de la Escarcha', item_type = 'EQUIPMENT', slot = 'OFFHAND', is_two_handed = FALSE, rarity = 'EPICO', class_id = 2, required_level = 21, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Hecha con garras, escamas y escarcha del Pinar Nevado, el Lago Helado y la Garganta del Eco.' WHERE code = 'MAGO_OFFHAND_ORB_ESCARCHA';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'MAGO_OFFHAND_ORB_ESCARCHA');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'MAGO_OFFHAND_ORB_ESCARCHA'), v.* FROM (VALUES ('MAG', 24, FALSE), ('SPD', 19, FALSE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station, scroll_item_id)
+SELECT 'RECIPE_MAGO_OFFHAND_ORB_ESCARCHA', (SELECT id FROM items WHERE code = 'MAGO_OFFHAND_ORB_ESCARCHA'), 1, 'EPICO', 21, 2, 80, 1, 'Durgan, en la forja del Bastión de Hierro', 2, 'forja', NULL WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_MAGO_OFFHAND_ORB_ESCARCHA');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'MAGO_OFFHAND_ORB_ESCARCHA'), result_quantity = 1, rarity = 'EPICO', required_level = 21, required_class_id = 2, success_rate_percent = 80, craft_time_minutes = 1, artisan_name = 'Durgan, en la forja del Bastión de Hierro', zone_id = 2, station = 'forja', scroll_item_id = NULL WHERE code = 'RECIPE_MAGO_OFFHAND_ORB_ESCARCHA';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_MAGO_OFFHAND_ORB_ESCARCHA');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_MAGO_OFFHAND_ORB_ESCARCHA'), i.id, v.n FROM (VALUES ('ESENCIA_ESPECTRAL_HELADA', 2), ('ESCAMA_SIERPE_HIELO', 1)) AS v(code, n) JOIN items i ON i.code = v.code;
+-- Cristal de la Escarcha
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'MAGO_OFFHAND_CRYSTAL_ESCARCHA', 'Cristal de la Escarcha', 'EQUIPMENT', 'OFFHAND', FALSE, 'EPICO', 2, 21, TRUE, 'CRAFT', 'Hecha con garras, escamas y escarcha del Pinar Nevado, el Lago Helado y la Garganta del Eco.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'MAGO_OFFHAND_CRYSTAL_ESCARCHA');
+UPDATE items SET name = 'Cristal de la Escarcha', item_type = 'EQUIPMENT', slot = 'OFFHAND', is_two_handed = FALSE, rarity = 'EPICO', class_id = 2, required_level = 21, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Hecha con garras, escamas y escarcha del Pinar Nevado, el Lago Helado y la Garganta del Eco.' WHERE code = 'MAGO_OFFHAND_CRYSTAL_ESCARCHA';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'MAGO_OFFHAND_CRYSTAL_ESCARCHA');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'MAGO_OFFHAND_CRYSTAL_ESCARCHA'), v.* FROM (VALUES ('MAG', 32, FALSE), ('CRIT_CHANCE', 4.5, TRUE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station, scroll_item_id)
+SELECT 'RECIPE_MAGO_OFFHAND_CRYSTAL_ESCARCHA', (SELECT id FROM items WHERE code = 'MAGO_OFFHAND_CRYSTAL_ESCARCHA'), 1, 'EPICO', 21, 2, 80, 1, 'Durgan, en la forja del Bastión de Hierro', 2, 'forja', NULL WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_MAGO_OFFHAND_CRYSTAL_ESCARCHA');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'MAGO_OFFHAND_CRYSTAL_ESCARCHA'), result_quantity = 1, rarity = 'EPICO', required_level = 21, required_class_id = 2, success_rate_percent = 80, craft_time_minutes = 1, artisan_name = 'Durgan, en la forja del Bastión de Hierro', zone_id = 2, station = 'forja', scroll_item_id = NULL WHERE code = 'RECIPE_MAGO_OFFHAND_CRYSTAL_ESCARCHA';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_MAGO_OFFHAND_CRYSTAL_ESCARCHA');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_MAGO_OFFHAND_CRYSTAL_ESCARCHA'), i.id, v.n FROM (VALUES ('ESENCIA_ESPECTRAL_HELADA', 2), ('ESCAMA_SIERPE_HIELO', 1)) AS v(code, n) JOIN items i ON i.code = v.code;
+-- Capirote de la Escarcha
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'MAGO_HELMET_ESCARCHA', 'Capirote de la Escarcha', 'EQUIPMENT', 'HELMET', FALSE, 'EPICO', 2, 21, TRUE, 'CRAFT', 'Hecha con garras, escamas y escarcha del Pinar Nevado, el Lago Helado y la Garganta del Eco.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'MAGO_HELMET_ESCARCHA');
+UPDATE items SET name = 'Capirote de la Escarcha', item_type = 'EQUIPMENT', slot = 'HELMET', is_two_handed = FALSE, rarity = 'EPICO', class_id = 2, required_level = 21, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Hecha con garras, escamas y escarcha del Pinar Nevado, el Lago Helado y la Garganta del Eco.' WHERE code = 'MAGO_HELMET_ESCARCHA';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'MAGO_HELMET_ESCARCHA');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'MAGO_HELMET_ESCARCHA'), v.* FROM (VALUES ('DEF', 3, FALSE), ('HP', 8, FALSE), ('MAGIC_DEF', 10, FALSE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station, scroll_item_id)
+SELECT 'RECIPE_MAGO_HELMET_ESCARCHA', (SELECT id FROM items WHERE code = 'MAGO_HELMET_ESCARCHA'), 1, 'EPICO', 21, 2, 80, 1, 'Durgan, en la forja del Bastión de Hierro', 2, 'forja', NULL WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_MAGO_HELMET_ESCARCHA');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'MAGO_HELMET_ESCARCHA'), result_quantity = 1, rarity = 'EPICO', required_level = 21, required_class_id = 2, success_rate_percent = 80, craft_time_minutes = 1, artisan_name = 'Durgan, en la forja del Bastión de Hierro', zone_id = 2, station = 'forja', scroll_item_id = NULL WHERE code = 'RECIPE_MAGO_HELMET_ESCARCHA';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_MAGO_HELMET_ESCARCHA');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_MAGO_HELMET_ESCARCHA'), i.id, v.n FROM (VALUES ('ESENCIA_ESPECTRAL_HELADA', 2), ('ESCAMA_SIERPE_HIELO', 1)) AS v(code, n) JOIN items i ON i.code = v.code;
+-- Túnica de la Escarcha
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'MAGO_ARMOR_ESCARCHA', 'Túnica de la Escarcha', 'EQUIPMENT', 'ARMOR', FALSE, 'EPICO', 2, 21, TRUE, 'CRAFT', 'Hecha con garras, escamas y escarcha del Pinar Nevado, el Lago Helado y la Garganta del Eco.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'MAGO_ARMOR_ESCARCHA');
+UPDATE items SET name = 'Túnica de la Escarcha', item_type = 'EQUIPMENT', slot = 'ARMOR', is_two_handed = FALSE, rarity = 'EPICO', class_id = 2, required_level = 21, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Hecha con garras, escamas y escarcha del Pinar Nevado, el Lago Helado y la Garganta del Eco.' WHERE code = 'MAGO_ARMOR_ESCARCHA';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'MAGO_ARMOR_ESCARCHA');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'MAGO_ARMOR_ESCARCHA'), v.* FROM (VALUES ('DEF', 7, FALSE), ('HP', 38, FALSE), ('MAGIC_DEF', 21, FALSE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station, scroll_item_id)
+SELECT 'RECIPE_MAGO_ARMOR_ESCARCHA', (SELECT id FROM items WHERE code = 'MAGO_ARMOR_ESCARCHA'), 1, 'EPICO', 21, 2, 80, 1, 'Durgan, en la forja del Bastión de Hierro', 2, 'forja', NULL WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_MAGO_ARMOR_ESCARCHA');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'MAGO_ARMOR_ESCARCHA'), result_quantity = 1, rarity = 'EPICO', required_level = 21, required_class_id = 2, success_rate_percent = 80, craft_time_minutes = 1, artisan_name = 'Durgan, en la forja del Bastión de Hierro', zone_id = 2, station = 'forja', scroll_item_id = NULL WHERE code = 'RECIPE_MAGO_ARMOR_ESCARCHA';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_MAGO_ARMOR_ESCARCHA');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_MAGO_ARMOR_ESCARCHA'), i.id, v.n FROM (VALUES ('ESENCIA_ESPECTRAL_HELADA', 3), ('ESCAMA_SIERPE_HIELO', 2), ('MADERA_PINO', 2), ('CRISTAL_GIGANTE_HIELO', 1)) AS v(code, n) JOIN items i ON i.code = v.code;
+-- Guantes de la Escarcha
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'MAGO_GLOVES_ESCARCHA', 'Guantes de la Escarcha', 'EQUIPMENT', 'GLOVES', FALSE, 'EPICO', 2, 21, TRUE, 'CRAFT', 'Hecha con garras, escamas y escarcha del Pinar Nevado, el Lago Helado y la Garganta del Eco.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'MAGO_GLOVES_ESCARCHA');
+UPDATE items SET name = 'Guantes de la Escarcha', item_type = 'EQUIPMENT', slot = 'GLOVES', is_two_handed = FALSE, rarity = 'EPICO', class_id = 2, required_level = 21, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Hecha con garras, escamas y escarcha del Pinar Nevado, el Lago Helado y la Garganta del Eco.' WHERE code = 'MAGO_GLOVES_ESCARCHA';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'MAGO_GLOVES_ESCARCHA');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'MAGO_GLOVES_ESCARCHA'), v.* FROM (VALUES ('MAG', 26, FALSE), ('CRIT_CHANCE', 4.5, TRUE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station, scroll_item_id)
+SELECT 'RECIPE_MAGO_GLOVES_ESCARCHA', (SELECT id FROM items WHERE code = 'MAGO_GLOVES_ESCARCHA'), 1, 'EPICO', 21, 2, 80, 1, 'Durgan, en la forja del Bastión de Hierro', 2, 'forja', NULL WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_MAGO_GLOVES_ESCARCHA');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'MAGO_GLOVES_ESCARCHA'), result_quantity = 1, rarity = 'EPICO', required_level = 21, required_class_id = 2, success_rate_percent = 80, craft_time_minutes = 1, artisan_name = 'Durgan, en la forja del Bastión de Hierro', zone_id = 2, station = 'forja', scroll_item_id = NULL WHERE code = 'RECIPE_MAGO_GLOVES_ESCARCHA';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_MAGO_GLOVES_ESCARCHA');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_MAGO_GLOVES_ESCARCHA'), i.id, v.n FROM (VALUES ('ESENCIA_ESPECTRAL_HELADA', 2), ('ESCAMA_SIERPE_HIELO', 1)) AS v(code, n) JOIN items i ON i.code = v.code;
+-- Sandalias de la Escarcha
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'MAGO_BOOTS_ESCARCHA', 'Sandalias de la Escarcha', 'EQUIPMENT', 'BOOTS', FALSE, 'EPICO', 2, 21, TRUE, 'CRAFT', 'Hecha con garras, escamas y escarcha del Pinar Nevado, el Lago Helado y la Garganta del Eco.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'MAGO_BOOTS_ESCARCHA');
+UPDATE items SET name = 'Sandalias de la Escarcha', item_type = 'EQUIPMENT', slot = 'BOOTS', is_two_handed = FALSE, rarity = 'EPICO', class_id = 2, required_level = 21, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Hecha con garras, escamas y escarcha del Pinar Nevado, el Lago Helado y la Garganta del Eco.' WHERE code = 'MAGO_BOOTS_ESCARCHA';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'MAGO_BOOTS_ESCARCHA');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'MAGO_BOOTS_ESCARCHA'), v.* FROM (VALUES ('SPD', 16, FALSE), ('HP', 4, FALSE), ('MAGIC_DEF', 7, FALSE), ('EVASION', 2.5, TRUE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station, scroll_item_id)
+SELECT 'RECIPE_MAGO_BOOTS_ESCARCHA', (SELECT id FROM items WHERE code = 'MAGO_BOOTS_ESCARCHA'), 1, 'EPICO', 21, 2, 80, 1, 'Durgan, en la forja del Bastión de Hierro', 2, 'forja', NULL WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_MAGO_BOOTS_ESCARCHA');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'MAGO_BOOTS_ESCARCHA'), result_quantity = 1, rarity = 'EPICO', required_level = 21, required_class_id = 2, success_rate_percent = 80, craft_time_minutes = 1, artisan_name = 'Durgan, en la forja del Bastión de Hierro', zone_id = 2, station = 'forja', scroll_item_id = NULL WHERE code = 'RECIPE_MAGO_BOOTS_ESCARCHA';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_MAGO_BOOTS_ESCARCHA');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_MAGO_BOOTS_ESCARCHA'), i.id, v.n FROM (VALUES ('ESENCIA_ESPECTRAL_HELADA', 2), ('ESCAMA_SIERPE_HIELO', 1)) AS v(code, n) JOIN items i ON i.code = v.code;
+-- Arco de la Escarcha
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'ARQUERO_WEAPON_ESCARCHA', 'Arco de la Escarcha', 'EQUIPMENT', 'WEAPON', FALSE, 'EPICO', 3, 21, TRUE, 'CRAFT', 'Hecha con garras, escamas y escarcha del Pinar Nevado, el Lago Helado y la Garganta del Eco.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'ARQUERO_WEAPON_ESCARCHA');
+UPDATE items SET name = 'Arco de la Escarcha', item_type = 'EQUIPMENT', slot = 'WEAPON', is_two_handed = FALSE, rarity = 'EPICO', class_id = 3, required_level = 21, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Hecha con garras, escamas y escarcha del Pinar Nevado, el Lago Helado y la Garganta del Eco.' WHERE code = 'ARQUERO_WEAPON_ESCARCHA';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'ARQUERO_WEAPON_ESCARCHA');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'ARQUERO_WEAPON_ESCARCHA'), v.* FROM (VALUES ('ATK', 58, FALSE), ('CRIT_CHANCE', 6.8, TRUE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station, scroll_item_id)
+SELECT 'RECIPE_ARQUERO_WEAPON_ESCARCHA', (SELECT id FROM items WHERE code = 'ARQUERO_WEAPON_ESCARCHA'), 1, 'EPICO', 21, 3, 80, 1, 'Durgan, en la forja del Bastión de Hierro', 2, 'forja', NULL WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_ARQUERO_WEAPON_ESCARCHA');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'ARQUERO_WEAPON_ESCARCHA'), result_quantity = 1, rarity = 'EPICO', required_level = 21, required_class_id = 3, success_rate_percent = 80, craft_time_minutes = 1, artisan_name = 'Durgan, en la forja del Bastión de Hierro', zone_id = 2, station = 'forja', scroll_item_id = NULL WHERE code = 'RECIPE_ARQUERO_WEAPON_ESCARCHA';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_ARQUERO_WEAPON_ESCARCHA');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_ARQUERO_WEAPON_ESCARCHA'), i.id, v.n FROM (VALUES ('PLUMA_ARPIA_ECO', 3), ('GARRA_OSO_CUMBRES', 2), ('MADERA_PINO', 2), ('CRISTAL_GIGANTE_HIELO', 1)) AS v(code, n) JOIN items i ON i.code = v.code;
+-- Carcaj de la Escarcha
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'ARQUERO_OFFHAND_ESCARCHA', 'Carcaj de la Escarcha', 'EQUIPMENT', 'OFFHAND', FALSE, 'EPICO', 3, 21, TRUE, 'CRAFT', 'Hecha con garras, escamas y escarcha del Pinar Nevado, el Lago Helado y la Garganta del Eco.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'ARQUERO_OFFHAND_ESCARCHA');
+UPDATE items SET name = 'Carcaj de la Escarcha', item_type = 'EQUIPMENT', slot = 'OFFHAND', is_two_handed = FALSE, rarity = 'EPICO', class_id = 3, required_level = 21, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Hecha con garras, escamas y escarcha del Pinar Nevado, el Lago Helado y la Garganta del Eco.' WHERE code = 'ARQUERO_OFFHAND_ESCARCHA';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'ARQUERO_OFFHAND_ESCARCHA');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'ARQUERO_OFFHAND_ESCARCHA'), v.* FROM (VALUES ('ATK', 19, FALSE), ('SPD', 19, FALSE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station, scroll_item_id)
+SELECT 'RECIPE_ARQUERO_OFFHAND_ESCARCHA', (SELECT id FROM items WHERE code = 'ARQUERO_OFFHAND_ESCARCHA'), 1, 'EPICO', 21, 3, 80, 1, 'Durgan, en la forja del Bastión de Hierro', 2, 'forja', NULL WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_ARQUERO_OFFHAND_ESCARCHA');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'ARQUERO_OFFHAND_ESCARCHA'), result_quantity = 1, rarity = 'EPICO', required_level = 21, required_class_id = 3, success_rate_percent = 80, craft_time_minutes = 1, artisan_name = 'Durgan, en la forja del Bastión de Hierro', zone_id = 2, station = 'forja', scroll_item_id = NULL WHERE code = 'RECIPE_ARQUERO_OFFHAND_ESCARCHA';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_ARQUERO_OFFHAND_ESCARCHA');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_ARQUERO_OFFHAND_ESCARCHA'), i.id, v.n FROM (VALUES ('PLUMA_ARPIA_ECO', 2), ('GARRA_OSO_CUMBRES', 1)) AS v(code, n) JOIN items i ON i.code = v.code;
+-- Capucha de la Escarcha
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'ARQUERO_HELMET_ESCARCHA', 'Capucha de la Escarcha', 'EQUIPMENT', 'HELMET', FALSE, 'EPICO', 3, 21, TRUE, 'CRAFT', 'Hecha con garras, escamas y escarcha del Pinar Nevado, el Lago Helado y la Garganta del Eco.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'ARQUERO_HELMET_ESCARCHA');
+UPDATE items SET name = 'Capucha de la Escarcha', item_type = 'EQUIPMENT', slot = 'HELMET', is_two_handed = FALSE, rarity = 'EPICO', class_id = 3, required_level = 21, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Hecha con garras, escamas y escarcha del Pinar Nevado, el Lago Helado y la Garganta del Eco.' WHERE code = 'ARQUERO_HELMET_ESCARCHA';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'ARQUERO_HELMET_ESCARCHA');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'ARQUERO_HELMET_ESCARCHA'), v.* FROM (VALUES ('DEF', 10, FALSE), ('HP', 9, FALSE), ('MAGIC_DEF', 3, FALSE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station, scroll_item_id)
+SELECT 'RECIPE_ARQUERO_HELMET_ESCARCHA', (SELECT id FROM items WHERE code = 'ARQUERO_HELMET_ESCARCHA'), 1, 'EPICO', 21, 3, 80, 1, 'Durgan, en la forja del Bastión de Hierro', 2, 'forja', NULL WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_ARQUERO_HELMET_ESCARCHA');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'ARQUERO_HELMET_ESCARCHA'), result_quantity = 1, rarity = 'EPICO', required_level = 21, required_class_id = 3, success_rate_percent = 80, craft_time_minutes = 1, artisan_name = 'Durgan, en la forja del Bastión de Hierro', zone_id = 2, station = 'forja', scroll_item_id = NULL WHERE code = 'RECIPE_ARQUERO_HELMET_ESCARCHA';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_ARQUERO_HELMET_ESCARCHA');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_ARQUERO_HELMET_ESCARCHA'), i.id, v.n FROM (VALUES ('PLUMA_ARPIA_ECO', 2), ('GARRA_OSO_CUMBRES', 1)) AS v(code, n) JOIN items i ON i.code = v.code;
+-- Gabán de la Escarcha
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'ARQUERO_ARMOR_ESCARCHA', 'Gabán de la Escarcha', 'EQUIPMENT', 'ARMOR', FALSE, 'EPICO', 3, 21, TRUE, 'CRAFT', 'Hecha con garras, escamas y escarcha del Pinar Nevado, el Lago Helado y la Garganta del Eco.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'ARQUERO_ARMOR_ESCARCHA');
+UPDATE items SET name = 'Gabán de la Escarcha', item_type = 'EQUIPMENT', slot = 'ARMOR', is_two_handed = FALSE, rarity = 'EPICO', class_id = 3, required_level = 21, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Hecha con garras, escamas y escarcha del Pinar Nevado, el Lago Helado y la Garganta del Eco.' WHERE code = 'ARQUERO_ARMOR_ESCARCHA';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'ARQUERO_ARMOR_ESCARCHA');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'ARQUERO_ARMOR_ESCARCHA'), v.* FROM (VALUES ('DEF', 21, FALSE), ('HP', 37, FALSE), ('MAGIC_DEF', 6, FALSE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station, scroll_item_id)
+SELECT 'RECIPE_ARQUERO_ARMOR_ESCARCHA', (SELECT id FROM items WHERE code = 'ARQUERO_ARMOR_ESCARCHA'), 1, 'EPICO', 21, 3, 80, 1, 'Durgan, en la forja del Bastión de Hierro', 2, 'forja', NULL WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_ARQUERO_ARMOR_ESCARCHA');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'ARQUERO_ARMOR_ESCARCHA'), result_quantity = 1, rarity = 'EPICO', required_level = 21, required_class_id = 3, success_rate_percent = 80, craft_time_minutes = 1, artisan_name = 'Durgan, en la forja del Bastión de Hierro', zone_id = 2, station = 'forja', scroll_item_id = NULL WHERE code = 'RECIPE_ARQUERO_ARMOR_ESCARCHA';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_ARQUERO_ARMOR_ESCARCHA');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_ARQUERO_ARMOR_ESCARCHA'), i.id, v.n FROM (VALUES ('PLUMA_ARPIA_ECO', 3), ('GARRA_OSO_CUMBRES', 2), ('MADERA_PINO', 2), ('CRISTAL_GIGANTE_HIELO', 1)) AS v(code, n) JOIN items i ON i.code = v.code;
+-- Guantes de la Escarcha
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'ARQUERO_GLOVES_ESCARCHA', 'Guantes de la Escarcha', 'EQUIPMENT', 'GLOVES', FALSE, 'EPICO', 3, 21, TRUE, 'CRAFT', 'Hecha con garras, escamas y escarcha del Pinar Nevado, el Lago Helado y la Garganta del Eco.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'ARQUERO_GLOVES_ESCARCHA');
+UPDATE items SET name = 'Guantes de la Escarcha', item_type = 'EQUIPMENT', slot = 'GLOVES', is_two_handed = FALSE, rarity = 'EPICO', class_id = 3, required_level = 21, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Hecha con garras, escamas y escarcha del Pinar Nevado, el Lago Helado y la Garganta del Eco.' WHERE code = 'ARQUERO_GLOVES_ESCARCHA';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'ARQUERO_GLOVES_ESCARCHA');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'ARQUERO_GLOVES_ESCARCHA'), v.* FROM (VALUES ('ATK', 26, FALSE), ('CRIT_CHANCE', 4.5, TRUE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station, scroll_item_id)
+SELECT 'RECIPE_ARQUERO_GLOVES_ESCARCHA', (SELECT id FROM items WHERE code = 'ARQUERO_GLOVES_ESCARCHA'), 1, 'EPICO', 21, 3, 80, 1, 'Durgan, en la forja del Bastión de Hierro', 2, 'forja', NULL WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_ARQUERO_GLOVES_ESCARCHA');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'ARQUERO_GLOVES_ESCARCHA'), result_quantity = 1, rarity = 'EPICO', required_level = 21, required_class_id = 3, success_rate_percent = 80, craft_time_minutes = 1, artisan_name = 'Durgan, en la forja del Bastión de Hierro', zone_id = 2, station = 'forja', scroll_item_id = NULL WHERE code = 'RECIPE_ARQUERO_GLOVES_ESCARCHA';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_ARQUERO_GLOVES_ESCARCHA');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_ARQUERO_GLOVES_ESCARCHA'), i.id, v.n FROM (VALUES ('PLUMA_ARPIA_ECO', 2), ('GARRA_OSO_CUMBRES', 1)) AS v(code, n) JOIN items i ON i.code = v.code;
+-- Botas de la Escarcha
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'ARQUERO_BOOTS_ESCARCHA', 'Botas de la Escarcha', 'EQUIPMENT', 'BOOTS', FALSE, 'EPICO', 3, 21, TRUE, 'CRAFT', 'Hecha con garras, escamas y escarcha del Pinar Nevado, el Lago Helado y la Garganta del Eco.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'ARQUERO_BOOTS_ESCARCHA');
+UPDATE items SET name = 'Botas de la Escarcha', item_type = 'EQUIPMENT', slot = 'BOOTS', is_two_handed = FALSE, rarity = 'EPICO', class_id = 3, required_level = 21, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Hecha con garras, escamas y escarcha del Pinar Nevado, el Lago Helado y la Garganta del Eco.' WHERE code = 'ARQUERO_BOOTS_ESCARCHA';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'ARQUERO_BOOTS_ESCARCHA');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'ARQUERO_BOOTS_ESCARCHA'), v.* FROM (VALUES ('SPD', 16, FALSE), ('HP', 4, FALSE), ('DEF', 6, FALSE), ('EVASION', 2.5, TRUE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station, scroll_item_id)
+SELECT 'RECIPE_ARQUERO_BOOTS_ESCARCHA', (SELECT id FROM items WHERE code = 'ARQUERO_BOOTS_ESCARCHA'), 1, 'EPICO', 21, 3, 80, 1, 'Durgan, en la forja del Bastión de Hierro', 2, 'forja', NULL WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_ARQUERO_BOOTS_ESCARCHA');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'ARQUERO_BOOTS_ESCARCHA'), result_quantity = 1, rarity = 'EPICO', required_level = 21, required_class_id = 3, success_rate_percent = 80, craft_time_minutes = 1, artisan_name = 'Durgan, en la forja del Bastión de Hierro', zone_id = 2, station = 'forja', scroll_item_id = NULL WHERE code = 'RECIPE_ARQUERO_BOOTS_ESCARCHA';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_ARQUERO_BOOTS_ESCARCHA');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_ARQUERO_BOOTS_ESCARCHA'), i.id, v.n FROM (VALUES ('PLUMA_ARPIA_ECO', 2), ('GARRA_OSO_CUMBRES', 1)) AS v(code, n) JOIN items i ON i.code = v.code;
+-- Daga de la Escarcha
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'PICARO_WEAPON_ESCARCHA', 'Daga de la Escarcha', 'EQUIPMENT', 'WEAPON', FALSE, 'EPICO', 4, 21, TRUE, 'CRAFT', 'Hecha con garras, escamas y escarcha del Pinar Nevado, el Lago Helado y la Garganta del Eco.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'PICARO_WEAPON_ESCARCHA');
+UPDATE items SET name = 'Daga de la Escarcha', item_type = 'EQUIPMENT', slot = 'WEAPON', is_two_handed = FALSE, rarity = 'EPICO', class_id = 4, required_level = 21, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Hecha con garras, escamas y escarcha del Pinar Nevado, el Lago Helado y la Garganta del Eco.' WHERE code = 'PICARO_WEAPON_ESCARCHA';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'PICARO_WEAPON_ESCARCHA');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'PICARO_WEAPON_ESCARCHA'), v.* FROM (VALUES ('ATK', 58, FALSE), ('CRIT_CHANCE', 6.8, TRUE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station, scroll_item_id)
+SELECT 'RECIPE_PICARO_WEAPON_ESCARCHA', (SELECT id FROM items WHERE code = 'PICARO_WEAPON_ESCARCHA'), 1, 'EPICO', 21, 4, 80, 1, 'Durgan, en la forja del Bastión de Hierro', 2, 'forja', NULL WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_PICARO_WEAPON_ESCARCHA');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'PICARO_WEAPON_ESCARCHA'), result_quantity = 1, rarity = 'EPICO', required_level = 21, required_class_id = 4, success_rate_percent = 80, craft_time_minutes = 1, artisan_name = 'Durgan, en la forja del Bastión de Hierro', zone_id = 2, station = 'forja', scroll_item_id = NULL WHERE code = 'RECIPE_PICARO_WEAPON_ESCARCHA';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_PICARO_WEAPON_ESCARCHA');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_PICARO_WEAPON_ESCARCHA'), i.id, v.n FROM (VALUES ('GARRA_OSO_CUMBRES', 3), ('ESCAMA_SIERPE_HIELO', 2), ('PLUMA_ARPIA_ECO', 2), ('CRISTAL_GIGANTE_HIELO', 1)) AS v(code, n) JOIN items i ON i.code = v.code;
+-- Daga Gemela de la Escarcha
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'PICARO_OFFHAND_ESCARCHA', 'Daga Gemela de la Escarcha', 'EQUIPMENT', 'OFFHAND', FALSE, 'EPICO', 4, 21, TRUE, 'CRAFT', 'Hecha con garras, escamas y escarcha del Pinar Nevado, el Lago Helado y la Garganta del Eco.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'PICARO_OFFHAND_ESCARCHA');
+UPDATE items SET name = 'Daga Gemela de la Escarcha', item_type = 'EQUIPMENT', slot = 'OFFHAND', is_two_handed = FALSE, rarity = 'EPICO', class_id = 4, required_level = 21, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Hecha con garras, escamas y escarcha del Pinar Nevado, el Lago Helado y la Garganta del Eco.' WHERE code = 'PICARO_OFFHAND_ESCARCHA';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'PICARO_OFFHAND_ESCARCHA');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'PICARO_OFFHAND_ESCARCHA'), v.* FROM (VALUES ('ATK', 19, FALSE), ('SPD', 19, FALSE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station, scroll_item_id)
+SELECT 'RECIPE_PICARO_OFFHAND_ESCARCHA', (SELECT id FROM items WHERE code = 'PICARO_OFFHAND_ESCARCHA'), 1, 'EPICO', 21, 4, 80, 1, 'Durgan, en la forja del Bastión de Hierro', 2, 'forja', NULL WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_PICARO_OFFHAND_ESCARCHA');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'PICARO_OFFHAND_ESCARCHA'), result_quantity = 1, rarity = 'EPICO', required_level = 21, required_class_id = 4, success_rate_percent = 80, craft_time_minutes = 1, artisan_name = 'Durgan, en la forja del Bastión de Hierro', zone_id = 2, station = 'forja', scroll_item_id = NULL WHERE code = 'RECIPE_PICARO_OFFHAND_ESCARCHA';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_PICARO_OFFHAND_ESCARCHA');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_PICARO_OFFHAND_ESCARCHA'), i.id, v.n FROM (VALUES ('ESCAMA_SIERPE_HIELO', 2), ('GARRA_OSO_CUMBRES', 1)) AS v(code, n) JOIN items i ON i.code = v.code;
+-- Máscara de la Escarcha
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'PICARO_HELMET_ESCARCHA', 'Máscara de la Escarcha', 'EQUIPMENT', 'HELMET', FALSE, 'EPICO', 4, 21, TRUE, 'CRAFT', 'Hecha con garras, escamas y escarcha del Pinar Nevado, el Lago Helado y la Garganta del Eco.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'PICARO_HELMET_ESCARCHA');
+UPDATE items SET name = 'Máscara de la Escarcha', item_type = 'EQUIPMENT', slot = 'HELMET', is_two_handed = FALSE, rarity = 'EPICO', class_id = 4, required_level = 21, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Hecha con garras, escamas y escarcha del Pinar Nevado, el Lago Helado y la Garganta del Eco.' WHERE code = 'PICARO_HELMET_ESCARCHA';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'PICARO_HELMET_ESCARCHA');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'PICARO_HELMET_ESCARCHA'), v.* FROM (VALUES ('DEF', 10, FALSE), ('HP', 10, FALSE), ('MAGIC_DEF', 3, FALSE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station, scroll_item_id)
+SELECT 'RECIPE_PICARO_HELMET_ESCARCHA', (SELECT id FROM items WHERE code = 'PICARO_HELMET_ESCARCHA'), 1, 'EPICO', 21, 4, 80, 1, 'Durgan, en la forja del Bastión de Hierro', 2, 'forja', NULL WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_PICARO_HELMET_ESCARCHA');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'PICARO_HELMET_ESCARCHA'), result_quantity = 1, rarity = 'EPICO', required_level = 21, required_class_id = 4, success_rate_percent = 80, craft_time_minutes = 1, artisan_name = 'Durgan, en la forja del Bastión de Hierro', zone_id = 2, station = 'forja', scroll_item_id = NULL WHERE code = 'RECIPE_PICARO_HELMET_ESCARCHA';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_PICARO_HELMET_ESCARCHA');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_PICARO_HELMET_ESCARCHA'), i.id, v.n FROM (VALUES ('ESCAMA_SIERPE_HIELO', 2), ('GARRA_OSO_CUMBRES', 1)) AS v(code, n) JOIN items i ON i.code = v.code;
+-- Cuero de la Escarcha
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'PICARO_ARMOR_ESCARCHA', 'Cuero de la Escarcha', 'EQUIPMENT', 'ARMOR', FALSE, 'EPICO', 4, 21, TRUE, 'CRAFT', 'Hecha con garras, escamas y escarcha del Pinar Nevado, el Lago Helado y la Garganta del Eco.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'PICARO_ARMOR_ESCARCHA');
+UPDATE items SET name = 'Cuero de la Escarcha', item_type = 'EQUIPMENT', slot = 'ARMOR', is_two_handed = FALSE, rarity = 'EPICO', class_id = 4, required_level = 21, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Hecha con garras, escamas y escarcha del Pinar Nevado, el Lago Helado y la Garganta del Eco.' WHERE code = 'PICARO_ARMOR_ESCARCHA';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'PICARO_ARMOR_ESCARCHA');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'PICARO_ARMOR_ESCARCHA'), v.* FROM (VALUES ('DEF', 21, FALSE), ('HP', 40, FALSE), ('MAGIC_DEF', 6, FALSE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station, scroll_item_id)
+SELECT 'RECIPE_PICARO_ARMOR_ESCARCHA', (SELECT id FROM items WHERE code = 'PICARO_ARMOR_ESCARCHA'), 1, 'EPICO', 21, 4, 80, 1, 'Durgan, en la forja del Bastión de Hierro', 2, 'forja', NULL WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_PICARO_ARMOR_ESCARCHA');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'PICARO_ARMOR_ESCARCHA'), result_quantity = 1, rarity = 'EPICO', required_level = 21, required_class_id = 4, success_rate_percent = 80, craft_time_minutes = 1, artisan_name = 'Durgan, en la forja del Bastión de Hierro', zone_id = 2, station = 'forja', scroll_item_id = NULL WHERE code = 'RECIPE_PICARO_ARMOR_ESCARCHA';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_PICARO_ARMOR_ESCARCHA');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_PICARO_ARMOR_ESCARCHA'), i.id, v.n FROM (VALUES ('GARRA_OSO_CUMBRES', 3), ('ESCAMA_SIERPE_HIELO', 2), ('PLUMA_ARPIA_ECO', 2), ('CRISTAL_GIGANTE_HIELO', 1)) AS v(code, n) JOIN items i ON i.code = v.code;
+-- Guantes de la Escarcha
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'PICARO_GLOVES_ESCARCHA', 'Guantes de la Escarcha', 'EQUIPMENT', 'GLOVES', FALSE, 'EPICO', 4, 21, TRUE, 'CRAFT', 'Hecha con garras, escamas y escarcha del Pinar Nevado, el Lago Helado y la Garganta del Eco.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'PICARO_GLOVES_ESCARCHA');
+UPDATE items SET name = 'Guantes de la Escarcha', item_type = 'EQUIPMENT', slot = 'GLOVES', is_two_handed = FALSE, rarity = 'EPICO', class_id = 4, required_level = 21, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Hecha con garras, escamas y escarcha del Pinar Nevado, el Lago Helado y la Garganta del Eco.' WHERE code = 'PICARO_GLOVES_ESCARCHA';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'PICARO_GLOVES_ESCARCHA');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'PICARO_GLOVES_ESCARCHA'), v.* FROM (VALUES ('ATK', 26, FALSE), ('CRIT_CHANCE', 4.5, TRUE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station, scroll_item_id)
+SELECT 'RECIPE_PICARO_GLOVES_ESCARCHA', (SELECT id FROM items WHERE code = 'PICARO_GLOVES_ESCARCHA'), 1, 'EPICO', 21, 4, 80, 1, 'Durgan, en la forja del Bastión de Hierro', 2, 'forja', NULL WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_PICARO_GLOVES_ESCARCHA');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'PICARO_GLOVES_ESCARCHA'), result_quantity = 1, rarity = 'EPICO', required_level = 21, required_class_id = 4, success_rate_percent = 80, craft_time_minutes = 1, artisan_name = 'Durgan, en la forja del Bastión de Hierro', zone_id = 2, station = 'forja', scroll_item_id = NULL WHERE code = 'RECIPE_PICARO_GLOVES_ESCARCHA';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_PICARO_GLOVES_ESCARCHA');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_PICARO_GLOVES_ESCARCHA'), i.id, v.n FROM (VALUES ('ESCAMA_SIERPE_HIELO', 2), ('GARRA_OSO_CUMBRES', 1)) AS v(code, n) JOIN items i ON i.code = v.code;
+-- Botas de la Escarcha
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'PICARO_BOOTS_ESCARCHA', 'Botas de la Escarcha', 'EQUIPMENT', 'BOOTS', FALSE, 'EPICO', 4, 21, TRUE, 'CRAFT', 'Hecha con garras, escamas y escarcha del Pinar Nevado, el Lago Helado y la Garganta del Eco.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'PICARO_BOOTS_ESCARCHA');
+UPDATE items SET name = 'Botas de la Escarcha', item_type = 'EQUIPMENT', slot = 'BOOTS', is_two_handed = FALSE, rarity = 'EPICO', class_id = 4, required_level = 21, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Hecha con garras, escamas y escarcha del Pinar Nevado, el Lago Helado y la Garganta del Eco.' WHERE code = 'PICARO_BOOTS_ESCARCHA';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'PICARO_BOOTS_ESCARCHA');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'PICARO_BOOTS_ESCARCHA'), v.* FROM (VALUES ('SPD', 16, FALSE), ('HP', 4, FALSE), ('DEF', 6, FALSE), ('EVASION', 2.5, TRUE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station, scroll_item_id)
+SELECT 'RECIPE_PICARO_BOOTS_ESCARCHA', (SELECT id FROM items WHERE code = 'PICARO_BOOTS_ESCARCHA'), 1, 'EPICO', 21, 4, 80, 1, 'Durgan, en la forja del Bastión de Hierro', 2, 'forja', NULL WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_PICARO_BOOTS_ESCARCHA');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'PICARO_BOOTS_ESCARCHA'), result_quantity = 1, rarity = 'EPICO', required_level = 21, required_class_id = 4, success_rate_percent = 80, craft_time_minutes = 1, artisan_name = 'Durgan, en la forja del Bastión de Hierro', zone_id = 2, station = 'forja', scroll_item_id = NULL WHERE code = 'RECIPE_PICARO_BOOTS_ESCARCHA';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_PICARO_BOOTS_ESCARCHA');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_PICARO_BOOTS_ESCARCHA'), i.id, v.n FROM (VALUES ('ESCAMA_SIERPE_HIELO', 2), ('GARRA_OSO_CUMBRES', 1)) AS v(code, n) JOIN items i ON i.code = v.code;
+-- Báculo de la Escarcha
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'SACERDOTE_WEAPON_ESCARCHA', 'Báculo de la Escarcha', 'EQUIPMENT', 'WEAPON', FALSE, 'EPICO', 5, 21, TRUE, 'CRAFT', 'Hecha con garras, escamas y escarcha del Pinar Nevado, el Lago Helado y la Garganta del Eco.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'SACERDOTE_WEAPON_ESCARCHA');
+UPDATE items SET name = 'Báculo de la Escarcha', item_type = 'EQUIPMENT', slot = 'WEAPON', is_two_handed = FALSE, rarity = 'EPICO', class_id = 5, required_level = 21, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Hecha con garras, escamas y escarcha del Pinar Nevado, el Lago Helado y la Garganta del Eco.' WHERE code = 'SACERDOTE_WEAPON_ESCARCHA';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'SACERDOTE_WEAPON_ESCARCHA');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'SACERDOTE_WEAPON_ESCARCHA'), v.* FROM (VALUES ('MAG', 58, FALSE), ('CRIT_CHANCE', 6.8, TRUE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station, scroll_item_id)
+SELECT 'RECIPE_SACERDOTE_WEAPON_ESCARCHA', (SELECT id FROM items WHERE code = 'SACERDOTE_WEAPON_ESCARCHA'), 1, 'EPICO', 21, 5, 80, 1, 'Durgan, en la forja del Bastión de Hierro', 2, 'forja', NULL WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_SACERDOTE_WEAPON_ESCARCHA');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'SACERDOTE_WEAPON_ESCARCHA'), result_quantity = 1, rarity = 'EPICO', required_level = 21, required_class_id = 5, success_rate_percent = 80, craft_time_minutes = 1, artisan_name = 'Durgan, en la forja del Bastión de Hierro', zone_id = 2, station = 'forja', scroll_item_id = NULL WHERE code = 'RECIPE_SACERDOTE_WEAPON_ESCARCHA';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_SACERDOTE_WEAPON_ESCARCHA');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_SACERDOTE_WEAPON_ESCARCHA'), i.id, v.n FROM (VALUES ('ESENCIA_ESPECTRAL_HELADA', 3), ('FLOR_DE_NIEVE', 3), ('ESCAMA_SIERPE_HIELO', 1), ('CRISTAL_GIGANTE_HIELO', 1)) AS v(code, n) JOIN items i ON i.code = v.code;
+-- Símbolo de la Escarcha
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'SACERDOTE_OFFHAND_ESCARCHA', 'Símbolo de la Escarcha', 'EQUIPMENT', 'OFFHAND', FALSE, 'EPICO', 5, 21, TRUE, 'CRAFT', 'Hecha con garras, escamas y escarcha del Pinar Nevado, el Lago Helado y la Garganta del Eco.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'SACERDOTE_OFFHAND_ESCARCHA');
+UPDATE items SET name = 'Símbolo de la Escarcha', item_type = 'EQUIPMENT', slot = 'OFFHAND', is_two_handed = FALSE, rarity = 'EPICO', class_id = 5, required_level = 21, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Hecha con garras, escamas y escarcha del Pinar Nevado, el Lago Helado y la Garganta del Eco.' WHERE code = 'SACERDOTE_OFFHAND_ESCARCHA';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'SACERDOTE_OFFHAND_ESCARCHA');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'SACERDOTE_OFFHAND_ESCARCHA'), v.* FROM (VALUES ('HP', 16, FALSE), ('MAGIC_DEF', 13, FALSE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station, scroll_item_id)
+SELECT 'RECIPE_SACERDOTE_OFFHAND_ESCARCHA', (SELECT id FROM items WHERE code = 'SACERDOTE_OFFHAND_ESCARCHA'), 1, 'EPICO', 21, 5, 80, 1, 'Durgan, en la forja del Bastión de Hierro', 2, 'forja', NULL WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_SACERDOTE_OFFHAND_ESCARCHA');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'SACERDOTE_OFFHAND_ESCARCHA'), result_quantity = 1, rarity = 'EPICO', required_level = 21, required_class_id = 5, success_rate_percent = 80, craft_time_minutes = 1, artisan_name = 'Durgan, en la forja del Bastión de Hierro', zone_id = 2, station = 'forja', scroll_item_id = NULL WHERE code = 'RECIPE_SACERDOTE_OFFHAND_ESCARCHA';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_SACERDOTE_OFFHAND_ESCARCHA');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_SACERDOTE_OFFHAND_ESCARCHA'), i.id, v.n FROM (VALUES ('FLOR_DE_NIEVE', 2), ('ESENCIA_ESPECTRAL_HELADA', 1)) AS v(code, n) JOIN items i ON i.code = v.code;
+-- Diadema de la Escarcha
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'SACERDOTE_HELMET_ESCARCHA', 'Diadema de la Escarcha', 'EQUIPMENT', 'HELMET', FALSE, 'EPICO', 5, 21, TRUE, 'CRAFT', 'Hecha con garras, escamas y escarcha del Pinar Nevado, el Lago Helado y la Garganta del Eco.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'SACERDOTE_HELMET_ESCARCHA');
+UPDATE items SET name = 'Diadema de la Escarcha', item_type = 'EQUIPMENT', slot = 'HELMET', is_two_handed = FALSE, rarity = 'EPICO', class_id = 5, required_level = 21, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Hecha con garras, escamas y escarcha del Pinar Nevado, el Lago Helado y la Garganta del Eco.' WHERE code = 'SACERDOTE_HELMET_ESCARCHA';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'SACERDOTE_HELMET_ESCARCHA');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'SACERDOTE_HELMET_ESCARCHA'), v.* FROM (VALUES ('DEF', 3, FALSE), ('HP', 10, FALSE), ('MAGIC_DEF', 10, FALSE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station, scroll_item_id)
+SELECT 'RECIPE_SACERDOTE_HELMET_ESCARCHA', (SELECT id FROM items WHERE code = 'SACERDOTE_HELMET_ESCARCHA'), 1, 'EPICO', 21, 5, 80, 1, 'Durgan, en la forja del Bastión de Hierro', 2, 'forja', NULL WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_SACERDOTE_HELMET_ESCARCHA');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'SACERDOTE_HELMET_ESCARCHA'), result_quantity = 1, rarity = 'EPICO', required_level = 21, required_class_id = 5, success_rate_percent = 80, craft_time_minutes = 1, artisan_name = 'Durgan, en la forja del Bastión de Hierro', zone_id = 2, station = 'forja', scroll_item_id = NULL WHERE code = 'RECIPE_SACERDOTE_HELMET_ESCARCHA';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_SACERDOTE_HELMET_ESCARCHA');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_SACERDOTE_HELMET_ESCARCHA'), i.id, v.n FROM (VALUES ('FLOR_DE_NIEVE', 2), ('ESENCIA_ESPECTRAL_HELADA', 1)) AS v(code, n) JOIN items i ON i.code = v.code;
+-- Vestidura de la Escarcha
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'SACERDOTE_ARMOR_ESCARCHA', 'Vestidura de la Escarcha', 'EQUIPMENT', 'ARMOR', FALSE, 'EPICO', 5, 21, TRUE, 'CRAFT', 'Hecha con garras, escamas y escarcha del Pinar Nevado, el Lago Helado y la Garganta del Eco.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'SACERDOTE_ARMOR_ESCARCHA');
+UPDATE items SET name = 'Vestidura de la Escarcha', item_type = 'EQUIPMENT', slot = 'ARMOR', is_two_handed = FALSE, rarity = 'EPICO', class_id = 5, required_level = 21, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Hecha con garras, escamas y escarcha del Pinar Nevado, el Lago Helado y la Garganta del Eco.' WHERE code = 'SACERDOTE_ARMOR_ESCARCHA';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'SACERDOTE_ARMOR_ESCARCHA');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'SACERDOTE_ARMOR_ESCARCHA'), v.* FROM (VALUES ('DEF', 6, FALSE), ('HP', 35, FALSE), ('MAGIC_DEF', 21, FALSE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station, scroll_item_id)
+SELECT 'RECIPE_SACERDOTE_ARMOR_ESCARCHA', (SELECT id FROM items WHERE code = 'SACERDOTE_ARMOR_ESCARCHA'), 1, 'EPICO', 21, 5, 80, 1, 'Durgan, en la forja del Bastión de Hierro', 2, 'forja', NULL WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_SACERDOTE_ARMOR_ESCARCHA');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'SACERDOTE_ARMOR_ESCARCHA'), result_quantity = 1, rarity = 'EPICO', required_level = 21, required_class_id = 5, success_rate_percent = 80, craft_time_minutes = 1, artisan_name = 'Durgan, en la forja del Bastión de Hierro', zone_id = 2, station = 'forja', scroll_item_id = NULL WHERE code = 'RECIPE_SACERDOTE_ARMOR_ESCARCHA';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_SACERDOTE_ARMOR_ESCARCHA');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_SACERDOTE_ARMOR_ESCARCHA'), i.id, v.n FROM (VALUES ('ESENCIA_ESPECTRAL_HELADA', 3), ('FLOR_DE_NIEVE', 3), ('ESCAMA_SIERPE_HIELO', 1), ('CRISTAL_GIGANTE_HIELO', 1)) AS v(code, n) JOIN items i ON i.code = v.code;
+-- Guantes de la Escarcha
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'SACERDOTE_GLOVES_ESCARCHA', 'Guantes de la Escarcha', 'EQUIPMENT', 'GLOVES', FALSE, 'EPICO', 5, 21, TRUE, 'CRAFT', 'Hecha con garras, escamas y escarcha del Pinar Nevado, el Lago Helado y la Garganta del Eco.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'SACERDOTE_GLOVES_ESCARCHA');
+UPDATE items SET name = 'Guantes de la Escarcha', item_type = 'EQUIPMENT', slot = 'GLOVES', is_two_handed = FALSE, rarity = 'EPICO', class_id = 5, required_level = 21, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Hecha con garras, escamas y escarcha del Pinar Nevado, el Lago Helado y la Garganta del Eco.' WHERE code = 'SACERDOTE_GLOVES_ESCARCHA';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'SACERDOTE_GLOVES_ESCARCHA');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'SACERDOTE_GLOVES_ESCARCHA'), v.* FROM (VALUES ('MAG', 26, FALSE), ('CRIT_CHANCE', 4.5, TRUE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station, scroll_item_id)
+SELECT 'RECIPE_SACERDOTE_GLOVES_ESCARCHA', (SELECT id FROM items WHERE code = 'SACERDOTE_GLOVES_ESCARCHA'), 1, 'EPICO', 21, 5, 80, 1, 'Durgan, en la forja del Bastión de Hierro', 2, 'forja', NULL WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_SACERDOTE_GLOVES_ESCARCHA');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'SACERDOTE_GLOVES_ESCARCHA'), result_quantity = 1, rarity = 'EPICO', required_level = 21, required_class_id = 5, success_rate_percent = 80, craft_time_minutes = 1, artisan_name = 'Durgan, en la forja del Bastión de Hierro', zone_id = 2, station = 'forja', scroll_item_id = NULL WHERE code = 'RECIPE_SACERDOTE_GLOVES_ESCARCHA';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_SACERDOTE_GLOVES_ESCARCHA');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_SACERDOTE_GLOVES_ESCARCHA'), i.id, v.n FROM (VALUES ('FLOR_DE_NIEVE', 2), ('ESENCIA_ESPECTRAL_HELADA', 1)) AS v(code, n) JOIN items i ON i.code = v.code;
+-- Sandalias de la Escarcha
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'SACERDOTE_BOOTS_ESCARCHA', 'Sandalias de la Escarcha', 'EQUIPMENT', 'BOOTS', FALSE, 'EPICO', 5, 21, TRUE, 'CRAFT', 'Hecha con garras, escamas y escarcha del Pinar Nevado, el Lago Helado y la Garganta del Eco.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'SACERDOTE_BOOTS_ESCARCHA');
+UPDATE items SET name = 'Sandalias de la Escarcha', item_type = 'EQUIPMENT', slot = 'BOOTS', is_two_handed = FALSE, rarity = 'EPICO', class_id = 5, required_level = 21, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Hecha con garras, escamas y escarcha del Pinar Nevado, el Lago Helado y la Garganta del Eco.' WHERE code = 'SACERDOTE_BOOTS_ESCARCHA';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'SACERDOTE_BOOTS_ESCARCHA');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'SACERDOTE_BOOTS_ESCARCHA'), v.* FROM (VALUES ('SPD', 16, FALSE), ('HP', 4, FALSE), ('MAGIC_DEF', 5, FALSE), ('EVASION', 2.5, TRUE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station, scroll_item_id)
+SELECT 'RECIPE_SACERDOTE_BOOTS_ESCARCHA', (SELECT id FROM items WHERE code = 'SACERDOTE_BOOTS_ESCARCHA'), 1, 'EPICO', 21, 5, 80, 1, 'Durgan, en la forja del Bastión de Hierro', 2, 'forja', NULL WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_SACERDOTE_BOOTS_ESCARCHA');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'SACERDOTE_BOOTS_ESCARCHA'), result_quantity = 1, rarity = 'EPICO', required_level = 21, required_class_id = 5, success_rate_percent = 80, craft_time_minutes = 1, artisan_name = 'Durgan, en la forja del Bastión de Hierro', zone_id = 2, station = 'forja', scroll_item_id = NULL WHERE code = 'RECIPE_SACERDOTE_BOOTS_ESCARCHA';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_SACERDOTE_BOOTS_ESCARCHA');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_SACERDOTE_BOOTS_ESCARCHA'), i.id, v.n FROM (VALUES ('FLOR_DE_NIEVE', 2), ('ESENCIA_ESPECTRAL_HELADA', 1)) AS v(code, n) JOIN items i ON i.code = v.code;
+
+-- ---------------------------------------------------------------- acantilado (nv 26, EPICO)
+-- Espada del Acantilado
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'GUERRERO_WEAPON_ACANT', 'Espada del Acantilado', 'EQUIPMENT', 'WEAPON', FALSE, 'EPICO', 1, 26, TRUE, 'CRAFT', 'Pieza del set del Acantilado: piedra de los riscos y núcleos de tormenta, con el yelmo de su señor.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'GUERRERO_WEAPON_ACANT');
+UPDATE items SET name = 'Espada del Acantilado', item_type = 'EQUIPMENT', slot = 'WEAPON', is_two_handed = FALSE, rarity = 'EPICO', class_id = 1, required_level = 26, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Pieza del set del Acantilado: piedra de los riscos y núcleos de tormenta, con el yelmo de su señor.' WHERE code = 'GUERRERO_WEAPON_ACANT';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'GUERRERO_WEAPON_ACANT');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'GUERRERO_WEAPON_ACANT'), v.* FROM (VALUES ('ATK', 68, FALSE), ('CRIT_CHANCE', 6.8, TRUE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station, scroll_item_id)
+SELECT 'RECIPE_GUERRERO_WEAPON_ACANT', (SELECT id FROM items WHERE code = 'GUERRERO_WEAPON_ACANT'), 1, 'EPICO', 26, 1, 70, 1, 'Durgan, en la forja del Bastión de Hierro', 2, 'forja', (SELECT id FROM items WHERE code = 'SCROLL_ACANTILADO_GUERRERO') WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_GUERRERO_WEAPON_ACANT');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'GUERRERO_WEAPON_ACANT'), result_quantity = 1, rarity = 'EPICO', required_level = 26, required_class_id = 1, success_rate_percent = 70, craft_time_minutes = 1, artisan_name = 'Durgan, en la forja del Bastión de Hierro', zone_id = 2, station = 'forja', scroll_item_id = (SELECT id FROM items WHERE code = 'SCROLL_ACANTILADO_GUERRERO') WHERE code = 'RECIPE_GUERRERO_WEAPON_ACANT';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_GUERRERO_WEAPON_ACANT');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_GUERRERO_WEAPON_ACANT'), i.id, v.n FROM (VALUES ('YELMO_SENOR_ACANTILADO', 1), ('NUCLEO_TORMENTA', 2), ('FRAGMENTO_PIEDRA_VIVA', 3), ('PIEL_DE_TROLL', 3)) AS v(code, n) JOIN items i ON i.code = v.code;
+-- Gran Espada del Acantilado
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'GUERRERO_WEAPON2H_ACANT', 'Gran Espada del Acantilado', 'EQUIPMENT', 'WEAPON', TRUE, 'EPICO', 1, 26, TRUE, 'CRAFT', 'Pieza del set del Acantilado: piedra de los riscos y núcleos de tormenta, con el yelmo de su señor.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'GUERRERO_WEAPON2H_ACANT');
+UPDATE items SET name = 'Gran Espada del Acantilado', item_type = 'EQUIPMENT', slot = 'WEAPON', is_two_handed = TRUE, rarity = 'EPICO', class_id = 1, required_level = 26, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Pieza del set del Acantilado: piedra de los riscos y núcleos de tormenta, con el yelmo de su señor.' WHERE code = 'GUERRERO_WEAPON2H_ACANT';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'GUERRERO_WEAPON2H_ACANT');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'GUERRERO_WEAPON2H_ACANT'), v.* FROM (VALUES ('ATK', 101, FALSE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station, scroll_item_id)
+SELECT 'RECIPE_GUERRERO_WEAPON2H_ACANT', (SELECT id FROM items WHERE code = 'GUERRERO_WEAPON2H_ACANT'), 1, 'EPICO', 26, 1, 70, 1, 'Durgan, en la forja del Bastión de Hierro', 2, 'forja', (SELECT id FROM items WHERE code = 'SCROLL_ACANTILADO_GUERRERO') WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_GUERRERO_WEAPON2H_ACANT');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'GUERRERO_WEAPON2H_ACANT'), result_quantity = 1, rarity = 'EPICO', required_level = 26, required_class_id = 1, success_rate_percent = 70, craft_time_minutes = 1, artisan_name = 'Durgan, en la forja del Bastión de Hierro', zone_id = 2, station = 'forja', scroll_item_id = (SELECT id FROM items WHERE code = 'SCROLL_ACANTILADO_GUERRERO') WHERE code = 'RECIPE_GUERRERO_WEAPON2H_ACANT';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_GUERRERO_WEAPON2H_ACANT');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_GUERRERO_WEAPON2H_ACANT'), i.id, v.n FROM (VALUES ('YELMO_SENOR_ACANTILADO', 1), ('NUCLEO_TORMENTA', 2), ('FRAGMENTO_PIEDRA_VIVA', 3), ('PIEL_DE_TROLL', 3)) AS v(code, n) JOIN items i ON i.code = v.code;
+-- Escudo del Acantilado
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'GUERRERO_OFFHAND_ACANT', 'Escudo del Acantilado', 'EQUIPMENT', 'OFFHAND', FALSE, 'EPICO', 1, 26, TRUE, 'CRAFT', 'Pieza del set del Acantilado: piedra de los riscos y núcleos de tormenta, con el yelmo de su señor.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'GUERRERO_OFFHAND_ACANT');
+UPDATE items SET name = 'Escudo del Acantilado', item_type = 'EQUIPMENT', slot = 'OFFHAND', is_two_handed = FALSE, rarity = 'EPICO', class_id = 1, required_level = 26, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Pieza del set del Acantilado: piedra de los riscos y núcleos de tormenta, con el yelmo de su señor.' WHERE code = 'GUERRERO_OFFHAND_ACANT';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'GUERRERO_OFFHAND_ACANT');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'GUERRERO_OFFHAND_ACANT'), v.* FROM (VALUES ('DEF', 15, FALSE), ('HP', 19, FALSE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station, scroll_item_id)
+SELECT 'RECIPE_GUERRERO_OFFHAND_ACANT', (SELECT id FROM items WHERE code = 'GUERRERO_OFFHAND_ACANT'), 1, 'EPICO', 26, 1, 70, 1, 'Durgan, en la forja del Bastión de Hierro', 2, 'forja', (SELECT id FROM items WHERE code = 'SCROLL_ACANTILADO_GUERRERO') WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_GUERRERO_OFFHAND_ACANT');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'GUERRERO_OFFHAND_ACANT'), result_quantity = 1, rarity = 'EPICO', required_level = 26, required_class_id = 1, success_rate_percent = 70, craft_time_minutes = 1, artisan_name = 'Durgan, en la forja del Bastión de Hierro', zone_id = 2, station = 'forja', scroll_item_id = (SELECT id FROM items WHERE code = 'SCROLL_ACANTILADO_GUERRERO') WHERE code = 'RECIPE_GUERRERO_OFFHAND_ACANT';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_GUERRERO_OFFHAND_ACANT');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_GUERRERO_OFFHAND_ACANT'), i.id, v.n FROM (VALUES ('NUCLEO_TORMENTA', 1), ('FRAGMENTO_PIEDRA_VIVA', 2), ('PIEL_DE_TROLL', 2)) AS v(code, n) JOIN items i ON i.code = v.code;
+-- Yelmo del Acantilado
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'GUERRERO_HELMET_ACANT', 'Yelmo del Acantilado', 'EQUIPMENT', 'HELMET', FALSE, 'EPICO', 1, 26, TRUE, 'CRAFT', 'Pieza del set del Acantilado: piedra de los riscos y núcleos de tormenta, con el yelmo de su señor.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'GUERRERO_HELMET_ACANT');
+UPDATE items SET name = 'Yelmo del Acantilado', item_type = 'EQUIPMENT', slot = 'HELMET', is_two_handed = FALSE, rarity = 'EPICO', class_id = 1, required_level = 26, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Pieza del set del Acantilado: piedra de los riscos y núcleos de tormenta, con el yelmo de su señor.' WHERE code = 'GUERRERO_HELMET_ACANT';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'GUERRERO_HELMET_ACANT');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'GUERRERO_HELMET_ACANT'), v.* FROM (VALUES ('DEF', 12, FALSE), ('HP', 12, FALSE), ('MAGIC_DEF', 4, FALSE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station, scroll_item_id)
+SELECT 'RECIPE_GUERRERO_HELMET_ACANT', (SELECT id FROM items WHERE code = 'GUERRERO_HELMET_ACANT'), 1, 'EPICO', 26, 1, 70, 1, 'Durgan, en la forja del Bastión de Hierro', 2, 'forja', (SELECT id FROM items WHERE code = 'SCROLL_ACANTILADO_GUERRERO') WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_GUERRERO_HELMET_ACANT');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'GUERRERO_HELMET_ACANT'), result_quantity = 1, rarity = 'EPICO', required_level = 26, required_class_id = 1, success_rate_percent = 70, craft_time_minutes = 1, artisan_name = 'Durgan, en la forja del Bastión de Hierro', zone_id = 2, station = 'forja', scroll_item_id = (SELECT id FROM items WHERE code = 'SCROLL_ACANTILADO_GUERRERO') WHERE code = 'RECIPE_GUERRERO_HELMET_ACANT';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_GUERRERO_HELMET_ACANT');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_GUERRERO_HELMET_ACANT'), i.id, v.n FROM (VALUES ('NUCLEO_TORMENTA', 1), ('FRAGMENTO_PIEDRA_VIVA', 2), ('PIEL_DE_TROLL', 2)) AS v(code, n) JOIN items i ON i.code = v.code;
+-- Armadura del Acantilado
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'GUERRERO_ARMOR_ACANT', 'Armadura del Acantilado', 'EQUIPMENT', 'ARMOR', FALSE, 'EPICO', 1, 26, TRUE, 'CRAFT', 'Pieza del set del Acantilado: piedra de los riscos y núcleos de tormenta, con el yelmo de su señor.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'GUERRERO_ARMOR_ACANT');
+UPDATE items SET name = 'Armadura del Acantilado', item_type = 'EQUIPMENT', slot = 'ARMOR', is_two_handed = FALSE, rarity = 'EPICO', class_id = 1, required_level = 26, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Pieza del set del Acantilado: piedra de los riscos y núcleos de tormenta, con el yelmo de su señor.' WHERE code = 'GUERRERO_ARMOR_ACANT';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'GUERRERO_ARMOR_ACANT');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'GUERRERO_ARMOR_ACANT'), v.* FROM (VALUES ('DEF', 24, FALSE), ('HP', 39, FALSE), ('MAGIC_DEF', 7, FALSE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station, scroll_item_id)
+SELECT 'RECIPE_GUERRERO_ARMOR_ACANT', (SELECT id FROM items WHERE code = 'GUERRERO_ARMOR_ACANT'), 1, 'EPICO', 26, 1, 70, 1, 'Durgan, en la forja del Bastión de Hierro', 2, 'forja', (SELECT id FROM items WHERE code = 'SCROLL_ACANTILADO_GUERRERO') WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_GUERRERO_ARMOR_ACANT');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'GUERRERO_ARMOR_ACANT'), result_quantity = 1, rarity = 'EPICO', required_level = 26, required_class_id = 1, success_rate_percent = 70, craft_time_minutes = 1, artisan_name = 'Durgan, en la forja del Bastión de Hierro', zone_id = 2, station = 'forja', scroll_item_id = (SELECT id FROM items WHERE code = 'SCROLL_ACANTILADO_GUERRERO') WHERE code = 'RECIPE_GUERRERO_ARMOR_ACANT';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_GUERRERO_ARMOR_ACANT');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_GUERRERO_ARMOR_ACANT'), i.id, v.n FROM (VALUES ('YELMO_SENOR_ACANTILADO', 1), ('NUCLEO_TORMENTA', 2), ('FRAGMENTO_PIEDRA_VIVA', 3), ('PIEL_DE_TROLL', 3)) AS v(code, n) JOIN items i ON i.code = v.code;
+-- Guanteletes del Acantilado
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'GUERRERO_GLOVES_ACANT', 'Guanteletes del Acantilado', 'EQUIPMENT', 'GLOVES', FALSE, 'EPICO', 1, 26, TRUE, 'CRAFT', 'Pieza del set del Acantilado: piedra de los riscos y núcleos de tormenta, con el yelmo de su señor.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'GUERRERO_GLOVES_ACANT');
+UPDATE items SET name = 'Guanteletes del Acantilado', item_type = 'EQUIPMENT', slot = 'GLOVES', is_two_handed = FALSE, rarity = 'EPICO', class_id = 1, required_level = 26, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Pieza del set del Acantilado: piedra de los riscos y núcleos de tormenta, con el yelmo de su señor.' WHERE code = 'GUERRERO_GLOVES_ACANT';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'GUERRERO_GLOVES_ACANT');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'GUERRERO_GLOVES_ACANT'), v.* FROM (VALUES ('ATK', 30, FALSE), ('CRIT_CHANCE', 4.5, TRUE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station, scroll_item_id)
+SELECT 'RECIPE_GUERRERO_GLOVES_ACANT', (SELECT id FROM items WHERE code = 'GUERRERO_GLOVES_ACANT'), 1, 'EPICO', 26, 1, 70, 1, 'Durgan, en la forja del Bastión de Hierro', 2, 'forja', (SELECT id FROM items WHERE code = 'SCROLL_ACANTILADO_GUERRERO') WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_GUERRERO_GLOVES_ACANT');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'GUERRERO_GLOVES_ACANT'), result_quantity = 1, rarity = 'EPICO', required_level = 26, required_class_id = 1, success_rate_percent = 70, craft_time_minutes = 1, artisan_name = 'Durgan, en la forja del Bastión de Hierro', zone_id = 2, station = 'forja', scroll_item_id = (SELECT id FROM items WHERE code = 'SCROLL_ACANTILADO_GUERRERO') WHERE code = 'RECIPE_GUERRERO_GLOVES_ACANT';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_GUERRERO_GLOVES_ACANT');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_GUERRERO_GLOVES_ACANT'), i.id, v.n FROM (VALUES ('NUCLEO_TORMENTA', 1), ('FRAGMENTO_PIEDRA_VIVA', 2), ('PIEL_DE_TROLL', 2)) AS v(code, n) JOIN items i ON i.code = v.code;
+-- Botas del Acantilado
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'GUERRERO_BOOTS_ACANT', 'Botas del Acantilado', 'EQUIPMENT', 'BOOTS', FALSE, 'EPICO', 1, 26, TRUE, 'CRAFT', 'Pieza del set del Acantilado: piedra de los riscos y núcleos de tormenta, con el yelmo de su señor.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'GUERRERO_BOOTS_ACANT');
+UPDATE items SET name = 'Botas del Acantilado', item_type = 'EQUIPMENT', slot = 'BOOTS', is_two_handed = FALSE, rarity = 'EPICO', class_id = 1, required_level = 26, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Pieza del set del Acantilado: piedra de los riscos y núcleos de tormenta, con el yelmo de su señor.' WHERE code = 'GUERRERO_BOOTS_ACANT';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'GUERRERO_BOOTS_ACANT');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'GUERRERO_BOOTS_ACANT'), v.* FROM (VALUES ('SPD', 18, FALSE), ('HP', 5, FALSE), ('DEF', 6, FALSE), ('EVASION', 2.5, TRUE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station, scroll_item_id)
+SELECT 'RECIPE_GUERRERO_BOOTS_ACANT', (SELECT id FROM items WHERE code = 'GUERRERO_BOOTS_ACANT'), 1, 'EPICO', 26, 1, 70, 1, 'Durgan, en la forja del Bastión de Hierro', 2, 'forja', (SELECT id FROM items WHERE code = 'SCROLL_ACANTILADO_GUERRERO') WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_GUERRERO_BOOTS_ACANT');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'GUERRERO_BOOTS_ACANT'), result_quantity = 1, rarity = 'EPICO', required_level = 26, required_class_id = 1, success_rate_percent = 70, craft_time_minutes = 1, artisan_name = 'Durgan, en la forja del Bastión de Hierro', zone_id = 2, station = 'forja', scroll_item_id = (SELECT id FROM items WHERE code = 'SCROLL_ACANTILADO_GUERRERO') WHERE code = 'RECIPE_GUERRERO_BOOTS_ACANT';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_GUERRERO_BOOTS_ACANT');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_GUERRERO_BOOTS_ACANT'), i.id, v.n FROM (VALUES ('NUCLEO_TORMENTA', 1), ('FRAGMENTO_PIEDRA_VIVA', 2), ('PIEL_DE_TROLL', 2)) AS v(code, n) JOIN items i ON i.code = v.code;
+-- Varita del Acantilado
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'MAGO_WEAPON_ACANT', 'Varita del Acantilado', 'EQUIPMENT', 'WEAPON', FALSE, 'EPICO', 2, 26, TRUE, 'CRAFT', 'Pieza del set del Acantilado: piedra de los riscos y núcleos de tormenta, con el yelmo de su señor.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'MAGO_WEAPON_ACANT');
+UPDATE items SET name = 'Varita del Acantilado', item_type = 'EQUIPMENT', slot = 'WEAPON', is_two_handed = FALSE, rarity = 'EPICO', class_id = 2, required_level = 26, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Pieza del set del Acantilado: piedra de los riscos y núcleos de tormenta, con el yelmo de su señor.' WHERE code = 'MAGO_WEAPON_ACANT';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'MAGO_WEAPON_ACANT');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'MAGO_WEAPON_ACANT'), v.* FROM (VALUES ('MAG', 68, FALSE), ('CRIT_CHANCE', 6.8, TRUE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station, scroll_item_id)
+SELECT 'RECIPE_MAGO_WEAPON_ACANT', (SELECT id FROM items WHERE code = 'MAGO_WEAPON_ACANT'), 1, 'EPICO', 26, 2, 70, 1, 'Durgan, en la forja del Bastión de Hierro', 2, 'forja', (SELECT id FROM items WHERE code = 'SCROLL_ACANTILADO_MAGO') WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_MAGO_WEAPON_ACANT');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'MAGO_WEAPON_ACANT'), result_quantity = 1, rarity = 'EPICO', required_level = 26, required_class_id = 2, success_rate_percent = 70, craft_time_minutes = 1, artisan_name = 'Durgan, en la forja del Bastión de Hierro', zone_id = 2, station = 'forja', scroll_item_id = (SELECT id FROM items WHERE code = 'SCROLL_ACANTILADO_MAGO') WHERE code = 'RECIPE_MAGO_WEAPON_ACANT';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_MAGO_WEAPON_ACANT');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_MAGO_WEAPON_ACANT'), i.id, v.n FROM (VALUES ('YELMO_SENOR_ACANTILADO', 1), ('NUCLEO_TORMENTA', 2), ('FRAGMENTO_PIEDRA_VIVA', 3), ('ESENCIA_ESPECTRAL_HELADA', 3)) AS v(code, n) JOIN items i ON i.code = v.code;
+-- Orbe del Acantilado
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'MAGO_OFFHAND_ORB_ACANT', 'Orbe del Acantilado', 'EQUIPMENT', 'OFFHAND', FALSE, 'EPICO', 2, 26, TRUE, 'CRAFT', 'Pieza del set del Acantilado: piedra de los riscos y núcleos de tormenta, con el yelmo de su señor.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'MAGO_OFFHAND_ORB_ACANT');
+UPDATE items SET name = 'Orbe del Acantilado', item_type = 'EQUIPMENT', slot = 'OFFHAND', is_two_handed = FALSE, rarity = 'EPICO', class_id = 2, required_level = 26, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Pieza del set del Acantilado: piedra de los riscos y núcleos de tormenta, con el yelmo de su señor.' WHERE code = 'MAGO_OFFHAND_ORB_ACANT';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'MAGO_OFFHAND_ORB_ACANT');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'MAGO_OFFHAND_ORB_ACANT'), v.* FROM (VALUES ('MAG', 28, FALSE), ('SPD', 22, FALSE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station, scroll_item_id)
+SELECT 'RECIPE_MAGO_OFFHAND_ORB_ACANT', (SELECT id FROM items WHERE code = 'MAGO_OFFHAND_ORB_ACANT'), 1, 'EPICO', 26, 2, 70, 1, 'Durgan, en la forja del Bastión de Hierro', 2, 'forja', (SELECT id FROM items WHERE code = 'SCROLL_ACANTILADO_MAGO') WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_MAGO_OFFHAND_ORB_ACANT');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'MAGO_OFFHAND_ORB_ACANT'), result_quantity = 1, rarity = 'EPICO', required_level = 26, required_class_id = 2, success_rate_percent = 70, craft_time_minutes = 1, artisan_name = 'Durgan, en la forja del Bastión de Hierro', zone_id = 2, station = 'forja', scroll_item_id = (SELECT id FROM items WHERE code = 'SCROLL_ACANTILADO_MAGO') WHERE code = 'RECIPE_MAGO_OFFHAND_ORB_ACANT';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_MAGO_OFFHAND_ORB_ACANT');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_MAGO_OFFHAND_ORB_ACANT'), i.id, v.n FROM (VALUES ('NUCLEO_TORMENTA', 1), ('FRAGMENTO_PIEDRA_VIVA', 2), ('ESENCIA_ESPECTRAL_HELADA', 2)) AS v(code, n) JOIN items i ON i.code = v.code;
+-- Cristal del Acantilado
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'MAGO_OFFHAND_CRYSTAL_ACANT', 'Cristal del Acantilado', 'EQUIPMENT', 'OFFHAND', FALSE, 'EPICO', 2, 26, TRUE, 'CRAFT', 'Pieza del set del Acantilado: piedra de los riscos y núcleos de tormenta, con el yelmo de su señor.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'MAGO_OFFHAND_CRYSTAL_ACANT');
+UPDATE items SET name = 'Cristal del Acantilado', item_type = 'EQUIPMENT', slot = 'OFFHAND', is_two_handed = FALSE, rarity = 'EPICO', class_id = 2, required_level = 26, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Pieza del set del Acantilado: piedra de los riscos y núcleos de tormenta, con el yelmo de su señor.' WHERE code = 'MAGO_OFFHAND_CRYSTAL_ACANT';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'MAGO_OFFHAND_CRYSTAL_ACANT');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'MAGO_OFFHAND_CRYSTAL_ACANT'), v.* FROM (VALUES ('MAG', 37, FALSE), ('CRIT_CHANCE', 4.5, TRUE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station, scroll_item_id)
+SELECT 'RECIPE_MAGO_OFFHAND_CRYSTAL_ACANT', (SELECT id FROM items WHERE code = 'MAGO_OFFHAND_CRYSTAL_ACANT'), 1, 'EPICO', 26, 2, 70, 1, 'Durgan, en la forja del Bastión de Hierro', 2, 'forja', (SELECT id FROM items WHERE code = 'SCROLL_ACANTILADO_MAGO') WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_MAGO_OFFHAND_CRYSTAL_ACANT');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'MAGO_OFFHAND_CRYSTAL_ACANT'), result_quantity = 1, rarity = 'EPICO', required_level = 26, required_class_id = 2, success_rate_percent = 70, craft_time_minutes = 1, artisan_name = 'Durgan, en la forja del Bastión de Hierro', zone_id = 2, station = 'forja', scroll_item_id = (SELECT id FROM items WHERE code = 'SCROLL_ACANTILADO_MAGO') WHERE code = 'RECIPE_MAGO_OFFHAND_CRYSTAL_ACANT';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_MAGO_OFFHAND_CRYSTAL_ACANT');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_MAGO_OFFHAND_CRYSTAL_ACANT'), i.id, v.n FROM (VALUES ('NUCLEO_TORMENTA', 1), ('FRAGMENTO_PIEDRA_VIVA', 2), ('ESENCIA_ESPECTRAL_HELADA', 2)) AS v(code, n) JOIN items i ON i.code = v.code;
+-- Capirote del Acantilado
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'MAGO_HELMET_ACANT', 'Capirote del Acantilado', 'EQUIPMENT', 'HELMET', FALSE, 'EPICO', 2, 26, TRUE, 'CRAFT', 'Pieza del set del Acantilado: piedra de los riscos y núcleos de tormenta, con el yelmo de su señor.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'MAGO_HELMET_ACANT');
+UPDATE items SET name = 'Capirote del Acantilado', item_type = 'EQUIPMENT', slot = 'HELMET', is_two_handed = FALSE, rarity = 'EPICO', class_id = 2, required_level = 26, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Pieza del set del Acantilado: piedra de los riscos y núcleos de tormenta, con el yelmo de su señor.' WHERE code = 'MAGO_HELMET_ACANT';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'MAGO_HELMET_ACANT');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'MAGO_HELMET_ACANT'), v.* FROM (VALUES ('DEF', 4, FALSE), ('HP', 9, FALSE), ('MAGIC_DEF', 12, FALSE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station, scroll_item_id)
+SELECT 'RECIPE_MAGO_HELMET_ACANT', (SELECT id FROM items WHERE code = 'MAGO_HELMET_ACANT'), 1, 'EPICO', 26, 2, 70, 1, 'Durgan, en la forja del Bastión de Hierro', 2, 'forja', (SELECT id FROM items WHERE code = 'SCROLL_ACANTILADO_MAGO') WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_MAGO_HELMET_ACANT');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'MAGO_HELMET_ACANT'), result_quantity = 1, rarity = 'EPICO', required_level = 26, required_class_id = 2, success_rate_percent = 70, craft_time_minutes = 1, artisan_name = 'Durgan, en la forja del Bastión de Hierro', zone_id = 2, station = 'forja', scroll_item_id = (SELECT id FROM items WHERE code = 'SCROLL_ACANTILADO_MAGO') WHERE code = 'RECIPE_MAGO_HELMET_ACANT';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_MAGO_HELMET_ACANT');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_MAGO_HELMET_ACANT'), i.id, v.n FROM (VALUES ('NUCLEO_TORMENTA', 1), ('FRAGMENTO_PIEDRA_VIVA', 2), ('ESENCIA_ESPECTRAL_HELADA', 2)) AS v(code, n) JOIN items i ON i.code = v.code;
+-- Túnica del Acantilado
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'MAGO_ARMOR_ACANT', 'Túnica del Acantilado', 'EQUIPMENT', 'ARMOR', FALSE, 'EPICO', 2, 26, TRUE, 'CRAFT', 'Pieza del set del Acantilado: piedra de los riscos y núcleos de tormenta, con el yelmo de su señor.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'MAGO_ARMOR_ACANT');
+UPDATE items SET name = 'Túnica del Acantilado', item_type = 'EQUIPMENT', slot = 'ARMOR', is_two_handed = FALSE, rarity = 'EPICO', class_id = 2, required_level = 26, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Pieza del set del Acantilado: piedra de los riscos y núcleos de tormenta, con el yelmo de su señor.' WHERE code = 'MAGO_ARMOR_ACANT';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'MAGO_ARMOR_ACANT');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'MAGO_ARMOR_ACANT'), v.* FROM (VALUES ('DEF', 8, FALSE), ('HP', 45, FALSE), ('MAGIC_DEF', 24, FALSE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station, scroll_item_id)
+SELECT 'RECIPE_MAGO_ARMOR_ACANT', (SELECT id FROM items WHERE code = 'MAGO_ARMOR_ACANT'), 1, 'EPICO', 26, 2, 70, 1, 'Durgan, en la forja del Bastión de Hierro', 2, 'forja', (SELECT id FROM items WHERE code = 'SCROLL_ACANTILADO_MAGO') WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_MAGO_ARMOR_ACANT');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'MAGO_ARMOR_ACANT'), result_quantity = 1, rarity = 'EPICO', required_level = 26, required_class_id = 2, success_rate_percent = 70, craft_time_minutes = 1, artisan_name = 'Durgan, en la forja del Bastión de Hierro', zone_id = 2, station = 'forja', scroll_item_id = (SELECT id FROM items WHERE code = 'SCROLL_ACANTILADO_MAGO') WHERE code = 'RECIPE_MAGO_ARMOR_ACANT';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_MAGO_ARMOR_ACANT');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_MAGO_ARMOR_ACANT'), i.id, v.n FROM (VALUES ('YELMO_SENOR_ACANTILADO', 1), ('NUCLEO_TORMENTA', 2), ('FRAGMENTO_PIEDRA_VIVA', 3), ('ESENCIA_ESPECTRAL_HELADA', 3)) AS v(code, n) JOIN items i ON i.code = v.code;
+-- Guantes del Acantilado
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'MAGO_GLOVES_ACANT', 'Guantes del Acantilado', 'EQUIPMENT', 'GLOVES', FALSE, 'EPICO', 2, 26, TRUE, 'CRAFT', 'Pieza del set del Acantilado: piedra de los riscos y núcleos de tormenta, con el yelmo de su señor.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'MAGO_GLOVES_ACANT');
+UPDATE items SET name = 'Guantes del Acantilado', item_type = 'EQUIPMENT', slot = 'GLOVES', is_two_handed = FALSE, rarity = 'EPICO', class_id = 2, required_level = 26, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Pieza del set del Acantilado: piedra de los riscos y núcleos de tormenta, con el yelmo de su señor.' WHERE code = 'MAGO_GLOVES_ACANT';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'MAGO_GLOVES_ACANT');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'MAGO_GLOVES_ACANT'), v.* FROM (VALUES ('MAG', 30, FALSE), ('CRIT_CHANCE', 4.5, TRUE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station, scroll_item_id)
+SELECT 'RECIPE_MAGO_GLOVES_ACANT', (SELECT id FROM items WHERE code = 'MAGO_GLOVES_ACANT'), 1, 'EPICO', 26, 2, 70, 1, 'Durgan, en la forja del Bastión de Hierro', 2, 'forja', (SELECT id FROM items WHERE code = 'SCROLL_ACANTILADO_MAGO') WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_MAGO_GLOVES_ACANT');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'MAGO_GLOVES_ACANT'), result_quantity = 1, rarity = 'EPICO', required_level = 26, required_class_id = 2, success_rate_percent = 70, craft_time_minutes = 1, artisan_name = 'Durgan, en la forja del Bastión de Hierro', zone_id = 2, station = 'forja', scroll_item_id = (SELECT id FROM items WHERE code = 'SCROLL_ACANTILADO_MAGO') WHERE code = 'RECIPE_MAGO_GLOVES_ACANT';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_MAGO_GLOVES_ACANT');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_MAGO_GLOVES_ACANT'), i.id, v.n FROM (VALUES ('NUCLEO_TORMENTA', 1), ('FRAGMENTO_PIEDRA_VIVA', 2), ('ESENCIA_ESPECTRAL_HELADA', 2)) AS v(code, n) JOIN items i ON i.code = v.code;
+-- Sandalias del Acantilado
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'MAGO_BOOTS_ACANT', 'Sandalias del Acantilado', 'EQUIPMENT', 'BOOTS', FALSE, 'EPICO', 2, 26, TRUE, 'CRAFT', 'Pieza del set del Acantilado: piedra de los riscos y núcleos de tormenta, con el yelmo de su señor.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'MAGO_BOOTS_ACANT');
+UPDATE items SET name = 'Sandalias del Acantilado', item_type = 'EQUIPMENT', slot = 'BOOTS', is_two_handed = FALSE, rarity = 'EPICO', class_id = 2, required_level = 26, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Pieza del set del Acantilado: piedra de los riscos y núcleos de tormenta, con el yelmo de su señor.' WHERE code = 'MAGO_BOOTS_ACANT';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'MAGO_BOOTS_ACANT');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'MAGO_BOOTS_ACANT'), v.* FROM (VALUES ('SPD', 18, FALSE), ('HP', 5, FALSE), ('MAGIC_DEF', 8, FALSE), ('EVASION', 2.5, TRUE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station, scroll_item_id)
+SELECT 'RECIPE_MAGO_BOOTS_ACANT', (SELECT id FROM items WHERE code = 'MAGO_BOOTS_ACANT'), 1, 'EPICO', 26, 2, 70, 1, 'Durgan, en la forja del Bastión de Hierro', 2, 'forja', (SELECT id FROM items WHERE code = 'SCROLL_ACANTILADO_MAGO') WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_MAGO_BOOTS_ACANT');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'MAGO_BOOTS_ACANT'), result_quantity = 1, rarity = 'EPICO', required_level = 26, required_class_id = 2, success_rate_percent = 70, craft_time_minutes = 1, artisan_name = 'Durgan, en la forja del Bastión de Hierro', zone_id = 2, station = 'forja', scroll_item_id = (SELECT id FROM items WHERE code = 'SCROLL_ACANTILADO_MAGO') WHERE code = 'RECIPE_MAGO_BOOTS_ACANT';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_MAGO_BOOTS_ACANT');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_MAGO_BOOTS_ACANT'), i.id, v.n FROM (VALUES ('NUCLEO_TORMENTA', 1), ('FRAGMENTO_PIEDRA_VIVA', 2), ('ESENCIA_ESPECTRAL_HELADA', 2)) AS v(code, n) JOIN items i ON i.code = v.code;
+-- Arco del Acantilado
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'ARQUERO_WEAPON_ACANT', 'Arco del Acantilado', 'EQUIPMENT', 'WEAPON', FALSE, 'EPICO', 3, 26, TRUE, 'CRAFT', 'Pieza del set del Acantilado: piedra de los riscos y núcleos de tormenta, con el yelmo de su señor.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'ARQUERO_WEAPON_ACANT');
+UPDATE items SET name = 'Arco del Acantilado', item_type = 'EQUIPMENT', slot = 'WEAPON', is_two_handed = FALSE, rarity = 'EPICO', class_id = 3, required_level = 26, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Pieza del set del Acantilado: piedra de los riscos y núcleos de tormenta, con el yelmo de su señor.' WHERE code = 'ARQUERO_WEAPON_ACANT';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'ARQUERO_WEAPON_ACANT');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'ARQUERO_WEAPON_ACANT'), v.* FROM (VALUES ('ATK', 68, FALSE), ('CRIT_CHANCE', 6.8, TRUE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station, scroll_item_id)
+SELECT 'RECIPE_ARQUERO_WEAPON_ACANT', (SELECT id FROM items WHERE code = 'ARQUERO_WEAPON_ACANT'), 1, 'EPICO', 26, 3, 70, 1, 'Durgan, en la forja del Bastión de Hierro', 2, 'forja', (SELECT id FROM items WHERE code = 'SCROLL_ACANTILADO_ARQUERO') WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_ARQUERO_WEAPON_ACANT');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'ARQUERO_WEAPON_ACANT'), result_quantity = 1, rarity = 'EPICO', required_level = 26, required_class_id = 3, success_rate_percent = 70, craft_time_minutes = 1, artisan_name = 'Durgan, en la forja del Bastión de Hierro', zone_id = 2, station = 'forja', scroll_item_id = (SELECT id FROM items WHERE code = 'SCROLL_ACANTILADO_ARQUERO') WHERE code = 'RECIPE_ARQUERO_WEAPON_ACANT';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_ARQUERO_WEAPON_ACANT');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_ARQUERO_WEAPON_ACANT'), i.id, v.n FROM (VALUES ('YELMO_SENOR_ACANTILADO', 1), ('NUCLEO_TORMENTA', 2), ('FRAGMENTO_PIEDRA_VIVA', 3), ('PLUMA_ARPIA_ECO', 3)) AS v(code, n) JOIN items i ON i.code = v.code;
+-- Carcaj del Acantilado
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'ARQUERO_OFFHAND_ACANT', 'Carcaj del Acantilado', 'EQUIPMENT', 'OFFHAND', FALSE, 'EPICO', 3, 26, TRUE, 'CRAFT', 'Pieza del set del Acantilado: piedra de los riscos y núcleos de tormenta, con el yelmo de su señor.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'ARQUERO_OFFHAND_ACANT');
+UPDATE items SET name = 'Carcaj del Acantilado', item_type = 'EQUIPMENT', slot = 'OFFHAND', is_two_handed = FALSE, rarity = 'EPICO', class_id = 3, required_level = 26, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Pieza del set del Acantilado: piedra de los riscos y núcleos de tormenta, con el yelmo de su señor.' WHERE code = 'ARQUERO_OFFHAND_ACANT';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'ARQUERO_OFFHAND_ACANT');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'ARQUERO_OFFHAND_ACANT'), v.* FROM (VALUES ('ATK', 22, FALSE), ('SPD', 22, FALSE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station, scroll_item_id)
+SELECT 'RECIPE_ARQUERO_OFFHAND_ACANT', (SELECT id FROM items WHERE code = 'ARQUERO_OFFHAND_ACANT'), 1, 'EPICO', 26, 3, 70, 1, 'Durgan, en la forja del Bastión de Hierro', 2, 'forja', (SELECT id FROM items WHERE code = 'SCROLL_ACANTILADO_ARQUERO') WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_ARQUERO_OFFHAND_ACANT');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'ARQUERO_OFFHAND_ACANT'), result_quantity = 1, rarity = 'EPICO', required_level = 26, required_class_id = 3, success_rate_percent = 70, craft_time_minutes = 1, artisan_name = 'Durgan, en la forja del Bastión de Hierro', zone_id = 2, station = 'forja', scroll_item_id = (SELECT id FROM items WHERE code = 'SCROLL_ACANTILADO_ARQUERO') WHERE code = 'RECIPE_ARQUERO_OFFHAND_ACANT';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_ARQUERO_OFFHAND_ACANT');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_ARQUERO_OFFHAND_ACANT'), i.id, v.n FROM (VALUES ('NUCLEO_TORMENTA', 1), ('FRAGMENTO_PIEDRA_VIVA', 2), ('PLUMA_ARPIA_ECO', 2)) AS v(code, n) JOIN items i ON i.code = v.code;
+-- Capucha del Acantilado
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'ARQUERO_HELMET_ACANT', 'Capucha del Acantilado', 'EQUIPMENT', 'HELMET', FALSE, 'EPICO', 3, 26, TRUE, 'CRAFT', 'Pieza del set del Acantilado: piedra de los riscos y núcleos de tormenta, con el yelmo de su señor.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'ARQUERO_HELMET_ACANT');
+UPDATE items SET name = 'Capucha del Acantilado', item_type = 'EQUIPMENT', slot = 'HELMET', is_two_handed = FALSE, rarity = 'EPICO', class_id = 3, required_level = 26, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Pieza del set del Acantilado: piedra de los riscos y núcleos de tormenta, con el yelmo de su señor.' WHERE code = 'ARQUERO_HELMET_ACANT';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'ARQUERO_HELMET_ACANT');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'ARQUERO_HELMET_ACANT'), v.* FROM (VALUES ('DEF', 12, FALSE), ('HP', 10, FALSE), ('MAGIC_DEF', 4, FALSE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station, scroll_item_id)
+SELECT 'RECIPE_ARQUERO_HELMET_ACANT', (SELECT id FROM items WHERE code = 'ARQUERO_HELMET_ACANT'), 1, 'EPICO', 26, 3, 70, 1, 'Durgan, en la forja del Bastión de Hierro', 2, 'forja', (SELECT id FROM items WHERE code = 'SCROLL_ACANTILADO_ARQUERO') WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_ARQUERO_HELMET_ACANT');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'ARQUERO_HELMET_ACANT'), result_quantity = 1, rarity = 'EPICO', required_level = 26, required_class_id = 3, success_rate_percent = 70, craft_time_minutes = 1, artisan_name = 'Durgan, en la forja del Bastión de Hierro', zone_id = 2, station = 'forja', scroll_item_id = (SELECT id FROM items WHERE code = 'SCROLL_ACANTILADO_ARQUERO') WHERE code = 'RECIPE_ARQUERO_HELMET_ACANT';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_ARQUERO_HELMET_ACANT');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_ARQUERO_HELMET_ACANT'), i.id, v.n FROM (VALUES ('NUCLEO_TORMENTA', 1), ('FRAGMENTO_PIEDRA_VIVA', 2), ('PLUMA_ARPIA_ECO', 2)) AS v(code, n) JOIN items i ON i.code = v.code;
+-- Gabán del Acantilado
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'ARQUERO_ARMOR_ACANT', 'Gabán del Acantilado', 'EQUIPMENT', 'ARMOR', FALSE, 'EPICO', 3, 26, TRUE, 'CRAFT', 'Pieza del set del Acantilado: piedra de los riscos y núcleos de tormenta, con el yelmo de su señor.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'ARQUERO_ARMOR_ACANT');
+UPDATE items SET name = 'Gabán del Acantilado', item_type = 'EQUIPMENT', slot = 'ARMOR', is_two_handed = FALSE, rarity = 'EPICO', class_id = 3, required_level = 26, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Pieza del set del Acantilado: piedra de los riscos y núcleos de tormenta, con el yelmo de su señor.' WHERE code = 'ARQUERO_ARMOR_ACANT';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'ARQUERO_ARMOR_ACANT');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'ARQUERO_ARMOR_ACANT'), v.* FROM (VALUES ('DEF', 24, FALSE), ('HP', 44, FALSE), ('MAGIC_DEF', 7, FALSE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station, scroll_item_id)
+SELECT 'RECIPE_ARQUERO_ARMOR_ACANT', (SELECT id FROM items WHERE code = 'ARQUERO_ARMOR_ACANT'), 1, 'EPICO', 26, 3, 70, 1, 'Durgan, en la forja del Bastión de Hierro', 2, 'forja', (SELECT id FROM items WHERE code = 'SCROLL_ACANTILADO_ARQUERO') WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_ARQUERO_ARMOR_ACANT');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'ARQUERO_ARMOR_ACANT'), result_quantity = 1, rarity = 'EPICO', required_level = 26, required_class_id = 3, success_rate_percent = 70, craft_time_minutes = 1, artisan_name = 'Durgan, en la forja del Bastión de Hierro', zone_id = 2, station = 'forja', scroll_item_id = (SELECT id FROM items WHERE code = 'SCROLL_ACANTILADO_ARQUERO') WHERE code = 'RECIPE_ARQUERO_ARMOR_ACANT';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_ARQUERO_ARMOR_ACANT');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_ARQUERO_ARMOR_ACANT'), i.id, v.n FROM (VALUES ('YELMO_SENOR_ACANTILADO', 1), ('NUCLEO_TORMENTA', 2), ('FRAGMENTO_PIEDRA_VIVA', 3), ('PLUMA_ARPIA_ECO', 3)) AS v(code, n) JOIN items i ON i.code = v.code;
+-- Guantes del Acantilado
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'ARQUERO_GLOVES_ACANT', 'Guantes del Acantilado', 'EQUIPMENT', 'GLOVES', FALSE, 'EPICO', 3, 26, TRUE, 'CRAFT', 'Pieza del set del Acantilado: piedra de los riscos y núcleos de tormenta, con el yelmo de su señor.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'ARQUERO_GLOVES_ACANT');
+UPDATE items SET name = 'Guantes del Acantilado', item_type = 'EQUIPMENT', slot = 'GLOVES', is_two_handed = FALSE, rarity = 'EPICO', class_id = 3, required_level = 26, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Pieza del set del Acantilado: piedra de los riscos y núcleos de tormenta, con el yelmo de su señor.' WHERE code = 'ARQUERO_GLOVES_ACANT';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'ARQUERO_GLOVES_ACANT');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'ARQUERO_GLOVES_ACANT'), v.* FROM (VALUES ('ATK', 30, FALSE), ('CRIT_CHANCE', 4.5, TRUE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station, scroll_item_id)
+SELECT 'RECIPE_ARQUERO_GLOVES_ACANT', (SELECT id FROM items WHERE code = 'ARQUERO_GLOVES_ACANT'), 1, 'EPICO', 26, 3, 70, 1, 'Durgan, en la forja del Bastión de Hierro', 2, 'forja', (SELECT id FROM items WHERE code = 'SCROLL_ACANTILADO_ARQUERO') WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_ARQUERO_GLOVES_ACANT');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'ARQUERO_GLOVES_ACANT'), result_quantity = 1, rarity = 'EPICO', required_level = 26, required_class_id = 3, success_rate_percent = 70, craft_time_minutes = 1, artisan_name = 'Durgan, en la forja del Bastión de Hierro', zone_id = 2, station = 'forja', scroll_item_id = (SELECT id FROM items WHERE code = 'SCROLL_ACANTILADO_ARQUERO') WHERE code = 'RECIPE_ARQUERO_GLOVES_ACANT';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_ARQUERO_GLOVES_ACANT');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_ARQUERO_GLOVES_ACANT'), i.id, v.n FROM (VALUES ('NUCLEO_TORMENTA', 1), ('FRAGMENTO_PIEDRA_VIVA', 2), ('PLUMA_ARPIA_ECO', 2)) AS v(code, n) JOIN items i ON i.code = v.code;
+-- Botas del Acantilado
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'ARQUERO_BOOTS_ACANT', 'Botas del Acantilado', 'EQUIPMENT', 'BOOTS', FALSE, 'EPICO', 3, 26, TRUE, 'CRAFT', 'Pieza del set del Acantilado: piedra de los riscos y núcleos de tormenta, con el yelmo de su señor.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'ARQUERO_BOOTS_ACANT');
+UPDATE items SET name = 'Botas del Acantilado', item_type = 'EQUIPMENT', slot = 'BOOTS', is_two_handed = FALSE, rarity = 'EPICO', class_id = 3, required_level = 26, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Pieza del set del Acantilado: piedra de los riscos y núcleos de tormenta, con el yelmo de su señor.' WHERE code = 'ARQUERO_BOOTS_ACANT';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'ARQUERO_BOOTS_ACANT');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'ARQUERO_BOOTS_ACANT'), v.* FROM (VALUES ('SPD', 18, FALSE), ('HP', 5, FALSE), ('DEF', 7, FALSE), ('EVASION', 2.5, TRUE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station, scroll_item_id)
+SELECT 'RECIPE_ARQUERO_BOOTS_ACANT', (SELECT id FROM items WHERE code = 'ARQUERO_BOOTS_ACANT'), 1, 'EPICO', 26, 3, 70, 1, 'Durgan, en la forja del Bastión de Hierro', 2, 'forja', (SELECT id FROM items WHERE code = 'SCROLL_ACANTILADO_ARQUERO') WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_ARQUERO_BOOTS_ACANT');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'ARQUERO_BOOTS_ACANT'), result_quantity = 1, rarity = 'EPICO', required_level = 26, required_class_id = 3, success_rate_percent = 70, craft_time_minutes = 1, artisan_name = 'Durgan, en la forja del Bastión de Hierro', zone_id = 2, station = 'forja', scroll_item_id = (SELECT id FROM items WHERE code = 'SCROLL_ACANTILADO_ARQUERO') WHERE code = 'RECIPE_ARQUERO_BOOTS_ACANT';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_ARQUERO_BOOTS_ACANT');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_ARQUERO_BOOTS_ACANT'), i.id, v.n FROM (VALUES ('NUCLEO_TORMENTA', 1), ('FRAGMENTO_PIEDRA_VIVA', 2), ('PLUMA_ARPIA_ECO', 2)) AS v(code, n) JOIN items i ON i.code = v.code;
+-- Daga del Acantilado
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'PICARO_WEAPON_ACANT', 'Daga del Acantilado', 'EQUIPMENT', 'WEAPON', FALSE, 'EPICO', 4, 26, TRUE, 'CRAFT', 'Pieza del set del Acantilado: piedra de los riscos y núcleos de tormenta, con el yelmo de su señor.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'PICARO_WEAPON_ACANT');
+UPDATE items SET name = 'Daga del Acantilado', item_type = 'EQUIPMENT', slot = 'WEAPON', is_two_handed = FALSE, rarity = 'EPICO', class_id = 4, required_level = 26, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Pieza del set del Acantilado: piedra de los riscos y núcleos de tormenta, con el yelmo de su señor.' WHERE code = 'PICARO_WEAPON_ACANT';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'PICARO_WEAPON_ACANT');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'PICARO_WEAPON_ACANT'), v.* FROM (VALUES ('ATK', 68, FALSE), ('CRIT_CHANCE', 6.8, TRUE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station, scroll_item_id)
+SELECT 'RECIPE_PICARO_WEAPON_ACANT', (SELECT id FROM items WHERE code = 'PICARO_WEAPON_ACANT'), 1, 'EPICO', 26, 4, 70, 1, 'Durgan, en la forja del Bastión de Hierro', 2, 'forja', (SELECT id FROM items WHERE code = 'SCROLL_ACANTILADO_PICARO') WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_PICARO_WEAPON_ACANT');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'PICARO_WEAPON_ACANT'), result_quantity = 1, rarity = 'EPICO', required_level = 26, required_class_id = 4, success_rate_percent = 70, craft_time_minutes = 1, artisan_name = 'Durgan, en la forja del Bastión de Hierro', zone_id = 2, station = 'forja', scroll_item_id = (SELECT id FROM items WHERE code = 'SCROLL_ACANTILADO_PICARO') WHERE code = 'RECIPE_PICARO_WEAPON_ACANT';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_PICARO_WEAPON_ACANT');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_PICARO_WEAPON_ACANT'), i.id, v.n FROM (VALUES ('YELMO_SENOR_ACANTILADO', 1), ('NUCLEO_TORMENTA', 2), ('FRAGMENTO_PIEDRA_VIVA', 3), ('GARRA_OSO_CUMBRES', 3)) AS v(code, n) JOIN items i ON i.code = v.code;
+-- Daga Gemela del Acantilado
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'PICARO_OFFHAND_ACANT', 'Daga Gemela del Acantilado', 'EQUIPMENT', 'OFFHAND', FALSE, 'EPICO', 4, 26, TRUE, 'CRAFT', 'Pieza del set del Acantilado: piedra de los riscos y núcleos de tormenta, con el yelmo de su señor.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'PICARO_OFFHAND_ACANT');
+UPDATE items SET name = 'Daga Gemela del Acantilado', item_type = 'EQUIPMENT', slot = 'OFFHAND', is_two_handed = FALSE, rarity = 'EPICO', class_id = 4, required_level = 26, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Pieza del set del Acantilado: piedra de los riscos y núcleos de tormenta, con el yelmo de su señor.' WHERE code = 'PICARO_OFFHAND_ACANT';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'PICARO_OFFHAND_ACANT');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'PICARO_OFFHAND_ACANT'), v.* FROM (VALUES ('ATK', 22, FALSE), ('SPD', 22, FALSE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station, scroll_item_id)
+SELECT 'RECIPE_PICARO_OFFHAND_ACANT', (SELECT id FROM items WHERE code = 'PICARO_OFFHAND_ACANT'), 1, 'EPICO', 26, 4, 70, 1, 'Durgan, en la forja del Bastión de Hierro', 2, 'forja', (SELECT id FROM items WHERE code = 'SCROLL_ACANTILADO_PICARO') WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_PICARO_OFFHAND_ACANT');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'PICARO_OFFHAND_ACANT'), result_quantity = 1, rarity = 'EPICO', required_level = 26, required_class_id = 4, success_rate_percent = 70, craft_time_minutes = 1, artisan_name = 'Durgan, en la forja del Bastión de Hierro', zone_id = 2, station = 'forja', scroll_item_id = (SELECT id FROM items WHERE code = 'SCROLL_ACANTILADO_PICARO') WHERE code = 'RECIPE_PICARO_OFFHAND_ACANT';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_PICARO_OFFHAND_ACANT');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_PICARO_OFFHAND_ACANT'), i.id, v.n FROM (VALUES ('NUCLEO_TORMENTA', 1), ('FRAGMENTO_PIEDRA_VIVA', 2), ('GARRA_OSO_CUMBRES', 2)) AS v(code, n) JOIN items i ON i.code = v.code;
+-- Máscara del Acantilado
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'PICARO_HELMET_ACANT', 'Máscara del Acantilado', 'EQUIPMENT', 'HELMET', FALSE, 'EPICO', 4, 26, TRUE, 'CRAFT', 'Pieza del set del Acantilado: piedra de los riscos y núcleos de tormenta, con el yelmo de su señor.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'PICARO_HELMET_ACANT');
+UPDATE items SET name = 'Máscara del Acantilado', item_type = 'EQUIPMENT', slot = 'HELMET', is_two_handed = FALSE, rarity = 'EPICO', class_id = 4, required_level = 26, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Pieza del set del Acantilado: piedra de los riscos y núcleos de tormenta, con el yelmo de su señor.' WHERE code = 'PICARO_HELMET_ACANT';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'PICARO_HELMET_ACANT');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'PICARO_HELMET_ACANT'), v.* FROM (VALUES ('DEF', 12, FALSE), ('HP', 11, FALSE), ('MAGIC_DEF', 4, FALSE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station, scroll_item_id)
+SELECT 'RECIPE_PICARO_HELMET_ACANT', (SELECT id FROM items WHERE code = 'PICARO_HELMET_ACANT'), 1, 'EPICO', 26, 4, 70, 1, 'Durgan, en la forja del Bastión de Hierro', 2, 'forja', (SELECT id FROM items WHERE code = 'SCROLL_ACANTILADO_PICARO') WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_PICARO_HELMET_ACANT');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'PICARO_HELMET_ACANT'), result_quantity = 1, rarity = 'EPICO', required_level = 26, required_class_id = 4, success_rate_percent = 70, craft_time_minutes = 1, artisan_name = 'Durgan, en la forja del Bastión de Hierro', zone_id = 2, station = 'forja', scroll_item_id = (SELECT id FROM items WHERE code = 'SCROLL_ACANTILADO_PICARO') WHERE code = 'RECIPE_PICARO_HELMET_ACANT';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_PICARO_HELMET_ACANT');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_PICARO_HELMET_ACANT'), i.id, v.n FROM (VALUES ('NUCLEO_TORMENTA', 1), ('FRAGMENTO_PIEDRA_VIVA', 2), ('GARRA_OSO_CUMBRES', 2)) AS v(code, n) JOIN items i ON i.code = v.code;
+-- Cuero del Acantilado
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'PICARO_ARMOR_ACANT', 'Cuero del Acantilado', 'EQUIPMENT', 'ARMOR', FALSE, 'EPICO', 4, 26, TRUE, 'CRAFT', 'Pieza del set del Acantilado: piedra de los riscos y núcleos de tormenta, con el yelmo de su señor.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'PICARO_ARMOR_ACANT');
+UPDATE items SET name = 'Cuero del Acantilado', item_type = 'EQUIPMENT', slot = 'ARMOR', is_two_handed = FALSE, rarity = 'EPICO', class_id = 4, required_level = 26, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Pieza del set del Acantilado: piedra de los riscos y núcleos de tormenta, con el yelmo de su señor.' WHERE code = 'PICARO_ARMOR_ACANT';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'PICARO_ARMOR_ACANT');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'PICARO_ARMOR_ACANT'), v.* FROM (VALUES ('DEF', 24, FALSE), ('HP', 47, FALSE), ('MAGIC_DEF', 7, FALSE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station, scroll_item_id)
+SELECT 'RECIPE_PICARO_ARMOR_ACANT', (SELECT id FROM items WHERE code = 'PICARO_ARMOR_ACANT'), 1, 'EPICO', 26, 4, 70, 1, 'Durgan, en la forja del Bastión de Hierro', 2, 'forja', (SELECT id FROM items WHERE code = 'SCROLL_ACANTILADO_PICARO') WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_PICARO_ARMOR_ACANT');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'PICARO_ARMOR_ACANT'), result_quantity = 1, rarity = 'EPICO', required_level = 26, required_class_id = 4, success_rate_percent = 70, craft_time_minutes = 1, artisan_name = 'Durgan, en la forja del Bastión de Hierro', zone_id = 2, station = 'forja', scroll_item_id = (SELECT id FROM items WHERE code = 'SCROLL_ACANTILADO_PICARO') WHERE code = 'RECIPE_PICARO_ARMOR_ACANT';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_PICARO_ARMOR_ACANT');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_PICARO_ARMOR_ACANT'), i.id, v.n FROM (VALUES ('YELMO_SENOR_ACANTILADO', 1), ('NUCLEO_TORMENTA', 2), ('FRAGMENTO_PIEDRA_VIVA', 3), ('GARRA_OSO_CUMBRES', 3)) AS v(code, n) JOIN items i ON i.code = v.code;
+-- Guantes del Acantilado
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'PICARO_GLOVES_ACANT', 'Guantes del Acantilado', 'EQUIPMENT', 'GLOVES', FALSE, 'EPICO', 4, 26, TRUE, 'CRAFT', 'Pieza del set del Acantilado: piedra de los riscos y núcleos de tormenta, con el yelmo de su señor.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'PICARO_GLOVES_ACANT');
+UPDATE items SET name = 'Guantes del Acantilado', item_type = 'EQUIPMENT', slot = 'GLOVES', is_two_handed = FALSE, rarity = 'EPICO', class_id = 4, required_level = 26, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Pieza del set del Acantilado: piedra de los riscos y núcleos de tormenta, con el yelmo de su señor.' WHERE code = 'PICARO_GLOVES_ACANT';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'PICARO_GLOVES_ACANT');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'PICARO_GLOVES_ACANT'), v.* FROM (VALUES ('ATK', 30, FALSE), ('CRIT_CHANCE', 4.5, TRUE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station, scroll_item_id)
+SELECT 'RECIPE_PICARO_GLOVES_ACANT', (SELECT id FROM items WHERE code = 'PICARO_GLOVES_ACANT'), 1, 'EPICO', 26, 4, 70, 1, 'Durgan, en la forja del Bastión de Hierro', 2, 'forja', (SELECT id FROM items WHERE code = 'SCROLL_ACANTILADO_PICARO') WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_PICARO_GLOVES_ACANT');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'PICARO_GLOVES_ACANT'), result_quantity = 1, rarity = 'EPICO', required_level = 26, required_class_id = 4, success_rate_percent = 70, craft_time_minutes = 1, artisan_name = 'Durgan, en la forja del Bastión de Hierro', zone_id = 2, station = 'forja', scroll_item_id = (SELECT id FROM items WHERE code = 'SCROLL_ACANTILADO_PICARO') WHERE code = 'RECIPE_PICARO_GLOVES_ACANT';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_PICARO_GLOVES_ACANT');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_PICARO_GLOVES_ACANT'), i.id, v.n FROM (VALUES ('NUCLEO_TORMENTA', 1), ('FRAGMENTO_PIEDRA_VIVA', 2), ('GARRA_OSO_CUMBRES', 2)) AS v(code, n) JOIN items i ON i.code = v.code;
+-- Botas del Acantilado
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'PICARO_BOOTS_ACANT', 'Botas del Acantilado', 'EQUIPMENT', 'BOOTS', FALSE, 'EPICO', 4, 26, TRUE, 'CRAFT', 'Pieza del set del Acantilado: piedra de los riscos y núcleos de tormenta, con el yelmo de su señor.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'PICARO_BOOTS_ACANT');
+UPDATE items SET name = 'Botas del Acantilado', item_type = 'EQUIPMENT', slot = 'BOOTS', is_two_handed = FALSE, rarity = 'EPICO', class_id = 4, required_level = 26, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Pieza del set del Acantilado: piedra de los riscos y núcleos de tormenta, con el yelmo de su señor.' WHERE code = 'PICARO_BOOTS_ACANT';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'PICARO_BOOTS_ACANT');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'PICARO_BOOTS_ACANT'), v.* FROM (VALUES ('SPD', 18, FALSE), ('HP', 5, FALSE), ('DEF', 7, FALSE), ('EVASION', 2.5, TRUE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station, scroll_item_id)
+SELECT 'RECIPE_PICARO_BOOTS_ACANT', (SELECT id FROM items WHERE code = 'PICARO_BOOTS_ACANT'), 1, 'EPICO', 26, 4, 70, 1, 'Durgan, en la forja del Bastión de Hierro', 2, 'forja', (SELECT id FROM items WHERE code = 'SCROLL_ACANTILADO_PICARO') WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_PICARO_BOOTS_ACANT');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'PICARO_BOOTS_ACANT'), result_quantity = 1, rarity = 'EPICO', required_level = 26, required_class_id = 4, success_rate_percent = 70, craft_time_minutes = 1, artisan_name = 'Durgan, en la forja del Bastión de Hierro', zone_id = 2, station = 'forja', scroll_item_id = (SELECT id FROM items WHERE code = 'SCROLL_ACANTILADO_PICARO') WHERE code = 'RECIPE_PICARO_BOOTS_ACANT';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_PICARO_BOOTS_ACANT');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_PICARO_BOOTS_ACANT'), i.id, v.n FROM (VALUES ('NUCLEO_TORMENTA', 1), ('FRAGMENTO_PIEDRA_VIVA', 2), ('GARRA_OSO_CUMBRES', 2)) AS v(code, n) JOIN items i ON i.code = v.code;
+-- Báculo del Acantilado
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'SACERDOTE_WEAPON_ACANT', 'Báculo del Acantilado', 'EQUIPMENT', 'WEAPON', FALSE, 'EPICO', 5, 26, TRUE, 'CRAFT', 'Pieza del set del Acantilado: piedra de los riscos y núcleos de tormenta, con el yelmo de su señor.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'SACERDOTE_WEAPON_ACANT');
+UPDATE items SET name = 'Báculo del Acantilado', item_type = 'EQUIPMENT', slot = 'WEAPON', is_two_handed = FALSE, rarity = 'EPICO', class_id = 5, required_level = 26, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Pieza del set del Acantilado: piedra de los riscos y núcleos de tormenta, con el yelmo de su señor.' WHERE code = 'SACERDOTE_WEAPON_ACANT';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'SACERDOTE_WEAPON_ACANT');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'SACERDOTE_WEAPON_ACANT'), v.* FROM (VALUES ('MAG', 68, FALSE), ('CRIT_CHANCE', 6.8, TRUE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station, scroll_item_id)
+SELECT 'RECIPE_SACERDOTE_WEAPON_ACANT', (SELECT id FROM items WHERE code = 'SACERDOTE_WEAPON_ACANT'), 1, 'EPICO', 26, 5, 70, 1, 'Durgan, en la forja del Bastión de Hierro', 2, 'forja', (SELECT id FROM items WHERE code = 'SCROLL_ACANTILADO_SACERDOTE') WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_SACERDOTE_WEAPON_ACANT');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'SACERDOTE_WEAPON_ACANT'), result_quantity = 1, rarity = 'EPICO', required_level = 26, required_class_id = 5, success_rate_percent = 70, craft_time_minutes = 1, artisan_name = 'Durgan, en la forja del Bastión de Hierro', zone_id = 2, station = 'forja', scroll_item_id = (SELECT id FROM items WHERE code = 'SCROLL_ACANTILADO_SACERDOTE') WHERE code = 'RECIPE_SACERDOTE_WEAPON_ACANT';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_SACERDOTE_WEAPON_ACANT');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_SACERDOTE_WEAPON_ACANT'), i.id, v.n FROM (VALUES ('YELMO_SENOR_ACANTILADO', 1), ('NUCLEO_TORMENTA', 2), ('FRAGMENTO_PIEDRA_VIVA', 3), ('FLOR_DE_NIEVE', 3)) AS v(code, n) JOIN items i ON i.code = v.code;
+-- Símbolo del Acantilado
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'SACERDOTE_OFFHAND_ACANT', 'Símbolo del Acantilado', 'EQUIPMENT', 'OFFHAND', FALSE, 'EPICO', 5, 26, TRUE, 'CRAFT', 'Pieza del set del Acantilado: piedra de los riscos y núcleos de tormenta, con el yelmo de su señor.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'SACERDOTE_OFFHAND_ACANT');
+UPDATE items SET name = 'Símbolo del Acantilado', item_type = 'EQUIPMENT', slot = 'OFFHAND', is_two_handed = FALSE, rarity = 'EPICO', class_id = 5, required_level = 26, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Pieza del set del Acantilado: piedra de los riscos y núcleos de tormenta, con el yelmo de su señor.' WHERE code = 'SACERDOTE_OFFHAND_ACANT';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'SACERDOTE_OFFHAND_ACANT');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'SACERDOTE_OFFHAND_ACANT'), v.* FROM (VALUES ('HP', 19, FALSE), ('MAGIC_DEF', 15, FALSE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station, scroll_item_id)
+SELECT 'RECIPE_SACERDOTE_OFFHAND_ACANT', (SELECT id FROM items WHERE code = 'SACERDOTE_OFFHAND_ACANT'), 1, 'EPICO', 26, 5, 70, 1, 'Durgan, en la forja del Bastión de Hierro', 2, 'forja', (SELECT id FROM items WHERE code = 'SCROLL_ACANTILADO_SACERDOTE') WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_SACERDOTE_OFFHAND_ACANT');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'SACERDOTE_OFFHAND_ACANT'), result_quantity = 1, rarity = 'EPICO', required_level = 26, required_class_id = 5, success_rate_percent = 70, craft_time_minutes = 1, artisan_name = 'Durgan, en la forja del Bastión de Hierro', zone_id = 2, station = 'forja', scroll_item_id = (SELECT id FROM items WHERE code = 'SCROLL_ACANTILADO_SACERDOTE') WHERE code = 'RECIPE_SACERDOTE_OFFHAND_ACANT';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_SACERDOTE_OFFHAND_ACANT');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_SACERDOTE_OFFHAND_ACANT'), i.id, v.n FROM (VALUES ('NUCLEO_TORMENTA', 1), ('FRAGMENTO_PIEDRA_VIVA', 2), ('FLOR_DE_NIEVE', 2)) AS v(code, n) JOIN items i ON i.code = v.code;
+-- Diadema del Acantilado
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'SACERDOTE_HELMET_ACANT', 'Diadema del Acantilado', 'EQUIPMENT', 'HELMET', FALSE, 'EPICO', 5, 26, TRUE, 'CRAFT', 'Pieza del set del Acantilado: piedra de los riscos y núcleos de tormenta, con el yelmo de su señor.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'SACERDOTE_HELMET_ACANT');
+UPDATE items SET name = 'Diadema del Acantilado', item_type = 'EQUIPMENT', slot = 'HELMET', is_two_handed = FALSE, rarity = 'EPICO', class_id = 5, required_level = 26, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Pieza del set del Acantilado: piedra de los riscos y núcleos de tormenta, con el yelmo de su señor.' WHERE code = 'SACERDOTE_HELMET_ACANT';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'SACERDOTE_HELMET_ACANT');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'SACERDOTE_HELMET_ACANT'), v.* FROM (VALUES ('DEF', 4, FALSE), ('HP', 11, FALSE), ('MAGIC_DEF', 12, FALSE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station, scroll_item_id)
+SELECT 'RECIPE_SACERDOTE_HELMET_ACANT', (SELECT id FROM items WHERE code = 'SACERDOTE_HELMET_ACANT'), 1, 'EPICO', 26, 5, 70, 1, 'Durgan, en la forja del Bastión de Hierro', 2, 'forja', (SELECT id FROM items WHERE code = 'SCROLL_ACANTILADO_SACERDOTE') WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_SACERDOTE_HELMET_ACANT');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'SACERDOTE_HELMET_ACANT'), result_quantity = 1, rarity = 'EPICO', required_level = 26, required_class_id = 5, success_rate_percent = 70, craft_time_minutes = 1, artisan_name = 'Durgan, en la forja del Bastión de Hierro', zone_id = 2, station = 'forja', scroll_item_id = (SELECT id FROM items WHERE code = 'SCROLL_ACANTILADO_SACERDOTE') WHERE code = 'RECIPE_SACERDOTE_HELMET_ACANT';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_SACERDOTE_HELMET_ACANT');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_SACERDOTE_HELMET_ACANT'), i.id, v.n FROM (VALUES ('NUCLEO_TORMENTA', 1), ('FRAGMENTO_PIEDRA_VIVA', 2), ('FLOR_DE_NIEVE', 2)) AS v(code, n) JOIN items i ON i.code = v.code;
+-- Vestidura del Acantilado
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'SACERDOTE_ARMOR_ACANT', 'Vestidura del Acantilado', 'EQUIPMENT', 'ARMOR', FALSE, 'EPICO', 5, 26, TRUE, 'CRAFT', 'Pieza del set del Acantilado: piedra de los riscos y núcleos de tormenta, con el yelmo de su señor.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'SACERDOTE_ARMOR_ACANT');
+UPDATE items SET name = 'Vestidura del Acantilado', item_type = 'EQUIPMENT', slot = 'ARMOR', is_two_handed = FALSE, rarity = 'EPICO', class_id = 5, required_level = 26, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Pieza del set del Acantilado: piedra de los riscos y núcleos de tormenta, con el yelmo de su señor.' WHERE code = 'SACERDOTE_ARMOR_ACANT';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'SACERDOTE_ARMOR_ACANT');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'SACERDOTE_ARMOR_ACANT'), v.* FROM (VALUES ('DEF', 7, FALSE), ('HP', 41, FALSE), ('MAGIC_DEF', 24, FALSE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station, scroll_item_id)
+SELECT 'RECIPE_SACERDOTE_ARMOR_ACANT', (SELECT id FROM items WHERE code = 'SACERDOTE_ARMOR_ACANT'), 1, 'EPICO', 26, 5, 70, 1, 'Durgan, en la forja del Bastión de Hierro', 2, 'forja', (SELECT id FROM items WHERE code = 'SCROLL_ACANTILADO_SACERDOTE') WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_SACERDOTE_ARMOR_ACANT');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'SACERDOTE_ARMOR_ACANT'), result_quantity = 1, rarity = 'EPICO', required_level = 26, required_class_id = 5, success_rate_percent = 70, craft_time_minutes = 1, artisan_name = 'Durgan, en la forja del Bastión de Hierro', zone_id = 2, station = 'forja', scroll_item_id = (SELECT id FROM items WHERE code = 'SCROLL_ACANTILADO_SACERDOTE') WHERE code = 'RECIPE_SACERDOTE_ARMOR_ACANT';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_SACERDOTE_ARMOR_ACANT');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_SACERDOTE_ARMOR_ACANT'), i.id, v.n FROM (VALUES ('YELMO_SENOR_ACANTILADO', 1), ('NUCLEO_TORMENTA', 2), ('FRAGMENTO_PIEDRA_VIVA', 3), ('FLOR_DE_NIEVE', 3)) AS v(code, n) JOIN items i ON i.code = v.code;
+-- Guantes del Acantilado
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'SACERDOTE_GLOVES_ACANT', 'Guantes del Acantilado', 'EQUIPMENT', 'GLOVES', FALSE, 'EPICO', 5, 26, TRUE, 'CRAFT', 'Pieza del set del Acantilado: piedra de los riscos y núcleos de tormenta, con el yelmo de su señor.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'SACERDOTE_GLOVES_ACANT');
+UPDATE items SET name = 'Guantes del Acantilado', item_type = 'EQUIPMENT', slot = 'GLOVES', is_two_handed = FALSE, rarity = 'EPICO', class_id = 5, required_level = 26, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Pieza del set del Acantilado: piedra de los riscos y núcleos de tormenta, con el yelmo de su señor.' WHERE code = 'SACERDOTE_GLOVES_ACANT';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'SACERDOTE_GLOVES_ACANT');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'SACERDOTE_GLOVES_ACANT'), v.* FROM (VALUES ('MAG', 30, FALSE), ('CRIT_CHANCE', 4.5, TRUE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station, scroll_item_id)
+SELECT 'RECIPE_SACERDOTE_GLOVES_ACANT', (SELECT id FROM items WHERE code = 'SACERDOTE_GLOVES_ACANT'), 1, 'EPICO', 26, 5, 70, 1, 'Durgan, en la forja del Bastión de Hierro', 2, 'forja', (SELECT id FROM items WHERE code = 'SCROLL_ACANTILADO_SACERDOTE') WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_SACERDOTE_GLOVES_ACANT');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'SACERDOTE_GLOVES_ACANT'), result_quantity = 1, rarity = 'EPICO', required_level = 26, required_class_id = 5, success_rate_percent = 70, craft_time_minutes = 1, artisan_name = 'Durgan, en la forja del Bastión de Hierro', zone_id = 2, station = 'forja', scroll_item_id = (SELECT id FROM items WHERE code = 'SCROLL_ACANTILADO_SACERDOTE') WHERE code = 'RECIPE_SACERDOTE_GLOVES_ACANT';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_SACERDOTE_GLOVES_ACANT');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_SACERDOTE_GLOVES_ACANT'), i.id, v.n FROM (VALUES ('NUCLEO_TORMENTA', 1), ('FRAGMENTO_PIEDRA_VIVA', 2), ('FLOR_DE_NIEVE', 2)) AS v(code, n) JOIN items i ON i.code = v.code;
+-- Sandalias del Acantilado
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'SACERDOTE_BOOTS_ACANT', 'Sandalias del Acantilado', 'EQUIPMENT', 'BOOTS', FALSE, 'EPICO', 5, 26, TRUE, 'CRAFT', 'Pieza del set del Acantilado: piedra de los riscos y núcleos de tormenta, con el yelmo de su señor.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'SACERDOTE_BOOTS_ACANT');
+UPDATE items SET name = 'Sandalias del Acantilado', item_type = 'EQUIPMENT', slot = 'BOOTS', is_two_handed = FALSE, rarity = 'EPICO', class_id = 5, required_level = 26, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Pieza del set del Acantilado: piedra de los riscos y núcleos de tormenta, con el yelmo de su señor.' WHERE code = 'SACERDOTE_BOOTS_ACANT';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'SACERDOTE_BOOTS_ACANT');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'SACERDOTE_BOOTS_ACANT'), v.* FROM (VALUES ('SPD', 18, FALSE), ('HP', 5, FALSE), ('MAGIC_DEF', 6, FALSE), ('EVASION', 2.5, TRUE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station, scroll_item_id)
+SELECT 'RECIPE_SACERDOTE_BOOTS_ACANT', (SELECT id FROM items WHERE code = 'SACERDOTE_BOOTS_ACANT'), 1, 'EPICO', 26, 5, 70, 1, 'Durgan, en la forja del Bastión de Hierro', 2, 'forja', (SELECT id FROM items WHERE code = 'SCROLL_ACANTILADO_SACERDOTE') WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_SACERDOTE_BOOTS_ACANT');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'SACERDOTE_BOOTS_ACANT'), result_quantity = 1, rarity = 'EPICO', required_level = 26, required_class_id = 5, success_rate_percent = 70, craft_time_minutes = 1, artisan_name = 'Durgan, en la forja del Bastión de Hierro', zone_id = 2, station = 'forja', scroll_item_id = (SELECT id FROM items WHERE code = 'SCROLL_ACANTILADO_SACERDOTE') WHERE code = 'RECIPE_SACERDOTE_BOOTS_ACANT';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_SACERDOTE_BOOTS_ACANT');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_SACERDOTE_BOOTS_ACANT'), i.id, v.n FROM (VALUES ('NUCLEO_TORMENTA', 1), ('FRAGMENTO_PIEDRA_VIVA', 2), ('FLOR_DE_NIEVE', 2)) AS v(code, n) JOIN items i ON i.code = v.code;
+
+-- ---------------------------------------------------------------- rey (nv 30, LEGENDARIO)
+-- Espada del Rey de las Montañas
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'GUERRERO_WEAPON_REY_MONT', 'Espada del Rey de las Montañas', 'EQUIPMENT', 'WEAPON', FALSE, 'LEGENDARIO', 1, 30, TRUE, 'CRAFT', 'Pieza del set del Rey de la Montaña, forjada con su corona. Todavía huele a tormenta.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'GUERRERO_WEAPON_REY_MONT');
+UPDATE items SET name = 'Espada del Rey de las Montañas', item_type = 'EQUIPMENT', slot = 'WEAPON', is_two_handed = FALSE, rarity = 'LEGENDARIO', class_id = 1, required_level = 30, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Pieza del set del Rey de la Montaña, forjada con su corona. Todavía huele a tormenta.' WHERE code = 'GUERRERO_WEAPON_REY_MONT';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'GUERRERO_WEAPON_REY_MONT');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'GUERRERO_WEAPON_REY_MONT'), v.* FROM (VALUES ('ATK', 84, FALSE), ('CRIT_CHANCE', 8.3, TRUE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station, scroll_item_id)
+SELECT 'RECIPE_GUERRERO_WEAPON_REY_MONT', (SELECT id FROM items WHERE code = 'GUERRERO_WEAPON_REY_MONT'), 1, 'LEGENDARIO', 30, 1, 55, 1, 'Durgan, en la forja del Bastión de Hierro', 2, 'forja', (SELECT id FROM items WHERE code = 'SCROLL_REY_MONTANA_GUERRERO') WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_GUERRERO_WEAPON_REY_MONT');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'GUERRERO_WEAPON_REY_MONT'), result_quantity = 1, rarity = 'LEGENDARIO', required_level = 30, required_class_id = 1, success_rate_percent = 55, craft_time_minutes = 1, artisan_name = 'Durgan, en la forja del Bastión de Hierro', zone_id = 2, station = 'forja', scroll_item_id = (SELECT id FROM items WHERE code = 'SCROLL_REY_MONTANA_GUERRERO') WHERE code = 'RECIPE_GUERRERO_WEAPON_REY_MONT';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_GUERRERO_WEAPON_REY_MONT');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_GUERRERO_WEAPON_REY_MONT'), i.id, v.n FROM (VALUES ('CORONA_REY_MONTANA', 1), ('YELMO_SENOR_ACANTILADO', 1), ('INSIGNIA_GUARDIA_REAL', 3), ('NUCLEO_TORMENTA', 2), ('CRISTAL_GIGANTE_HIELO', 1), ('PIEL_DE_TROLL', 4)) AS v(code, n) JOIN items i ON i.code = v.code;
+-- Gran Espada del Rey de las Montañas
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'GUERRERO_WEAPON2H_REY_MONT', 'Gran Espada del Rey de las Montañas', 'EQUIPMENT', 'WEAPON', TRUE, 'LEGENDARIO', 1, 30, TRUE, 'CRAFT', 'Pieza del set del Rey de la Montaña, forjada con su corona. Todavía huele a tormenta.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'GUERRERO_WEAPON2H_REY_MONT');
+UPDATE items SET name = 'Gran Espada del Rey de las Montañas', item_type = 'EQUIPMENT', slot = 'WEAPON', is_two_handed = TRUE, rarity = 'LEGENDARIO', class_id = 1, required_level = 30, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Pieza del set del Rey de la Montaña, forjada con su corona. Todavía huele a tormenta.' WHERE code = 'GUERRERO_WEAPON2H_REY_MONT';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'GUERRERO_WEAPON2H_REY_MONT');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'GUERRERO_WEAPON2H_REY_MONT'), v.* FROM (VALUES ('ATK', 126, FALSE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station, scroll_item_id)
+SELECT 'RECIPE_GUERRERO_WEAPON2H_REY_MONT', (SELECT id FROM items WHERE code = 'GUERRERO_WEAPON2H_REY_MONT'), 1, 'LEGENDARIO', 30, 1, 55, 1, 'Durgan, en la forja del Bastión de Hierro', 2, 'forja', (SELECT id FROM items WHERE code = 'SCROLL_REY_MONTANA_GUERRERO') WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_GUERRERO_WEAPON2H_REY_MONT');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'GUERRERO_WEAPON2H_REY_MONT'), result_quantity = 1, rarity = 'LEGENDARIO', required_level = 30, required_class_id = 1, success_rate_percent = 55, craft_time_minutes = 1, artisan_name = 'Durgan, en la forja del Bastión de Hierro', zone_id = 2, station = 'forja', scroll_item_id = (SELECT id FROM items WHERE code = 'SCROLL_REY_MONTANA_GUERRERO') WHERE code = 'RECIPE_GUERRERO_WEAPON2H_REY_MONT';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_GUERRERO_WEAPON2H_REY_MONT');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_GUERRERO_WEAPON2H_REY_MONT'), i.id, v.n FROM (VALUES ('CORONA_REY_MONTANA', 1), ('YELMO_SENOR_ACANTILADO', 1), ('INSIGNIA_GUARDIA_REAL', 3), ('NUCLEO_TORMENTA', 2), ('CRISTAL_GIGANTE_HIELO', 1), ('PIEL_DE_TROLL', 4)) AS v(code, n) JOIN items i ON i.code = v.code;
+-- Escudo del Rey de las Montañas
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'GUERRERO_OFFHAND_REY_MONT', 'Escudo del Rey de las Montañas', 'EQUIPMENT', 'OFFHAND', FALSE, 'LEGENDARIO', 1, 30, TRUE, 'CRAFT', 'Pieza del set del Rey de la Montaña, forjada con su corona. Todavía huele a tormenta.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'GUERRERO_OFFHAND_REY_MONT');
+UPDATE items SET name = 'Escudo del Rey de las Montañas', item_type = 'EQUIPMENT', slot = 'OFFHAND', is_two_handed = FALSE, rarity = 'LEGENDARIO', class_id = 1, required_level = 30, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Pieza del set del Rey de la Montaña, forjada con su corona. Todavía huele a tormenta.' WHERE code = 'GUERRERO_OFFHAND_REY_MONT';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'GUERRERO_OFFHAND_REY_MONT');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'GUERRERO_OFFHAND_REY_MONT'), v.* FROM (VALUES ('DEF', 19, FALSE), ('HP', 22, FALSE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station, scroll_item_id)
+SELECT 'RECIPE_GUERRERO_OFFHAND_REY_MONT', (SELECT id FROM items WHERE code = 'GUERRERO_OFFHAND_REY_MONT'), 1, 'LEGENDARIO', 30, 1, 55, 1, 'Durgan, en la forja del Bastión de Hierro', 2, 'forja', (SELECT id FROM items WHERE code = 'SCROLL_REY_MONTANA_GUERRERO') WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_GUERRERO_OFFHAND_REY_MONT');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'GUERRERO_OFFHAND_REY_MONT'), result_quantity = 1, rarity = 'LEGENDARIO', required_level = 30, required_class_id = 1, success_rate_percent = 55, craft_time_minutes = 1, artisan_name = 'Durgan, en la forja del Bastión de Hierro', zone_id = 2, station = 'forja', scroll_item_id = (SELECT id FROM items WHERE code = 'SCROLL_REY_MONTANA_GUERRERO') WHERE code = 'RECIPE_GUERRERO_OFFHAND_REY_MONT';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_GUERRERO_OFFHAND_REY_MONT');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_GUERRERO_OFFHAND_REY_MONT'), i.id, v.n FROM (VALUES ('CORONA_REY_MONTANA', 1), ('INSIGNIA_GUARDIA_REAL', 2), ('NUCLEO_TORMENTA', 2), ('CRISTAL_GIGANTE_HIELO', 1), ('PIEL_DE_TROLL', 2)) AS v(code, n) JOIN items i ON i.code = v.code;
+-- Yelmo del Rey de las Montañas
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'GUERRERO_HELMET_REY_MONT', 'Yelmo del Rey de las Montañas', 'EQUIPMENT', 'HELMET', FALSE, 'LEGENDARIO', 1, 30, TRUE, 'CRAFT', 'Pieza del set del Rey de la Montaña, forjada con su corona. Todavía huele a tormenta.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'GUERRERO_HELMET_REY_MONT');
+UPDATE items SET name = 'Yelmo del Rey de las Montañas', item_type = 'EQUIPMENT', slot = 'HELMET', is_two_handed = FALSE, rarity = 'LEGENDARIO', class_id = 1, required_level = 30, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Pieza del set del Rey de la Montaña, forjada con su corona. Todavía huele a tormenta.' WHERE code = 'GUERRERO_HELMET_REY_MONT';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'GUERRERO_HELMET_REY_MONT');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'GUERRERO_HELMET_REY_MONT'), v.* FROM (VALUES ('DEF', 15, FALSE), ('HP', 15, FALSE), ('MAGIC_DEF', 5, FALSE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station, scroll_item_id)
+SELECT 'RECIPE_GUERRERO_HELMET_REY_MONT', (SELECT id FROM items WHERE code = 'GUERRERO_HELMET_REY_MONT'), 1, 'LEGENDARIO', 30, 1, 55, 1, 'Durgan, en la forja del Bastión de Hierro', 2, 'forja', (SELECT id FROM items WHERE code = 'SCROLL_REY_MONTANA_GUERRERO') WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_GUERRERO_HELMET_REY_MONT');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'GUERRERO_HELMET_REY_MONT'), result_quantity = 1, rarity = 'LEGENDARIO', required_level = 30, required_class_id = 1, success_rate_percent = 55, craft_time_minutes = 1, artisan_name = 'Durgan, en la forja del Bastión de Hierro', zone_id = 2, station = 'forja', scroll_item_id = (SELECT id FROM items WHERE code = 'SCROLL_REY_MONTANA_GUERRERO') WHERE code = 'RECIPE_GUERRERO_HELMET_REY_MONT';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_GUERRERO_HELMET_REY_MONT');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_GUERRERO_HELMET_REY_MONT'), i.id, v.n FROM (VALUES ('CORONA_REY_MONTANA', 1), ('INSIGNIA_GUARDIA_REAL', 2), ('NUCLEO_TORMENTA', 2), ('CRISTAL_GIGANTE_HIELO', 1), ('PIEL_DE_TROLL', 2)) AS v(code, n) JOIN items i ON i.code = v.code;
+-- Armadura del Rey de las Montañas
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'GUERRERO_ARMOR_REY_MONT', 'Armadura del Rey de las Montañas', 'EQUIPMENT', 'ARMOR', FALSE, 'LEGENDARIO', 1, 30, TRUE, 'CRAFT', 'Pieza del set del Rey de la Montaña, forjada con su corona. Todavía huele a tormenta.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'GUERRERO_ARMOR_REY_MONT');
+UPDATE items SET name = 'Armadura del Rey de las Montañas', item_type = 'EQUIPMENT', slot = 'ARMOR', is_two_handed = FALSE, rarity = 'LEGENDARIO', class_id = 1, required_level = 30, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Pieza del set del Rey de la Montaña, forjada con su corona. Todavía huele a tormenta.' WHERE code = 'GUERRERO_ARMOR_REY_MONT';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'GUERRERO_ARMOR_REY_MONT');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'GUERRERO_ARMOR_REY_MONT'), v.* FROM (VALUES ('DEF', 30, FALSE), ('HP', 48, FALSE), ('MAGIC_DEF', 9, FALSE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station, scroll_item_id)
+SELECT 'RECIPE_GUERRERO_ARMOR_REY_MONT', (SELECT id FROM items WHERE code = 'GUERRERO_ARMOR_REY_MONT'), 1, 'LEGENDARIO', 30, 1, 55, 1, 'Durgan, en la forja del Bastión de Hierro', 2, 'forja', (SELECT id FROM items WHERE code = 'SCROLL_REY_MONTANA_GUERRERO') WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_GUERRERO_ARMOR_REY_MONT');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'GUERRERO_ARMOR_REY_MONT'), result_quantity = 1, rarity = 'LEGENDARIO', required_level = 30, required_class_id = 1, success_rate_percent = 55, craft_time_minutes = 1, artisan_name = 'Durgan, en la forja del Bastión de Hierro', zone_id = 2, station = 'forja', scroll_item_id = (SELECT id FROM items WHERE code = 'SCROLL_REY_MONTANA_GUERRERO') WHERE code = 'RECIPE_GUERRERO_ARMOR_REY_MONT';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_GUERRERO_ARMOR_REY_MONT');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_GUERRERO_ARMOR_REY_MONT'), i.id, v.n FROM (VALUES ('CORONA_REY_MONTANA', 1), ('YELMO_SENOR_ACANTILADO', 1), ('INSIGNIA_GUARDIA_REAL', 3), ('NUCLEO_TORMENTA', 2), ('CRISTAL_GIGANTE_HIELO', 1), ('PIEL_DE_TROLL', 4)) AS v(code, n) JOIN items i ON i.code = v.code;
+-- Guanteletes del Rey de las Montañas
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'GUERRERO_GLOVES_REY_MONT', 'Guanteletes del Rey de las Montañas', 'EQUIPMENT', 'GLOVES', FALSE, 'LEGENDARIO', 1, 30, TRUE, 'CRAFT', 'Pieza del set del Rey de la Montaña, forjada con su corona. Todavía huele a tormenta.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'GUERRERO_GLOVES_REY_MONT');
+UPDATE items SET name = 'Guanteletes del Rey de las Montañas', item_type = 'EQUIPMENT', slot = 'GLOVES', is_two_handed = FALSE, rarity = 'LEGENDARIO', class_id = 1, required_level = 30, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Pieza del set del Rey de la Montaña, forjada con su corona. Todavía huele a tormenta.' WHERE code = 'GUERRERO_GLOVES_REY_MONT';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'GUERRERO_GLOVES_REY_MONT');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'GUERRERO_GLOVES_REY_MONT'), v.* FROM (VALUES ('ATK', 38, FALSE), ('CRIT_CHANCE', 5.5, TRUE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station, scroll_item_id)
+SELECT 'RECIPE_GUERRERO_GLOVES_REY_MONT', (SELECT id FROM items WHERE code = 'GUERRERO_GLOVES_REY_MONT'), 1, 'LEGENDARIO', 30, 1, 55, 1, 'Durgan, en la forja del Bastión de Hierro', 2, 'forja', (SELECT id FROM items WHERE code = 'SCROLL_REY_MONTANA_GUERRERO') WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_GUERRERO_GLOVES_REY_MONT');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'GUERRERO_GLOVES_REY_MONT'), result_quantity = 1, rarity = 'LEGENDARIO', required_level = 30, required_class_id = 1, success_rate_percent = 55, craft_time_minutes = 1, artisan_name = 'Durgan, en la forja del Bastión de Hierro', zone_id = 2, station = 'forja', scroll_item_id = (SELECT id FROM items WHERE code = 'SCROLL_REY_MONTANA_GUERRERO') WHERE code = 'RECIPE_GUERRERO_GLOVES_REY_MONT';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_GUERRERO_GLOVES_REY_MONT');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_GUERRERO_GLOVES_REY_MONT'), i.id, v.n FROM (VALUES ('CORONA_REY_MONTANA', 1), ('INSIGNIA_GUARDIA_REAL', 2), ('NUCLEO_TORMENTA', 2), ('CRISTAL_GIGANTE_HIELO', 1), ('PIEL_DE_TROLL', 2)) AS v(code, n) JOIN items i ON i.code = v.code;
+-- Botas del Rey de las Montañas
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'GUERRERO_BOOTS_REY_MONT', 'Botas del Rey de las Montañas', 'EQUIPMENT', 'BOOTS', FALSE, 'LEGENDARIO', 1, 30, TRUE, 'CRAFT', 'Pieza del set del Rey de la Montaña, forjada con su corona. Todavía huele a tormenta.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'GUERRERO_BOOTS_REY_MONT');
+UPDATE items SET name = 'Botas del Rey de las Montañas', item_type = 'EQUIPMENT', slot = 'BOOTS', is_two_handed = FALSE, rarity = 'LEGENDARIO', class_id = 1, required_level = 30, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Pieza del set del Rey de la Montaña, forjada con su corona. Todavía huele a tormenta.' WHERE code = 'GUERRERO_BOOTS_REY_MONT';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'GUERRERO_BOOTS_REY_MONT');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'GUERRERO_BOOTS_REY_MONT'), v.* FROM (VALUES ('SPD', 23, FALSE), ('HP', 6, FALSE), ('DEF', 7, FALSE), ('EVASION', 3, TRUE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station, scroll_item_id)
+SELECT 'RECIPE_GUERRERO_BOOTS_REY_MONT', (SELECT id FROM items WHERE code = 'GUERRERO_BOOTS_REY_MONT'), 1, 'LEGENDARIO', 30, 1, 55, 1, 'Durgan, en la forja del Bastión de Hierro', 2, 'forja', (SELECT id FROM items WHERE code = 'SCROLL_REY_MONTANA_GUERRERO') WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_GUERRERO_BOOTS_REY_MONT');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'GUERRERO_BOOTS_REY_MONT'), result_quantity = 1, rarity = 'LEGENDARIO', required_level = 30, required_class_id = 1, success_rate_percent = 55, craft_time_minutes = 1, artisan_name = 'Durgan, en la forja del Bastión de Hierro', zone_id = 2, station = 'forja', scroll_item_id = (SELECT id FROM items WHERE code = 'SCROLL_REY_MONTANA_GUERRERO') WHERE code = 'RECIPE_GUERRERO_BOOTS_REY_MONT';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_GUERRERO_BOOTS_REY_MONT');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_GUERRERO_BOOTS_REY_MONT'), i.id, v.n FROM (VALUES ('CORONA_REY_MONTANA', 1), ('INSIGNIA_GUARDIA_REAL', 2), ('NUCLEO_TORMENTA', 2), ('CRISTAL_GIGANTE_HIELO', 1), ('PIEL_DE_TROLL', 2)) AS v(code, n) JOIN items i ON i.code = v.code;
+-- Varita del Rey de las Montañas
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'MAGO_WEAPON_REY_MONT', 'Varita del Rey de las Montañas', 'EQUIPMENT', 'WEAPON', FALSE, 'LEGENDARIO', 2, 30, TRUE, 'CRAFT', 'Pieza del set del Rey de la Montaña, forjada con su corona. Todavía huele a tormenta.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'MAGO_WEAPON_REY_MONT');
+UPDATE items SET name = 'Varita del Rey de las Montañas', item_type = 'EQUIPMENT', slot = 'WEAPON', is_two_handed = FALSE, rarity = 'LEGENDARIO', class_id = 2, required_level = 30, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Pieza del set del Rey de la Montaña, forjada con su corona. Todavía huele a tormenta.' WHERE code = 'MAGO_WEAPON_REY_MONT';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'MAGO_WEAPON_REY_MONT');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'MAGO_WEAPON_REY_MONT'), v.* FROM (VALUES ('MAG', 84, FALSE), ('CRIT_CHANCE', 8.3, TRUE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station, scroll_item_id)
+SELECT 'RECIPE_MAGO_WEAPON_REY_MONT', (SELECT id FROM items WHERE code = 'MAGO_WEAPON_REY_MONT'), 1, 'LEGENDARIO', 30, 2, 55, 1, 'Durgan, en la forja del Bastión de Hierro', 2, 'forja', (SELECT id FROM items WHERE code = 'SCROLL_REY_MONTANA_MAGO') WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_MAGO_WEAPON_REY_MONT');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'MAGO_WEAPON_REY_MONT'), result_quantity = 1, rarity = 'LEGENDARIO', required_level = 30, required_class_id = 2, success_rate_percent = 55, craft_time_minutes = 1, artisan_name = 'Durgan, en la forja del Bastión de Hierro', zone_id = 2, station = 'forja', scroll_item_id = (SELECT id FROM items WHERE code = 'SCROLL_REY_MONTANA_MAGO') WHERE code = 'RECIPE_MAGO_WEAPON_REY_MONT';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_MAGO_WEAPON_REY_MONT');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_MAGO_WEAPON_REY_MONT'), i.id, v.n FROM (VALUES ('CORONA_REY_MONTANA', 1), ('YELMO_SENOR_ACANTILADO', 1), ('INSIGNIA_GUARDIA_REAL', 3), ('NUCLEO_TORMENTA', 2), ('CRISTAL_GIGANTE_HIELO', 1), ('ESENCIA_ESPECTRAL_HELADA', 4)) AS v(code, n) JOIN items i ON i.code = v.code;
+-- Orbe del Rey de las Montañas
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'MAGO_OFFHAND_ORB_REY_MONT', 'Orbe del Rey de las Montañas', 'EQUIPMENT', 'OFFHAND', FALSE, 'LEGENDARIO', 2, 30, TRUE, 'CRAFT', 'Pieza del set del Rey de la Montaña, forjada con su corona. Todavía huele a tormenta.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'MAGO_OFFHAND_ORB_REY_MONT');
+UPDATE items SET name = 'Orbe del Rey de las Montañas', item_type = 'EQUIPMENT', slot = 'OFFHAND', is_two_handed = FALSE, rarity = 'LEGENDARIO', class_id = 2, required_level = 30, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Pieza del set del Rey de la Montaña, forjada con su corona. Todavía huele a tormenta.' WHERE code = 'MAGO_OFFHAND_ORB_REY_MONT';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'MAGO_OFFHAND_ORB_REY_MONT');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'MAGO_OFFHAND_ORB_REY_MONT'), v.* FROM (VALUES ('MAG', 35, FALSE), ('SPD', 28, FALSE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station, scroll_item_id)
+SELECT 'RECIPE_MAGO_OFFHAND_ORB_REY_MONT', (SELECT id FROM items WHERE code = 'MAGO_OFFHAND_ORB_REY_MONT'), 1, 'LEGENDARIO', 30, 2, 55, 1, 'Durgan, en la forja del Bastión de Hierro', 2, 'forja', (SELECT id FROM items WHERE code = 'SCROLL_REY_MONTANA_MAGO') WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_MAGO_OFFHAND_ORB_REY_MONT');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'MAGO_OFFHAND_ORB_REY_MONT'), result_quantity = 1, rarity = 'LEGENDARIO', required_level = 30, required_class_id = 2, success_rate_percent = 55, craft_time_minutes = 1, artisan_name = 'Durgan, en la forja del Bastión de Hierro', zone_id = 2, station = 'forja', scroll_item_id = (SELECT id FROM items WHERE code = 'SCROLL_REY_MONTANA_MAGO') WHERE code = 'RECIPE_MAGO_OFFHAND_ORB_REY_MONT';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_MAGO_OFFHAND_ORB_REY_MONT');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_MAGO_OFFHAND_ORB_REY_MONT'), i.id, v.n FROM (VALUES ('CORONA_REY_MONTANA', 1), ('INSIGNIA_GUARDIA_REAL', 2), ('NUCLEO_TORMENTA', 2), ('CRISTAL_GIGANTE_HIELO', 1), ('ESENCIA_ESPECTRAL_HELADA', 2)) AS v(code, n) JOIN items i ON i.code = v.code;
+-- Cristal del Rey de las Montañas
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'MAGO_OFFHAND_CRYSTAL_REY_MONT', 'Cristal del Rey de las Montañas', 'EQUIPMENT', 'OFFHAND', FALSE, 'LEGENDARIO', 2, 30, TRUE, 'CRAFT', 'Pieza del set del Rey de la Montaña, forjada con su corona. Todavía huele a tormenta.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'MAGO_OFFHAND_CRYSTAL_REY_MONT');
+UPDATE items SET name = 'Cristal del Rey de las Montañas', item_type = 'EQUIPMENT', slot = 'OFFHAND', is_two_handed = FALSE, rarity = 'LEGENDARIO', class_id = 2, required_level = 30, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Pieza del set del Rey de la Montaña, forjada con su corona. Todavía huele a tormenta.' WHERE code = 'MAGO_OFFHAND_CRYSTAL_REY_MONT';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'MAGO_OFFHAND_CRYSTAL_REY_MONT');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'MAGO_OFFHAND_CRYSTAL_REY_MONT'), v.* FROM (VALUES ('MAG', 46, FALSE), ('CRIT_CHANCE', 5.5, TRUE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station, scroll_item_id)
+SELECT 'RECIPE_MAGO_OFFHAND_CRYSTAL_REY_MONT', (SELECT id FROM items WHERE code = 'MAGO_OFFHAND_CRYSTAL_REY_MONT'), 1, 'LEGENDARIO', 30, 2, 55, 1, 'Durgan, en la forja del Bastión de Hierro', 2, 'forja', (SELECT id FROM items WHERE code = 'SCROLL_REY_MONTANA_MAGO') WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_MAGO_OFFHAND_CRYSTAL_REY_MONT');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'MAGO_OFFHAND_CRYSTAL_REY_MONT'), result_quantity = 1, rarity = 'LEGENDARIO', required_level = 30, required_class_id = 2, success_rate_percent = 55, craft_time_minutes = 1, artisan_name = 'Durgan, en la forja del Bastión de Hierro', zone_id = 2, station = 'forja', scroll_item_id = (SELECT id FROM items WHERE code = 'SCROLL_REY_MONTANA_MAGO') WHERE code = 'RECIPE_MAGO_OFFHAND_CRYSTAL_REY_MONT';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_MAGO_OFFHAND_CRYSTAL_REY_MONT');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_MAGO_OFFHAND_CRYSTAL_REY_MONT'), i.id, v.n FROM (VALUES ('CORONA_REY_MONTANA', 1), ('INSIGNIA_GUARDIA_REAL', 2), ('NUCLEO_TORMENTA', 2), ('CRISTAL_GIGANTE_HIELO', 1), ('ESENCIA_ESPECTRAL_HELADA', 2)) AS v(code, n) JOIN items i ON i.code = v.code;
+-- Capirote del Rey de las Montañas
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'MAGO_HELMET_REY_MONT', 'Capirote del Rey de las Montañas', 'EQUIPMENT', 'HELMET', FALSE, 'LEGENDARIO', 2, 30, TRUE, 'CRAFT', 'Pieza del set del Rey de la Montaña, forjada con su corona. Todavía huele a tormenta.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'MAGO_HELMET_REY_MONT');
+UPDATE items SET name = 'Capirote del Rey de las Montañas', item_type = 'EQUIPMENT', slot = 'HELMET', is_two_handed = FALSE, rarity = 'LEGENDARIO', class_id = 2, required_level = 30, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Pieza del set del Rey de la Montaña, forjada con su corona. Todavía huele a tormenta.' WHERE code = 'MAGO_HELMET_REY_MONT';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'MAGO_HELMET_REY_MONT');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'MAGO_HELMET_REY_MONT'), v.* FROM (VALUES ('DEF', 4, FALSE), ('HP', 11, FALSE), ('MAGIC_DEF', 15, FALSE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station, scroll_item_id)
+SELECT 'RECIPE_MAGO_HELMET_REY_MONT', (SELECT id FROM items WHERE code = 'MAGO_HELMET_REY_MONT'), 1, 'LEGENDARIO', 30, 2, 55, 1, 'Durgan, en la forja del Bastión de Hierro', 2, 'forja', (SELECT id FROM items WHERE code = 'SCROLL_REY_MONTANA_MAGO') WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_MAGO_HELMET_REY_MONT');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'MAGO_HELMET_REY_MONT'), result_quantity = 1, rarity = 'LEGENDARIO', required_level = 30, required_class_id = 2, success_rate_percent = 55, craft_time_minutes = 1, artisan_name = 'Durgan, en la forja del Bastión de Hierro', zone_id = 2, station = 'forja', scroll_item_id = (SELECT id FROM items WHERE code = 'SCROLL_REY_MONTANA_MAGO') WHERE code = 'RECIPE_MAGO_HELMET_REY_MONT';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_MAGO_HELMET_REY_MONT');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_MAGO_HELMET_REY_MONT'), i.id, v.n FROM (VALUES ('CORONA_REY_MONTANA', 1), ('INSIGNIA_GUARDIA_REAL', 2), ('NUCLEO_TORMENTA', 2), ('CRISTAL_GIGANTE_HIELO', 1), ('ESENCIA_ESPECTRAL_HELADA', 2)) AS v(code, n) JOIN items i ON i.code = v.code;
+-- Túnica del Rey de las Montañas
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'MAGO_ARMOR_REY_MONT', 'Túnica del Rey de las Montañas', 'EQUIPMENT', 'ARMOR', FALSE, 'LEGENDARIO', 2, 30, TRUE, 'CRAFT', 'Pieza del set del Rey de la Montaña, forjada con su corona. Todavía huele a tormenta.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'MAGO_ARMOR_REY_MONT');
+UPDATE items SET name = 'Túnica del Rey de las Montañas', item_type = 'EQUIPMENT', slot = 'ARMOR', is_two_handed = FALSE, rarity = 'LEGENDARIO', class_id = 2, required_level = 30, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Pieza del set del Rey de la Montaña, forjada con su corona. Todavía huele a tormenta.' WHERE code = 'MAGO_ARMOR_REY_MONT';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'MAGO_ARMOR_REY_MONT');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'MAGO_ARMOR_REY_MONT'), v.* FROM (VALUES ('DEF', 9, FALSE), ('HP', 56, FALSE), ('MAGIC_DEF', 30, FALSE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station, scroll_item_id)
+SELECT 'RECIPE_MAGO_ARMOR_REY_MONT', (SELECT id FROM items WHERE code = 'MAGO_ARMOR_REY_MONT'), 1, 'LEGENDARIO', 30, 2, 55, 1, 'Durgan, en la forja del Bastión de Hierro', 2, 'forja', (SELECT id FROM items WHERE code = 'SCROLL_REY_MONTANA_MAGO') WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_MAGO_ARMOR_REY_MONT');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'MAGO_ARMOR_REY_MONT'), result_quantity = 1, rarity = 'LEGENDARIO', required_level = 30, required_class_id = 2, success_rate_percent = 55, craft_time_minutes = 1, artisan_name = 'Durgan, en la forja del Bastión de Hierro', zone_id = 2, station = 'forja', scroll_item_id = (SELECT id FROM items WHERE code = 'SCROLL_REY_MONTANA_MAGO') WHERE code = 'RECIPE_MAGO_ARMOR_REY_MONT';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_MAGO_ARMOR_REY_MONT');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_MAGO_ARMOR_REY_MONT'), i.id, v.n FROM (VALUES ('CORONA_REY_MONTANA', 1), ('YELMO_SENOR_ACANTILADO', 1), ('INSIGNIA_GUARDIA_REAL', 3), ('NUCLEO_TORMENTA', 2), ('CRISTAL_GIGANTE_HIELO', 1), ('ESENCIA_ESPECTRAL_HELADA', 4)) AS v(code, n) JOIN items i ON i.code = v.code;
+-- Guantes del Rey de las Montañas
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'MAGO_GLOVES_REY_MONT', 'Guantes del Rey de las Montañas', 'EQUIPMENT', 'GLOVES', FALSE, 'LEGENDARIO', 2, 30, TRUE, 'CRAFT', 'Pieza del set del Rey de la Montaña, forjada con su corona. Todavía huele a tormenta.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'MAGO_GLOVES_REY_MONT');
+UPDATE items SET name = 'Guantes del Rey de las Montañas', item_type = 'EQUIPMENT', slot = 'GLOVES', is_two_handed = FALSE, rarity = 'LEGENDARIO', class_id = 2, required_level = 30, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Pieza del set del Rey de la Montaña, forjada con su corona. Todavía huele a tormenta.' WHERE code = 'MAGO_GLOVES_REY_MONT';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'MAGO_GLOVES_REY_MONT');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'MAGO_GLOVES_REY_MONT'), v.* FROM (VALUES ('MAG', 38, FALSE), ('CRIT_CHANCE', 5.5, TRUE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station, scroll_item_id)
+SELECT 'RECIPE_MAGO_GLOVES_REY_MONT', (SELECT id FROM items WHERE code = 'MAGO_GLOVES_REY_MONT'), 1, 'LEGENDARIO', 30, 2, 55, 1, 'Durgan, en la forja del Bastión de Hierro', 2, 'forja', (SELECT id FROM items WHERE code = 'SCROLL_REY_MONTANA_MAGO') WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_MAGO_GLOVES_REY_MONT');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'MAGO_GLOVES_REY_MONT'), result_quantity = 1, rarity = 'LEGENDARIO', required_level = 30, required_class_id = 2, success_rate_percent = 55, craft_time_minutes = 1, artisan_name = 'Durgan, en la forja del Bastión de Hierro', zone_id = 2, station = 'forja', scroll_item_id = (SELECT id FROM items WHERE code = 'SCROLL_REY_MONTANA_MAGO') WHERE code = 'RECIPE_MAGO_GLOVES_REY_MONT';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_MAGO_GLOVES_REY_MONT');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_MAGO_GLOVES_REY_MONT'), i.id, v.n FROM (VALUES ('CORONA_REY_MONTANA', 1), ('INSIGNIA_GUARDIA_REAL', 2), ('NUCLEO_TORMENTA', 2), ('CRISTAL_GIGANTE_HIELO', 1), ('ESENCIA_ESPECTRAL_HELADA', 2)) AS v(code, n) JOIN items i ON i.code = v.code;
+-- Sandalias del Rey de las Montañas
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'MAGO_BOOTS_REY_MONT', 'Sandalias del Rey de las Montañas', 'EQUIPMENT', 'BOOTS', FALSE, 'LEGENDARIO', 2, 30, TRUE, 'CRAFT', 'Pieza del set del Rey de la Montaña, forjada con su corona. Todavía huele a tormenta.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'MAGO_BOOTS_REY_MONT');
+UPDATE items SET name = 'Sandalias del Rey de las Montañas', item_type = 'EQUIPMENT', slot = 'BOOTS', is_two_handed = FALSE, rarity = 'LEGENDARIO', class_id = 2, required_level = 30, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Pieza del set del Rey de la Montaña, forjada con su corona. Todavía huele a tormenta.' WHERE code = 'MAGO_BOOTS_REY_MONT';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'MAGO_BOOTS_REY_MONT');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'MAGO_BOOTS_REY_MONT'), v.* FROM (VALUES ('SPD', 23, FALSE), ('HP', 6, FALSE), ('MAGIC_DEF', 10, FALSE), ('EVASION', 3, TRUE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station, scroll_item_id)
+SELECT 'RECIPE_MAGO_BOOTS_REY_MONT', (SELECT id FROM items WHERE code = 'MAGO_BOOTS_REY_MONT'), 1, 'LEGENDARIO', 30, 2, 55, 1, 'Durgan, en la forja del Bastión de Hierro', 2, 'forja', (SELECT id FROM items WHERE code = 'SCROLL_REY_MONTANA_MAGO') WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_MAGO_BOOTS_REY_MONT');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'MAGO_BOOTS_REY_MONT'), result_quantity = 1, rarity = 'LEGENDARIO', required_level = 30, required_class_id = 2, success_rate_percent = 55, craft_time_minutes = 1, artisan_name = 'Durgan, en la forja del Bastión de Hierro', zone_id = 2, station = 'forja', scroll_item_id = (SELECT id FROM items WHERE code = 'SCROLL_REY_MONTANA_MAGO') WHERE code = 'RECIPE_MAGO_BOOTS_REY_MONT';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_MAGO_BOOTS_REY_MONT');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_MAGO_BOOTS_REY_MONT'), i.id, v.n FROM (VALUES ('CORONA_REY_MONTANA', 1), ('INSIGNIA_GUARDIA_REAL', 2), ('NUCLEO_TORMENTA', 2), ('CRISTAL_GIGANTE_HIELO', 1), ('ESENCIA_ESPECTRAL_HELADA', 2)) AS v(code, n) JOIN items i ON i.code = v.code;
+-- Arco del Rey de las Montañas
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'ARQUERO_WEAPON_REY_MONT', 'Arco del Rey de las Montañas', 'EQUIPMENT', 'WEAPON', FALSE, 'LEGENDARIO', 3, 30, TRUE, 'CRAFT', 'Pieza del set del Rey de la Montaña, forjada con su corona. Todavía huele a tormenta.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'ARQUERO_WEAPON_REY_MONT');
+UPDATE items SET name = 'Arco del Rey de las Montañas', item_type = 'EQUIPMENT', slot = 'WEAPON', is_two_handed = FALSE, rarity = 'LEGENDARIO', class_id = 3, required_level = 30, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Pieza del set del Rey de la Montaña, forjada con su corona. Todavía huele a tormenta.' WHERE code = 'ARQUERO_WEAPON_REY_MONT';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'ARQUERO_WEAPON_REY_MONT');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'ARQUERO_WEAPON_REY_MONT'), v.* FROM (VALUES ('ATK', 84, FALSE), ('CRIT_CHANCE', 8.3, TRUE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station, scroll_item_id)
+SELECT 'RECIPE_ARQUERO_WEAPON_REY_MONT', (SELECT id FROM items WHERE code = 'ARQUERO_WEAPON_REY_MONT'), 1, 'LEGENDARIO', 30, 3, 55, 1, 'Durgan, en la forja del Bastión de Hierro', 2, 'forja', (SELECT id FROM items WHERE code = 'SCROLL_REY_MONTANA_ARQUERO') WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_ARQUERO_WEAPON_REY_MONT');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'ARQUERO_WEAPON_REY_MONT'), result_quantity = 1, rarity = 'LEGENDARIO', required_level = 30, required_class_id = 3, success_rate_percent = 55, craft_time_minutes = 1, artisan_name = 'Durgan, en la forja del Bastión de Hierro', zone_id = 2, station = 'forja', scroll_item_id = (SELECT id FROM items WHERE code = 'SCROLL_REY_MONTANA_ARQUERO') WHERE code = 'RECIPE_ARQUERO_WEAPON_REY_MONT';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_ARQUERO_WEAPON_REY_MONT');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_ARQUERO_WEAPON_REY_MONT'), i.id, v.n FROM (VALUES ('CORONA_REY_MONTANA', 1), ('YELMO_SENOR_ACANTILADO', 1), ('INSIGNIA_GUARDIA_REAL', 3), ('NUCLEO_TORMENTA', 2), ('CRISTAL_GIGANTE_HIELO', 1), ('PLUMA_ARPIA_ECO', 4)) AS v(code, n) JOIN items i ON i.code = v.code;
+-- Carcaj del Rey de las Montañas
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'ARQUERO_OFFHAND_REY_MONT', 'Carcaj del Rey de las Montañas', 'EQUIPMENT', 'OFFHAND', FALSE, 'LEGENDARIO', 3, 30, TRUE, 'CRAFT', 'Pieza del set del Rey de la Montaña, forjada con su corona. Todavía huele a tormenta.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'ARQUERO_OFFHAND_REY_MONT');
+UPDATE items SET name = 'Carcaj del Rey de las Montañas', item_type = 'EQUIPMENT', slot = 'OFFHAND', is_two_handed = FALSE, rarity = 'LEGENDARIO', class_id = 3, required_level = 30, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Pieza del set del Rey de la Montaña, forjada con su corona. Todavía huele a tormenta.' WHERE code = 'ARQUERO_OFFHAND_REY_MONT';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'ARQUERO_OFFHAND_REY_MONT');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'ARQUERO_OFFHAND_REY_MONT'), v.* FROM (VALUES ('ATK', 28, FALSE), ('SPD', 28, FALSE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station, scroll_item_id)
+SELECT 'RECIPE_ARQUERO_OFFHAND_REY_MONT', (SELECT id FROM items WHERE code = 'ARQUERO_OFFHAND_REY_MONT'), 1, 'LEGENDARIO', 30, 3, 55, 1, 'Durgan, en la forja del Bastión de Hierro', 2, 'forja', (SELECT id FROM items WHERE code = 'SCROLL_REY_MONTANA_ARQUERO') WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_ARQUERO_OFFHAND_REY_MONT');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'ARQUERO_OFFHAND_REY_MONT'), result_quantity = 1, rarity = 'LEGENDARIO', required_level = 30, required_class_id = 3, success_rate_percent = 55, craft_time_minutes = 1, artisan_name = 'Durgan, en la forja del Bastión de Hierro', zone_id = 2, station = 'forja', scroll_item_id = (SELECT id FROM items WHERE code = 'SCROLL_REY_MONTANA_ARQUERO') WHERE code = 'RECIPE_ARQUERO_OFFHAND_REY_MONT';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_ARQUERO_OFFHAND_REY_MONT');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_ARQUERO_OFFHAND_REY_MONT'), i.id, v.n FROM (VALUES ('CORONA_REY_MONTANA', 1), ('INSIGNIA_GUARDIA_REAL', 2), ('NUCLEO_TORMENTA', 2), ('CRISTAL_GIGANTE_HIELO', 1), ('PLUMA_ARPIA_ECO', 2)) AS v(code, n) JOIN items i ON i.code = v.code;
+-- Capucha del Rey de las Montañas
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'ARQUERO_HELMET_REY_MONT', 'Capucha del Rey de las Montañas', 'EQUIPMENT', 'HELMET', FALSE, 'LEGENDARIO', 3, 30, TRUE, 'CRAFT', 'Pieza del set del Rey de la Montaña, forjada con su corona. Todavía huele a tormenta.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'ARQUERO_HELMET_REY_MONT');
+UPDATE items SET name = 'Capucha del Rey de las Montañas', item_type = 'EQUIPMENT', slot = 'HELMET', is_two_handed = FALSE, rarity = 'LEGENDARIO', class_id = 3, required_level = 30, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Pieza del set del Rey de la Montaña, forjada con su corona. Todavía huele a tormenta.' WHERE code = 'ARQUERO_HELMET_REY_MONT';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'ARQUERO_HELMET_REY_MONT');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'ARQUERO_HELMET_REY_MONT'), v.* FROM (VALUES ('DEF', 15, FALSE), ('HP', 12, FALSE), ('MAGIC_DEF', 6, FALSE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station, scroll_item_id)
+SELECT 'RECIPE_ARQUERO_HELMET_REY_MONT', (SELECT id FROM items WHERE code = 'ARQUERO_HELMET_REY_MONT'), 1, 'LEGENDARIO', 30, 3, 55, 1, 'Durgan, en la forja del Bastión de Hierro', 2, 'forja', (SELECT id FROM items WHERE code = 'SCROLL_REY_MONTANA_ARQUERO') WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_ARQUERO_HELMET_REY_MONT');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'ARQUERO_HELMET_REY_MONT'), result_quantity = 1, rarity = 'LEGENDARIO', required_level = 30, required_class_id = 3, success_rate_percent = 55, craft_time_minutes = 1, artisan_name = 'Durgan, en la forja del Bastión de Hierro', zone_id = 2, station = 'forja', scroll_item_id = (SELECT id FROM items WHERE code = 'SCROLL_REY_MONTANA_ARQUERO') WHERE code = 'RECIPE_ARQUERO_HELMET_REY_MONT';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_ARQUERO_HELMET_REY_MONT');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_ARQUERO_HELMET_REY_MONT'), i.id, v.n FROM (VALUES ('CORONA_REY_MONTANA', 1), ('INSIGNIA_GUARDIA_REAL', 2), ('NUCLEO_TORMENTA', 2), ('CRISTAL_GIGANTE_HIELO', 1), ('PLUMA_ARPIA_ECO', 2)) AS v(code, n) JOIN items i ON i.code = v.code;
+-- Gabán del Rey de las Montañas
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'ARQUERO_ARMOR_REY_MONT', 'Gabán del Rey de las Montañas', 'EQUIPMENT', 'ARMOR', FALSE, 'LEGENDARIO', 3, 30, TRUE, 'CRAFT', 'Pieza del set del Rey de la Montaña, forjada con su corona. Todavía huele a tormenta.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'ARQUERO_ARMOR_REY_MONT');
+UPDATE items SET name = 'Gabán del Rey de las Montañas', item_type = 'EQUIPMENT', slot = 'ARMOR', is_two_handed = FALSE, rarity = 'LEGENDARIO', class_id = 3, required_level = 30, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Pieza del set del Rey de la Montaña, forjada con su corona. Todavía huele a tormenta.' WHERE code = 'ARQUERO_ARMOR_REY_MONT';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'ARQUERO_ARMOR_REY_MONT');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'ARQUERO_ARMOR_REY_MONT'), v.* FROM (VALUES ('DEF', 30, FALSE), ('HP', 54, FALSE), ('MAGIC_DEF', 9, FALSE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station, scroll_item_id)
+SELECT 'RECIPE_ARQUERO_ARMOR_REY_MONT', (SELECT id FROM items WHERE code = 'ARQUERO_ARMOR_REY_MONT'), 1, 'LEGENDARIO', 30, 3, 55, 1, 'Durgan, en la forja del Bastión de Hierro', 2, 'forja', (SELECT id FROM items WHERE code = 'SCROLL_REY_MONTANA_ARQUERO') WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_ARQUERO_ARMOR_REY_MONT');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'ARQUERO_ARMOR_REY_MONT'), result_quantity = 1, rarity = 'LEGENDARIO', required_level = 30, required_class_id = 3, success_rate_percent = 55, craft_time_minutes = 1, artisan_name = 'Durgan, en la forja del Bastión de Hierro', zone_id = 2, station = 'forja', scroll_item_id = (SELECT id FROM items WHERE code = 'SCROLL_REY_MONTANA_ARQUERO') WHERE code = 'RECIPE_ARQUERO_ARMOR_REY_MONT';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_ARQUERO_ARMOR_REY_MONT');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_ARQUERO_ARMOR_REY_MONT'), i.id, v.n FROM (VALUES ('CORONA_REY_MONTANA', 1), ('YELMO_SENOR_ACANTILADO', 1), ('INSIGNIA_GUARDIA_REAL', 3), ('NUCLEO_TORMENTA', 2), ('CRISTAL_GIGANTE_HIELO', 1), ('PLUMA_ARPIA_ECO', 4)) AS v(code, n) JOIN items i ON i.code = v.code;
+-- Guantes del Rey de las Montañas
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'ARQUERO_GLOVES_REY_MONT', 'Guantes del Rey de las Montañas', 'EQUIPMENT', 'GLOVES', FALSE, 'LEGENDARIO', 3, 30, TRUE, 'CRAFT', 'Pieza del set del Rey de la Montaña, forjada con su corona. Todavía huele a tormenta.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'ARQUERO_GLOVES_REY_MONT');
+UPDATE items SET name = 'Guantes del Rey de las Montañas', item_type = 'EQUIPMENT', slot = 'GLOVES', is_two_handed = FALSE, rarity = 'LEGENDARIO', class_id = 3, required_level = 30, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Pieza del set del Rey de la Montaña, forjada con su corona. Todavía huele a tormenta.' WHERE code = 'ARQUERO_GLOVES_REY_MONT';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'ARQUERO_GLOVES_REY_MONT');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'ARQUERO_GLOVES_REY_MONT'), v.* FROM (VALUES ('ATK', 38, FALSE), ('CRIT_CHANCE', 5.5, TRUE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station, scroll_item_id)
+SELECT 'RECIPE_ARQUERO_GLOVES_REY_MONT', (SELECT id FROM items WHERE code = 'ARQUERO_GLOVES_REY_MONT'), 1, 'LEGENDARIO', 30, 3, 55, 1, 'Durgan, en la forja del Bastión de Hierro', 2, 'forja', (SELECT id FROM items WHERE code = 'SCROLL_REY_MONTANA_ARQUERO') WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_ARQUERO_GLOVES_REY_MONT');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'ARQUERO_GLOVES_REY_MONT'), result_quantity = 1, rarity = 'LEGENDARIO', required_level = 30, required_class_id = 3, success_rate_percent = 55, craft_time_minutes = 1, artisan_name = 'Durgan, en la forja del Bastión de Hierro', zone_id = 2, station = 'forja', scroll_item_id = (SELECT id FROM items WHERE code = 'SCROLL_REY_MONTANA_ARQUERO') WHERE code = 'RECIPE_ARQUERO_GLOVES_REY_MONT';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_ARQUERO_GLOVES_REY_MONT');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_ARQUERO_GLOVES_REY_MONT'), i.id, v.n FROM (VALUES ('CORONA_REY_MONTANA', 1), ('INSIGNIA_GUARDIA_REAL', 2), ('NUCLEO_TORMENTA', 2), ('CRISTAL_GIGANTE_HIELO', 1), ('PLUMA_ARPIA_ECO', 2)) AS v(code, n) JOIN items i ON i.code = v.code;
+-- Botas del Rey de las Montañas
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'ARQUERO_BOOTS_REY_MONT', 'Botas del Rey de las Montañas', 'EQUIPMENT', 'BOOTS', FALSE, 'LEGENDARIO', 3, 30, TRUE, 'CRAFT', 'Pieza del set del Rey de la Montaña, forjada con su corona. Todavía huele a tormenta.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'ARQUERO_BOOTS_REY_MONT');
+UPDATE items SET name = 'Botas del Rey de las Montañas', item_type = 'EQUIPMENT', slot = 'BOOTS', is_two_handed = FALSE, rarity = 'LEGENDARIO', class_id = 3, required_level = 30, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Pieza del set del Rey de la Montaña, forjada con su corona. Todavía huele a tormenta.' WHERE code = 'ARQUERO_BOOTS_REY_MONT';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'ARQUERO_BOOTS_REY_MONT');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'ARQUERO_BOOTS_REY_MONT'), v.* FROM (VALUES ('SPD', 23, FALSE), ('HP', 6, FALSE), ('DEF', 9, FALSE), ('EVASION', 3, TRUE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station, scroll_item_id)
+SELECT 'RECIPE_ARQUERO_BOOTS_REY_MONT', (SELECT id FROM items WHERE code = 'ARQUERO_BOOTS_REY_MONT'), 1, 'LEGENDARIO', 30, 3, 55, 1, 'Durgan, en la forja del Bastión de Hierro', 2, 'forja', (SELECT id FROM items WHERE code = 'SCROLL_REY_MONTANA_ARQUERO') WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_ARQUERO_BOOTS_REY_MONT');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'ARQUERO_BOOTS_REY_MONT'), result_quantity = 1, rarity = 'LEGENDARIO', required_level = 30, required_class_id = 3, success_rate_percent = 55, craft_time_minutes = 1, artisan_name = 'Durgan, en la forja del Bastión de Hierro', zone_id = 2, station = 'forja', scroll_item_id = (SELECT id FROM items WHERE code = 'SCROLL_REY_MONTANA_ARQUERO') WHERE code = 'RECIPE_ARQUERO_BOOTS_REY_MONT';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_ARQUERO_BOOTS_REY_MONT');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_ARQUERO_BOOTS_REY_MONT'), i.id, v.n FROM (VALUES ('CORONA_REY_MONTANA', 1), ('INSIGNIA_GUARDIA_REAL', 2), ('NUCLEO_TORMENTA', 2), ('CRISTAL_GIGANTE_HIELO', 1), ('PLUMA_ARPIA_ECO', 2)) AS v(code, n) JOIN items i ON i.code = v.code;
+-- Daga del Rey de las Montañas
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'PICARO_WEAPON_REY_MONT', 'Daga del Rey de las Montañas', 'EQUIPMENT', 'WEAPON', FALSE, 'LEGENDARIO', 4, 30, TRUE, 'CRAFT', 'Pieza del set del Rey de la Montaña, forjada con su corona. Todavía huele a tormenta.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'PICARO_WEAPON_REY_MONT');
+UPDATE items SET name = 'Daga del Rey de las Montañas', item_type = 'EQUIPMENT', slot = 'WEAPON', is_two_handed = FALSE, rarity = 'LEGENDARIO', class_id = 4, required_level = 30, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Pieza del set del Rey de la Montaña, forjada con su corona. Todavía huele a tormenta.' WHERE code = 'PICARO_WEAPON_REY_MONT';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'PICARO_WEAPON_REY_MONT');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'PICARO_WEAPON_REY_MONT'), v.* FROM (VALUES ('ATK', 84, FALSE), ('CRIT_CHANCE', 8.3, TRUE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station, scroll_item_id)
+SELECT 'RECIPE_PICARO_WEAPON_REY_MONT', (SELECT id FROM items WHERE code = 'PICARO_WEAPON_REY_MONT'), 1, 'LEGENDARIO', 30, 4, 55, 1, 'Durgan, en la forja del Bastión de Hierro', 2, 'forja', (SELECT id FROM items WHERE code = 'SCROLL_REY_MONTANA_PICARO') WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_PICARO_WEAPON_REY_MONT');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'PICARO_WEAPON_REY_MONT'), result_quantity = 1, rarity = 'LEGENDARIO', required_level = 30, required_class_id = 4, success_rate_percent = 55, craft_time_minutes = 1, artisan_name = 'Durgan, en la forja del Bastión de Hierro', zone_id = 2, station = 'forja', scroll_item_id = (SELECT id FROM items WHERE code = 'SCROLL_REY_MONTANA_PICARO') WHERE code = 'RECIPE_PICARO_WEAPON_REY_MONT';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_PICARO_WEAPON_REY_MONT');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_PICARO_WEAPON_REY_MONT'), i.id, v.n FROM (VALUES ('CORONA_REY_MONTANA', 1), ('YELMO_SENOR_ACANTILADO', 1), ('INSIGNIA_GUARDIA_REAL', 3), ('NUCLEO_TORMENTA', 2), ('CRISTAL_GIGANTE_HIELO', 1), ('GARRA_OSO_CUMBRES', 4)) AS v(code, n) JOIN items i ON i.code = v.code;
+-- Daga Gemela del Rey de las Montañas
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'PICARO_OFFHAND_REY_MONT', 'Daga Gemela del Rey de las Montañas', 'EQUIPMENT', 'OFFHAND', FALSE, 'LEGENDARIO', 4, 30, TRUE, 'CRAFT', 'Pieza del set del Rey de la Montaña, forjada con su corona. Todavía huele a tormenta.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'PICARO_OFFHAND_REY_MONT');
+UPDATE items SET name = 'Daga Gemela del Rey de las Montañas', item_type = 'EQUIPMENT', slot = 'OFFHAND', is_two_handed = FALSE, rarity = 'LEGENDARIO', class_id = 4, required_level = 30, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Pieza del set del Rey de la Montaña, forjada con su corona. Todavía huele a tormenta.' WHERE code = 'PICARO_OFFHAND_REY_MONT';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'PICARO_OFFHAND_REY_MONT');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'PICARO_OFFHAND_REY_MONT'), v.* FROM (VALUES ('ATK', 28, FALSE), ('SPD', 28, FALSE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station, scroll_item_id)
+SELECT 'RECIPE_PICARO_OFFHAND_REY_MONT', (SELECT id FROM items WHERE code = 'PICARO_OFFHAND_REY_MONT'), 1, 'LEGENDARIO', 30, 4, 55, 1, 'Durgan, en la forja del Bastión de Hierro', 2, 'forja', (SELECT id FROM items WHERE code = 'SCROLL_REY_MONTANA_PICARO') WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_PICARO_OFFHAND_REY_MONT');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'PICARO_OFFHAND_REY_MONT'), result_quantity = 1, rarity = 'LEGENDARIO', required_level = 30, required_class_id = 4, success_rate_percent = 55, craft_time_minutes = 1, artisan_name = 'Durgan, en la forja del Bastión de Hierro', zone_id = 2, station = 'forja', scroll_item_id = (SELECT id FROM items WHERE code = 'SCROLL_REY_MONTANA_PICARO') WHERE code = 'RECIPE_PICARO_OFFHAND_REY_MONT';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_PICARO_OFFHAND_REY_MONT');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_PICARO_OFFHAND_REY_MONT'), i.id, v.n FROM (VALUES ('CORONA_REY_MONTANA', 1), ('INSIGNIA_GUARDIA_REAL', 2), ('NUCLEO_TORMENTA', 2), ('CRISTAL_GIGANTE_HIELO', 1), ('GARRA_OSO_CUMBRES', 2)) AS v(code, n) JOIN items i ON i.code = v.code;
+-- Máscara del Rey de las Montañas
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'PICARO_HELMET_REY_MONT', 'Máscara del Rey de las Montañas', 'EQUIPMENT', 'HELMET', FALSE, 'LEGENDARIO', 4, 30, TRUE, 'CRAFT', 'Pieza del set del Rey de la Montaña, forjada con su corona. Todavía huele a tormenta.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'PICARO_HELMET_REY_MONT');
+UPDATE items SET name = 'Máscara del Rey de las Montañas', item_type = 'EQUIPMENT', slot = 'HELMET', is_two_handed = FALSE, rarity = 'LEGENDARIO', class_id = 4, required_level = 30, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Pieza del set del Rey de la Montaña, forjada con su corona. Todavía huele a tormenta.' WHERE code = 'PICARO_HELMET_REY_MONT';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'PICARO_HELMET_REY_MONT');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'PICARO_HELMET_REY_MONT'), v.* FROM (VALUES ('DEF', 15, FALSE), ('HP', 13, FALSE), ('MAGIC_DEF', 5, FALSE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station, scroll_item_id)
+SELECT 'RECIPE_PICARO_HELMET_REY_MONT', (SELECT id FROM items WHERE code = 'PICARO_HELMET_REY_MONT'), 1, 'LEGENDARIO', 30, 4, 55, 1, 'Durgan, en la forja del Bastión de Hierro', 2, 'forja', (SELECT id FROM items WHERE code = 'SCROLL_REY_MONTANA_PICARO') WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_PICARO_HELMET_REY_MONT');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'PICARO_HELMET_REY_MONT'), result_quantity = 1, rarity = 'LEGENDARIO', required_level = 30, required_class_id = 4, success_rate_percent = 55, craft_time_minutes = 1, artisan_name = 'Durgan, en la forja del Bastión de Hierro', zone_id = 2, station = 'forja', scroll_item_id = (SELECT id FROM items WHERE code = 'SCROLL_REY_MONTANA_PICARO') WHERE code = 'RECIPE_PICARO_HELMET_REY_MONT';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_PICARO_HELMET_REY_MONT');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_PICARO_HELMET_REY_MONT'), i.id, v.n FROM (VALUES ('CORONA_REY_MONTANA', 1), ('INSIGNIA_GUARDIA_REAL', 2), ('NUCLEO_TORMENTA', 2), ('CRISTAL_GIGANTE_HIELO', 1), ('GARRA_OSO_CUMBRES', 2)) AS v(code, n) JOIN items i ON i.code = v.code;
+-- Cuero del Rey de las Montañas
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'PICARO_ARMOR_REY_MONT', 'Cuero del Rey de las Montañas', 'EQUIPMENT', 'ARMOR', FALSE, 'LEGENDARIO', 4, 30, TRUE, 'CRAFT', 'Pieza del set del Rey de la Montaña, forjada con su corona. Todavía huele a tormenta.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'PICARO_ARMOR_REY_MONT');
+UPDATE items SET name = 'Cuero del Rey de las Montañas', item_type = 'EQUIPMENT', slot = 'ARMOR', is_two_handed = FALSE, rarity = 'LEGENDARIO', class_id = 4, required_level = 30, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Pieza del set del Rey de la Montaña, forjada con su corona. Todavía huele a tormenta.' WHERE code = 'PICARO_ARMOR_REY_MONT';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'PICARO_ARMOR_REY_MONT');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'PICARO_ARMOR_REY_MONT'), v.* FROM (VALUES ('DEF', 30, FALSE), ('HP', 59, FALSE), ('MAGIC_DEF', 9, FALSE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station, scroll_item_id)
+SELECT 'RECIPE_PICARO_ARMOR_REY_MONT', (SELECT id FROM items WHERE code = 'PICARO_ARMOR_REY_MONT'), 1, 'LEGENDARIO', 30, 4, 55, 1, 'Durgan, en la forja del Bastión de Hierro', 2, 'forja', (SELECT id FROM items WHERE code = 'SCROLL_REY_MONTANA_PICARO') WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_PICARO_ARMOR_REY_MONT');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'PICARO_ARMOR_REY_MONT'), result_quantity = 1, rarity = 'LEGENDARIO', required_level = 30, required_class_id = 4, success_rate_percent = 55, craft_time_minutes = 1, artisan_name = 'Durgan, en la forja del Bastión de Hierro', zone_id = 2, station = 'forja', scroll_item_id = (SELECT id FROM items WHERE code = 'SCROLL_REY_MONTANA_PICARO') WHERE code = 'RECIPE_PICARO_ARMOR_REY_MONT';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_PICARO_ARMOR_REY_MONT');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_PICARO_ARMOR_REY_MONT'), i.id, v.n FROM (VALUES ('CORONA_REY_MONTANA', 1), ('YELMO_SENOR_ACANTILADO', 1), ('INSIGNIA_GUARDIA_REAL', 3), ('NUCLEO_TORMENTA', 2), ('CRISTAL_GIGANTE_HIELO', 1), ('GARRA_OSO_CUMBRES', 4)) AS v(code, n) JOIN items i ON i.code = v.code;
+-- Guantes del Rey de las Montañas
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'PICARO_GLOVES_REY_MONT', 'Guantes del Rey de las Montañas', 'EQUIPMENT', 'GLOVES', FALSE, 'LEGENDARIO', 4, 30, TRUE, 'CRAFT', 'Pieza del set del Rey de la Montaña, forjada con su corona. Todavía huele a tormenta.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'PICARO_GLOVES_REY_MONT');
+UPDATE items SET name = 'Guantes del Rey de las Montañas', item_type = 'EQUIPMENT', slot = 'GLOVES', is_two_handed = FALSE, rarity = 'LEGENDARIO', class_id = 4, required_level = 30, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Pieza del set del Rey de la Montaña, forjada con su corona. Todavía huele a tormenta.' WHERE code = 'PICARO_GLOVES_REY_MONT';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'PICARO_GLOVES_REY_MONT');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'PICARO_GLOVES_REY_MONT'), v.* FROM (VALUES ('ATK', 38, FALSE), ('CRIT_CHANCE', 5.5, TRUE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station, scroll_item_id)
+SELECT 'RECIPE_PICARO_GLOVES_REY_MONT', (SELECT id FROM items WHERE code = 'PICARO_GLOVES_REY_MONT'), 1, 'LEGENDARIO', 30, 4, 55, 1, 'Durgan, en la forja del Bastión de Hierro', 2, 'forja', (SELECT id FROM items WHERE code = 'SCROLL_REY_MONTANA_PICARO') WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_PICARO_GLOVES_REY_MONT');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'PICARO_GLOVES_REY_MONT'), result_quantity = 1, rarity = 'LEGENDARIO', required_level = 30, required_class_id = 4, success_rate_percent = 55, craft_time_minutes = 1, artisan_name = 'Durgan, en la forja del Bastión de Hierro', zone_id = 2, station = 'forja', scroll_item_id = (SELECT id FROM items WHERE code = 'SCROLL_REY_MONTANA_PICARO') WHERE code = 'RECIPE_PICARO_GLOVES_REY_MONT';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_PICARO_GLOVES_REY_MONT');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_PICARO_GLOVES_REY_MONT'), i.id, v.n FROM (VALUES ('CORONA_REY_MONTANA', 1), ('INSIGNIA_GUARDIA_REAL', 2), ('NUCLEO_TORMENTA', 2), ('CRISTAL_GIGANTE_HIELO', 1), ('GARRA_OSO_CUMBRES', 2)) AS v(code, n) JOIN items i ON i.code = v.code;
+-- Botas del Rey de las Montañas
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'PICARO_BOOTS_REY_MONT', 'Botas del Rey de las Montañas', 'EQUIPMENT', 'BOOTS', FALSE, 'LEGENDARIO', 4, 30, TRUE, 'CRAFT', 'Pieza del set del Rey de la Montaña, forjada con su corona. Todavía huele a tormenta.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'PICARO_BOOTS_REY_MONT');
+UPDATE items SET name = 'Botas del Rey de las Montañas', item_type = 'EQUIPMENT', slot = 'BOOTS', is_two_handed = FALSE, rarity = 'LEGENDARIO', class_id = 4, required_level = 30, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Pieza del set del Rey de la Montaña, forjada con su corona. Todavía huele a tormenta.' WHERE code = 'PICARO_BOOTS_REY_MONT';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'PICARO_BOOTS_REY_MONT');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'PICARO_BOOTS_REY_MONT'), v.* FROM (VALUES ('SPD', 23, FALSE), ('HP', 6, FALSE), ('DEF', 9, FALSE), ('EVASION', 3, TRUE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station, scroll_item_id)
+SELECT 'RECIPE_PICARO_BOOTS_REY_MONT', (SELECT id FROM items WHERE code = 'PICARO_BOOTS_REY_MONT'), 1, 'LEGENDARIO', 30, 4, 55, 1, 'Durgan, en la forja del Bastión de Hierro', 2, 'forja', (SELECT id FROM items WHERE code = 'SCROLL_REY_MONTANA_PICARO') WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_PICARO_BOOTS_REY_MONT');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'PICARO_BOOTS_REY_MONT'), result_quantity = 1, rarity = 'LEGENDARIO', required_level = 30, required_class_id = 4, success_rate_percent = 55, craft_time_minutes = 1, artisan_name = 'Durgan, en la forja del Bastión de Hierro', zone_id = 2, station = 'forja', scroll_item_id = (SELECT id FROM items WHERE code = 'SCROLL_REY_MONTANA_PICARO') WHERE code = 'RECIPE_PICARO_BOOTS_REY_MONT';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_PICARO_BOOTS_REY_MONT');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_PICARO_BOOTS_REY_MONT'), i.id, v.n FROM (VALUES ('CORONA_REY_MONTANA', 1), ('INSIGNIA_GUARDIA_REAL', 2), ('NUCLEO_TORMENTA', 2), ('CRISTAL_GIGANTE_HIELO', 1), ('GARRA_OSO_CUMBRES', 2)) AS v(code, n) JOIN items i ON i.code = v.code;
+-- Báculo del Rey de las Montañas
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'SACERDOTE_WEAPON_REY_MONT', 'Báculo del Rey de las Montañas', 'EQUIPMENT', 'WEAPON', FALSE, 'LEGENDARIO', 5, 30, TRUE, 'CRAFT', 'Pieza del set del Rey de la Montaña, forjada con su corona. Todavía huele a tormenta.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'SACERDOTE_WEAPON_REY_MONT');
+UPDATE items SET name = 'Báculo del Rey de las Montañas', item_type = 'EQUIPMENT', slot = 'WEAPON', is_two_handed = FALSE, rarity = 'LEGENDARIO', class_id = 5, required_level = 30, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Pieza del set del Rey de la Montaña, forjada con su corona. Todavía huele a tormenta.' WHERE code = 'SACERDOTE_WEAPON_REY_MONT';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'SACERDOTE_WEAPON_REY_MONT');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'SACERDOTE_WEAPON_REY_MONT'), v.* FROM (VALUES ('MAG', 84, FALSE), ('CRIT_CHANCE', 8.3, TRUE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station, scroll_item_id)
+SELECT 'RECIPE_SACERDOTE_WEAPON_REY_MONT', (SELECT id FROM items WHERE code = 'SACERDOTE_WEAPON_REY_MONT'), 1, 'LEGENDARIO', 30, 5, 55, 1, 'Durgan, en la forja del Bastión de Hierro', 2, 'forja', (SELECT id FROM items WHERE code = 'SCROLL_REY_MONTANA_SACERDOTE') WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_SACERDOTE_WEAPON_REY_MONT');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'SACERDOTE_WEAPON_REY_MONT'), result_quantity = 1, rarity = 'LEGENDARIO', required_level = 30, required_class_id = 5, success_rate_percent = 55, craft_time_minutes = 1, artisan_name = 'Durgan, en la forja del Bastión de Hierro', zone_id = 2, station = 'forja', scroll_item_id = (SELECT id FROM items WHERE code = 'SCROLL_REY_MONTANA_SACERDOTE') WHERE code = 'RECIPE_SACERDOTE_WEAPON_REY_MONT';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_SACERDOTE_WEAPON_REY_MONT');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_SACERDOTE_WEAPON_REY_MONT'), i.id, v.n FROM (VALUES ('CORONA_REY_MONTANA', 1), ('YELMO_SENOR_ACANTILADO', 1), ('INSIGNIA_GUARDIA_REAL', 3), ('NUCLEO_TORMENTA', 2), ('CRISTAL_GIGANTE_HIELO', 1), ('FLOR_DE_NIEVE', 4)) AS v(code, n) JOIN items i ON i.code = v.code;
+-- Símbolo del Rey de las Montañas
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'SACERDOTE_OFFHAND_REY_MONT', 'Símbolo del Rey de las Montañas', 'EQUIPMENT', 'OFFHAND', FALSE, 'LEGENDARIO', 5, 30, TRUE, 'CRAFT', 'Pieza del set del Rey de la Montaña, forjada con su corona. Todavía huele a tormenta.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'SACERDOTE_OFFHAND_REY_MONT');
+UPDATE items SET name = 'Símbolo del Rey de las Montañas', item_type = 'EQUIPMENT', slot = 'OFFHAND', is_two_handed = FALSE, rarity = 'LEGENDARIO', class_id = 5, required_level = 30, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Pieza del set del Rey de la Montaña, forjada con su corona. Todavía huele a tormenta.' WHERE code = 'SACERDOTE_OFFHAND_REY_MONT';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'SACERDOTE_OFFHAND_REY_MONT');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'SACERDOTE_OFFHAND_REY_MONT'), v.* FROM (VALUES ('HP', 23, FALSE), ('MAGIC_DEF', 19, FALSE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station, scroll_item_id)
+SELECT 'RECIPE_SACERDOTE_OFFHAND_REY_MONT', (SELECT id FROM items WHERE code = 'SACERDOTE_OFFHAND_REY_MONT'), 1, 'LEGENDARIO', 30, 5, 55, 1, 'Durgan, en la forja del Bastión de Hierro', 2, 'forja', (SELECT id FROM items WHERE code = 'SCROLL_REY_MONTANA_SACERDOTE') WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_SACERDOTE_OFFHAND_REY_MONT');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'SACERDOTE_OFFHAND_REY_MONT'), result_quantity = 1, rarity = 'LEGENDARIO', required_level = 30, required_class_id = 5, success_rate_percent = 55, craft_time_minutes = 1, artisan_name = 'Durgan, en la forja del Bastión de Hierro', zone_id = 2, station = 'forja', scroll_item_id = (SELECT id FROM items WHERE code = 'SCROLL_REY_MONTANA_SACERDOTE') WHERE code = 'RECIPE_SACERDOTE_OFFHAND_REY_MONT';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_SACERDOTE_OFFHAND_REY_MONT');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_SACERDOTE_OFFHAND_REY_MONT'), i.id, v.n FROM (VALUES ('CORONA_REY_MONTANA', 1), ('INSIGNIA_GUARDIA_REAL', 2), ('NUCLEO_TORMENTA', 2), ('CRISTAL_GIGANTE_HIELO', 1), ('FLOR_DE_NIEVE', 2)) AS v(code, n) JOIN items i ON i.code = v.code;
+-- Diadema del Rey de las Montañas
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'SACERDOTE_HELMET_REY_MONT', 'Diadema del Rey de las Montañas', 'EQUIPMENT', 'HELMET', FALSE, 'LEGENDARIO', 5, 30, TRUE, 'CRAFT', 'Pieza del set del Rey de la Montaña, forjada con su corona. Todavía huele a tormenta.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'SACERDOTE_HELMET_REY_MONT');
+UPDATE items SET name = 'Diadema del Rey de las Montañas', item_type = 'EQUIPMENT', slot = 'HELMET', is_two_handed = FALSE, rarity = 'LEGENDARIO', class_id = 5, required_level = 30, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Pieza del set del Rey de la Montaña, forjada con su corona. Todavía huele a tormenta.' WHERE code = 'SACERDOTE_HELMET_REY_MONT';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'SACERDOTE_HELMET_REY_MONT');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'SACERDOTE_HELMET_REY_MONT'), v.* FROM (VALUES ('DEF', 5, FALSE), ('HP', 13, FALSE), ('MAGIC_DEF', 15, FALSE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station, scroll_item_id)
+SELECT 'RECIPE_SACERDOTE_HELMET_REY_MONT', (SELECT id FROM items WHERE code = 'SACERDOTE_HELMET_REY_MONT'), 1, 'LEGENDARIO', 30, 5, 55, 1, 'Durgan, en la forja del Bastión de Hierro', 2, 'forja', (SELECT id FROM items WHERE code = 'SCROLL_REY_MONTANA_SACERDOTE') WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_SACERDOTE_HELMET_REY_MONT');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'SACERDOTE_HELMET_REY_MONT'), result_quantity = 1, rarity = 'LEGENDARIO', required_level = 30, required_class_id = 5, success_rate_percent = 55, craft_time_minutes = 1, artisan_name = 'Durgan, en la forja del Bastión de Hierro', zone_id = 2, station = 'forja', scroll_item_id = (SELECT id FROM items WHERE code = 'SCROLL_REY_MONTANA_SACERDOTE') WHERE code = 'RECIPE_SACERDOTE_HELMET_REY_MONT';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_SACERDOTE_HELMET_REY_MONT');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_SACERDOTE_HELMET_REY_MONT'), i.id, v.n FROM (VALUES ('CORONA_REY_MONTANA', 1), ('INSIGNIA_GUARDIA_REAL', 2), ('NUCLEO_TORMENTA', 2), ('CRISTAL_GIGANTE_HIELO', 1), ('FLOR_DE_NIEVE', 2)) AS v(code, n) JOIN items i ON i.code = v.code;
+-- Vestidura del Rey de las Montañas
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'SACERDOTE_ARMOR_REY_MONT', 'Vestidura del Rey de las Montañas', 'EQUIPMENT', 'ARMOR', FALSE, 'LEGENDARIO', 5, 30, TRUE, 'CRAFT', 'Pieza del set del Rey de la Montaña, forjada con su corona. Todavía huele a tormenta.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'SACERDOTE_ARMOR_REY_MONT');
+UPDATE items SET name = 'Vestidura del Rey de las Montañas', item_type = 'EQUIPMENT', slot = 'ARMOR', is_two_handed = FALSE, rarity = 'LEGENDARIO', class_id = 5, required_level = 30, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Pieza del set del Rey de la Montaña, forjada con su corona. Todavía huele a tormenta.' WHERE code = 'SACERDOTE_ARMOR_REY_MONT';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'SACERDOTE_ARMOR_REY_MONT');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'SACERDOTE_ARMOR_REY_MONT'), v.* FROM (VALUES ('DEF', 9, FALSE), ('HP', 49, FALSE), ('MAGIC_DEF', 30, FALSE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station, scroll_item_id)
+SELECT 'RECIPE_SACERDOTE_ARMOR_REY_MONT', (SELECT id FROM items WHERE code = 'SACERDOTE_ARMOR_REY_MONT'), 1, 'LEGENDARIO', 30, 5, 55, 1, 'Durgan, en la forja del Bastión de Hierro', 2, 'forja', (SELECT id FROM items WHERE code = 'SCROLL_REY_MONTANA_SACERDOTE') WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_SACERDOTE_ARMOR_REY_MONT');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'SACERDOTE_ARMOR_REY_MONT'), result_quantity = 1, rarity = 'LEGENDARIO', required_level = 30, required_class_id = 5, success_rate_percent = 55, craft_time_minutes = 1, artisan_name = 'Durgan, en la forja del Bastión de Hierro', zone_id = 2, station = 'forja', scroll_item_id = (SELECT id FROM items WHERE code = 'SCROLL_REY_MONTANA_SACERDOTE') WHERE code = 'RECIPE_SACERDOTE_ARMOR_REY_MONT';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_SACERDOTE_ARMOR_REY_MONT');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_SACERDOTE_ARMOR_REY_MONT'), i.id, v.n FROM (VALUES ('CORONA_REY_MONTANA', 1), ('YELMO_SENOR_ACANTILADO', 1), ('INSIGNIA_GUARDIA_REAL', 3), ('NUCLEO_TORMENTA', 2), ('CRISTAL_GIGANTE_HIELO', 1), ('FLOR_DE_NIEVE', 4)) AS v(code, n) JOIN items i ON i.code = v.code;
+-- Guantes del Rey de las Montañas
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'SACERDOTE_GLOVES_REY_MONT', 'Guantes del Rey de las Montañas', 'EQUIPMENT', 'GLOVES', FALSE, 'LEGENDARIO', 5, 30, TRUE, 'CRAFT', 'Pieza del set del Rey de la Montaña, forjada con su corona. Todavía huele a tormenta.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'SACERDOTE_GLOVES_REY_MONT');
+UPDATE items SET name = 'Guantes del Rey de las Montañas', item_type = 'EQUIPMENT', slot = 'GLOVES', is_two_handed = FALSE, rarity = 'LEGENDARIO', class_id = 5, required_level = 30, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Pieza del set del Rey de la Montaña, forjada con su corona. Todavía huele a tormenta.' WHERE code = 'SACERDOTE_GLOVES_REY_MONT';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'SACERDOTE_GLOVES_REY_MONT');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'SACERDOTE_GLOVES_REY_MONT'), v.* FROM (VALUES ('MAG', 38, FALSE), ('CRIT_CHANCE', 5.5, TRUE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station, scroll_item_id)
+SELECT 'RECIPE_SACERDOTE_GLOVES_REY_MONT', (SELECT id FROM items WHERE code = 'SACERDOTE_GLOVES_REY_MONT'), 1, 'LEGENDARIO', 30, 5, 55, 1, 'Durgan, en la forja del Bastión de Hierro', 2, 'forja', (SELECT id FROM items WHERE code = 'SCROLL_REY_MONTANA_SACERDOTE') WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_SACERDOTE_GLOVES_REY_MONT');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'SACERDOTE_GLOVES_REY_MONT'), result_quantity = 1, rarity = 'LEGENDARIO', required_level = 30, required_class_id = 5, success_rate_percent = 55, craft_time_minutes = 1, artisan_name = 'Durgan, en la forja del Bastión de Hierro', zone_id = 2, station = 'forja', scroll_item_id = (SELECT id FROM items WHERE code = 'SCROLL_REY_MONTANA_SACERDOTE') WHERE code = 'RECIPE_SACERDOTE_GLOVES_REY_MONT';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_SACERDOTE_GLOVES_REY_MONT');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_SACERDOTE_GLOVES_REY_MONT'), i.id, v.n FROM (VALUES ('CORONA_REY_MONTANA', 1), ('INSIGNIA_GUARDIA_REAL', 2), ('NUCLEO_TORMENTA', 2), ('CRISTAL_GIGANTE_HIELO', 1), ('FLOR_DE_NIEVE', 2)) AS v(code, n) JOIN items i ON i.code = v.code;
+-- Sandalias del Rey de las Montañas
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'SACERDOTE_BOOTS_REY_MONT', 'Sandalias del Rey de las Montañas', 'EQUIPMENT', 'BOOTS', FALSE, 'LEGENDARIO', 5, 30, TRUE, 'CRAFT', 'Pieza del set del Rey de la Montaña, forjada con su corona. Todavía huele a tormenta.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'SACERDOTE_BOOTS_REY_MONT');
+UPDATE items SET name = 'Sandalias del Rey de las Montañas', item_type = 'EQUIPMENT', slot = 'BOOTS', is_two_handed = FALSE, rarity = 'LEGENDARIO', class_id = 5, required_level = 30, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Pieza del set del Rey de la Montaña, forjada con su corona. Todavía huele a tormenta.' WHERE code = 'SACERDOTE_BOOTS_REY_MONT';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'SACERDOTE_BOOTS_REY_MONT');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'SACERDOTE_BOOTS_REY_MONT'), v.* FROM (VALUES ('SPD', 23, FALSE), ('HP', 6, FALSE), ('MAGIC_DEF', 7, FALSE), ('EVASION', 3, TRUE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station, scroll_item_id)
+SELECT 'RECIPE_SACERDOTE_BOOTS_REY_MONT', (SELECT id FROM items WHERE code = 'SACERDOTE_BOOTS_REY_MONT'), 1, 'LEGENDARIO', 30, 5, 55, 1, 'Durgan, en la forja del Bastión de Hierro', 2, 'forja', (SELECT id FROM items WHERE code = 'SCROLL_REY_MONTANA_SACERDOTE') WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_SACERDOTE_BOOTS_REY_MONT');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'SACERDOTE_BOOTS_REY_MONT'), result_quantity = 1, rarity = 'LEGENDARIO', required_level = 30, required_class_id = 5, success_rate_percent = 55, craft_time_minutes = 1, artisan_name = 'Durgan, en la forja del Bastión de Hierro', zone_id = 2, station = 'forja', scroll_item_id = (SELECT id FROM items WHERE code = 'SCROLL_REY_MONTANA_SACERDOTE') WHERE code = 'RECIPE_SACERDOTE_BOOTS_REY_MONT';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_SACERDOTE_BOOTS_REY_MONT');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_SACERDOTE_BOOTS_REY_MONT'), i.id, v.n FROM (VALUES ('CORONA_REY_MONTANA', 1), ('INSIGNIA_GUARDIA_REAL', 2), ('NUCLEO_TORMENTA', 2), ('CRISTAL_GIGANTE_HIELO', 1), ('FLOR_DE_NIEVE', 2)) AS v(code, n) JOIN items i ON i.code = v.code;
+
+-- ---------------------------------------------------------------- accesorios de los jefes
+-- Brazalete del Acantilado
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'BRAZALETE_ACANTILADO', 'Brazalete del Acantilado', 'EQUIPMENT', 'ACCESSORY', FALSE, 'EPICO', NULL, 26, TRUE, 'CRAFT', 'Joya del Señor del Acantilado. La suelta él mismo o se fabrica con su yelmo.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'BRAZALETE_ACANTILADO');
+UPDATE items SET name = 'Brazalete del Acantilado', item_type = 'EQUIPMENT', slot = 'ACCESSORY', is_two_handed = FALSE, rarity = 'EPICO', class_id = NULL, required_level = 26, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Joya del Señor del Acantilado. La suelta él mismo o se fabrica con su yelmo.' WHERE code = 'BRAZALETE_ACANTILADO';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'BRAZALETE_ACANTILADO');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'BRAZALETE_ACANTILADO'), v.* FROM (VALUES ('ATK', 27, FALSE), ('HP', 38, FALSE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station, scroll_item_id)
+SELECT 'RECIPE_GUERRERO_ACC_ACANTILADO', (SELECT id FROM items WHERE code = 'BRAZALETE_ACANTILADO'), 1, 'EPICO', 26, NULL, 70, 1, 'Durgan, en la forja del Bastión de Hierro', 2, 'forja', (SELECT id FROM items WHERE code = 'SCROLL_ACANTILADO_GUERRERO') WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_GUERRERO_ACC_ACANTILADO');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'BRAZALETE_ACANTILADO'), result_quantity = 1, rarity = 'EPICO', required_level = 26, required_class_id = NULL, success_rate_percent = 70, craft_time_minutes = 1, artisan_name = 'Durgan, en la forja del Bastión de Hierro', zone_id = 2, station = 'forja', scroll_item_id = (SELECT id FROM items WHERE code = 'SCROLL_ACANTILADO_GUERRERO') WHERE code = 'RECIPE_GUERRERO_ACC_ACANTILADO';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_GUERRERO_ACC_ACANTILADO');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_GUERRERO_ACC_ACANTILADO'), i.id, v.n FROM (VALUES ('YELMO_SENOR_ACANTILADO', 1), ('NUCLEO_TORMENTA', 2), ('PIEL_DE_TROLL', 2)) AS v(code, n) JOIN items i ON i.code = v.code;
+-- Colgante del Acantilado
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'COLGANTE_ACANTILADO', 'Colgante del Acantilado', 'EQUIPMENT', 'ACCESSORY', FALSE, 'EPICO', NULL, 26, TRUE, 'CRAFT', 'Joya del Señor del Acantilado. La suelta él mismo o se fabrica con su yelmo.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'COLGANTE_ACANTILADO');
+UPDATE items SET name = 'Colgante del Acantilado', item_type = 'EQUIPMENT', slot = 'ACCESSORY', is_two_handed = FALSE, rarity = 'EPICO', class_id = NULL, required_level = 26, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Joya del Señor del Acantilado. La suelta él mismo o se fabrica con su yelmo.' WHERE code = 'COLGANTE_ACANTILADO';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'COLGANTE_ACANTILADO');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'COLGANTE_ACANTILADO'), v.* FROM (VALUES ('SPD', 16, FALSE), ('CRIT_CHANCE', 4.5, TRUE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station, scroll_item_id)
+SELECT 'RECIPE_ARQUERO_ACC_ACANTILADO', (SELECT id FROM items WHERE code = 'COLGANTE_ACANTILADO'), 1, 'EPICO', 26, NULL, 70, 1, 'Durgan, en la forja del Bastión de Hierro', 2, 'forja', (SELECT id FROM items WHERE code = 'SCROLL_ACANTILADO_ARQUERO') WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_ARQUERO_ACC_ACANTILADO');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'COLGANTE_ACANTILADO'), result_quantity = 1, rarity = 'EPICO', required_level = 26, required_class_id = NULL, success_rate_percent = 70, craft_time_minutes = 1, artisan_name = 'Durgan, en la forja del Bastión de Hierro', zone_id = 2, station = 'forja', scroll_item_id = (SELECT id FROM items WHERE code = 'SCROLL_ACANTILADO_ARQUERO') WHERE code = 'RECIPE_ARQUERO_ACC_ACANTILADO';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_ARQUERO_ACC_ACANTILADO');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_ARQUERO_ACC_ACANTILADO'), i.id, v.n FROM (VALUES ('YELMO_SENOR_ACANTILADO', 1), ('NUCLEO_TORMENTA', 2), ('PLUMA_ARPIA_ECO', 2)) AS v(code, n) JOIN items i ON i.code = v.code;
+-- Medallón del Acantilado
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'MEDALLON_ACANTILADO', 'Medallón del Acantilado', 'EQUIPMENT', 'ACCESSORY', FALSE, 'EPICO', NULL, 26, TRUE, 'CRAFT', 'Joya del Señor del Acantilado. La suelta él mismo o se fabrica con su yelmo.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'MEDALLON_ACANTILADO');
+UPDATE items SET name = 'Medallón del Acantilado', item_type = 'EQUIPMENT', slot = 'ACCESSORY', is_two_handed = FALSE, rarity = 'EPICO', class_id = NULL, required_level = 26, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Joya del Señor del Acantilado. La suelta él mismo o se fabrica con su yelmo.' WHERE code = 'MEDALLON_ACANTILADO';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'MEDALLON_ACANTILADO');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'MEDALLON_ACANTILADO'), v.* FROM (VALUES ('EVASION', 2.5, TRUE), ('CRIT_CHANCE', 4.5, TRUE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station, scroll_item_id)
+SELECT 'RECIPE_PICARO_ACC_ACANTILADO', (SELECT id FROM items WHERE code = 'MEDALLON_ACANTILADO'), 1, 'EPICO', 26, NULL, 70, 1, 'Durgan, en la forja del Bastión de Hierro', 2, 'forja', (SELECT id FROM items WHERE code = 'SCROLL_ACANTILADO_PICARO') WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_PICARO_ACC_ACANTILADO');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'MEDALLON_ACANTILADO'), result_quantity = 1, rarity = 'EPICO', required_level = 26, required_class_id = NULL, success_rate_percent = 70, craft_time_minutes = 1, artisan_name = 'Durgan, en la forja del Bastión de Hierro', zone_id = 2, station = 'forja', scroll_item_id = (SELECT id FROM items WHERE code = 'SCROLL_ACANTILADO_PICARO') WHERE code = 'RECIPE_PICARO_ACC_ACANTILADO';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_PICARO_ACC_ACANTILADO');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_PICARO_ACC_ACANTILADO'), i.id, v.n FROM (VALUES ('YELMO_SENOR_ACANTILADO', 1), ('NUCLEO_TORMENTA', 2), ('GARRA_OSO_CUMBRES', 2)) AS v(code, n) JOIN items i ON i.code = v.code;
+-- Amuleto del Acantilado
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'AMULETO_ACANTILADO_MAGO', 'Amuleto del Acantilado', 'EQUIPMENT', 'ACCESSORY', FALSE, 'EPICO', NULL, 26, TRUE, 'CRAFT', 'Joya del Señor del Acantilado. La suelta él mismo o se fabrica con su yelmo.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'AMULETO_ACANTILADO_MAGO');
+UPDATE items SET name = 'Amuleto del Acantilado', item_type = 'EQUIPMENT', slot = 'ACCESSORY', is_two_handed = FALSE, rarity = 'EPICO', class_id = NULL, required_level = 26, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Joya del Señor del Acantilado. La suelta él mismo o se fabrica con su yelmo.' WHERE code = 'AMULETO_ACANTILADO_MAGO';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'AMULETO_ACANTILADO_MAGO');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'AMULETO_ACANTILADO_MAGO'), v.* FROM (VALUES ('MAG', 16, FALSE), ('MAGIC_DEF', 11, FALSE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station, scroll_item_id)
+SELECT 'RECIPE_MAGO_ACC_ACANTILADO', (SELECT id FROM items WHERE code = 'AMULETO_ACANTILADO_MAGO'), 1, 'EPICO', 26, NULL, 70, 1, 'Durgan, en la forja del Bastión de Hierro', 2, 'forja', (SELECT id FROM items WHERE code = 'SCROLL_ACANTILADO_MAGO') WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_MAGO_ACC_ACANTILADO');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'AMULETO_ACANTILADO_MAGO'), result_quantity = 1, rarity = 'EPICO', required_level = 26, required_class_id = NULL, success_rate_percent = 70, craft_time_minutes = 1, artisan_name = 'Durgan, en la forja del Bastión de Hierro', zone_id = 2, station = 'forja', scroll_item_id = (SELECT id FROM items WHERE code = 'SCROLL_ACANTILADO_MAGO') WHERE code = 'RECIPE_MAGO_ACC_ACANTILADO';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_MAGO_ACC_ACANTILADO');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_MAGO_ACC_ACANTILADO'), i.id, v.n FROM (VALUES ('YELMO_SENOR_ACANTILADO', 1), ('NUCLEO_TORMENTA', 2), ('ESENCIA_ESPECTRAL_HELADA', 2)) AS v(code, n) JOIN items i ON i.code = v.code;
+-- Relicario del Acantilado
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'RELICARIO_ACANTILADO', 'Relicario del Acantilado', 'EQUIPMENT', 'ACCESSORY', FALSE, 'EPICO', NULL, 26, TRUE, 'CRAFT', 'Joya del Señor del Acantilado. La suelta él mismo o se fabrica con su yelmo.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'RELICARIO_ACANTILADO');
+UPDATE items SET name = 'Relicario del Acantilado', item_type = 'EQUIPMENT', slot = 'ACCESSORY', is_two_handed = FALSE, rarity = 'EPICO', class_id = NULL, required_level = 26, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Joya del Señor del Acantilado. La suelta él mismo o se fabrica con su yelmo.' WHERE code = 'RELICARIO_ACANTILADO';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'RELICARIO_ACANTILADO');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'RELICARIO_ACANTILADO'), v.* FROM (VALUES ('HEALING', 13, TRUE), ('HP', 108, FALSE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station, scroll_item_id)
+SELECT 'RECIPE_SACERDOTE_ACC_ACANTILADO', (SELECT id FROM items WHERE code = 'RELICARIO_ACANTILADO'), 1, 'EPICO', 26, NULL, 70, 1, 'Durgan, en la forja del Bastión de Hierro', 2, 'forja', (SELECT id FROM items WHERE code = 'SCROLL_ACANTILADO_SACERDOTE') WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_SACERDOTE_ACC_ACANTILADO');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'RELICARIO_ACANTILADO'), result_quantity = 1, rarity = 'EPICO', required_level = 26, required_class_id = NULL, success_rate_percent = 70, craft_time_minutes = 1, artisan_name = 'Durgan, en la forja del Bastión de Hierro', zone_id = 2, station = 'forja', scroll_item_id = (SELECT id FROM items WHERE code = 'SCROLL_ACANTILADO_SACERDOTE') WHERE code = 'RECIPE_SACERDOTE_ACC_ACANTILADO';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_SACERDOTE_ACC_ACANTILADO');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_SACERDOTE_ACC_ACANTILADO'), i.id, v.n FROM (VALUES ('YELMO_SENOR_ACANTILADO', 1), ('NUCLEO_TORMENTA', 2), ('FLOR_DE_NIEVE', 3)) AS v(code, n) JOIN items i ON i.code = v.code;
+-- Brazalete del Rey de las Montañas
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'BRAZALETE_REY_MONTANA', 'Brazalete del Rey de las Montañas', 'EQUIPMENT', 'ACCESSORY', FALSE, 'LEGENDARIO', NULL, 30, TRUE, 'CRAFT', 'Joya del Rey de la Montaña. La suelta él mismo o se fabrica con su corona.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'BRAZALETE_REY_MONTANA');
+UPDATE items SET name = 'Brazalete del Rey de las Montañas', item_type = 'EQUIPMENT', slot = 'ACCESSORY', is_two_handed = FALSE, rarity = 'LEGENDARIO', class_id = NULL, required_level = 30, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Joya del Rey de la Montaña. La suelta él mismo o se fabrica con su corona.' WHERE code = 'BRAZALETE_REY_MONTANA';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'BRAZALETE_REY_MONTANA');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'BRAZALETE_REY_MONTANA'), v.* FROM (VALUES ('ATK', 34, FALSE), ('HP', 47, FALSE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station, scroll_item_id)
+SELECT 'RECIPE_GUERRERO_ACC_REY_MONTANA', (SELECT id FROM items WHERE code = 'BRAZALETE_REY_MONTANA'), 1, 'LEGENDARIO', 30, NULL, 55, 1, 'Durgan, en la forja del Bastión de Hierro', 2, 'forja', (SELECT id FROM items WHERE code = 'SCROLL_REY_MONTANA_GUERRERO') WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_GUERRERO_ACC_REY_MONTANA');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'BRAZALETE_REY_MONTANA'), result_quantity = 1, rarity = 'LEGENDARIO', required_level = 30, required_class_id = NULL, success_rate_percent = 55, craft_time_minutes = 1, artisan_name = 'Durgan, en la forja del Bastión de Hierro', zone_id = 2, station = 'forja', scroll_item_id = (SELECT id FROM items WHERE code = 'SCROLL_REY_MONTANA_GUERRERO') WHERE code = 'RECIPE_GUERRERO_ACC_REY_MONTANA';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_GUERRERO_ACC_REY_MONTANA');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_GUERRERO_ACC_REY_MONTANA'), i.id, v.n FROM (VALUES ('CORONA_REY_MONTANA', 1), ('INSIGNIA_GUARDIA_REAL', 2), ('NUCLEO_TORMENTA', 2), ('CRISTAL_GIGANTE_HIELO', 1), ('PIEL_DE_TROLL', 3)) AS v(code, n) JOIN items i ON i.code = v.code;
+-- Colgante del Rey de las Montañas
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'COLGANTE_REY_MONTANA', 'Colgante del Rey de las Montañas', 'EQUIPMENT', 'ACCESSORY', FALSE, 'LEGENDARIO', NULL, 30, TRUE, 'CRAFT', 'Joya del Rey de la Montaña. La suelta él mismo o se fabrica con su corona.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'COLGANTE_REY_MONTANA');
+UPDATE items SET name = 'Colgante del Rey de las Montañas', item_type = 'EQUIPMENT', slot = 'ACCESSORY', is_two_handed = FALSE, rarity = 'LEGENDARIO', class_id = NULL, required_level = 30, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Joya del Rey de la Montaña. La suelta él mismo o se fabrica con su corona.' WHERE code = 'COLGANTE_REY_MONTANA';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'COLGANTE_REY_MONTANA');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'COLGANTE_REY_MONTANA'), v.* FROM (VALUES ('SPD', 20, FALSE), ('CRIT_CHANCE', 5.5, TRUE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station, scroll_item_id)
+SELECT 'RECIPE_ARQUERO_ACC_REY_MONTANA', (SELECT id FROM items WHERE code = 'COLGANTE_REY_MONTANA'), 1, 'LEGENDARIO', 30, NULL, 55, 1, 'Durgan, en la forja del Bastión de Hierro', 2, 'forja', (SELECT id FROM items WHERE code = 'SCROLL_REY_MONTANA_ARQUERO') WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_ARQUERO_ACC_REY_MONTANA');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'COLGANTE_REY_MONTANA'), result_quantity = 1, rarity = 'LEGENDARIO', required_level = 30, required_class_id = NULL, success_rate_percent = 55, craft_time_minutes = 1, artisan_name = 'Durgan, en la forja del Bastión de Hierro', zone_id = 2, station = 'forja', scroll_item_id = (SELECT id FROM items WHERE code = 'SCROLL_REY_MONTANA_ARQUERO') WHERE code = 'RECIPE_ARQUERO_ACC_REY_MONTANA';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_ARQUERO_ACC_REY_MONTANA');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_ARQUERO_ACC_REY_MONTANA'), i.id, v.n FROM (VALUES ('CORONA_REY_MONTANA', 1), ('INSIGNIA_GUARDIA_REAL', 2), ('NUCLEO_TORMENTA', 2), ('CRISTAL_GIGANTE_HIELO', 1), ('PLUMA_ARPIA_ECO', 3)) AS v(code, n) JOIN items i ON i.code = v.code;
+-- Medallón del Rey de las Montañas
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'MEDALLON_REY_MONTANA', 'Medallón del Rey de las Montañas', 'EQUIPMENT', 'ACCESSORY', FALSE, 'LEGENDARIO', NULL, 30, TRUE, 'CRAFT', 'Joya del Rey de la Montaña. La suelta él mismo o se fabrica con su corona.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'MEDALLON_REY_MONTANA');
+UPDATE items SET name = 'Medallón del Rey de las Montañas', item_type = 'EQUIPMENT', slot = 'ACCESSORY', is_two_handed = FALSE, rarity = 'LEGENDARIO', class_id = NULL, required_level = 30, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Joya del Rey de la Montaña. La suelta él mismo o se fabrica con su corona.' WHERE code = 'MEDALLON_REY_MONTANA';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'MEDALLON_REY_MONTANA');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'MEDALLON_REY_MONTANA'), v.* FROM (VALUES ('EVASION', 3, TRUE), ('CRIT_CHANCE', 5.5, TRUE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station, scroll_item_id)
+SELECT 'RECIPE_PICARO_ACC_REY_MONTANA', (SELECT id FROM items WHERE code = 'MEDALLON_REY_MONTANA'), 1, 'LEGENDARIO', 30, NULL, 55, 1, 'Durgan, en la forja del Bastión de Hierro', 2, 'forja', (SELECT id FROM items WHERE code = 'SCROLL_REY_MONTANA_PICARO') WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_PICARO_ACC_REY_MONTANA');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'MEDALLON_REY_MONTANA'), result_quantity = 1, rarity = 'LEGENDARIO', required_level = 30, required_class_id = NULL, success_rate_percent = 55, craft_time_minutes = 1, artisan_name = 'Durgan, en la forja del Bastión de Hierro', zone_id = 2, station = 'forja', scroll_item_id = (SELECT id FROM items WHERE code = 'SCROLL_REY_MONTANA_PICARO') WHERE code = 'RECIPE_PICARO_ACC_REY_MONTANA';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_PICARO_ACC_REY_MONTANA');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_PICARO_ACC_REY_MONTANA'), i.id, v.n FROM (VALUES ('CORONA_REY_MONTANA', 1), ('INSIGNIA_GUARDIA_REAL', 2), ('NUCLEO_TORMENTA', 2), ('CRISTAL_GIGANTE_HIELO', 1), ('GARRA_OSO_CUMBRES', 3)) AS v(code, n) JOIN items i ON i.code = v.code;
+-- Amuleto del Rey de las Montañas
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'AMULETO_REY_MONTANA_MAGO', 'Amuleto del Rey de las Montañas', 'EQUIPMENT', 'ACCESSORY', FALSE, 'LEGENDARIO', NULL, 30, TRUE, 'CRAFT', 'Joya del Rey de la Montaña. La suelta él mismo o se fabrica con su corona.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'AMULETO_REY_MONTANA_MAGO');
+UPDATE items SET name = 'Amuleto del Rey de las Montañas', item_type = 'EQUIPMENT', slot = 'ACCESSORY', is_two_handed = FALSE, rarity = 'LEGENDARIO', class_id = NULL, required_level = 30, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Joya del Rey de la Montaña. La suelta él mismo o se fabrica con su corona.' WHERE code = 'AMULETO_REY_MONTANA_MAGO';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'AMULETO_REY_MONTANA_MAGO');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'AMULETO_REY_MONTANA_MAGO'), v.* FROM (VALUES ('MAG', 22, FALSE), ('MAGIC_DEF', 13, FALSE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station, scroll_item_id)
+SELECT 'RECIPE_MAGO_ACC_REY_MONTANA', (SELECT id FROM items WHERE code = 'AMULETO_REY_MONTANA_MAGO'), 1, 'LEGENDARIO', 30, NULL, 55, 1, 'Durgan, en la forja del Bastión de Hierro', 2, 'forja', (SELECT id FROM items WHERE code = 'SCROLL_REY_MONTANA_MAGO') WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_MAGO_ACC_REY_MONTANA');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'AMULETO_REY_MONTANA_MAGO'), result_quantity = 1, rarity = 'LEGENDARIO', required_level = 30, required_class_id = NULL, success_rate_percent = 55, craft_time_minutes = 1, artisan_name = 'Durgan, en la forja del Bastión de Hierro', zone_id = 2, station = 'forja', scroll_item_id = (SELECT id FROM items WHERE code = 'SCROLL_REY_MONTANA_MAGO') WHERE code = 'RECIPE_MAGO_ACC_REY_MONTANA';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_MAGO_ACC_REY_MONTANA');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_MAGO_ACC_REY_MONTANA'), i.id, v.n FROM (VALUES ('CORONA_REY_MONTANA', 1), ('INSIGNIA_GUARDIA_REAL', 2), ('NUCLEO_TORMENTA', 2), ('VARA_BRUJO_MONTANA', 1), ('ESENCIA_ESPECTRAL_HELADA', 3)) AS v(code, n) JOIN items i ON i.code = v.code;
+-- Relicario del Rey de las Montañas
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'RELICARIO_REY_MONTANA', 'Relicario del Rey de las Montañas', 'EQUIPMENT', 'ACCESSORY', FALSE, 'LEGENDARIO', NULL, 30, TRUE, 'CRAFT', 'Joya del Rey de la Montaña. La suelta él mismo o se fabrica con su corona.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'RELICARIO_REY_MONTANA');
+UPDATE items SET name = 'Relicario del Rey de las Montañas', item_type = 'EQUIPMENT', slot = 'ACCESSORY', is_two_handed = FALSE, rarity = 'LEGENDARIO', class_id = NULL, required_level = 30, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Joya del Rey de la Montaña. La suelta él mismo o se fabrica con su corona.' WHERE code = 'RELICARIO_REY_MONTANA';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'RELICARIO_REY_MONTANA');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'RELICARIO_REY_MONTANA'), v.* FROM (VALUES ('HEALING', 15, TRUE), ('HP', 135, FALSE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station, scroll_item_id)
+SELECT 'RECIPE_SACERDOTE_ACC_REY_MONTANA', (SELECT id FROM items WHERE code = 'RELICARIO_REY_MONTANA'), 1, 'LEGENDARIO', 30, NULL, 55, 1, 'Durgan, en la forja del Bastión de Hierro', 2, 'forja', (SELECT id FROM items WHERE code = 'SCROLL_REY_MONTANA_SACERDOTE') WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_SACERDOTE_ACC_REY_MONTANA');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'RELICARIO_REY_MONTANA'), result_quantity = 1, rarity = 'LEGENDARIO', required_level = 30, required_class_id = NULL, success_rate_percent = 55, craft_time_minutes = 1, artisan_name = 'Durgan, en la forja del Bastión de Hierro', zone_id = 2, station = 'forja', scroll_item_id = (SELECT id FROM items WHERE code = 'SCROLL_REY_MONTANA_SACERDOTE') WHERE code = 'RECIPE_SACERDOTE_ACC_REY_MONTANA';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_SACERDOTE_ACC_REY_MONTANA');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_SACERDOTE_ACC_REY_MONTANA'), i.id, v.n FROM (VALUES ('CORONA_REY_MONTANA', 1), ('INSIGNIA_GUARDIA_REAL', 2), ('NUCLEO_TORMENTA', 2), ('VARA_BRUJO_MONTANA', 1), ('FLOR_DE_NIEVE', 4)) AS v(code, n) JOIN items i ON i.code = v.code;
+
+-- botín de los jefes: el Yelmo del Señor sale seguido (como el Collar del Capitán)
+UPDATE monster_drops SET drop_chance_percent = 60 WHERE monster_id = (SELECT id FROM monsters WHERE code = 'SENOR_ACANTILADO')
+  AND item_id = (SELECT id FROM items WHERE code = 'YELMO_SENOR_ACANTILADO');
+UPDATE items SET description = 'El yelmo de piedra del Señor del Acantilado. Con él se forjan las armas, las armaduras y las joyas del Acantilado y del Rey de la Montaña.' WHERE code = 'YELMO_SENOR_ACANTILADO';
+UPDATE items SET description = 'La corona de hierro y rayo del Rey de la Montaña. Cada pieza del set del Rey lleva una.' WHERE code = 'CORONA_REY_MONTANA';
+
+-- Amuleto del Brujo: la Vara del Brujo sale desde el nivel 22, así que el amuleto pasa al 23
+UPDATE items SET required_level = 23, rarity = 'RARO' WHERE code = 'AMULETO_DEL_BRUJO';
+UPDATE crafting_recipes SET required_level = 23, zone_id = 2, artisan_name = 'Durgan, en la forja del Bastión de Hierro', station = 'forja', success_rate_percent = 85 WHERE code = 'RECETA_AMULETO_DEL_BRUJO';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECETA_AMULETO_DEL_BRUJO');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECETA_AMULETO_DEL_BRUJO'), i.id, v.n FROM (VALUES ('VARA_BRUJO_MONTANA', 2), ('ESENCIA_ESPECTRAL_HELADA', 2), ('GEMA_DE_PRECISION', 1)) AS v(code, n) JOIN items i ON i.code = v.code;
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'AMULETO_DEL_BRUJO');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'AMULETO_DEL_BRUJO'), v.* FROM (VALUES ('MAG', 16, FALSE), ('MAGIC_DEF', 9, FALSE), ('HP', 20, FALSE)) AS v(stat_code, amount, is_percent);
+
+-- el resto del equipo de clase base o sin clase de nivel 16-30: la misma fórmula (mismo nivel y rareza)
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'ESCUDO_DE_TITAN');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'ESCUDO_DE_TITAN'), v.* FROM (VALUES ('DEF', 11, FALSE), ('HP', 25, FALSE), ('BLOCK_CHANCE', 10, TRUE)) AS v(stat_code, amount, is_percent);
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'BACULO_ANTIGUO');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'BACULO_ANTIGUO'), v.* FROM (VALUES ('MAG', 34, FALSE), ('MAGIC_DEF', 23, FALSE), ('ELEMENTAL_ATK', 11, FALSE), ('MANA_REGEN', 5, FALSE)) AS v(stat_code, amount, is_percent);
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'ARCO_DEL_CAZADOR');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'ARCO_DEL_CAZADOR'), v.* FROM (VALUES ('ATK', 50, FALSE), ('SPD', 40, FALSE), ('CRIT_CHANCE', 5.3, TRUE), ('DAMAGE_VS_ANIMALS', 100, FALSE)) AS v(stat_code, amount, is_percent);
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'ARMADURA_ACERO_EPICA');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'ARMADURA_ACERO_EPICA'), v.* FROM (VALUES ('DEF', 25, FALSE), ('HP', 50, FALSE), ('MAGIC_DEF', 9, FALSE)) AS v(stat_code, amount, is_percent);
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'GUERRERO_WEAPON2H_VOLCAN');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'GUERRERO_WEAPON2H_VOLCAN'), v.* FROM (VALUES ('ATK', 91, FALSE)) AS v(stat_code, amount, is_percent);
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'COLLAR_DEL_MAR');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'COLLAR_DEL_MAR'), v.* FROM (VALUES ('ATK', 28, FALSE), ('MAG', 28, FALSE), ('HP', 70, FALSE)) AS v(stat_code, amount, is_percent);
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'GUERRERO_WEAPON2H_HACHA_L20');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'GUERRERO_WEAPON2H_HACHA_L20'), v.* FROM (VALUES ('ATK', 72, FALSE), ('CRIT_CHANCE', 5.3, TRUE)) AS v(stat_code, amount, is_percent);
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'ARQUERO_WEAPON2H_BALLESTA_L20');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'ARQUERO_WEAPON2H_BALLESTA_L20'), v.* FROM (VALUES ('ATK', 72, FALSE), ('CRIT_DAMAGE', 9, TRUE)) AS v(stat_code, amount, is_percent);
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'GUERRERO_ARMOR_PESADA_L20');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'GUERRERO_ARMOR_PESADA_L20'), v.* FROM (VALUES ('MAGIC_DEF', 5, FALSE), ('HP', 29, FALSE), ('DEF', 17, FALSE)) AS v(stat_code, amount, is_percent);
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'GUERRERO_HELMET_PESADA_L20');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'GUERRERO_HELMET_PESADA_L20'), v.* FROM (VALUES ('MAGIC_DEF', 3, FALSE), ('HP', 10, FALSE), ('DEF', 9, FALSE)) AS v(stat_code, amount, is_percent);
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'GUERRERO_GLOVES_PESADA_L20');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'GUERRERO_GLOVES_PESADA_L20'), v.* FROM (VALUES ('HP', 9, FALSE), ('DEF', 9, FALSE)) AS v(stat_code, amount, is_percent);
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'GUERRERO_BOOTS_PESADA_L20');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'GUERRERO_BOOTS_PESADA_L20'), v.* FROM (VALUES ('EVASION', 2, TRUE), ('SPD', 12, FALSE), ('HP', 9, FALSE), ('DEF', 9, FALSE)) AS v(stat_code, amount, is_percent);
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'GUERRERO_WEAPON_MAGICA_L20');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'GUERRERO_WEAPON_MAGICA_L20'), v.* FROM (VALUES ('ATK', 48, FALSE), ('MAG', 38, FALSE), ('CRIT_CHANCE', 5.3, TRUE)) AS v(stat_code, amount, is_percent);
+
+-- los jugadores con estas piezas puestas: el servidor recalcula sus stats guardadas una vez
+INSERT INTO balance_versions (version) SELECT 'montanas_v1' WHERE NOT EXISTS (SELECT 1 FROM balance_versions WHERE version = 'montanas_v1');
+-- ============================================================================================
+-- Comidas de las Montañas Grises (repetible; sin ON CONFLICT). Las bestias sueltan también su carne
+-- (Cabra Montés y Oso de las Cumbres) y la cocinera del Bastión hace con ellas comidas con bonus.
+-- "Bien alimentado" (lib/comida.js): las comidas y elixires con bonus de combate se pueden tomar
+-- antes de salir; los combates que empieces en los 20 minutos siguientes arrancan con ese bonus.
+-- El Guiso de Troll pasa al nivel 25 (usaba materiales de monstruos de nivel 22 con nivel 10).
+-- ============================================================================================
+CREATE TABLE IF NOT EXISTS player_food_buffs (
+  player_id  INT PRIMARY KEY REFERENCES players(id) ON DELETE CASCADE,
+  item_id    INT REFERENCES items(id) ON DELETE SET NULL,
+  item_name  TEXT NOT NULL,
+  effects    JSONB NOT NULL,
+  expires_at TIMESTAMPTZ NOT NULL
+);
+INSERT INTO items (code, name, item_type, rarity, obtain_method, description)
+SELECT 'CARNE_CABRA', 'Carne de Cabra Montés', 'MATERIAL', 'COMUN', 'Drop de monstruo', 'Carne magra y fibrosa. La sueltan las Cabras Montesas del Paso de la Montaña. Se asa con flor de nieve.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'CARNE_CABRA');
+UPDATE items SET name = 'Carne de Cabra Montés', item_type = 'MATERIAL', rarity = 'COMUN', obtain_method = 'Drop de monstruo', description = 'Carne magra y fibrosa. La sueltan las Cabras Montesas del Paso de la Montaña. Se asa con flor de nieve.' WHERE code = 'CARNE_CABRA';
+INSERT INTO items (code, name, item_type, rarity, obtain_method, description)
+SELECT 'LOMO_OSO', 'Lomo de Oso de las Cumbres', 'MATERIAL', 'COMUN', 'Drop de monstruo', 'Un buen trozo de lomo, con su grasa para el frío. Lo sueltan los Osos de las Cumbres. Para el Caldo de Oso.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'LOMO_OSO');
+UPDATE items SET name = 'Lomo de Oso de las Cumbres', item_type = 'MATERIAL', rarity = 'COMUN', obtain_method = 'Drop de monstruo', description = 'Un buen trozo de lomo, con su grasa para el frío. Lo sueltan los Osos de las Cumbres. Para el Caldo de Oso.' WHERE code = 'LOMO_OSO';
+-- las carnes: la cabra y el oso las sueltan además de su material propio
+DELETE FROM monster_drops WHERE item_id IN (SELECT id FROM items WHERE code IN ('CARNE_CABRA', 'LOMO_OSO'));
+INSERT INTO monster_drops (monster_id, item_id, drop_chance_percent, min_quantity, max_quantity)
+SELECT m.id, i.id, v.pct, v.mn, v.mx FROM (VALUES ('CABRA_MONTES', 'CARNE_CABRA', 35, 1, 2), ('OSO_CUMBRES', 'LOMO_OSO', 30, 1, 2)) AS v(mon, item, pct, mn, mx)
+JOIN monsters m ON m.code = v.mon JOIN items i ON i.code = v.item;
+
+-- Asado de Cabra Montés
+INSERT INTO items (code, name, item_type, rarity, required_level, is_craftable, obtain_method, description)
+SELECT 'ASADO_CABRA', 'Asado de Cabra Montés', 'CONSUMABLE', 'POCO_COMUN', 17, TRUE, 'Crafteo', 'Cura 110 de vida y da +12% de ataque. Tomada fuera de combate te deja bien alimentado 20 minutos: tus combates empiezan con ese bonus.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'ASADO_CABRA');
+UPDATE items SET name = 'Asado de Cabra Montés', item_type = 'CONSUMABLE', rarity = 'POCO_COMUN', required_level = 17, is_craftable = TRUE, obtain_method = 'Crafteo', description = 'Cura 110 de vida y da +12% de ataque. Tomada fuera de combate te deja bien alimentado 20 minutos: tus combates empiezan con ese bonus.' WHERE code = 'ASADO_CABRA';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'ASADO_CABRA');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent, description)
+SELECT (SELECT id FROM items WHERE code = 'ASADO_CABRA'), v.* FROM (VALUES ('HEAL_HP', 110, FALSE, 'Restaura 110 HP'), ('BUFF_ATK', 12, TRUE, '+12% de ataque durante el combate')) AS v(stat_code, amount, is_percent, description);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station)
+SELECT 'RECETA_ASADO_CABRA', (SELECT id FROM items WHERE code = 'ASADO_CABRA'), 1, 'POCO_COMUN', 17, 95, 1, 'Hilda, la cocinera del Bastión de Hierro', 2, NULL WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECETA_ASADO_CABRA');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'ASADO_CABRA'), result_quantity = 1, rarity = 'POCO_COMUN', required_level = 17, success_rate_percent = 95, craft_time_minutes = 1, artisan_name = 'Hilda, la cocinera del Bastión de Hierro', zone_id = 2, station = NULL WHERE code = 'RECETA_ASADO_CABRA';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECETA_ASADO_CABRA');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECETA_ASADO_CABRA'), i.id, v.n FROM (VALUES ('CARNE_CABRA', 3), ('FLOR_DE_NIEVE', 1)) AS v(code, n) JOIN items i ON i.code = v.code;
+
+-- Té de Flor de Nieve
+INSERT INTO items (code, name, item_type, rarity, required_level, is_craftable, obtain_method, description)
+SELECT 'TE_FLOR_NIEVE', 'Té de Flor de Nieve', 'CONSUMABLE', 'POCO_COMUN', 18, TRUE, 'Crafteo', 'Devuelve 80 de maná y da +12% de inteligencia. Tomada fuera de combate te deja bien alimentado 20 minutos: tus combates empiezan con ese bonus.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'TE_FLOR_NIEVE');
+UPDATE items SET name = 'Té de Flor de Nieve', item_type = 'CONSUMABLE', rarity = 'POCO_COMUN', required_level = 18, is_craftable = TRUE, obtain_method = 'Crafteo', description = 'Devuelve 80 de maná y da +12% de inteligencia. Tomada fuera de combate te deja bien alimentado 20 minutos: tus combates empiezan con ese bonus.' WHERE code = 'TE_FLOR_NIEVE';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'TE_FLOR_NIEVE');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent, description)
+SELECT (SELECT id FROM items WHERE code = 'TE_FLOR_NIEVE'), v.* FROM (VALUES ('HEAL_MP', 80, FALSE, 'Restaura 80 MP'), ('BUFF_MAG', 12, TRUE, '+12% de inteligencia durante el combate')) AS v(stat_code, amount, is_percent, description);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station)
+SELECT 'RECETA_TE_FLOR_NIEVE', (SELECT id FROM items WHERE code = 'TE_FLOR_NIEVE'), 1, 'POCO_COMUN', 18, 95, 1, 'Alquimia', 2, NULL WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECETA_TE_FLOR_NIEVE');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'TE_FLOR_NIEVE'), result_quantity = 1, rarity = 'POCO_COMUN', required_level = 18, success_rate_percent = 95, craft_time_minutes = 1, artisan_name = 'Alquimia', zone_id = 2, station = NULL WHERE code = 'RECETA_TE_FLOR_NIEVE';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECETA_TE_FLOR_NIEVE');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECETA_TE_FLOR_NIEVE'), i.id, v.n FROM (VALUES ('FLOR_DE_NIEVE', 3), ('AGUA_PURIFICADA', 1)) AS v(code, n) JOIN items i ON i.code = v.code;
+
+-- Caldo de Oso
+INSERT INTO items (code, name, item_type, rarity, required_level, is_craftable, obtain_method, description)
+SELECT 'CALDO_OSO', 'Caldo de Oso', 'CONSUMABLE', 'POCO_COMUN', 23, TRUE, 'Crafteo', 'Cura 140 de vida y da +15% de defensa. Tomada fuera de combate te deja bien alimentado 20 minutos: tus combates empiezan con ese bonus.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'CALDO_OSO');
+UPDATE items SET name = 'Caldo de Oso', item_type = 'CONSUMABLE', rarity = 'POCO_COMUN', required_level = 23, is_craftable = TRUE, obtain_method = 'Crafteo', description = 'Cura 140 de vida y da +15% de defensa. Tomada fuera de combate te deja bien alimentado 20 minutos: tus combates empiezan con ese bonus.' WHERE code = 'CALDO_OSO';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'CALDO_OSO');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent, description)
+SELECT (SELECT id FROM items WHERE code = 'CALDO_OSO'), v.* FROM (VALUES ('HEAL_HP', 140, FALSE, 'Restaura 140 HP'), ('BUFF_DEF', 15, TRUE, '+15% de defensa durante el combate')) AS v(stat_code, amount, is_percent, description);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station)
+SELECT 'RECETA_CALDO_OSO', (SELECT id FROM items WHERE code = 'CALDO_OSO'), 1, 'POCO_COMUN', 23, 95, 1, 'Hilda, la cocinera del Bastión de Hierro', 2, NULL WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECETA_CALDO_OSO');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'CALDO_OSO'), result_quantity = 1, rarity = 'POCO_COMUN', required_level = 23, success_rate_percent = 95, craft_time_minutes = 1, artisan_name = 'Hilda, la cocinera del Bastión de Hierro', zone_id = 2, station = NULL WHERE code = 'RECETA_CALDO_OSO';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECETA_CALDO_OSO');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECETA_CALDO_OSO'), i.id, v.n FROM (VALUES ('LOMO_OSO', 2), ('FLOR_DE_NIEVE', 1), ('AGUA_PURIFICADA', 1)) AS v(code, n) JOIN items i ON i.code = v.code;
+
+-- Guiso de Troll
+INSERT INTO items (code, name, item_type, rarity, required_level, is_craftable, obtain_method, description)
+SELECT 'GUISO_TROLL', 'Guiso de Troll', 'CONSUMABLE', 'RARO', 25, TRUE, 'Crafteo', 'Cura 150 de vida y da +10% de ataque y +10% de defensa. Tomada fuera de combate te deja bien alimentado 20 minutos: tus combates empiezan con ese bonus.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'GUISO_TROLL');
+UPDATE items SET name = 'Guiso de Troll', item_type = 'CONSUMABLE', rarity = 'RARO', required_level = 25, is_craftable = TRUE, obtain_method = 'Crafteo', description = 'Cura 150 de vida y da +10% de ataque y +10% de defensa. Tomada fuera de combate te deja bien alimentado 20 minutos: tus combates empiezan con ese bonus.' WHERE code = 'GUISO_TROLL';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'GUISO_TROLL');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent, description)
+SELECT (SELECT id FROM items WHERE code = 'GUISO_TROLL'), v.* FROM (VALUES ('HEAL_HP', 150, FALSE, 'Restaura 150 HP'), ('BUFF_ATK', 10, TRUE, '+10% de ataque durante el combate'), ('BUFF_DEF', 10, TRUE, '+10% de defensa durante el combate')) AS v(stat_code, amount, is_percent, description);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station)
+SELECT 'RECETA_GUISO_TROLL', (SELECT id FROM items WHERE code = 'GUISO_TROLL'), 1, 'RARO', 25, 95, 1, 'Hilda, la cocinera del Bastión de Hierro', 2, NULL WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECETA_GUISO_TROLL');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'GUISO_TROLL'), result_quantity = 1, rarity = 'RARO', required_level = 25, success_rate_percent = 95, craft_time_minutes = 1, artisan_name = 'Hilda, la cocinera del Bastión de Hierro', zone_id = 2, station = NULL WHERE code = 'RECETA_GUISO_TROLL';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECETA_GUISO_TROLL');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECETA_GUISO_TROLL'), i.id, v.n FROM (VALUES ('PIEL_DE_TROLL', 2), ('CARNE_CABRA', 2), ('FLOR_DE_NIEVE', 1)) AS v(code, n) JOIN items i ON i.code = v.code;
+
+-- Elixir de Tormenta
+INSERT INTO items (code, name, item_type, rarity, required_level, is_craftable, obtain_method, description)
+SELECT 'ELIXIR_TORMENTA', 'Elixir de Tormenta', 'CONSUMABLE', 'RARO', 27, TRUE, 'Crafteo', 'Devuelve 100 de maná y da +15% de velocidad y +10% de inteligencia. Tomada fuera de combate te deja bien alimentado 20 minutos: tus combates empiezan con ese bonus.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'ELIXIR_TORMENTA');
+UPDATE items SET name = 'Elixir de Tormenta', item_type = 'CONSUMABLE', rarity = 'RARO', required_level = 27, is_craftable = TRUE, obtain_method = 'Crafteo', description = 'Devuelve 100 de maná y da +15% de velocidad y +10% de inteligencia. Tomada fuera de combate te deja bien alimentado 20 minutos: tus combates empiezan con ese bonus.' WHERE code = 'ELIXIR_TORMENTA';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'ELIXIR_TORMENTA');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent, description)
+SELECT (SELECT id FROM items WHERE code = 'ELIXIR_TORMENTA'), v.* FROM (VALUES ('HEAL_MP', 100, FALSE, 'Restaura 100 MP'), ('BUFF_SPD', 15, TRUE, '+15% de velocidad durante el combate'), ('BUFF_MAG', 10, TRUE, '+10% de inteligencia durante el combate')) AS v(stat_code, amount, is_percent, description);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station)
+SELECT 'RECETA_ELIXIR_TORMENTA', (SELECT id FROM items WHERE code = 'ELIXIR_TORMENTA'), 1, 'RARO', 27, 95, 1, 'Alquimia', 2, NULL WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECETA_ELIXIR_TORMENTA');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'ELIXIR_TORMENTA'), result_quantity = 1, rarity = 'RARO', required_level = 27, success_rate_percent = 95, craft_time_minutes = 1, artisan_name = 'Alquimia', zone_id = 2, station = NULL WHERE code = 'RECETA_ELIXIR_TORMENTA';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECETA_ELIXIR_TORMENTA');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECETA_ELIXIR_TORMENTA'), i.id, v.n FROM (VALUES ('NUCLEO_TORMENTA', 1), ('ESENCIA_ESPECTRAL_HELADA', 1), ('AGUA_PURIFICADA', 1)) AS v(code, n) JOIN items i ON i.code = v.code;
+
+-- las comidas de antes también avisan que se pueden tomar antes de salir
+UPDATE items SET description = description || ' Tomada fuera de combate te deja bien alimentado 20 minutos: tus combates empiezan con ese bonus.'
+WHERE item_type = 'CONSUMABLE' AND description NOT LIKE '%bien alimentado%'
+  AND EXISTS (SELECT 1 FROM item_stat_bonuses b WHERE b.item_id = items.id AND (b.stat_code LIKE 'BUFF\_%' OR b.stat_code = 'ALL_STATS'));
+
+-- ============================================================================================
+-- Historia de las Montañas Grises (repetible; sin ON CONFLICT): M1-M14, sigue a «Hacia las montañas»
+-- (P14). NPCs del Bastión de Hierro: Durgan (jefe de la mina), Hilda (cocinera), Ren (explorador) y
+-- Tilo (escudero). Las viejas Protector de Piedra, La Sombra del Acantilado y El Rey de Montaña se
+-- reaprovechan como M5, M12 y M14 (mismo código). M6 baja a la Mina Profunda (mazmorra).
+-- Las misiones viejas de la zona sin NPC (las del «Enano Minero») pasan a Durgan.
+-- ============================================================================================
+
+-- «La Mina Profunda» suelta (MONTANAS_HISTORIA_06_MINA, que abría la mina recién llegado de la
+-- Pradera) queda reemplazada por la M6 de esta cadena: la llave se gana en la M5
+DELETE FROM quest_objectives WHERE quest_id IN (SELECT id FROM quests WHERE code = 'MONTANAS_HISTORIA_06_MINA');
+DELETE FROM quest_npc_spots WHERE quest_id IN (SELECT id FROM quests WHERE code = 'MONTANAS_HISTORIA_06_MINA');
+DELETE FROM quest_item_rewards WHERE quest_id IN (SELECT id FROM quests WHERE code = 'MONTANAS_HISTORIA_06_MINA');
+DELETE FROM player_quest_progress WHERE quest_id IN (SELECT id FROM quests WHERE code = 'MONTANAS_HISTORIA_06_MINA');
+DELETE FROM player_active_quests WHERE quest_id IN (SELECT id FROM quests WHERE code = 'MONTANAS_HISTORIA_06_MINA');
+DELETE FROM player_quest_completions WHERE quest_id IN (SELECT id FROM quests WHERE code = 'MONTANAS_HISTORIA_06_MINA');
+DELETE FROM quests WHERE code = 'MONTANAS_HISTORIA_06_MINA';
+
+-- objetos de misión (no se venden ni se regalan; se quitan al abandonar o entregar)
+INSERT INTO items (code, name, item_type, rarity, is_quest_item, description)
+SELECT 'CARTA_DE_ELENYA', 'Carta de Elenya', 'MATERIAL', 'POCO_COMUN', TRUE, 'Una carta con el sello de la Catedral de Aurelia. Va dirigida a Durgan, jefe de la mina del Bastión de Hierro.'
+WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'CARTA_DE_ELENYA');
+UPDATE items SET name = 'Carta de Elenya', is_quest_item = TRUE, description = 'Una carta con el sello de la Catedral de Aurelia. Va dirigida a Durgan, jefe de la mina del Bastión de Hierro.' WHERE code = 'CARTA_DE_ELENYA';
+INSERT INTO items (code, name, item_type, rarity, is_quest_item, description)
+SELECT 'HACHA_DE_ORCO_MARCADA', 'Hacha de orco marcada', 'MATERIAL', 'POCO_COMUN', TRUE, 'Un hacha de orco con un eclipse negro pintado en el mango. Los orcos no pintan sus hachas.'
+WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'HACHA_DE_ORCO_MARCADA');
+UPDATE items SET name = 'Hacha de orco marcada', is_quest_item = TRUE, description = 'Un hacha de orco con un eclipse negro pintado en el mango. Los orcos no pintan sus hachas.' WHERE code = 'HACHA_DE_ORCO_MARCADA';
+INSERT INTO items (code, name, item_type, rarity, is_quest_item, description)
+SELECT 'CRISTAL_DE_LA_VETA', 'Cristal de la veta', 'MATERIAL', 'POCO_COMUN', TRUE, 'Un Cristal de Eclipse incrustado en una veta de hierro, como si la montaña lo hubiera tragado.'
+WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'CRISTAL_DE_LA_VETA');
+UPDATE items SET name = 'Cristal de la veta', is_quest_item = TRUE, description = 'Un Cristal de Eclipse incrustado en una veta de hierro, como si la montaña lo hubiera tragado.' WHERE code = 'CRISTAL_DE_LA_VETA';
+INSERT INTO items (code, name, item_type, rarity, is_quest_item, description)
+SELECT 'LLAVE_MINA_PROFUNDA', 'Llave de la Mina Profunda', 'MATERIAL', 'POCO_COMUN', TRUE, 'Una llave de hierro negro, pesada como un martillo. Abre la puerta de la Mina Profunda.'
+WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'LLAVE_MINA_PROFUNDA');
+UPDATE items SET name = 'Llave de la Mina Profunda', is_quest_item = TRUE, description = 'Una llave de hierro negro, pesada como un martillo. Abre la puerta de la Mina Profunda.' WHERE code = 'LLAVE_MINA_PROFUNDA';
+INSERT INTO items (code, name, item_type, rarity, is_quest_item, description)
+SELECT 'ESQUIRLA_DEL_SELLO', 'Esquirla del Segundo Sello', 'MATERIAL', 'POCO_COMUN', TRUE, 'Una esquirla de piedra azul con una runa que chispea. Se desprendió del Segundo Sello, que está agrietado.'
+WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'ESQUIRLA_DEL_SELLO');
+UPDATE items SET name = 'Esquirla del Segundo Sello', is_quest_item = TRUE, description = 'Una esquirla de piedra azul con una runa que chispea. Se desprendió del Segundo Sello, que está agrietado.' WHERE code = 'ESQUIRLA_DEL_SELLO';
+INSERT INTO items (code, name, item_type, rarity, is_quest_item, description)
+SELECT 'NOTA_DEL_BRUJO', 'Nota del Brujo', 'MATERIAL', 'POCO_COMUN', TRUE, 'Una nota quemada en los bordes: «El Corazón de la Tormenta late en mis manos. Cuando el Rey caiga, el Segundo Sello caerá con él».'
+WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'NOTA_DEL_BRUJO');
+UPDATE items SET name = 'Nota del Brujo', is_quest_item = TRUE, description = 'Una nota quemada en los bordes: «El Corazón de la Tormenta late en mis manos. Cuando el Rey caiga, el Segundo Sello caerá con él».' WHERE code = 'NOTA_DEL_BRUJO';
+INSERT INTO items (code, name, item_type, rarity, is_quest_item, description)
+SELECT 'CORAZON_DE_LA_TORMENTA', 'Corazón de la Tormenta', 'MATERIAL', 'POCO_COMUN', TRUE, 'Una piedra del tamaño de un puño, llena de rayos negros. El Brujo la envenenó para enloquecer al Rey.'
+WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'CORAZON_DE_LA_TORMENTA');
+UPDATE items SET name = 'Corazón de la Tormenta', is_quest_item = TRUE, description = 'Una piedra del tamaño de un puño, llena de rayos negros. El Brujo la envenenó para enloquecer al Rey.' WHERE code = 'CORAZON_DE_LA_TORMENTA';
+INSERT INTO items (code, name, item_type, rarity, is_quest_item, description)
+SELECT 'FRAGMENTO_SELLO_MONTANAS', 'Segundo Fragmento de Sello', 'MATERIAL', 'POCO_COMUN', TRUE, 'Una piedra tibia con una runa plateada. Es un pedazo del Segundo Sello de Aethra, el que guardaba el Rey de la Montaña.'
+WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'FRAGMENTO_SELLO_MONTANAS');
+UPDATE items SET name = 'Segundo Fragmento de Sello', is_quest_item = TRUE, description = 'Una piedra tibia con una runa plateada. Es un pedazo del Segundo Sello de Aethra, el que guardaba el Rey de la Montaña.' WHERE code = 'FRAGMENTO_SELLO_MONTANAS';
+
+-- El Bastión de Hierro
+INSERT INTO quests (code, name, quest_type, zone_id, min_level, max_level, difficulty_stars, npc_name, location_name, is_repeatable, repeat_cooldown_hours, reputation_reward, gold_reward, xp_reward, description, is_personal, is_boss_quest, giver_npc, turn_in_npc, dialog, chain_position, chain_total)
+SELECT 'MONTANAS_HISTORIA_01_BASTION', 'El Bastión de Hierro', 'PRINCIPAL', 2, 16, 30, 2, 'Elenya', 'Bastión de Hierro', FALSE, NULL, 100, 1000, 4500, '«El Encapuchado subió por el Paso de la Montaña. Los enanos del Bastión de Hierro no dejan pasar a cualquiera: lleva esta carta a Durgan, su jefe. Le cuento quién eres y por qué te necesitamos.»', TRUE, FALSE, 'elenya', 'durgan', '{"entrega":"Hmph. Una carta de la Catedral. Los humanos solo escriben cuando necesitan algo. «Es un Vigía», dice aquí. Ya veremos. En el Bastión nadie come gratis: si quieres pasar, primero ayudas."}'::jsonb, 1, 14
+WHERE NOT EXISTS (SELECT 1 FROM quests WHERE code = 'MONTANAS_HISTORIA_01_BASTION');
+UPDATE quests SET name = 'El Bastión de Hierro', quest_type = 'PRINCIPAL', zone_id = 2, min_level = 16, max_level = 30, difficulty_stars = 2, npc_name = 'Elenya', location_name = 'Bastión de Hierro', is_repeatable = FALSE, repeat_cooldown_hours = NULL, reputation_reward = 100, gold_reward = 1000, xp_reward = 4500, description = '«El Encapuchado subió por el Paso de la Montaña. Los enanos del Bastión de Hierro no dejan pasar a cualquiera: lleva esta carta a Durgan, su jefe. Le cuento quién eres y por qué te necesitamos.»', is_personal = TRUE, is_boss_quest = FALSE, giver_npc = 'elenya', turn_in_npc = 'durgan', dialog = '{"entrega":"Hmph. Una carta de la Catedral. Los humanos solo escriben cuando necesitan algo. «Es un Vigía», dice aquí. Ya veremos. En el Bastión nadie come gratis: si quieres pasar, primero ayudas."}'::jsonb, chain_position = 1, chain_total = 14 WHERE code = 'MONTANAS_HISTORIA_01_BASTION';
+DELETE FROM quest_objectives WHERE quest_id = (SELECT id FROM quests WHERE code = 'MONTANAS_HISTORIA_01_BASTION');
+INSERT INTO quest_objectives (quest_id, objective_type, step, target_code, monster_id, item_id, target_count, params, description)
+SELECT (SELECT id FROM quests WHERE code = 'MONTANAS_HISTORIA_01_BASTION'), v.t, v.step, v.target, (SELECT id FROM monsters WHERE code = v.monster), (SELECT id FROM items WHERE code = v.item), v.n, v.params::jsonb, v.descr
+FROM (VALUES
+  ('TALK', 1, 'elenya', NULL, NULL, 1, '{"speaker":"Elenya","dialog":"Durgan es duro como su montaña, pero es justo. Dale esto y dile que vienes de parte de Aethra.","gives":{"item":"CARTA_DE_ELENYA","qty":1}}', 'Recibe la carta de Elenya'),
+  ('VISIT', 2, NULL, NULL, NULL, 1, '{"zone":"montanas","x":56,"y":50,"radius":3,"label":"Llegar al Bastión de Hierro","speaker":"Tú","dialog":"Entre la nieve aparecen murallas de piedra, chimeneas que humean y estandartes rojos con un martillo. El Bastión de Hierro."}', 'Cruza el Paso de la Montaña hasta el Bastión de Hierro'),
+  ('DELIVER', 3, 'durgan', NULL, 'CARTA_DE_ELENYA', 1, '{"speaker":"Durgan","dialog":"¿Una carta? Dámela. Y no toques nada que brille."}', 'Lleva la carta de Elenya a Durgan, en la mina del Bastión')
+) AS v(t, step, target, monster, item, n, params, descr);
+DELETE FROM quest_npc_spots WHERE quest_id = (SELECT id FROM quests WHERE code = 'MONTANAS_HISTORIA_01_BASTION');
+DELETE FROM quest_item_rewards WHERE quest_id = (SELECT id FROM quests WHERE code = 'MONTANAS_HISTORIA_01_BASTION');
+
+-- Orcos en el Paso
+INSERT INTO quests (code, name, quest_type, zone_id, min_level, max_level, difficulty_stars, npc_name, location_name, is_repeatable, repeat_cooldown_hours, reputation_reward, gold_reward, xp_reward, description, is_personal, is_boss_quest, giver_npc, turn_in_npc, dialog, chain_position, chain_total)
+SELECT 'MONTANAS_HISTORIA_02_ORCOS', 'Orcos en el Paso', 'PRINCIPAL', 2, 16, 30, 2, 'Durgan', 'Paso de la Montaña', FALSE, NULL, 100, 1100, 5000, '«Los orcos bajan al Paso y asaltan las carretas de mineral. Antes nos tenían miedo. Ahora vienen en grupo, como si alguien los mandara. Espanta a seis y busca la carreta que asaltaron ayer.»', TRUE, FALSE, 'durgan', 'durgan', '{"entrega":"Un eclipse… pintado en un hacha de orco. Los orcos no pintan sus hachas: las roban. Alguien les paga. Alguien que no quiere que las carretas lleguen a la mina. Hmph. Ve a comer algo con Hilda, que te lo ganaste."}'::jsonb, 2, 14
+WHERE NOT EXISTS (SELECT 1 FROM quests WHERE code = 'MONTANAS_HISTORIA_02_ORCOS');
+UPDATE quests SET name = 'Orcos en el Paso', quest_type = 'PRINCIPAL', zone_id = 2, min_level = 16, max_level = 30, difficulty_stars = 2, npc_name = 'Durgan', location_name = 'Paso de la Montaña', is_repeatable = FALSE, repeat_cooldown_hours = NULL, reputation_reward = 100, gold_reward = 1100, xp_reward = 5000, description = '«Los orcos bajan al Paso y asaltan las carretas de mineral. Antes nos tenían miedo. Ahora vienen en grupo, como si alguien los mandara. Espanta a seis y busca la carreta que asaltaron ayer.»', is_personal = TRUE, is_boss_quest = FALSE, giver_npc = 'durgan', turn_in_npc = 'durgan', dialog = '{"entrega":"Un eclipse… pintado en un hacha de orco. Los orcos no pintan sus hachas: las roban. Alguien les paga. Alguien que no quiere que las carretas lleguen a la mina. Hmph. Ve a comer algo con Hilda, que te lo ganaste."}'::jsonb, chain_position = 2, chain_total = 14 WHERE code = 'MONTANAS_HISTORIA_02_ORCOS';
+DELETE FROM quest_objectives WHERE quest_id = (SELECT id FROM quests WHERE code = 'MONTANAS_HISTORIA_02_ORCOS');
+INSERT INTO quest_objectives (quest_id, objective_type, step, target_code, monster_id, item_id, target_count, params, description)
+SELECT (SELECT id FROM quests WHERE code = 'MONTANAS_HISTORIA_02_ORCOS'), v.t, v.step, v.target, (SELECT id FROM monsters WHERE code = v.monster), (SELECT id FROM items WHERE code = v.item), v.n, v.params::jsonb, v.descr
+FROM (VALUES
+  ('KILL_MONSTER', 1, 'ORCO_MONTANA', 'ORCO_MONTANA', NULL, 6, NULL, 'Derrota 6 Orcos de Montaña en el Paso'),
+  ('INVESTIGATE', 2, NULL, NULL, NULL, 1, '{"zone":"montanas","x":30,"y":49,"radius":3,"label":"Revisar la carreta","speaker":"Tú","dialog":"La carreta está volcada y el mineral regado por la nieve. Entre las piedras hay un hacha de orco con un eclipse negro pintado en el mango.","gives":{"item":"HACHA_DE_ORCO_MARCADA","qty":1},"sprite":"carro_asaltado"}', 'Revisa la carreta de mineral asaltada'),
+  ('DELIVER', 3, 'durgan', NULL, 'HACHA_DE_ORCO_MARCADA', 1, NULL, 'Lleva el hacha marcada a Durgan')
+) AS v(t, step, target, monster, item, n, params, descr);
+DELETE FROM quest_npc_spots WHERE quest_id = (SELECT id FROM quests WHERE code = 'MONTANAS_HISTORIA_02_ORCOS');
+DELETE FROM quest_item_rewards WHERE quest_id = (SELECT id FROM quests WHERE code = 'MONTANAS_HISTORIA_02_ORCOS');
+INSERT INTO quest_item_rewards (quest_id, item_id, quantity)
+SELECT (SELECT id FROM quests WHERE code = 'MONTANAS_HISTORIA_02_ORCOS'), i.id, v.qty FROM (VALUES ('ASADO_CABRA', 3)) AS v(code, qty) JOIN items i ON i.code = v.code;
+
+-- Mineros perdidos
+INSERT INTO quests (code, name, quest_type, zone_id, min_level, max_level, difficulty_stars, npc_name, location_name, is_repeatable, repeat_cooldown_hours, reputation_reward, gold_reward, xp_reward, description, is_personal, is_boss_quest, giver_npc, turn_in_npc, dialog, chain_position, chain_total)
+SELECT 'MONTANAS_HISTORIA_03_MINEROS', 'Mineros perdidos', 'PRINCIPAL', 2, 17, 30, 2, 'Durgan', 'Minas Abandonadas', FALSE, NULL, 110, 1150, 5400, '«Tres de mis muchachos bajaron a las Minas Abandonadas a buscar hierro y no volvieron. Bram, Kili y la vieja Dora. Si siguen vivos, tráelos. Si no… tráeme sus picos, que eran buenos.»', TRUE, FALSE, 'durgan', 'durgan', '{"entrega":"Los tres vivos. Hmph. *se suena la nariz* El frío, eso es. Dicen que vieron a un hombre con capucha bajando por los túneles viejos. Y que los mineros que se quedaron abajo ya no se acuerdan de su nombre."}'::jsonb, 3, 14
+WHERE NOT EXISTS (SELECT 1 FROM quests WHERE code = 'MONTANAS_HISTORIA_03_MINEROS');
+UPDATE quests SET name = 'Mineros perdidos', quest_type = 'PRINCIPAL', zone_id = 2, min_level = 17, max_level = 30, difficulty_stars = 2, npc_name = 'Durgan', location_name = 'Minas Abandonadas', is_repeatable = FALSE, repeat_cooldown_hours = NULL, reputation_reward = 110, gold_reward = 1150, xp_reward = 5400, description = '«Tres de mis muchachos bajaron a las Minas Abandonadas a buscar hierro y no volvieron. Bram, Kili y la vieja Dora. Si siguen vivos, tráelos. Si no… tráeme sus picos, que eran buenos.»', is_personal = TRUE, is_boss_quest = FALSE, giver_npc = 'durgan', turn_in_npc = 'durgan', dialog = '{"entrega":"Los tres vivos. Hmph. *se suena la nariz* El frío, eso es. Dicen que vieron a un hombre con capucha bajando por los túneles viejos. Y que los mineros que se quedaron abajo ya no se acuerdan de su nombre."}'::jsonb, chain_position = 3, chain_total = 14 WHERE code = 'MONTANAS_HISTORIA_03_MINEROS';
+DELETE FROM quest_objectives WHERE quest_id = (SELECT id FROM quests WHERE code = 'MONTANAS_HISTORIA_03_MINEROS');
+INSERT INTO quest_objectives (quest_id, objective_type, step, target_code, monster_id, item_id, target_count, params, description)
+SELECT (SELECT id FROM quests WHERE code = 'MONTANAS_HISTORIA_03_MINEROS'), v.t, v.step, v.target, (SELECT id FROM monsters WHERE code = v.monster), (SELECT id FROM items WHERE code = v.item), v.n, v.params::jsonb, v.descr
+FROM (VALUES
+  ('INVESTIGATE', 1, NULL, NULL, NULL, 1, '{"zone":"montanas","x":18,"y":22,"radius":3,"label":"Ayudar a Bram","speaker":"Bram","dialog":"¡Por la barba de mi abuelo, un humano! Se me cayó el techo encima del pie. Ayúdame a salir y vuelvo solo al Bastión."}', 'Encuentra a Bram en la Escombrera'),
+  ('INVESTIGATE', 1, NULL, NULL, NULL, 1, '{"zone":"montanas","x":38,"y":12,"radius":3,"label":"Ayudar a Kili","speaker":"Kili","dialog":"Shhh… los murciélagos. Me escondí en esta grieta hace dos días. ¡Llévame a casa, que me muero por un caldo de Hilda!"}', 'Encuentra a Kili en las Vetas Viejas'),
+  ('AMBUSH', 2, NULL, NULL, NULL, 1, '{"zone":"montanas","x":46,"y":24,"radius":3,"label":"Buscar a Dora","dialog":"¡Una nube de murciélagos rodea a la vieja Dora!","monsters":[{"code":"MURCIELAGO_CAVERNA","level":17},{"code":"MURCIELAGO_CAVERNA","level":17}]}', 'Defiende a Dora de los murciélagos'),
+  ('TALK', 3, 'durgan', NULL, NULL, 1, NULL, 'Avísale a Durgan que los mineros están a salvo')
+) AS v(t, step, target, monster, item, n, params, descr);
+DELETE FROM quest_npc_spots WHERE quest_id = (SELECT id FROM quests WHERE code = 'MONTANAS_HISTORIA_03_MINEROS');
+DELETE FROM quest_item_rewards WHERE quest_id = (SELECT id FROM quests WHERE code = 'MONTANAS_HISTORIA_03_MINEROS');
+
+-- Vetas negras
+INSERT INTO quests (code, name, quest_type, zone_id, min_level, max_level, difficulty_stars, npc_name, location_name, is_repeatable, repeat_cooldown_hours, reputation_reward, gold_reward, xp_reward, description, is_personal, is_boss_quest, giver_npc, turn_in_npc, dialog, chain_position, chain_total)
+SELECT 'MONTANAS_HISTORIA_04_VETAS', 'Vetas negras', 'PRINCIPAL', 2, 18, 30, 2, 'Durgan', 'Minas Abandonadas', FALSE, NULL, 110, 1200, 5800, '«Los mineros que no volvieron… los vi ayer en la boca de la mina. Picaban la roca con las manos sangrando y los ojos negros. Derrota a los Mineros Corrompidos, pero no los mates si puedes evitarlo, y averigua qué hay en esas vetas.»', TRUE, FALSE, 'durgan', 'durgan', '{"entrega":"Un Cristal de Eclipse… metido en la veta como si la montaña lo hubiera tragado. Eso no crece solo. Hmph. Mi abuelo me contó de esto: la Mina Profunda, la que sellamos hace trescientos años. Ahí abajo hay algo que no se debe tocar."}'::jsonb, 4, 14
+WHERE NOT EXISTS (SELECT 1 FROM quests WHERE code = 'MONTANAS_HISTORIA_04_VETAS');
+UPDATE quests SET name = 'Vetas negras', quest_type = 'PRINCIPAL', zone_id = 2, min_level = 18, max_level = 30, difficulty_stars = 2, npc_name = 'Durgan', location_name = 'Minas Abandonadas', is_repeatable = FALSE, repeat_cooldown_hours = NULL, reputation_reward = 110, gold_reward = 1200, xp_reward = 5800, description = '«Los mineros que no volvieron… los vi ayer en la boca de la mina. Picaban la roca con las manos sangrando y los ojos negros. Derrota a los Mineros Corrompidos, pero no los mates si puedes evitarlo, y averigua qué hay en esas vetas.»', is_personal = TRUE, is_boss_quest = FALSE, giver_npc = 'durgan', turn_in_npc = 'durgan', dialog = '{"entrega":"Un Cristal de Eclipse… metido en la veta como si la montaña lo hubiera tragado. Eso no crece solo. Hmph. Mi abuelo me contó de esto: la Mina Profunda, la que sellamos hace trescientos años. Ahí abajo hay algo que no se debe tocar."}'::jsonb, chain_position = 4, chain_total = 14 WHERE code = 'MONTANAS_HISTORIA_04_VETAS';
+DELETE FROM quest_objectives WHERE quest_id = (SELECT id FROM quests WHERE code = 'MONTANAS_HISTORIA_04_VETAS');
+INSERT INTO quest_objectives (quest_id, objective_type, step, target_code, monster_id, item_id, target_count, params, description)
+SELECT (SELECT id FROM quests WHERE code = 'MONTANAS_HISTORIA_04_VETAS'), v.t, v.step, v.target, (SELECT id FROM monsters WHERE code = v.monster), (SELECT id FROM items WHERE code = v.item), v.n, v.params::jsonb, v.descr
+FROM (VALUES
+  ('KILL_MONSTER', 1, 'MINERO_CORROMPIDO', 'MINERO_CORROMPIDO', NULL, 6, NULL, 'Derrota 6 Mineros Corrompidos'),
+  ('INVESTIGATE', 2, NULL, NULL, NULL, 1, '{"zone":"montanas","x":26,"y":9,"radius":3,"label":"Examinar la veta negra","speaker":"Tú","dialog":"La veta de hierro está negra y tibia. En el centro brilla un cristal oscuro que late, igual que los de la Pradera. Lo arrancas con cuidado.","gives":{"item":"CRISTAL_DE_LA_VETA","qty":1},"sprite":"cristal_suelo"}', 'Examina la veta negra de las Minas Abandonadas'),
+  ('DELIVER', 3, 'durgan', NULL, 'CRISTAL_DE_LA_VETA', 1, NULL, 'Lleva el cristal a Durgan')
+) AS v(t, step, target, monster, item, n, params, descr);
+DELETE FROM quest_npc_spots WHERE quest_id = (SELECT id FROM quests WHERE code = 'MONTANAS_HISTORIA_04_VETAS');
+DELETE FROM quest_item_rewards WHERE quest_id = (SELECT id FROM quests WHERE code = 'MONTANAS_HISTORIA_04_VETAS');
+INSERT INTO quest_item_rewards (quest_id, item_id, quantity)
+SELECT (SELECT id FROM quests WHERE code = 'MONTANAS_HISTORIA_04_VETAS'), i.id, v.qty FROM (VALUES ('POCION_DE_VIDA_MAYOR', 3)) AS v(code, qty) JOIN items i ON i.code = v.code;
+
+-- Los guardianes de piedra
+INSERT INTO quests (code, name, quest_type, zone_id, min_level, max_level, difficulty_stars, npc_name, location_name, is_repeatable, repeat_cooldown_hours, reputation_reward, gold_reward, xp_reward, description, is_personal, is_boss_quest, giver_npc, turn_in_npc, dialog, chain_position, chain_total)
+SELECT 'MONTANAS_Q1_PROTECTOR_PIEDRA', 'Los guardianes de piedra', 'PRINCIPAL', 2, 19, 30, 3, 'Durgan', 'Minas Abandonadas', FALSE, NULL, 120, 1300, 6200, '«La Mina Profunda la cuidan los Centinelas de Piedra que tallaron mis abuelos. Siguen cumpliendo la orden: no dejar pasar a nadie. Ni siquiera a mí. Derrota a cinco y te doy la llave. Y no le digas a nadie que te la di.»', TRUE, FALSE, 'durgan', 'durgan', '{"entrega":"Cinco centinelas. Mis abuelos los hicieron fuertes… pero tú eres más terco. Toma la llave. La puerta está al fondo de las Minas Abandonadas. Y lleva antorcha: allá abajo la oscuridad tiene dientes."}'::jsonb, 5, 14
+WHERE NOT EXISTS (SELECT 1 FROM quests WHERE code = 'MONTANAS_Q1_PROTECTOR_PIEDRA');
+UPDATE quests SET name = 'Los guardianes de piedra', quest_type = 'PRINCIPAL', zone_id = 2, min_level = 19, max_level = 30, difficulty_stars = 3, npc_name = 'Durgan', location_name = 'Minas Abandonadas', is_repeatable = FALSE, repeat_cooldown_hours = NULL, reputation_reward = 120, gold_reward = 1300, xp_reward = 6200, description = '«La Mina Profunda la cuidan los Centinelas de Piedra que tallaron mis abuelos. Siguen cumpliendo la orden: no dejar pasar a nadie. Ni siquiera a mí. Derrota a cinco y te doy la llave. Y no le digas a nadie que te la di.»', is_personal = TRUE, is_boss_quest = FALSE, giver_npc = 'durgan', turn_in_npc = 'durgan', dialog = '{"entrega":"Cinco centinelas. Mis abuelos los hicieron fuertes… pero tú eres más terco. Toma la llave. La puerta está al fondo de las Minas Abandonadas. Y lleva antorcha: allá abajo la oscuridad tiene dientes."}'::jsonb, chain_position = 5, chain_total = 14 WHERE code = 'MONTANAS_Q1_PROTECTOR_PIEDRA';
+DELETE FROM quest_objectives WHERE quest_id = (SELECT id FROM quests WHERE code = 'MONTANAS_Q1_PROTECTOR_PIEDRA');
+INSERT INTO quest_objectives (quest_id, objective_type, step, target_code, monster_id, item_id, target_count, params, description)
+SELECT (SELECT id FROM quests WHERE code = 'MONTANAS_Q1_PROTECTOR_PIEDRA'), v.t, v.step, v.target, (SELECT id FROM monsters WHERE code = v.monster), (SELECT id FROM items WHERE code = v.item), v.n, v.params::jsonb, v.descr
+FROM (VALUES
+  ('KILL_MONSTER', 1, 'CENTINELA_PIEDRA', 'CENTINELA_PIEDRA', NULL, 5, NULL, 'Derrota 5 Centinelas de Piedra'),
+  ('TALK', 2, 'durgan', NULL, NULL, 1, '{"speaker":"Durgan","dialog":"Esta llave no salió del Bastión en trescientos años. Si la pierdes, te arranco la barba. Aunque no tengas.","gives":{"item":"LLAVE_MINA_PROFUNDA","qty":1}}', 'Pídele a Durgan la llave de la Mina Profunda')
+) AS v(t, step, target, monster, item, n, params, descr);
+DELETE FROM quest_npc_spots WHERE quest_id = (SELECT id FROM quests WHERE code = 'MONTANAS_Q1_PROTECTOR_PIEDRA');
+DELETE FROM quest_item_rewards WHERE quest_id = (SELECT id FROM quests WHERE code = 'MONTANAS_Q1_PROTECTOR_PIEDRA');
+
+-- La Mina Profunda
+INSERT INTO quests (code, name, quest_type, zone_id, min_level, max_level, difficulty_stars, npc_name, location_name, is_repeatable, repeat_cooldown_hours, reputation_reward, gold_reward, xp_reward, description, is_personal, is_boss_quest, giver_npc, turn_in_npc, dialog, chain_position, chain_total)
+SELECT 'MONTANAS_HISTORIA_06_SELLO', 'La Mina Profunda', 'PRINCIPAL', 2, 20, 30, 4, 'Durgan', 'Mina Profunda', FALSE, NULL, 150, 1500, 7500, '«Baja a la Mina Profunda. Dicen las canciones que ahí abajo hay una piedra azul que mi pueblo juró cuidar. Si está bien, vuelve y olvidamos todo esto. Si no… tráeme algo que me diga qué pasó. Ve con amigos.»', TRUE, FALSE, 'durgan', 'durgan', '{"entrega":"Una esquirla… del Sello. Entonces era verdad. El Segundo Sello está agrietado. Y el Gólem de Hierro Negro, el guardián que dejó mi abuelo, tenía cristales clavados como el Titán de tu Pradera. Alguien quiere romper esto desde adentro. Y desde afuera: mira esas tormentas."}'::jsonb, 6, 14
+WHERE NOT EXISTS (SELECT 1 FROM quests WHERE code = 'MONTANAS_HISTORIA_06_SELLO');
+UPDATE quests SET name = 'La Mina Profunda', quest_type = 'PRINCIPAL', zone_id = 2, min_level = 20, max_level = 30, difficulty_stars = 4, npc_name = 'Durgan', location_name = 'Mina Profunda', is_repeatable = FALSE, repeat_cooldown_hours = NULL, reputation_reward = 150, gold_reward = 1500, xp_reward = 7500, description = '«Baja a la Mina Profunda. Dicen las canciones que ahí abajo hay una piedra azul que mi pueblo juró cuidar. Si está bien, vuelve y olvidamos todo esto. Si no… tráeme algo que me diga qué pasó. Ve con amigos.»', is_personal = TRUE, is_boss_quest = FALSE, giver_npc = 'durgan', turn_in_npc = 'durgan', dialog = '{"entrega":"Una esquirla… del Sello. Entonces era verdad. El Segundo Sello está agrietado. Y el Gólem de Hierro Negro, el guardián que dejó mi abuelo, tenía cristales clavados como el Titán de tu Pradera. Alguien quiere romper esto desde adentro. Y desde afuera: mira esas tormentas."}'::jsonb, chain_position = 6, chain_total = 14 WHERE code = 'MONTANAS_HISTORIA_06_SELLO';
+DELETE FROM quest_objectives WHERE quest_id = (SELECT id FROM quests WHERE code = 'MONTANAS_HISTORIA_06_SELLO');
+INSERT INTO quest_objectives (quest_id, objective_type, step, target_code, monster_id, item_id, target_count, params, description)
+SELECT (SELECT id FROM quests WHERE code = 'MONTANAS_HISTORIA_06_SELLO'), v.t, v.step, v.target, (SELECT id FROM monsters WHERE code = v.monster), (SELECT id FROM items WHERE code = v.item), v.n, v.params::jsonb, v.descr
+FROM (VALUES
+  ('VISIT', 1, NULL, NULL, NULL, 1, '{"zone":"montanas","x":22,"y":9,"radius":3,"label":"Abrir la puerta de la mina","speaker":"Tú","dialog":"La llave entra con un chirrido. Detrás de la puerta, un túnel baja a la oscuridad. Se oye agua que gotea… y algo de hierro que se arrastra."}', 'Abre la puerta de la Mina Profunda, al fondo de las Minas Abandonadas'),
+  ('DEFEAT_BOSS', 2, 'MINA_GOLEM_NEGRO', 'MINA_GOLEM_NEGRO', NULL, 1, NULL, 'Derrota al Gólem de Hierro Negro en el fondo de la Mina Profunda'),
+  ('INVESTIGATE', 3, NULL, NULL, NULL, 1, '{"zone":"mina_profunda","x":20,"y":55,"radius":3,"label":"Examinar el Sello","speaker":"Tú","dialog":"Una piedra azul enorme, con runas plateadas, cruzada por una grieta que late con luz negra. Al tocarla se desprende una esquirla.","gives":{"item":"ESQUIRLA_DEL_SELLO","qty":1}}', 'Examina el Segundo Sello'),
+  ('DELIVER', 4, 'durgan', NULL, 'ESQUIRLA_DEL_SELLO', 1, NULL, 'Lleva la esquirla del Sello a Durgan')
+) AS v(t, step, target, monster, item, n, params, descr);
+DELETE FROM quest_npc_spots WHERE quest_id = (SELECT id FROM quests WHERE code = 'MONTANAS_HISTORIA_06_SELLO');
+DELETE FROM quest_item_rewards WHERE quest_id = (SELECT id FROM quests WHERE code = 'MONTANAS_HISTORIA_06_SELLO');
+
+-- Los que se perdieron en la nieve
+INSERT INTO quests (code, name, quest_type, zone_id, min_level, max_level, difficulty_stars, npc_name, location_name, is_repeatable, repeat_cooldown_hours, reputation_reward, gold_reward, xp_reward, description, is_personal, is_boss_quest, giver_npc, turn_in_npc, dialog, chain_position, chain_total)
+SELECT 'MONTANAS_HISTORIA_07_PINAR', 'Los que se perdieron en la nieve', 'PRINCIPAL', 2, 21, 30, 3, 'Ren', 'Pinar Nevado', FALSE, NULL, 130, 1500, 7800, '«Seguí las huellas del Encapuchado hasta el Pinar Nevado. Ahí las perdí: los espectros no dejan rastrear a nadie. Despeja el camino y ayúdame a encontrar por dónde siguió.»', TRUE, FALSE, 'ren_bastion', 'ren_bastion', '{"entrega":"Huellas que van al lago… y marcas de bastón. No era el Encapuchado: era otro. Alguien que llama a los rayos con una vara. Los enanos le dicen el Brujo de la Montaña."}'::jsonb, 7, 14
+WHERE NOT EXISTS (SELECT 1 FROM quests WHERE code = 'MONTANAS_HISTORIA_07_PINAR');
+UPDATE quests SET name = 'Los que se perdieron en la nieve', quest_type = 'PRINCIPAL', zone_id = 2, min_level = 21, max_level = 30, difficulty_stars = 3, npc_name = 'Ren', location_name = 'Pinar Nevado', is_repeatable = FALSE, repeat_cooldown_hours = NULL, reputation_reward = 130, gold_reward = 1500, xp_reward = 7800, description = '«Seguí las huellas del Encapuchado hasta el Pinar Nevado. Ahí las perdí: los espectros no dejan rastrear a nadie. Despeja el camino y ayúdame a encontrar por dónde siguió.»', is_personal = TRUE, is_boss_quest = FALSE, giver_npc = 'ren_bastion', turn_in_npc = 'ren_bastion', dialog = '{"entrega":"Huellas que van al lago… y marcas de bastón. No era el Encapuchado: era otro. Alguien que llama a los rayos con una vara. Los enanos le dicen el Brujo de la Montaña."}'::jsonb, chain_position = 7, chain_total = 14 WHERE code = 'MONTANAS_HISTORIA_07_PINAR';
+DELETE FROM quest_objectives WHERE quest_id = (SELECT id FROM quests WHERE code = 'MONTANAS_HISTORIA_07_PINAR');
+INSERT INTO quest_objectives (quest_id, objective_type, step, target_code, monster_id, item_id, target_count, params, description)
+SELECT (SELECT id FROM quests WHERE code = 'MONTANAS_HISTORIA_07_PINAR'), v.t, v.step, v.target, (SELECT id FROM monsters WHERE code = v.monster), (SELECT id FROM items WHERE code = v.item), v.n, v.params::jsonb, v.descr
+FROM (VALUES
+  ('KILL_MONSTER', 1, 'ESPECTRO_HELADO', 'ESPECTRO_HELADO', NULL, 6, NULL, 'Derrota 6 Espectros Helados en el Pinar'),
+  ('INVESTIGATE', 2, NULL, NULL, NULL, 1, '{"zone":"montanas","x":78,"y":22,"radius":3,"label":"Buscar huellas","speaker":"Tú","dialog":"Bajo la nieve fresca hay huellas de botas y, al lado, pequeños agujeros redondos. Alguien camina con un bastón. Van hacia el este, al lago."}', 'Busca huellas en el Pinar Nevado'),
+  ('TALK', 3, 'ren_bastion', NULL, NULL, 1, NULL, 'Cuéntale a Ren lo que encontraste')
+) AS v(t, step, target, monster, item, n, params, descr);
+DELETE FROM quest_npc_spots WHERE quest_id = (SELECT id FROM quests WHERE code = 'MONTANAS_HISTORIA_07_PINAR');
+DELETE FROM quest_item_rewards WHERE quest_id = (SELECT id FROM quests WHERE code = 'MONTANAS_HISTORIA_07_PINAR');
+
+-- El lago que no se derrite
+INSERT INTO quests (code, name, quest_type, zone_id, min_level, max_level, difficulty_stars, npc_name, location_name, is_repeatable, repeat_cooldown_hours, reputation_reward, gold_reward, xp_reward, description, is_personal, is_boss_quest, giver_npc, turn_in_npc, dialog, chain_position, chain_total)
+SELECT 'MONTANAS_HISTORIA_08_LAGO', 'El lago que no se derrite', 'PRINCIPAL', 2, 22, 30, 3, 'Ren', 'Lago Helado', FALSE, NULL, 130, 1600, 8200, '«El Lago Helado no se derrite ni en verano, y ahora tampoco se congela del todo: el hielo cruje y las sierpes salen a cazar. Las huellas del Brujo terminan en la orilla. Averigua qué hacía ahí.»', TRUE, FALSE, 'ren_bastion', 'ren_bastion', '{"entrega":"Un círculo de piedras en el hielo, como el de la Pradera. El Brujo usaba el agua del lago para su ritual. Y las huellas siguen hacia el sur… a la Garganta del Eco. Hmm. Tilo me pidió permiso para ir a cazar arpías. Le dije que no. Espero que me haya hecho caso."}'::jsonb, 8, 14
+WHERE NOT EXISTS (SELECT 1 FROM quests WHERE code = 'MONTANAS_HISTORIA_08_LAGO');
+UPDATE quests SET name = 'El lago que no se derrite', quest_type = 'PRINCIPAL', zone_id = 2, min_level = 22, max_level = 30, difficulty_stars = 3, npc_name = 'Ren', location_name = 'Lago Helado', is_repeatable = FALSE, repeat_cooldown_hours = NULL, reputation_reward = 130, gold_reward = 1600, xp_reward = 8200, description = '«El Lago Helado no se derrite ni en verano, y ahora tampoco se congela del todo: el hielo cruje y las sierpes salen a cazar. Las huellas del Brujo terminan en la orilla. Averigua qué hacía ahí.»', is_personal = TRUE, is_boss_quest = FALSE, giver_npc = 'ren_bastion', turn_in_npc = 'ren_bastion', dialog = '{"entrega":"Un círculo de piedras en el hielo, como el de la Pradera. El Brujo usaba el agua del lago para su ritual. Y las huellas siguen hacia el sur… a la Garganta del Eco. Hmm. Tilo me pidió permiso para ir a cazar arpías. Le dije que no. Espero que me haya hecho caso."}'::jsonb, chain_position = 8, chain_total = 14 WHERE code = 'MONTANAS_HISTORIA_08_LAGO';
+DELETE FROM quest_objectives WHERE quest_id = (SELECT id FROM quests WHERE code = 'MONTANAS_HISTORIA_08_LAGO');
+INSERT INTO quest_objectives (quest_id, objective_type, step, target_code, monster_id, item_id, target_count, params, description)
+SELECT (SELECT id FROM quests WHERE code = 'MONTANAS_HISTORIA_08_LAGO'), v.t, v.step, v.target, (SELECT id FROM monsters WHERE code = v.monster), (SELECT id FROM items WHERE code = v.item), v.n, v.params::jsonb, v.descr
+FROM (VALUES
+  ('KILL_MONSTER', 1, 'SIERPE_HIELO', 'SIERPE_HIELO', NULL, 5, NULL, 'Derrota 5 Sierpes de Hielo en la orilla'),
+  ('INVESTIGATE', 2, NULL, NULL, NULL, 1, '{"zone":"montanas","x":124,"y":26,"radius":3,"label":"Examinar el círculo","speaker":"Tú","dialog":"Siete piedras forman un círculo sobre el hielo. En el centro, el hielo está negro y quemado, como si un rayo hubiera caído mil veces en el mismo lugar.","sprite":"altar_eclipse"}', 'Examina el círculo de piedras sobre el hielo'),
+  ('TALK', 3, 'ren_bastion', NULL, NULL, 1, NULL, 'Cuéntale a Ren lo del círculo')
+) AS v(t, step, target, monster, item, n, params, descr);
+DELETE FROM quest_npc_spots WHERE quest_id = (SELECT id FROM quests WHERE code = 'MONTANAS_HISTORIA_08_LAGO');
+DELETE FROM quest_item_rewards WHERE quest_id = (SELECT id FROM quests WHERE code = 'MONTANAS_HISTORIA_08_LAGO');
+INSERT INTO quest_item_rewards (quest_id, item_id, quantity)
+SELECT (SELECT id FROM quests WHERE code = 'MONTANAS_HISTORIA_08_LAGO'), i.id, v.qty FROM (VALUES ('CALDO_OSO', 3)) AS v(code, qty) JOIN items i ON i.code = v.code;
+
+-- El escudero perdido
+INSERT INTO quests (code, name, quest_type, zone_id, min_level, max_level, difficulty_stars, npc_name, location_name, is_repeatable, repeat_cooldown_hours, reputation_reward, gold_reward, xp_reward, description, is_personal, is_boss_quest, giver_npc, turn_in_npc, dialog, chain_position, chain_total)
+SELECT 'MONTANAS_HISTORIA_09_TILO', 'El escudero perdido', 'PRINCIPAL', 2, 23, 30, 3, 'Durgan', 'Garganta del Eco', FALSE, NULL, 150, 1700, 8600, '«¡El chico! ¡Tilo se fue a la Garganta del Eco a «cazar una arpía para el desayuno»! No hizo caso. Nunca hacen caso. La Garganta repite tu voz para confundirte: si lo oyes gritar, puede que no sea él. Tráelo de vuelta.»', TRUE, FALSE, 'durgan', 'tilo_bastion', '{"entrega":"¡Lo siento, lo siento, lo siento! Pero mira lo que encontré: una nota del Brujo. ¡Soy un espía! Bueno… casi me comen. Pero soy un espía. Gracias por venir a buscarme."}'::jsonb, 9, 14
+WHERE NOT EXISTS (SELECT 1 FROM quests WHERE code = 'MONTANAS_HISTORIA_09_TILO');
+UPDATE quests SET name = 'El escudero perdido', quest_type = 'PRINCIPAL', zone_id = 2, min_level = 23, max_level = 30, difficulty_stars = 3, npc_name = 'Durgan', location_name = 'Garganta del Eco', is_repeatable = FALSE, repeat_cooldown_hours = NULL, reputation_reward = 150, gold_reward = 1700, xp_reward = 8600, description = '«¡El chico! ¡Tilo se fue a la Garganta del Eco a «cazar una arpía para el desayuno»! No hizo caso. Nunca hacen caso. La Garganta repite tu voz para confundirte: si lo oyes gritar, puede que no sea él. Tráelo de vuelta.»', is_personal = TRUE, is_boss_quest = FALSE, giver_npc = 'durgan', turn_in_npc = 'tilo_bastion', dialog = '{"entrega":"¡Lo siento, lo siento, lo siento! Pero mira lo que encontré: una nota del Brujo. ¡Soy un espía! Bueno… casi me comen. Pero soy un espía. Gracias por venir a buscarme."}'::jsonb, chain_position = 9, chain_total = 14 WHERE code = 'MONTANAS_HISTORIA_09_TILO';
+DELETE FROM quest_objectives WHERE quest_id = (SELECT id FROM quests WHERE code = 'MONTANAS_HISTORIA_09_TILO');
+INSERT INTO quest_objectives (quest_id, objective_type, step, target_code, monster_id, item_id, target_count, params, description)
+SELECT (SELECT id FROM quests WHERE code = 'MONTANAS_HISTORIA_09_TILO'), v.t, v.step, v.target, (SELECT id FROM monsters WHERE code = v.monster), (SELECT id FROM items WHERE code = v.item), v.n, v.params::jsonb, v.descr
+FROM (VALUES
+  ('VISIT', 1, NULL, NULL, NULL, 1, '{"zone":"montanas","x":30,"y":74,"radius":3,"label":"Seguir los gritos","speaker":"Tú","dialog":"«¡Socorrooo!» El grito viene de todas partes a la vez. Las arpías del Eco lo repiten desde las paredes. Hay huellas pequeñas que bajan hacia el fondo."}', 'Sigue los gritos de Tilo por los Puentes del Eco'),
+  ('AMBUSH', 2, NULL, NULL, NULL, 1, '{"zone":"montanas","x":48,"y":96,"radius":3,"label":"Buscar a Tilo","dialog":"¡Tilo está trepado a una roca, rodeado de arpías!","monsters":[{"code":"ARPIA_ECO","level":23},{"code":"ARPIA_ECO","level":23},{"code":"TROLL_SALVAJE","level":22}]}', 'Salva a Tilo de las arpías'),
+  ('INVESTIGATE', 3, NULL, NULL, NULL, 1, '{"zone":"montanas","x":49,"y":97,"radius":3,"label":"Hablar con Tilo","speaker":"Tilo","dialog":"¡Estoy bien! ¡Estoy bien! Mira, esto estaba en el nido de las arpías. Tiene la misma firma que tu cristal: un eclipse.","gives":{"item":"NOTA_DEL_BRUJO","qty":1}}', 'Recoge lo que encontró Tilo'),
+  ('DELIVER', 4, 'tilo_bastion', NULL, 'NOTA_DEL_BRUJO', 1, NULL, 'Vuelve al Bastión con Tilo y lee la nota con él')
+) AS v(t, step, target, monster, item, n, params, descr);
+DELETE FROM quest_npc_spots WHERE quest_id = (SELECT id FROM quests WHERE code = 'MONTANAS_HISTORIA_09_TILO');
+DELETE FROM quest_item_rewards WHERE quest_id = (SELECT id FROM quests WHERE code = 'MONTANAS_HISTORIA_09_TILO');
+
+-- El Brujo de la tormenta
+INSERT INTO quests (code, name, quest_type, zone_id, min_level, max_level, difficulty_stars, npc_name, location_name, is_repeatable, repeat_cooldown_hours, reputation_reward, gold_reward, xp_reward, description, is_personal, is_boss_quest, giver_npc, turn_in_npc, dialog, chain_position, chain_total)
+SELECT 'MONTANAS_HISTORIA_10_BRUJO', 'El Brujo de la tormenta', 'PRINCIPAL', 2, 24, 30, 4, 'Durgan', 'Acantilados del Trueno', FALSE, NULL, 160, 1800, 9200, '«El Corazón de la Tormenta. Así le decían mis abuelos a la piedra que el Rey llevaba en la corona: con ella mandaba a los rayos. Si el Brujo la tiene, el Rey no enloqueció solo: lo enloquecieron. Encuentra al Brujo en los Acantilados del Trueno y quítasela.»', TRUE, FALSE, 'durgan', 'durgan', '{"entrega":"El Corazón… *lo sostiene con las dos manos* Está lleno de veneno negro. Así no le sirve a nadie. Hay que limpiarlo antes de subir a la Cumbre, o el Rey nos va a freír a todos."}'::jsonb, 10, 14
+WHERE NOT EXISTS (SELECT 1 FROM quests WHERE code = 'MONTANAS_HISTORIA_10_BRUJO');
+UPDATE quests SET name = 'El Brujo de la tormenta', quest_type = 'PRINCIPAL', zone_id = 2, min_level = 24, max_level = 30, difficulty_stars = 4, npc_name = 'Durgan', location_name = 'Acantilados del Trueno', is_repeatable = FALSE, repeat_cooldown_hours = NULL, reputation_reward = 160, gold_reward = 1800, xp_reward = 9200, description = '«El Corazón de la Tormenta. Así le decían mis abuelos a la piedra que el Rey llevaba en la corona: con ella mandaba a los rayos. Si el Brujo la tiene, el Rey no enloqueció solo: lo enloquecieron. Encuentra al Brujo en los Acantilados del Trueno y quítasela.»', is_personal = TRUE, is_boss_quest = FALSE, giver_npc = 'durgan', turn_in_npc = 'durgan', dialog = '{"entrega":"El Corazón… *lo sostiene con las dos manos* Está lleno de veneno negro. Así no le sirve a nadie. Hay que limpiarlo antes de subir a la Cumbre, o el Rey nos va a freír a todos."}'::jsonb, chain_position = 10, chain_total = 14 WHERE code = 'MONTANAS_HISTORIA_10_BRUJO';
+DELETE FROM quest_objectives WHERE quest_id = (SELECT id FROM quests WHERE code = 'MONTANAS_HISTORIA_10_BRUJO');
+INSERT INTO quest_objectives (quest_id, objective_type, step, target_code, monster_id, item_id, target_count, params, description)
+SELECT (SELECT id FROM quests WHERE code = 'MONTANAS_HISTORIA_10_BRUJO'), v.t, v.step, v.target, (SELECT id FROM monsters WHERE code = v.monster), (SELECT id FROM items WHERE code = v.item), v.n, v.params::jsonb, v.descr
+FROM (VALUES
+  ('KILL_MONSTER', 1, 'BRUJO_MONTANA', 'BRUJO_MONTANA', NULL, 1, NULL, 'Derrota al Brujo de la Montaña en los Acantilados'),
+  ('INVESTIGATE', 2, NULL, NULL, NULL, 1, '{"zone":"montanas","x":96,"y":46,"radius":3,"label":"Registrar el refugio","speaker":"Tú","dialog":"Entre pieles y huesos, en una caja de hierro, late una piedra llena de rayos negros. El Corazón de la Tormenta.","gives":{"item":"CORAZON_DE_LA_TORMENTA","qty":1},"sprite":"botin_goblin"}', 'Registra el refugio del Brujo'),
+  ('DELIVER', 3, 'durgan', NULL, 'CORAZON_DE_LA_TORMENTA', 1, NULL, 'Lleva el Corazón de la Tormenta a Durgan')
+) AS v(t, step, target, monster, item, n, params, descr);
+DELETE FROM quest_npc_spots WHERE quest_id = (SELECT id FROM quests WHERE code = 'MONTANAS_HISTORIA_10_BRUJO');
+DELETE FROM quest_item_rewards WHERE quest_id = (SELECT id FROM quests WHERE code = 'MONTANAS_HISTORIA_10_BRUJO');
+
+-- Limpiar el Corazón
+INSERT INTO quests (code, name, quest_type, zone_id, min_level, max_level, difficulty_stars, npc_name, location_name, is_repeatable, repeat_cooldown_hours, reputation_reward, gold_reward, xp_reward, description, is_personal, is_boss_quest, giver_npc, turn_in_npc, dialog, chain_position, chain_total)
+SELECT 'MONTANAS_HISTORIA_11_CORAZON', 'Limpiar el Corazón', 'PRINCIPAL', 2, 25, 30, 3, 'Durgan', 'Bastión de Hierro', FALSE, NULL, 150, 1800, 9600, '«Mi abuela sabía limpiar piedras de rayo: las hervía con flor de nieve y les daba de comer núcleos de tormenta para que se acordaran de lo que eran. Hilda tiene la receta. Junta lo que te pida y llévaselo.»', TRUE, FALSE, 'durgan', 'hilda', '{"entrega":"*la olla burbujea con luz azul* ¡Mira, cielo! El veneno negro sale como humo. Ahora el Corazón brilla como tiene que brillar. Llévaselo a Durgan cuando subas: el Rey lo va a reconocer."}'::jsonb, 11, 14
+WHERE NOT EXISTS (SELECT 1 FROM quests WHERE code = 'MONTANAS_HISTORIA_11_CORAZON');
+UPDATE quests SET name = 'Limpiar el Corazón', quest_type = 'PRINCIPAL', zone_id = 2, min_level = 25, max_level = 30, difficulty_stars = 3, npc_name = 'Durgan', location_name = 'Bastión de Hierro', is_repeatable = FALSE, repeat_cooldown_hours = NULL, reputation_reward = 150, gold_reward = 1800, xp_reward = 9600, description = '«Mi abuela sabía limpiar piedras de rayo: las hervía con flor de nieve y les daba de comer núcleos de tormenta para que se acordaran de lo que eran. Hilda tiene la receta. Junta lo que te pida y llévaselo.»', is_personal = TRUE, is_boss_quest = FALSE, giver_npc = 'durgan', turn_in_npc = 'hilda', dialog = '{"entrega":"*la olla burbujea con luz azul* ¡Mira, cielo! El veneno negro sale como humo. Ahora el Corazón brilla como tiene que brillar. Llévaselo a Durgan cuando subas: el Rey lo va a reconocer."}'::jsonb, chain_position = 11, chain_total = 14 WHERE code = 'MONTANAS_HISTORIA_11_CORAZON';
+DELETE FROM quest_objectives WHERE quest_id = (SELECT id FROM quests WHERE code = 'MONTANAS_HISTORIA_11_CORAZON');
+INSERT INTO quest_objectives (quest_id, objective_type, step, target_code, monster_id, item_id, target_count, params, description)
+SELECT (SELECT id FROM quests WHERE code = 'MONTANAS_HISTORIA_11_CORAZON'), v.t, v.step, v.target, (SELECT id FROM monsters WHERE code = v.monster), (SELECT id FROM items WHERE code = v.item), v.n, v.params::jsonb, v.descr
+FROM (VALUES
+  ('COLLECT_ITEM', 1, NULL, NULL, 'NUCLEO_TORMENTA', 3, NULL, 'Junta 3 Núcleos de Tormenta de los Elementales'),
+  ('COLLECT_ITEM', 1, NULL, NULL, 'FLOR_DE_NIEVE', 5, NULL, 'Junta 5 Flores de Nieve'),
+  ('TALK', 2, 'hilda', NULL, NULL, 1, '{"speaker":"Hilda","dialog":"A ver… núcleos, flores… perfecto. Ahora a la olla, y que no se te ocurra probarlo."}', 'Lleva los ingredientes a Hilda')
+) AS v(t, step, target, monster, item, n, params, descr);
+DELETE FROM quest_npc_spots WHERE quest_id = (SELECT id FROM quests WHERE code = 'MONTANAS_HISTORIA_11_CORAZON');
+DELETE FROM quest_item_rewards WHERE quest_id = (SELECT id FROM quests WHERE code = 'MONTANAS_HISTORIA_11_CORAZON');
+INSERT INTO quest_item_rewards (quest_id, item_id, quantity)
+SELECT (SELECT id FROM quests WHERE code = 'MONTANAS_HISTORIA_11_CORAZON'), i.id, v.qty FROM (VALUES ('ELIXIR_TORMENTA', 3)) AS v(code, qty) JOIN items i ON i.code = v.code;
+
+-- El Señor del Acantilado
+INSERT INTO quests (code, name, quest_type, zone_id, min_level, max_level, difficulty_stars, npc_name, location_name, is_repeatable, repeat_cooldown_hours, reputation_reward, gold_reward, xp_reward, description, is_personal, is_boss_quest, giver_npc, turn_in_npc, dialog, chain_position, chain_total)
+SELECT 'MONTANAS_Q2_SOMBRA_ACANTILADO', 'El Señor del Acantilado', 'PRINCIPAL', 2, 26, 30, 4, 'Durgan', 'Acantilados del Trueno', FALSE, NULL, 180, 2000, 10500, '«El único camino a la Cumbre pasa por los Acantilados del Trueno, y ahí manda el Señor del Acantilado: un caudillo con una lanza que atrae los rayos. Era el capitán de la guardia del Rey. Ahora no deja subir a nadie. Ve con amigos.»', TRUE, TRUE, 'durgan', 'durgan', '{"entrega":"«No dejen subir a nadie»… esa fue la última orden del Rey, antes de enloquecer. El Señor solo cumplía. Que descanse. Ahora sí: la Cumbre te espera."}'::jsonb, 12, 14
+WHERE NOT EXISTS (SELECT 1 FROM quests WHERE code = 'MONTANAS_Q2_SOMBRA_ACANTILADO');
+UPDATE quests SET name = 'El Señor del Acantilado', quest_type = 'PRINCIPAL', zone_id = 2, min_level = 26, max_level = 30, difficulty_stars = 4, npc_name = 'Durgan', location_name = 'Acantilados del Trueno', is_repeatable = FALSE, repeat_cooldown_hours = NULL, reputation_reward = 180, gold_reward = 2000, xp_reward = 10500, description = '«El único camino a la Cumbre pasa por los Acantilados del Trueno, y ahí manda el Señor del Acantilado: un caudillo con una lanza que atrae los rayos. Era el capitán de la guardia del Rey. Ahora no deja subir a nadie. Ve con amigos.»', is_personal = TRUE, is_boss_quest = TRUE, giver_npc = 'durgan', turn_in_npc = 'durgan', dialog = '{"entrega":"«No dejen subir a nadie»… esa fue la última orden del Rey, antes de enloquecer. El Señor solo cumplía. Que descanse. Ahora sí: la Cumbre te espera."}'::jsonb, chain_position = 12, chain_total = 14 WHERE code = 'MONTANAS_Q2_SOMBRA_ACANTILADO';
+DELETE FROM quest_objectives WHERE quest_id = (SELECT id FROM quests WHERE code = 'MONTANAS_Q2_SOMBRA_ACANTILADO');
+INSERT INTO quest_objectives (quest_id, objective_type, step, target_code, monster_id, item_id, target_count, params, description)
+SELECT (SELECT id FROM quests WHERE code = 'MONTANAS_Q2_SOMBRA_ACANTILADO'), v.t, v.step, v.target, (SELECT id FROM monsters WHERE code = v.monster), (SELECT id FROM items WHERE code = v.item), v.n, v.params::jsonb, v.descr
+FROM (VALUES
+  ('DEFEAT_BOSS', 1, 'SENOR_ACANTILADO', 'SENOR_ACANTILADO', NULL, 1, NULL, 'Derrota al Señor del Acantilado en su risco'),
+  ('INVESTIGATE', 2, NULL, NULL, NULL, 1, '{"zone":"montanas","x":146,"y":60,"radius":3,"label":"Acercarte al Señor","speaker":"El Señor del Acantilado","dialog":"«Mi Rey… me pidió que no dejara subir a nadie. Pero tú… tú llevas su Corazón limpio. Sube, Vigía. Sálvalo de sí mismo.»"}', 'Acércate al Señor caído')
+) AS v(t, step, target, monster, item, n, params, descr);
+DELETE FROM quest_npc_spots WHERE quest_id = (SELECT id FROM quests WHERE code = 'MONTANAS_Q2_SOMBRA_ACANTILADO');
+DELETE FROM quest_item_rewards WHERE quest_id = (SELECT id FROM quests WHERE code = 'MONTANAS_Q2_SOMBRA_ACANTILADO');
+
+-- La guardia que no descansa
+INSERT INTO quests (code, name, quest_type, zone_id, min_level, max_level, difficulty_stars, npc_name, location_name, is_repeatable, repeat_cooldown_hours, reputation_reward, gold_reward, xp_reward, description, is_personal, is_boss_quest, giver_npc, turn_in_npc, dialog, chain_position, chain_total)
+SELECT 'MONTANAS_HISTORIA_13_GUARDIA', 'La guardia que no descansa', 'PRINCIPAL', 2, 28, 30, 4, 'Durgan', 'Cumbre del Rey', FALSE, NULL, 180, 2200, 11500, '«En la Cumbre están las Tumbas Enanas, donde descansa la guardia del Rey. Dicen que sus espectros todavía hacen la ronda. Llega hasta las tumbas y lee lo que dice la piedra del Rey. Quiero saber cómo se llamaba. Nadie se acuerda.»', TRUE, FALSE, 'durgan', 'durgan', '{"entrega":"«Thorvald, hijo de Durin, abuelo de los abuelos»… *se queda callado un rato* Mi familia. El Rey de la Montaña es mi familia. Por eso la mina cantaba para nosotros. Vigía… ya sabes qué hay que hacer. Pero hazlo con respeto."}'::jsonb, 13, 14
+WHERE NOT EXISTS (SELECT 1 FROM quests WHERE code = 'MONTANAS_HISTORIA_13_GUARDIA');
+UPDATE quests SET name = 'La guardia que no descansa', quest_type = 'PRINCIPAL', zone_id = 2, min_level = 28, max_level = 30, difficulty_stars = 4, npc_name = 'Durgan', location_name = 'Cumbre del Rey', is_repeatable = FALSE, repeat_cooldown_hours = NULL, reputation_reward = 180, gold_reward = 2200, xp_reward = 11500, description = '«En la Cumbre están las Tumbas Enanas, donde descansa la guardia del Rey. Dicen que sus espectros todavía hacen la ronda. Llega hasta las tumbas y lee lo que dice la piedra del Rey. Quiero saber cómo se llamaba. Nadie se acuerda.»', is_personal = TRUE, is_boss_quest = FALSE, giver_npc = 'durgan', turn_in_npc = 'durgan', dialog = '{"entrega":"«Thorvald, hijo de Durin, abuelo de los abuelos»… *se queda callado un rato* Mi familia. El Rey de la Montaña es mi familia. Por eso la mina cantaba para nosotros. Vigía… ya sabes qué hay que hacer. Pero hazlo con respeto."}'::jsonb, chain_position = 13, chain_total = 14 WHERE code = 'MONTANAS_HISTORIA_13_GUARDIA';
+DELETE FROM quest_objectives WHERE quest_id = (SELECT id FROM quests WHERE code = 'MONTANAS_HISTORIA_13_GUARDIA');
+INSERT INTO quest_objectives (quest_id, objective_type, step, target_code, monster_id, item_id, target_count, params, description)
+SELECT (SELECT id FROM quests WHERE code = 'MONTANAS_HISTORIA_13_GUARDIA'), v.t, v.step, v.target, (SELECT id FROM monsters WHERE code = v.monster), (SELECT id FROM items WHERE code = v.item), v.n, v.params::jsonb, v.descr
+FROM (VALUES
+  ('KILL_MONSTER', 1, 'GUARDIA_TORMENTA', 'GUARDIA_TORMENTA', NULL, 6, NULL, 'Derrota 6 Guardias de la Tormenta en la Cumbre'),
+  ('INVESTIGATE', 2, NULL, NULL, NULL, 1, '{"zone":"montanas","x":128,"y":104,"radius":3,"label":"Leer la lápida","speaker":"Tú","dialog":"La piedra dice: «Aquí velará Thorvald, hijo de Durin, Rey de la Montaña, que ató su vida al Segundo Sello. Mientras él viva, la montaña cantará».","sprite":"inscripcion"}', 'Lee la lápida del Rey en las Tumbas Enanas'),
+  ('TALK', 3, 'durgan', NULL, NULL, 1, NULL, 'Cuéntale a Durgan lo que dice la lápida')
+) AS v(t, step, target, monster, item, n, params, descr);
+DELETE FROM quest_npc_spots WHERE quest_id = (SELECT id FROM quests WHERE code = 'MONTANAS_HISTORIA_13_GUARDIA');
+DELETE FROM quest_item_rewards WHERE quest_id = (SELECT id FROM quests WHERE code = 'MONTANAS_HISTORIA_13_GUARDIA');
+
+-- El trono de la cumbre
+INSERT INTO quests (code, name, quest_type, zone_id, min_level, max_level, difficulty_stars, npc_name, location_name, is_repeatable, repeat_cooldown_hours, reputation_reward, gold_reward, xp_reward, description, is_personal, is_boss_quest, giver_npc, turn_in_npc, dialog, chain_position, chain_total)
+SELECT 'MONTANAS_Q3_REY_MONTANA', 'El trono de la cumbre', 'PRINCIPAL', 2, 30, 30, 5, 'Durgan', 'Cumbre del Rey', FALSE, NULL, 250, 2500, 13000, '«Sube al trono de la Cumbre. Devuélvele su Corazón al Rey Thorvald… y si no te reconoce, haz lo que tengas que hacer. El Sello no puede caer. Ve con los mejores que conozcas. Y vuelve.»', TRUE, TRUE, 'durgan', 'elenya', '{"entrega":"El Segundo Fragmento… Thorvald lo sostuvo con su vida durante tres siglos. Lo guardaré junto al primero, en la Catedral. Y el Encapuchado bajó por los túneles hacia el calor del sur: hacia el Volcán Rojo. Descansa, Vigía. Pero no mucho."}'::jsonb, 14, 14
+WHERE NOT EXISTS (SELECT 1 FROM quests WHERE code = 'MONTANAS_Q3_REY_MONTANA');
+UPDATE quests SET name = 'El trono de la cumbre', quest_type = 'PRINCIPAL', zone_id = 2, min_level = 30, max_level = 30, difficulty_stars = 5, npc_name = 'Durgan', location_name = 'Cumbre del Rey', is_repeatable = FALSE, repeat_cooldown_hours = NULL, reputation_reward = 250, gold_reward = 2500, xp_reward = 13000, description = '«Sube al trono de la Cumbre. Devuélvele su Corazón al Rey Thorvald… y si no te reconoce, haz lo que tengas que hacer. El Sello no puede caer. Ve con los mejores que conozcas. Y vuelve.»', is_personal = TRUE, is_boss_quest = TRUE, giver_npc = 'durgan', turn_in_npc = 'elenya', dialog = '{"entrega":"El Segundo Fragmento… Thorvald lo sostuvo con su vida durante tres siglos. Lo guardaré junto al primero, en la Catedral. Y el Encapuchado bajó por los túneles hacia el calor del sur: hacia el Volcán Rojo. Descansa, Vigía. Pero no mucho."}'::jsonb, chain_position = 14, chain_total = 14 WHERE code = 'MONTANAS_Q3_REY_MONTANA';
+DELETE FROM quest_objectives WHERE quest_id = (SELECT id FROM quests WHERE code = 'MONTANAS_Q3_REY_MONTANA');
+INSERT INTO quest_objectives (quest_id, objective_type, step, target_code, monster_id, item_id, target_count, params, description)
+SELECT (SELECT id FROM quests WHERE code = 'MONTANAS_Q3_REY_MONTANA'), v.t, v.step, v.target, (SELECT id FROM monsters WHERE code = v.monster), (SELECT id FROM items WHERE code = v.item), v.n, v.params::jsonb, v.descr
+FROM (VALUES
+  ('DEFEAT_BOSS', 1, 'REY_MONTANA', 'REY_MONTANA', NULL, 1, NULL, 'Enfrenta al Rey de la Montaña en el trono de la Cumbre'),
+  ('INVESTIGATE', 2, NULL, NULL, NULL, 1, '{"zone":"montanas","x":136,"y":104,"radius":3,"label":"Acercarte al Rey","speaker":"Thorvald","dialog":"El Corazón de la Tormenta brilla azul en las manos del Rey. «Mi Corazón… limpio. Gracias, Vigía. Dile a Durgan que la montaña vuelve a cantar.» Su cuerpo se vuelve piedra, y en su mano queda un fragmento plateado.","gives":{"item":"FRAGMENTO_SELLO_MONTANAS","qty":1}}', 'Devuélvele el Corazón al Rey caído'),
+  ('DELIVER', 3, 'elenya', NULL, 'FRAGMENTO_SELLO_MONTANAS', 1, NULL, 'Lleva el Segundo Fragmento de Sello a Elenya, en Aurelia')
+) AS v(t, step, target, monster, item, n, params, descr);
+DELETE FROM quest_npc_spots WHERE quest_id = (SELECT id FROM quests WHERE code = 'MONTANAS_Q3_REY_MONTANA');
+DELETE FROM quest_item_rewards WHERE quest_id = (SELECT id FROM quests WHERE code = 'MONTANAS_Q3_REY_MONTANA');
+INSERT INTO quest_item_rewards (quest_id, item_id, quantity)
+SELECT (SELECT id FROM quests WHERE code = 'MONTANAS_Q3_REY_MONTANA'), i.id, v.qty FROM (VALUES ('POCION_DE_VIDA_MAYOR', 5), ('POCION_DE_MANA_MAYOR', 5)) AS v(code, qty) JOIN items i ON i.code = v.code;
+
+-- la cadena: cada misión pide la anterior; la M1 pide la última de la Pradera
+UPDATE quests SET requires_quest_id = (SELECT id FROM quests WHERE code = 'PRADERA_HISTORIA_14_MONTANAS') WHERE code = 'MONTANAS_HISTORIA_01_BASTION';
+UPDATE quests SET requires_quest_id = (SELECT id FROM quests WHERE code = 'MONTANAS_HISTORIA_01_BASTION') WHERE code = 'MONTANAS_HISTORIA_02_ORCOS';
+UPDATE quests SET requires_quest_id = (SELECT id FROM quests WHERE code = 'MONTANAS_HISTORIA_02_ORCOS') WHERE code = 'MONTANAS_HISTORIA_03_MINEROS';
+UPDATE quests SET requires_quest_id = (SELECT id FROM quests WHERE code = 'MONTANAS_HISTORIA_03_MINEROS') WHERE code = 'MONTANAS_HISTORIA_04_VETAS';
+UPDATE quests SET requires_quest_id = (SELECT id FROM quests WHERE code = 'MONTANAS_HISTORIA_04_VETAS') WHERE code = 'MONTANAS_Q1_PROTECTOR_PIEDRA';
+UPDATE quests SET requires_quest_id = (SELECT id FROM quests WHERE code = 'MONTANAS_Q1_PROTECTOR_PIEDRA') WHERE code = 'MONTANAS_HISTORIA_06_SELLO';
+UPDATE quests SET requires_quest_id = (SELECT id FROM quests WHERE code = 'MONTANAS_HISTORIA_06_SELLO') WHERE code = 'MONTANAS_HISTORIA_07_PINAR';
+UPDATE quests SET requires_quest_id = (SELECT id FROM quests WHERE code = 'MONTANAS_HISTORIA_07_PINAR') WHERE code = 'MONTANAS_HISTORIA_08_LAGO';
+UPDATE quests SET requires_quest_id = (SELECT id FROM quests WHERE code = 'MONTANAS_HISTORIA_08_LAGO') WHERE code = 'MONTANAS_HISTORIA_09_TILO';
+UPDATE quests SET requires_quest_id = (SELECT id FROM quests WHERE code = 'MONTANAS_HISTORIA_09_TILO') WHERE code = 'MONTANAS_HISTORIA_10_BRUJO';
+UPDATE quests SET requires_quest_id = (SELECT id FROM quests WHERE code = 'MONTANAS_HISTORIA_10_BRUJO') WHERE code = 'MONTANAS_HISTORIA_11_CORAZON';
+UPDATE quests SET requires_quest_id = (SELECT id FROM quests WHERE code = 'MONTANAS_HISTORIA_11_CORAZON') WHERE code = 'MONTANAS_Q2_SOMBRA_ACANTILADO';
+UPDATE quests SET requires_quest_id = (SELECT id FROM quests WHERE code = 'MONTANAS_Q2_SOMBRA_ACANTILADO') WHERE code = 'MONTANAS_HISTORIA_13_GUARDIA';
+UPDATE quests SET requires_quest_id = (SELECT id FROM quests WHERE code = 'MONTANAS_HISTORIA_13_GUARDIA') WHERE code = 'MONTANAS_Q3_REY_MONTANA';
+
+-- las misiones viejas de la zona del «Enano Minero» (diarias, jefes repetibles): las da Durgan y vuelven en 20 h
+UPDATE quests SET giver_npc = 'durgan', npc_name = 'Durgan' WHERE zone_id = 2 AND (npc_name = 'Enano Minero' OR giver_npc IS NULL) AND code NOT IN ('MONTANAS_HISTORIA_01_BASTION', 'MONTANAS_HISTORIA_02_ORCOS', 'MONTANAS_HISTORIA_03_MINEROS', 'MONTANAS_HISTORIA_04_VETAS', 'MONTANAS_Q1_PROTECTOR_PIEDRA', 'MONTANAS_HISTORIA_06_SELLO', 'MONTANAS_HISTORIA_07_PINAR', 'MONTANAS_HISTORIA_08_LAGO', 'MONTANAS_HISTORIA_09_TILO', 'MONTANAS_HISTORIA_10_BRUJO', 'MONTANAS_HISTORIA_11_CORAZON', 'MONTANAS_Q2_SOMBRA_ACANTILADO', 'MONTANAS_HISTORIA_13_GUARDIA', 'MONTANAS_Q3_REY_MONTANA');
+UPDATE quests SET repeat_cooldown_hours = 20 WHERE zone_id = 2 AND quest_type = 'DIARIA';
+
+-- ============================================================================================
+-- Armas de Hierro Negro (repetible; sin ON CONFLICT). Se forjan con lo que sale de la Mina
+-- Profunda (lib/mina.js): Mena de Hierro Negro (mineros y gólems) y Corazón de Hierro Negro (el
+-- Gólem de Hierro Negro y el cofre de los enanos). Nv 22 épico: algo mejores que las de la
+-- Escarcha (nv 21, monstruos comunes) y por debajo del Acantilado (nv 26), porque piden vencer
+-- en grupo al jefe de la mina. Las forja Durgan en el Bastión de Hierro.
+-- ============================================================================================
+INSERT INTO items (code, name, item_type, rarity, obtain_method, description)
+SELECT v.code, v.name, 'MATERIAL', v.rarity, 'Drop de monstruo', v.descr FROM (VALUES
+  ('MENA_HIERRO_NEGRO', 'Mena de Hierro Negro', 'RARO', 'Roca oscura de la Mina Profunda con vetas que brillan azul. Solo los herreros enanos saben fundirla.'),
+  ('CORAZON_HIERRO_NEGRO', 'Corazón de Hierro Negro', 'EPICO', 'El núcleo todavía tibio del Gólem de Hierro Negro. Los herreros enanos pagarían mucho por trabajarlo.')
+) AS v(code, name, rarity, descr) WHERE NOT EXISTS (SELECT 1 FROM items i WHERE i.code = v.code);
+UPDATE items SET obtain_method = 'Drop de monstruo',
+  description = 'Roca oscura de la Mina Profunda con vetas que brillan azul. Solo los herreros enanos saben fundirla. Con ella se forjan las armas de Hierro Negro.'
+WHERE code = 'MENA_HIERRO_NEGRO';
+UPDATE items SET obtain_method = 'Drop de monstruo',
+  description = 'El núcleo todavía tibio del Gólem de Hierro Negro. Lo suelta él y a veces aparece en el cofre de los enanos. Cada arma de Hierro Negro lleva uno.'
+WHERE code = 'CORAZON_HIERRO_NEGRO';
+
+-- Espada de Hierro Negro
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'GUERRERO_WEAPON_HIERRO_NEGRO', 'Espada de Hierro Negro', 'EQUIPMENT', 'WEAPON', FALSE, 'EPICO', 1, 22, TRUE, 'CRAFT', 'Forjada por los enanos del Bastión con el hierro negro de la Mina Profunda y el corazón de su gólem. Pesa menos de lo que parece.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'GUERRERO_WEAPON_HIERRO_NEGRO');
+UPDATE items SET name = 'Espada de Hierro Negro', item_type = 'EQUIPMENT', slot = 'WEAPON', is_two_handed = FALSE, rarity = 'EPICO', class_id = 1, required_level = 22, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Forjada por los enanos del Bastión con el hierro negro de la Mina Profunda y el corazón de su gólem. Pesa menos de lo que parece.' WHERE code = 'GUERRERO_WEAPON_HIERRO_NEGRO';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'GUERRERO_WEAPON_HIERRO_NEGRO');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'GUERRERO_WEAPON_HIERRO_NEGRO'), v.* FROM (VALUES ('ATK', 60, FALSE), ('CRIT_CHANCE', 6.8, TRUE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station)
+SELECT 'RECIPE_GUERRERO_WEAPON_HIERRO_NEGRO', (SELECT id FROM items WHERE code = 'GUERRERO_WEAPON_HIERRO_NEGRO'), 1, 'EPICO', 22, 1, 75, 1, 'Durgan, en la forja del Bastión de Hierro', 2, 'forja' WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_GUERRERO_WEAPON_HIERRO_NEGRO');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'GUERRERO_WEAPON_HIERRO_NEGRO'), result_quantity = 1, rarity = 'EPICO', required_level = 22, required_class_id = 1, success_rate_percent = 75, craft_time_minutes = 1, artisan_name = 'Durgan, en la forja del Bastión de Hierro', zone_id = 2, station = 'forja' WHERE code = 'RECIPE_GUERRERO_WEAPON_HIERRO_NEGRO';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_GUERRERO_WEAPON_HIERRO_NEGRO');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_GUERRERO_WEAPON_HIERRO_NEGRO'), i.id, v.n FROM (VALUES ('CORAZON_HIERRO_NEGRO', 1), ('MENA_HIERRO_NEGRO', 6), ('ACERO_REFINADO', 3), ('PIEL_DE_TROLL', 2)) AS v(code, n) JOIN items i ON i.code = v.code;
+
+-- Gran Espada de Hierro Negro
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'GUERRERO_WEAPON2H_HIERRO_NEGRO', 'Gran Espada de Hierro Negro', 'EQUIPMENT', 'WEAPON', TRUE, 'EPICO', 1, 22, TRUE, 'CRAFT', 'Forjada por los enanos del Bastión con el hierro negro de la Mina Profunda y el corazón de su gólem. Pesa menos de lo que parece.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'GUERRERO_WEAPON2H_HIERRO_NEGRO');
+UPDATE items SET name = 'Gran Espada de Hierro Negro', item_type = 'EQUIPMENT', slot = 'WEAPON', is_two_handed = TRUE, rarity = 'EPICO', class_id = 1, required_level = 22, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Forjada por los enanos del Bastión con el hierro negro de la Mina Profunda y el corazón de su gólem. Pesa menos de lo que parece.' WHERE code = 'GUERRERO_WEAPON2H_HIERRO_NEGRO';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'GUERRERO_WEAPON2H_HIERRO_NEGRO');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'GUERRERO_WEAPON2H_HIERRO_NEGRO'), v.* FROM (VALUES ('ATK', 90, FALSE), ('DEF', -27, FALSE), ('SPD', -19, FALSE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station)
+SELECT 'RECIPE_GUERRERO_WEAPON2H_HIERRO_NEGRO', (SELECT id FROM items WHERE code = 'GUERRERO_WEAPON2H_HIERRO_NEGRO'), 1, 'EPICO', 22, 1, 75, 1, 'Durgan, en la forja del Bastión de Hierro', 2, 'forja' WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_GUERRERO_WEAPON2H_HIERRO_NEGRO');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'GUERRERO_WEAPON2H_HIERRO_NEGRO'), result_quantity = 1, rarity = 'EPICO', required_level = 22, required_class_id = 1, success_rate_percent = 75, craft_time_minutes = 1, artisan_name = 'Durgan, en la forja del Bastión de Hierro', zone_id = 2, station = 'forja' WHERE code = 'RECIPE_GUERRERO_WEAPON2H_HIERRO_NEGRO';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_GUERRERO_WEAPON2H_HIERRO_NEGRO');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_GUERRERO_WEAPON2H_HIERRO_NEGRO'), i.id, v.n FROM (VALUES ('CORAZON_HIERRO_NEGRO', 2), ('MENA_HIERRO_NEGRO', 8), ('ACERO_REFINADO', 4), ('PIEL_DE_TROLL', 3)) AS v(code, n) JOIN items i ON i.code = v.code;
+
+-- Báculo Arcano de Hierro Negro
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'MAGO_WEAPON_HIERRO_NEGRO', 'Báculo Arcano de Hierro Negro', 'EQUIPMENT', 'WEAPON', FALSE, 'EPICO', 2, 22, TRUE, 'CRAFT', 'Forjada por los enanos del Bastión con el hierro negro de la Mina Profunda y el corazón de su gólem. Pesa menos de lo que parece.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'MAGO_WEAPON_HIERRO_NEGRO');
+UPDATE items SET name = 'Báculo Arcano de Hierro Negro', item_type = 'EQUIPMENT', slot = 'WEAPON', is_two_handed = FALSE, rarity = 'EPICO', class_id = 2, required_level = 22, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Forjada por los enanos del Bastión con el hierro negro de la Mina Profunda y el corazón de su gólem. Pesa menos de lo que parece.' WHERE code = 'MAGO_WEAPON_HIERRO_NEGRO';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'MAGO_WEAPON_HIERRO_NEGRO');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'MAGO_WEAPON_HIERRO_NEGRO'), v.* FROM (VALUES ('MAG', 60, FALSE), ('CRIT_CHANCE', 6.8, TRUE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station)
+SELECT 'RECIPE_MAGO_WEAPON_HIERRO_NEGRO', (SELECT id FROM items WHERE code = 'MAGO_WEAPON_HIERRO_NEGRO'), 1, 'EPICO', 22, 2, 75, 1, 'Durgan, en la forja del Bastión de Hierro', 2, 'forja' WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_MAGO_WEAPON_HIERRO_NEGRO');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'MAGO_WEAPON_HIERRO_NEGRO'), result_quantity = 1, rarity = 'EPICO', required_level = 22, required_class_id = 2, success_rate_percent = 75, craft_time_minutes = 1, artisan_name = 'Durgan, en la forja del Bastión de Hierro', zone_id = 2, station = 'forja' WHERE code = 'RECIPE_MAGO_WEAPON_HIERRO_NEGRO';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_MAGO_WEAPON_HIERRO_NEGRO');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_MAGO_WEAPON_HIERRO_NEGRO'), i.id, v.n FROM (VALUES ('CORAZON_HIERRO_NEGRO', 1), ('MENA_HIERRO_NEGRO', 6), ('ACERO_REFINADO', 3), ('ESENCIA_ESPECTRAL_HELADA', 2)) AS v(code, n) JOIN items i ON i.code = v.code;
+
+-- Arco de Hierro Negro
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'ARQUERO_WEAPON_HIERRO_NEGRO', 'Arco de Hierro Negro', 'EQUIPMENT', 'WEAPON', FALSE, 'EPICO', 3, 22, TRUE, 'CRAFT', 'Forjada por los enanos del Bastión con el hierro negro de la Mina Profunda y el corazón de su gólem. Pesa menos de lo que parece.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'ARQUERO_WEAPON_HIERRO_NEGRO');
+UPDATE items SET name = 'Arco de Hierro Negro', item_type = 'EQUIPMENT', slot = 'WEAPON', is_two_handed = FALSE, rarity = 'EPICO', class_id = 3, required_level = 22, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Forjada por los enanos del Bastión con el hierro negro de la Mina Profunda y el corazón de su gólem. Pesa menos de lo que parece.' WHERE code = 'ARQUERO_WEAPON_HIERRO_NEGRO';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'ARQUERO_WEAPON_HIERRO_NEGRO');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'ARQUERO_WEAPON_HIERRO_NEGRO'), v.* FROM (VALUES ('ATK', 60, FALSE), ('CRIT_CHANCE', 6.8, TRUE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station)
+SELECT 'RECIPE_ARQUERO_WEAPON_HIERRO_NEGRO', (SELECT id FROM items WHERE code = 'ARQUERO_WEAPON_HIERRO_NEGRO'), 1, 'EPICO', 22, 3, 75, 1, 'Durgan, en la forja del Bastión de Hierro', 2, 'forja' WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_ARQUERO_WEAPON_HIERRO_NEGRO');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'ARQUERO_WEAPON_HIERRO_NEGRO'), result_quantity = 1, rarity = 'EPICO', required_level = 22, required_class_id = 3, success_rate_percent = 75, craft_time_minutes = 1, artisan_name = 'Durgan, en la forja del Bastión de Hierro', zone_id = 2, station = 'forja' WHERE code = 'RECIPE_ARQUERO_WEAPON_HIERRO_NEGRO';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_ARQUERO_WEAPON_HIERRO_NEGRO');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_ARQUERO_WEAPON_HIERRO_NEGRO'), i.id, v.n FROM (VALUES ('CORAZON_HIERRO_NEGRO', 1), ('MENA_HIERRO_NEGRO', 6), ('ACERO_REFINADO', 3), ('PLUMA_ARPIA_ECO', 2)) AS v(code, n) JOIN items i ON i.code = v.code;
+
+-- Daga de Hierro Negro
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'PICARO_WEAPON_HIERRO_NEGRO', 'Daga de Hierro Negro', 'EQUIPMENT', 'WEAPON', FALSE, 'EPICO', 4, 22, TRUE, 'CRAFT', 'Forjada por los enanos del Bastión con el hierro negro de la Mina Profunda y el corazón de su gólem. Pesa menos de lo que parece.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'PICARO_WEAPON_HIERRO_NEGRO');
+UPDATE items SET name = 'Daga de Hierro Negro', item_type = 'EQUIPMENT', slot = 'WEAPON', is_two_handed = FALSE, rarity = 'EPICO', class_id = 4, required_level = 22, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Forjada por los enanos del Bastión con el hierro negro de la Mina Profunda y el corazón de su gólem. Pesa menos de lo que parece.' WHERE code = 'PICARO_WEAPON_HIERRO_NEGRO';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'PICARO_WEAPON_HIERRO_NEGRO');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'PICARO_WEAPON_HIERRO_NEGRO'), v.* FROM (VALUES ('ATK', 60, FALSE), ('CRIT_CHANCE', 6.8, TRUE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station)
+SELECT 'RECIPE_PICARO_WEAPON_HIERRO_NEGRO', (SELECT id FROM items WHERE code = 'PICARO_WEAPON_HIERRO_NEGRO'), 1, 'EPICO', 22, 4, 75, 1, 'Durgan, en la forja del Bastión de Hierro', 2, 'forja' WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_PICARO_WEAPON_HIERRO_NEGRO');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'PICARO_WEAPON_HIERRO_NEGRO'), result_quantity = 1, rarity = 'EPICO', required_level = 22, required_class_id = 4, success_rate_percent = 75, craft_time_minutes = 1, artisan_name = 'Durgan, en la forja del Bastión de Hierro', zone_id = 2, station = 'forja' WHERE code = 'RECIPE_PICARO_WEAPON_HIERRO_NEGRO';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_PICARO_WEAPON_HIERRO_NEGRO');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_PICARO_WEAPON_HIERRO_NEGRO'), i.id, v.n FROM (VALUES ('CORAZON_HIERRO_NEGRO', 1), ('MENA_HIERRO_NEGRO', 6), ('ACERO_REFINADO', 3), ('GARRA_OSO_CUMBRES', 2)) AS v(code, n) JOIN items i ON i.code = v.code;
+
+-- Báculo Sagrado de Hierro Negro
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'SACERDOTE_WEAPON_HIERRO_NEGRO', 'Báculo Sagrado de Hierro Negro', 'EQUIPMENT', 'WEAPON', FALSE, 'EPICO', 5, 22, TRUE, 'CRAFT', 'Forjada por los enanos del Bastión con el hierro negro de la Mina Profunda y el corazón de su gólem. Pesa menos de lo que parece.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'SACERDOTE_WEAPON_HIERRO_NEGRO');
+UPDATE items SET name = 'Báculo Sagrado de Hierro Negro', item_type = 'EQUIPMENT', slot = 'WEAPON', is_two_handed = FALSE, rarity = 'EPICO', class_id = 5, required_level = 22, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Forjada por los enanos del Bastión con el hierro negro de la Mina Profunda y el corazón de su gólem. Pesa menos de lo que parece.' WHERE code = 'SACERDOTE_WEAPON_HIERRO_NEGRO';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'SACERDOTE_WEAPON_HIERRO_NEGRO');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'SACERDOTE_WEAPON_HIERRO_NEGRO'), v.* FROM (VALUES ('MAG', 60, FALSE), ('CRIT_CHANCE', 6.8, TRUE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station)
+SELECT 'RECIPE_SACERDOTE_WEAPON_HIERRO_NEGRO', (SELECT id FROM items WHERE code = 'SACERDOTE_WEAPON_HIERRO_NEGRO'), 1, 'EPICO', 22, 5, 75, 1, 'Durgan, en la forja del Bastión de Hierro', 2, 'forja' WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_SACERDOTE_WEAPON_HIERRO_NEGRO');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'SACERDOTE_WEAPON_HIERRO_NEGRO'), result_quantity = 1, rarity = 'EPICO', required_level = 22, required_class_id = 5, success_rate_percent = 75, craft_time_minutes = 1, artisan_name = 'Durgan, en la forja del Bastión de Hierro', zone_id = 2, station = 'forja' WHERE code = 'RECIPE_SACERDOTE_WEAPON_HIERRO_NEGRO';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_SACERDOTE_WEAPON_HIERRO_NEGRO');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_SACERDOTE_WEAPON_HIERRO_NEGRO'), i.id, v.n FROM (VALUES ('CORAZON_HIERRO_NEGRO', 1), ('MENA_HIERRO_NEGRO', 6), ('ACERO_REFINADO', 3), ('FLOR_DE_NIEVE', 2)) AS v(code, n) JOIN items i ON i.code = v.code;
