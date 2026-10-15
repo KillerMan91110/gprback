@@ -66,7 +66,10 @@ async function loadData() {
   // equipo de cada tramo: Pradera (nv 1-9), Capitán (10-13), Titán (14-15)
   const gear = {};
   for (const c of classes) {
-    gear[c.code] = { pradera: setTotals(items, c.id, ' de Pradera'), capitan: setTotals(items, c.id, ' del Capitán'), titan: setTotals(items, c.id, ' del Titán') };
+    gear[c.code] = {
+      pradera: setTotals(items, c.id, ' de Pradera'), guardia: setTotals(items, c.id, ' de la Guardia'),
+      capitan: setTotals(items, c.id, ' del Capitán'), titan: setTotals(items, c.id, ' del Titán'),
+    };
   }
   const monsters = (await db.query(`SELECT code, name, rarity, min_spawn_level, max_spawn_level FROM monsters WHERE zone_id = 1 ORDER BY min_spawn_level, code`)).rows;
   return { classes, gear, monsters, items };
@@ -77,7 +80,7 @@ function heroAt(c, lv, gear) {
   const g = EQ.CLASS_GROWTH[c.code];
   const k = lv - 1;
   const tiers = gear[c.code] || {};
-  const e = (lv >= 14 ? tiers.titan : lv >= 10 ? tiers.capitan : tiers.pradera) || {};
+  const e = (lv >= 14 ? tiers.titan : lv >= 10 ? tiers.capitan : lv >= 6 ? tiers.guardia : tiers.pradera) || {};
   return {
     hp: Number(c.base_hp) + g.hp * k + (e.HP || 0),
     atk: Number(c.base_atk) + g.atk * k + (e.ATK || 0),
@@ -89,7 +92,7 @@ function heroAt(c, lv, gear) {
 }
 
 function simulate({ classes, gear, monsters }) {
-  console.log('Equipo: set de Pradera (nv 1-9), del Capitán (10-13), del Titán (14-15), con las stats NUEVAS.');
+  console.log('Equipo: set de Pradera (nv 1-5), de la Guardia (6-9), del Capitán (10-13), del Titán (14-15), con las stats NUEVAS.');
   console.log('Cada celda: turnos para matar / golpes que aguanta (peor monstruo común de ese nivel). Meta: 3-5 / 6+');
   for (const c of classes) {
     const cells = [];
@@ -114,6 +117,7 @@ function simulate({ classes, gear, monsters }) {
     }
     console.log(c.code.padEnd(10), cells.join('  '));
   }
+  simulateCripta(classes, gear);
   // jefes y raros contra un grupo de 3 héroes promedio de su nivel
   console.log('\nRaros y jefes (nivel típico): vida / ataque / defensa');
   for (const m of monsters.filter((x) => x.rarity !== 'COMMON')) {
@@ -121,6 +125,72 @@ function simulate({ classes, gear, monsters }) {
     const row = EQ.monsterRow(lv, m.rarity, PERFILES[m.code]);
     console.log(`${m.name} (${m.rarity}, nv ${lv}): ${row.hp} / ${Math.max(row.atk, row.magic_atk)} / ${row.def}`);
   }
+}
+
+// Cripta del Vigía (lib/cripta.js): los guardianes pelean en grupos de 2-3 a tu nivel y el Vigía
+// Caído a tu nivel + 1. Guardianes: un héroe solo (turnos para vencer al grupo / rondas que aguanta
+// recibiendo todos los golpes). Jefe: grupo de 3 (guerrero, mago y sacerdote).
+function simulateCripta(classes, gear) {
+  const cripta = require('../../lib/cripta');
+  const rowAt = (m, lv) => {
+    const [a, b] = m.scalings;
+    const t = Math.max(0, Math.min(1, (lv - a.level) / (b.level - a.level)));
+    const out = {};
+    for (const k of Object.keys(a)) out[k] = typeof a[k] === 'number' ? a[k] + (b[k] - a[k]) * t : a[k];
+    return out;
+  };
+  const byCode = Object.fromEntries(cripta.MONSTERS.map((m) => [m.code, m]));
+  const heroHit = (c, h, lv, row) => {
+    const sk = EQ.skillTier(lv >= 10 ? 10 : lv >= 5 ? 5 : 1);
+    const magic = EQ.MAIN_STAT[c.code] === 'mag';
+    const raw = sk.base + sk.mult * h[EQ.MAIN_STAT[c.code]];
+    return Math.max(raw * DAMAGE_FLOOR, raw - 0.5 * (magic ? row.magic_def : row.def)) * (1 + Math.min(100, h.crit) / 100 * 0.5);
+  };
+  const monHit = (row, h) => {
+    const magic = row.magic_atk > row.atk;
+    const raw = 1.2 * (magic ? row.magic_atk : row.atk);
+    return Math.max(raw * DAMAGE_FLOOR, raw - 0.5 * (magic ? h.magic_def : h.def)) * (1 + row.crit_chance / 100 * 0.5);
+  };
+  console.log('\nCripta del Vigía · guardianes contra un héroe solo: turnos para vencerlos / rondas que aguanta (meta: vence antes de caer)');
+  for (const [key, g] of Object.entries(cripta.GUARDIANES)) {
+    const cells = [];
+    for (const lv of [5, 8, 10, 12]) {
+      const per = classes.map((c) => {
+        const h = heroAt(c, lv, gear);
+        const rows = g.monsters.map((code) => rowAt(byCode[code], lv));
+        const ttk = rows.reduce((sum, r) => sum + Math.ceil(r.hp / heroHit(c, h, lv, r)), 0);
+        const ttd = Math.floor(h.hp / rows.reduce((sum, r) => sum + monHit(r, h), 0));
+        return `${c.code.slice(0, 3)} ${ttk}/${ttd}`;
+      });
+      cells.push(`nv${lv}: ${per.join(' ')}`);
+    }
+    console.log(`${key.padEnd(17)} ${cells.join(' | ')}`);
+  }
+  const party = ['GUERRERO', 'MAGO', 'SACERDOTE'].map((code) => classes.find((c) => c.code === code));
+  // el grupo de 3 contra cada grupo de guardianes: rondas para vencerlos / rondas que aguanta el grupo
+  // (los golpes se reparten entre los tres; sin contar curas ni pociones)
+  console.log('Guardianes contra guerrero + mago + sacerdote: rondas para vencerlos / rondas que aguanta el grupo');
+  for (const [key, g] of Object.entries(cripta.GUARDIANES)) {
+    const cells = [];
+    for (const lv of [5, 8, 10, 12]) {
+      const rows = g.monsters.map((code) => rowAt(byCode[code], lv));
+      const heroes = party.map((c) => ({ c, h: heroAt(c, lv, gear) }));
+      const ttk = rows.reduce((sum, r) => sum + r.hp / heroes.reduce((t, x) => t + heroHit(x.c, x.h, lv, r), 0), 0);
+      const hpTotal = heroes.reduce((t, x) => t + x.h.hp, 0);
+      const perRound = rows.reduce((sum, r) => sum + heroes.reduce((t, x) => t + monHit(r, x.h), 0) / heroes.length, 0);
+      cells.push(`nv${lv}: ${Math.ceil(ttk)}/${Math.floor(hpTotal / perRound)}`);
+    }
+    console.log(`  ${key.padEnd(17)} ${cells.join(' | ')}`);
+  }
+  console.log('Vigía Caído (nivel del héroe + 1) contra guerrero + mago + sacerdote: rondas para vencerlo / golpes que aguanta el guerrero');
+  const cells = [];
+  for (const lv of [5, 8, 10, 12]) {
+    const row = rowAt(byCode[cripta.BOSS_CODE], lv + 1);
+    const dmg = party.reduce((sum, c) => sum + heroHit(c, heroAt(c, lv, gear), lv, row), 0);
+    const tank = heroAt(party[0], lv, gear);
+    cells.push(`nv${lv}: ${Math.ceil(row.hp / dmg)} rondas / ${Math.floor(tank.hp / monHit(row, tank))} golpes`);
+  }
+  console.log('  ' + cells.join(' | '));
 }
 
 // ---------------------------------------------------------------- SQL

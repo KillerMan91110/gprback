@@ -4777,3 +4777,98 @@ UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 
 DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_SACERDOTE_WEAPON_VIGIA');
 INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
 SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_SACERDOTE_WEAPON_VIGIA'), i.id, v.n FROM (VALUES ('MEDALLA_VIGIA', 2), ('TELA_LINO', 2), ('CUARZO_RIO', 2)) AS v(code, n) JOIN items i ON i.code = v.code;
+
+-- ============================================================================================
+-- Botín de la Cripta del Vigía a su nivel (repetible; sin ON CONFLICT). La cripta (nivel 5-12)
+-- repartía cosas de otras zonas: armas de nivel 20-35 de cualquier clase, Fragmento de Luz (zona 7),
+-- Oro Puro y materiales de los sets de las Montañas. Ahora:
+-- * Centinela y Espectro sueltan Medallas del Vigía (eran soldados de su guardia).
+-- * El Vigía Caído suelta su Ojo, con el que se fabrican las armas del Vigía Caído (nivel 10, raras).
+-- * El cofre (lib/cripta.js) da oro y pociones, una pieza de la Guardia de tu clase u Ojos del Vigía.
+-- ============================================================================================
+INSERT INTO items (code, name, item_type, rarity, obtain_method, description)
+SELECT 'OJO_DEL_VIGIA', 'Ojo del Vigía', 'MATERIAL', 'RARO', 'Drop de monstruo',
+       'El ojo de piedra que brillaba en el yelmo del Vigía Caído. Todavía mira. Con él se forjan las armas del Vigía Caído.'
+WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'OJO_DEL_VIGIA');
+UPDATE items SET name = 'Ojo del Vigía', rarity = 'RARO', obtain_method = 'Drop de monstruo',
+  description = 'El ojo de piedra que brillaba en el yelmo del Vigía Caído. Todavía mira. Con él se forjan las armas del Vigía Caído.'
+WHERE code = 'OJO_DEL_VIGIA';
+
+-- botín de los monstruos de la cripta (lib/cripta.js también los asegura al arrancar)
+DELETE FROM monster_drops WHERE monster_id IN (SELECT id FROM monsters WHERE code IN ('CRIPTA_CENTINELA', 'CRIPTA_ESPECTRO', 'CRIPTA_VIGIA'));
+INSERT INTO monster_drops (monster_id, item_id, drop_chance_percent, min_quantity, max_quantity)
+SELECT m.id, i.id, v.pct, v.mn, v.mx FROM (VALUES
+  ('CRIPTA_CENTINELA', 'MEDALLA_VIGIA', 35, 1, 2), ('CRIPTA_CENTINELA', 'MINERAL_DE_HIERRO', 25, 1, 2),
+  ('CRIPTA_ESPECTRO', 'MEDALLA_VIGIA', 30, 1, 2), ('CRIPTA_ESPECTRO', 'POLVO_ARCANO', 15, 1, 1),
+  ('CRIPTA_VIGIA', 'OJO_DEL_VIGIA', 50, 1, 1), ('CRIPTA_VIGIA', 'MEDALLA_VIGIA', 100, 2, 3), ('CRIPTA_VIGIA', 'PIEDRA_ENCANT_MENOR', 20, 1, 1)
+) AS v(mon, item, pct, mn, mx) JOIN monsters m ON m.code = v.mon JOIN items i ON i.code = v.item;
+
+-- Espada del Vigía Caído
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'GUERRERO_WEAPON_VIGIA_CAIDO', 'Espada del Vigía Caído', 'EQUIPMENT', 'WEAPON', FALSE, 'RARO', 1, 10, TRUE, 'CRAFT', 'Forjada con el ojo del Vigía Caído. Dicen que todavía vigila por quien la lleva.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'GUERRERO_WEAPON_VIGIA_CAIDO');
+UPDATE items SET name = 'Espada del Vigía Caído', item_type = 'EQUIPMENT', slot = 'WEAPON', is_two_handed = FALSE, rarity = 'RARO', class_id = 1, required_level = 10, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Forjada con el ojo del Vigía Caído. Dicen que todavía vigila por quien la lleva.' WHERE code = 'GUERRERO_WEAPON_VIGIA_CAIDO';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'GUERRERO_WEAPON_VIGIA_CAIDO');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'GUERRERO_WEAPON_VIGIA_CAIDO'), v.* FROM (VALUES ('ATK', 34, FALSE), ('CRIT_CHANCE', 5.3, TRUE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station)
+SELECT 'RECIPE_GUERRERO_WEAPON_VIGIA_CAIDO', (SELECT id FROM items WHERE code = 'GUERRERO_WEAPON_VIGIA_CAIDO'), 1, 'RARO', 10, 1, 85, 1, 'Maestro Goreth', 1, 'forja' WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_GUERRERO_WEAPON_VIGIA_CAIDO');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'GUERRERO_WEAPON_VIGIA_CAIDO'), result_quantity = 1, rarity = 'RARO', required_level = 10, required_class_id = 1, success_rate_percent = 85, craft_time_minutes = 1, artisan_name = 'Maestro Goreth', zone_id = 1, station = 'forja' WHERE code = 'RECIPE_GUERRERO_WEAPON_VIGIA_CAIDO';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_GUERRERO_WEAPON_VIGIA_CAIDO');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_GUERRERO_WEAPON_VIGIA_CAIDO'), i.id, v.n FROM (VALUES ('OJO_DEL_VIGIA', 3), ('MEDALLA_VIGIA', 4), ('LINGOTE_HIERRO', 3), ('CUERO_TRATADO', 2)) AS v(code, n) JOIN items i ON i.code = v.code;
+
+-- Báculo Arcano del Vigía Caído
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'MAGO_WEAPON_VIGIA_CAIDO', 'Báculo Arcano del Vigía Caído', 'EQUIPMENT', 'WEAPON', FALSE, 'RARO', 2, 10, TRUE, 'CRAFT', 'Forjada con el ojo del Vigía Caído. Dicen que todavía vigila por quien la lleva.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'MAGO_WEAPON_VIGIA_CAIDO');
+UPDATE items SET name = 'Báculo Arcano del Vigía Caído', item_type = 'EQUIPMENT', slot = 'WEAPON', is_two_handed = FALSE, rarity = 'RARO', class_id = 2, required_level = 10, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Forjada con el ojo del Vigía Caído. Dicen que todavía vigila por quien la lleva.' WHERE code = 'MAGO_WEAPON_VIGIA_CAIDO';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'MAGO_WEAPON_VIGIA_CAIDO');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'MAGO_WEAPON_VIGIA_CAIDO'), v.* FROM (VALUES ('MAG', 34, FALSE), ('CRIT_CHANCE', 5.3, TRUE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station)
+SELECT 'RECIPE_MAGO_WEAPON_VIGIA_CAIDO', (SELECT id FROM items WHERE code = 'MAGO_WEAPON_VIGIA_CAIDO'), 1, 'RARO', 10, 2, 85, 1, 'Faeron el Sastre', 1, 'forja' WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_MAGO_WEAPON_VIGIA_CAIDO');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'MAGO_WEAPON_VIGIA_CAIDO'), result_quantity = 1, rarity = 'RARO', required_level = 10, required_class_id = 2, success_rate_percent = 85, craft_time_minutes = 1, artisan_name = 'Faeron el Sastre', zone_id = 1, station = 'forja' WHERE code = 'RECIPE_MAGO_WEAPON_VIGIA_CAIDO';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_MAGO_WEAPON_VIGIA_CAIDO');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_MAGO_WEAPON_VIGIA_CAIDO'), i.id, v.n FROM (VALUES ('OJO_DEL_VIGIA', 3), ('MEDALLA_VIGIA', 4), ('TELA_LINO', 3), ('GLANDULA_SAPO', 2)) AS v(code, n) JOIN items i ON i.code = v.code;
+
+-- Arco del Vigía Caído
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'ARQUERO_WEAPON_VIGIA_CAIDO', 'Arco del Vigía Caído', 'EQUIPMENT', 'WEAPON', FALSE, 'RARO', 3, 10, TRUE, 'CRAFT', 'Forjada con el ojo del Vigía Caído. Dicen que todavía vigila por quien la lleva.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'ARQUERO_WEAPON_VIGIA_CAIDO');
+UPDATE items SET name = 'Arco del Vigía Caído', item_type = 'EQUIPMENT', slot = 'WEAPON', is_two_handed = FALSE, rarity = 'RARO', class_id = 3, required_level = 10, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Forjada con el ojo del Vigía Caído. Dicen que todavía vigila por quien la lleva.' WHERE code = 'ARQUERO_WEAPON_VIGIA_CAIDO';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'ARQUERO_WEAPON_VIGIA_CAIDO');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'ARQUERO_WEAPON_VIGIA_CAIDO'), v.* FROM (VALUES ('ATK', 34, FALSE), ('CRIT_CHANCE', 5.3, TRUE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station)
+SELECT 'RECIPE_ARQUERO_WEAPON_VIGIA_CAIDO', (SELECT id FROM items WHERE code = 'ARQUERO_WEAPON_VIGIA_CAIDO'), 1, 'RARO', 10, 3, 85, 1, 'Bram el Peletero', 1, 'forja' WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_ARQUERO_WEAPON_VIGIA_CAIDO');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'ARQUERO_WEAPON_VIGIA_CAIDO'), result_quantity = 1, rarity = 'RARO', required_level = 10, required_class_id = 3, success_rate_percent = 85, craft_time_minutes = 1, artisan_name = 'Bram el Peletero', zone_id = 1, station = 'forja' WHERE code = 'RECIPE_ARQUERO_WEAPON_VIGIA_CAIDO';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_ARQUERO_WEAPON_VIGIA_CAIDO');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_ARQUERO_WEAPON_VIGIA_CAIDO'), i.id, v.n FROM (VALUES ('OJO_DEL_VIGIA', 3), ('MEDALLA_VIGIA', 4), ('CUERO_TRATADO', 3), ('TABLA_ROBLE', 2)) AS v(code, n) JOIN items i ON i.code = v.code;
+
+-- Daga del Vigía Caído
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'PICARO_WEAPON_VIGIA_CAIDO', 'Daga del Vigía Caído', 'EQUIPMENT', 'WEAPON', FALSE, 'RARO', 4, 10, TRUE, 'CRAFT', 'Forjada con el ojo del Vigía Caído. Dicen que todavía vigila por quien la lleva.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'PICARO_WEAPON_VIGIA_CAIDO');
+UPDATE items SET name = 'Daga del Vigía Caído', item_type = 'EQUIPMENT', slot = 'WEAPON', is_two_handed = FALSE, rarity = 'RARO', class_id = 4, required_level = 10, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Forjada con el ojo del Vigía Caído. Dicen que todavía vigila por quien la lleva.' WHERE code = 'PICARO_WEAPON_VIGIA_CAIDO';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'PICARO_WEAPON_VIGIA_CAIDO');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'PICARO_WEAPON_VIGIA_CAIDO'), v.* FROM (VALUES ('ATK', 34, FALSE), ('CRIT_CHANCE', 5.3, TRUE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station)
+SELECT 'RECIPE_PICARO_WEAPON_VIGIA_CAIDO', (SELECT id FROM items WHERE code = 'PICARO_WEAPON_VIGIA_CAIDO'), 1, 'RARO', 10, 4, 85, 1, 'Bram el Peletero', 1, 'forja' WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_PICARO_WEAPON_VIGIA_CAIDO');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'PICARO_WEAPON_VIGIA_CAIDO'), result_quantity = 1, rarity = 'RARO', required_level = 10, required_class_id = 4, success_rate_percent = 85, craft_time_minutes = 1, artisan_name = 'Bram el Peletero', zone_id = 1, station = 'forja' WHERE code = 'RECIPE_PICARO_WEAPON_VIGIA_CAIDO';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_PICARO_WEAPON_VIGIA_CAIDO');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_PICARO_WEAPON_VIGIA_CAIDO'), i.id, v.n FROM (VALUES ('OJO_DEL_VIGIA', 3), ('MEDALLA_VIGIA', 4), ('CUERO_TRATADO', 3), ('LINGOTE_HIERRO', 2)) AS v(code, n) JOIN items i ON i.code = v.code;
+
+-- Báculo Sagrado del Vigía Caído
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'SACERDOTE_WEAPON_VIGIA_CAIDO', 'Báculo Sagrado del Vigía Caído', 'EQUIPMENT', 'WEAPON', FALSE, 'RARO', 5, 10, TRUE, 'CRAFT', 'Forjada con el ojo del Vigía Caído. Dicen que todavía vigila por quien la lleva.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'SACERDOTE_WEAPON_VIGIA_CAIDO');
+UPDATE items SET name = 'Báculo Sagrado del Vigía Caído', item_type = 'EQUIPMENT', slot = 'WEAPON', is_two_handed = FALSE, rarity = 'RARO', class_id = 5, required_level = 10, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Forjada con el ojo del Vigía Caído. Dicen que todavía vigila por quien la lleva.' WHERE code = 'SACERDOTE_WEAPON_VIGIA_CAIDO';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'SACERDOTE_WEAPON_VIGIA_CAIDO');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'SACERDOTE_WEAPON_VIGIA_CAIDO'), v.* FROM (VALUES ('MAG', 34, FALSE), ('CRIT_CHANCE', 5.3, TRUE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station)
+SELECT 'RECIPE_SACERDOTE_WEAPON_VIGIA_CAIDO', (SELECT id FROM items WHERE code = 'SACERDOTE_WEAPON_VIGIA_CAIDO'), 1, 'RARO', 10, 5, 85, 1, 'Faeron el Sastre', 1, 'forja' WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_SACERDOTE_WEAPON_VIGIA_CAIDO');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'SACERDOTE_WEAPON_VIGIA_CAIDO'), result_quantity = 1, rarity = 'RARO', required_level = 10, required_class_id = 5, success_rate_percent = 85, craft_time_minutes = 1, artisan_name = 'Faeron el Sastre', zone_id = 1, station = 'forja' WHERE code = 'RECIPE_SACERDOTE_WEAPON_VIGIA_CAIDO';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_SACERDOTE_WEAPON_VIGIA_CAIDO');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_SACERDOTE_WEAPON_VIGIA_CAIDO'), i.id, v.n FROM (VALUES ('OJO_DEL_VIGIA', 3), ('MEDALLA_VIGIA', 4), ('TELA_LINO', 3), ('CUARZO_RIO', 2)) AS v(code, n) JOIN items i ON i.code = v.code;
