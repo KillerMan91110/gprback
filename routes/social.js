@@ -345,6 +345,7 @@ router.post('/messages', async (req, res, next) => {
     // adjuntos: mismo tier que el que se descuenta, sin repetir (antes se duplicaban objetos)
     const seen = new Set();
     const list = [];
+    await require('../lib/questSteps').assertNotQuestItems(items.map((it) => Number(it.itemId)));
     for (const it of items) {
       const e = { itemId: Number(it.itemId), quantity: Math.floor(Number(it.quantity) || 1), enchantLevel: Number(it.enchantLevel) || 0, qualityTier: Number(it.qualityTier) || 0 };
       const key = `${e.itemId}:${e.enchantLevel}:${e.qualityTier}`;

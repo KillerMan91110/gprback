@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router({ mergeParams: true });
 const db = require('../db/db');
+const { refreshInstance } = require('../lib/worldPresence');
 const { requireAuth, requireSelf } = require('../lib/auth');
 const { positionOf, isConnected } = require('../lib/worldPresence');
 
@@ -23,6 +24,10 @@ function nearInWorld(aId, bId) {
 // avisos por socket a la sala personal de cada jugador (ver lib/worldPresence.js)
 function notify(req, playerIds, event, payload) {
   const io = req.app.get('io');
+  // cambió el grupo: los que estén en una mazmorra pasan a la instancia de su grupo nuevo
+  if (event === 'coop:changed' && io) {
+    for (const id of playerIds) refreshInstance(io, id).catch((err) => console.error('[instancias]', err.message));
+  }
   if (!io) return;
   for (const id of playerIds) io.to(`player:${id}`).emit(event, payload);
 }
@@ -378,11 +383,13 @@ router.post('/share-quest', async (req, res, next) => {
     const group = await getMyGroup(playerId);
     if (!group) return res.status(400).json({ error: 'No estás en un grupo' });
     const q = await db.query(
-      `SELECT q.id, q.name FROM player_active_quests paq JOIN quests q ON q.id = paq.quest_id
+      `SELECT q.id, q.name, q.is_personal FROM player_active_quests paq JOIN quests q ON q.id = paq.quest_id
        WHERE paq.player_id = $1 AND paq.quest_id = $2`,
       [playerId, questId]
     );
     if (!q.rows.length) return res.status(400).json({ error: 'Solo puedes compartir una misión que tengas activa' });
+    // las de historia siguen un orden propio: cada uno hace su camino (en combate igual se ayudan)
+    if (q.rows[0].is_personal) return res.status(400).json({ error: 'Esta misión es personal: cada uno tiene que hacer su propio camino.' });
     const others = (await getGroupMemberIds(group.id)).filter((id) => id !== Number(playerId));
     if (!others.length) return res.status(400).json({ error: 'No hay nadie más en tu grupo' });
     // a quien ya la tiene no se le ofrece

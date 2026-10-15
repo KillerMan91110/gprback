@@ -208,6 +208,10 @@ router.post('/listings', async (req, res, next) => {
   if (!pricePerUnit || pricePerUnit <= 0) {
     return res.status(400).json({ error: 'pricePerUnit (mayor a 0) es requerido' });
   }
+  if (itemId) {
+    const qi = await db.query('SELECT name, is_quest_item FROM items WHERE id = $1', [itemId]);
+    if (qi.rows[0]?.is_quest_item) return res.status(400).json({ error: `${qi.rows[0].name} es un objeto de misión: no se puede vender.` });
+  }
   // carta de monstruo: sale del álbum (las engarzadas no se pueden vender sin quitarlas antes)
   if (cardMonsterId) {
     if (itemId || playerPetId) return res.status(400).json({ error: 'Una publicación es de un ítem, una mascota o una carta' });

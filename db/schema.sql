@@ -2730,3 +2730,1473 @@ CREATE TABLE IF NOT EXISTS player_evolution_discoveries (
   discovered_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   PRIMARY KEY (player_id, evolution_id)
 );
+
+-- ============================================================================================
+-- Materiales duplicados (repetible; sin ON CONFLICT): había dos "Tela de Lino" y dos "Polvo de
+-- Piedra" con códigos distintos; las recetas usan una y la tienda/recolección daban la otra. Se
+-- pasa todo a la buena (mochilas, mercado, puestos, correo, tiendas, misiones, botín) y la vieja
+-- queda marcada como obsoleta. Además, un índice impide que vuelva a haber dos materiales o
+-- consumibles con el mismo nombre (el equipo sí repite nombre: hay una pieza por clase).
+-- ============================================================================================
+DO $$
+DECLARE
+  par RECORD;
+  viejo INT;
+  nuevo INT;
+BEGIN
+  FOR par IN SELECT * FROM (VALUES ('TELA_DE_LINO', 'TELA_LINO'), ('POLVO_PIEDRA', 'POLVO_DE_PIEDRA')) AS v(viejo, nuevo) LOOP
+    SELECT id INTO viejo FROM items WHERE code = par.viejo;
+    SELECT id INTO nuevo FROM items WHERE code = par.nuevo;
+    IF viejo IS NULL OR nuevo IS NULL THEN CONTINUE; END IF;
+
+    -- mochilas: se suma a la pila buena si ya existe; si no, la pila cambia de objeto
+    UPDATE player_inventory c SET quantity = c.quantity + o.quantity
+      FROM player_inventory o
+      WHERE o.item_id = viejo AND c.item_id = nuevo AND c.player_id = o.player_id
+        AND c.enchant_level = o.enchant_level AND c.quality_tier = o.quality_tier;
+    UPDATE player_inventory o SET item_id = nuevo
+      WHERE o.item_id = viejo AND NOT EXISTS (
+        SELECT 1 FROM player_inventory c WHERE c.player_id = o.player_id AND c.item_id = nuevo
+          AND c.enchant_level = o.enchant_level AND c.quality_tier = o.quality_tier);
+    DELETE FROM player_inventory WHERE item_id = viejo;
+
+    -- en venta o en camino
+    UPDATE player_market_listings SET item_id = nuevo WHERE item_id = viejo;
+    UPDATE player_stall_items SET item_id = nuevo WHERE item_id = viejo;
+    UPDATE player_message_items SET item_id = nuevo WHERE item_id = viejo;
+
+    -- tiendas, botín, recetas y misiones (sin duplicar filas que ya existan con el bueno)
+    UPDATE artisan_shop a SET item_id = nuevo WHERE a.item_id = viejo
+      AND NOT EXISTS (SELECT 1 FROM artisan_shop b WHERE b.artisan_code = a.artisan_code AND b.item_id = nuevo);
+    DELETE FROM artisan_shop WHERE item_id = viejo;
+    UPDATE monster_drops a SET item_id = nuevo WHERE a.item_id = viejo
+      AND NOT EXISTS (SELECT 1 FROM monster_drops b WHERE b.monster_id = a.monster_id AND b.item_id = nuevo);
+    DELETE FROM monster_drops WHERE item_id = viejo;
+    UPDATE crafting_recipe_ingredients a SET item_id = nuevo WHERE a.item_id = viejo
+      AND NOT EXISTS (SELECT 1 FROM crafting_recipe_ingredients b WHERE b.recipe_id = a.recipe_id AND b.item_id = nuevo);
+    DELETE FROM crafting_recipe_ingredients WHERE item_id = viejo;
+    UPDATE crafting_recipes SET result_item_id = nuevo WHERE result_item_id = viejo;
+    UPDATE dismantle_recipes SET result_item_id = nuevo WHERE result_item_id = viejo;
+    UPDATE quest_item_rewards SET item_id = nuevo WHERE item_id = viejo;
+    UPDATE quest_objectives SET item_id = nuevo WHERE item_id = viejo;
+    UPDATE quest_hidden_requirements SET item_id = nuevo WHERE item_id = viejo;
+    UPDATE class_master_shop_items SET item_id = nuevo WHERE item_id = viejo;
+    UPDATE world_boss_shop SET item_id = nuevo WHERE item_id = viejo;
+    UPDATE tower_vendor_shop a SET item_id = nuevo WHERE a.item_id = viejo
+      AND NOT EXISTS (SELECT 1 FROM tower_vendor_shop b WHERE b.item_id = nuevo);
+    DELETE FROM tower_vendor_shop WHERE item_id = viejo;
+    UPDATE tower_settlement_shop a SET item_id = nuevo WHERE a.item_id = viejo
+      AND NOT EXISTS (SELECT 1 FROM tower_settlement_shop b WHERE b.item_id = nuevo);
+    DELETE FROM tower_settlement_shop WHERE item_id = viejo;
+    UPDATE daily_reward_catalog SET item_code = par.nuevo WHERE item_code = par.viejo;
+    UPDATE daily_event_catalog SET bonus_material_item_code = par.nuevo WHERE bonus_material_item_code = par.viejo;
+
+    -- la vieja queda en la tabla (la usan registros viejos de combate y del banco) con otro nombre
+    UPDATE items SET name = name || ' (obsoleto)' WHERE id = viejo AND name NOT LIKE '% (obsoleto)';
+  END LOOP;
+END $$;
+
+-- que no vuelva a pasar: nombres únicos entre materiales, consumibles y demás (no equipo)
+DO $$ BEGIN
+  CREATE UNIQUE INDEX IF NOT EXISTS uq_items_nombre_no_equipo ON items (lower(name)) WHERE item_type <> 'EQUIPMENT';
+EXCEPTION WHEN unique_violation THEN
+  RAISE NOTICE 'Todavía hay materiales con el mismo nombre: revísalos antes de crear el índice';
+END $$;
+
+-- ============================================================================================
+-- Misiones v2 (repetible; sin ON CONFLICT): misiones por pasos (lib/questSteps.js)
+-- * quest_objectives.step: solo cuenta el paso actual (el más bajo con algo pendiente).
+-- * Tipos nuevos: TALK, DELIVER, VISIT, INVESTIGATE, CRAFT, AMBUSH (target_code / params).
+-- * quests: is_personal (no se comparte), giver_npc / turn_in_npc (quién la da y a quién se
+--   entrega en persona) y dialog (textos al ofrecerla, en curso y al entregarla).
+-- * quest_npc_spots: un NPC aparece en otro lugar mientras dure un paso (solo para ese jugador).
+-- * items.is_quest_item: no se vende, regala, publica ni envía; al abandonar la misión se quita.
+-- ============================================================================================
+ALTER TABLE quests ADD COLUMN IF NOT EXISTS is_personal BOOLEAN NOT NULL DEFAULT FALSE;
+ALTER TABLE quests ADD COLUMN IF NOT EXISTS giver_npc TEXT;
+ALTER TABLE quests ADD COLUMN IF NOT EXISTS turn_in_npc TEXT;
+ALTER TABLE quests ADD COLUMN IF NOT EXISTS dialog JSONB;
+ALTER TABLE quest_objectives ADD COLUMN IF NOT EXISTS step INT NOT NULL DEFAULT 1;
+ALTER TABLE quest_objectives ADD COLUMN IF NOT EXISTS target_code TEXT;
+ALTER TABLE quest_objectives ADD COLUMN IF NOT EXISTS params JSONB;
+ALTER TABLE items ADD COLUMN IF NOT EXISTS is_quest_item BOOLEAN NOT NULL DEFAULT FALSE;
+
+DO $$
+DECLARE allowed TEXT;
+BEGIN
+  SELECT string_agg(DISTINCT quote_literal(t), ',') INTO allowed
+  FROM (SELECT unnest(ARRAY['KILL_MONSTER','KILL_ANY_IN_ZONE','DEFEAT_BOSS','COLLECT_ITEM','USE_ACTION',
+                            'TALK','DELIVER','VISIT','INVESTIGATE','CRAFT','AMBUSH']) AS t
+        UNION SELECT objective_type FROM quest_objectives) x;
+  ALTER TABLE quest_objectives DROP CONSTRAINT IF EXISTS quest_objectives_objective_type_check;
+  EXECUTE 'ALTER TABLE quest_objectives ADD CONSTRAINT quest_objectives_objective_type_check CHECK (objective_type IN (' || allowed || '))';
+END $$;
+
+CREATE TABLE IF NOT EXISTS quest_npc_spots (
+  quest_id  INT NOT NULL REFERENCES quests(id) ON DELETE CASCADE,
+  step      INT NOT NULL,
+  npc       TEXT NOT NULL,
+  zone      TEXT NOT NULL,
+  x         INT NOT NULL,
+  y         INT NOT NULL,
+  hide_home BOOLEAN NOT NULL DEFAULT TRUE,
+  PRIMARY KEY (quest_id, step, npc)
+);
+CREATE TABLE IF NOT EXISTS player_quest_ambushes (
+  player_id    INT NOT NULL REFERENCES players(id) ON DELETE CASCADE,
+  objective_id INT NOT NULL REFERENCES quest_objectives(id) ON DELETE CASCADE,
+  created_at   TIMESTAMPTZ NOT NULL DEFAULT now(),
+  PRIMARY KEY (player_id, objective_id)
+);
+-- misiones secundarias (graciosas, de rivalidad, de amistad, de recolección…)
+DO $$
+DECLARE allowed TEXT;
+BEGIN
+  SELECT string_agg(DISTINCT quote_literal(t), ',') INTO allowed
+  FROM (SELECT unnest(ARRAY['PRINCIPAL','DIARIA','OCULTA','SECUNDARIA']) AS t UNION SELECT quest_type FROM quests) x;
+  ALTER TABLE quests DROP CONSTRAINT IF EXISTS quests_quest_type_check;
+  EXECUTE 'ALTER TABLE quests ADD CONSTRAINT quests_quest_type_check CHECK (quest_type IN (' || allowed || '))';
+END $$;
+
+-- ============================================================================================
+-- Historia de la Pradera · P8 «La torre que vigilaba» (repetible; sin ON CONFLICT). Aldren te
+-- espera en la puerta de la Cripta del Vigía, te da su llave (objeto de misión) y abre el sello;
+-- vences al Vigía Caído y vuelves a contárselo a la Aldea. Sin esta misión la puerta está sellada
+-- (lib/cripta.js hasAccess).
+-- ============================================================================================
+INSERT INTO items (code, name, item_type, rarity, is_quest_item, description)
+SELECT 'LLAVE_DEL_VIGIA', 'Llave del Vigía', 'MATERIAL', 'RARO', TRUE,
+       'Una llave antigua con el ojo del Vigía grabado en el aro. Abre el sello de la cripta bajo su torre.'
+WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'LLAVE_DEL_VIGIA');
+UPDATE items SET is_quest_item = TRUE WHERE code = 'LLAVE_DEL_VIGIA';
+
+INSERT INTO quests (code, name, quest_type, zone_id, min_level, max_level, difficulty_stars, npc_name, location_name,
+                    is_repeatable, reputation_reward, gold_reward, xp_reward, description)
+SELECT 'PRADERA_HISTORIA_08_TORRE', 'La torre que vigilaba', 'PRINCIPAL', 1, 5, 15, 3, 'Anciano Sabio', 'Aldea Espiga',
+       FALSE, 150, 800, 3000, ''
+WHERE NOT EXISTS (SELECT 1 FROM quests WHERE code = 'PRADERA_HISTORIA_08_TORRE');
+UPDATE quests SET
+  is_personal = TRUE, giver_npc = 'anciano', turn_in_npc = 'anciano',
+  description = 'Aldren tiene la mirada perdida en el sur. «Bajo las Ruinas del Vigía hay una cripta que mi familia juró cuidar. '
+    || 'Alguien anda despertando lo que duerme ahí abajo. No puedo bajar solo… pero puedo abrirte la puerta. '
+    || 'Te espero en la entrada de la torre.»',
+  dialog = '{"entrega": "Así que el Vigía Caído ya no camina… Entonces es cierto: alguien despertó a los muertos de la torre. Hay una historia que tengo que contarte, sobre siete sellos. Pero no hoy. Descansa."}'::jsonb
+WHERE code = 'PRADERA_HISTORIA_08_TORRE';
+
+-- pasos: 1) hablar con Aldren en la puerta (te da la llave)  2) vencer al Vigía Caído
+DELETE FROM quest_objectives WHERE quest_id = (SELECT id FROM quests WHERE code = 'PRADERA_HISTORIA_08_TORRE');
+INSERT INTO quest_objectives (quest_id, objective_type, step, target_code, monster_id, target_count, params, description)
+SELECT (SELECT id FROM quests WHERE code = 'PRADERA_HISTORIA_08_TORRE'), v.t, v.step, v.target, (SELECT id FROM monsters WHERE code = v.monster), 1, v.params::jsonb, v.descr
+FROM (VALUES
+  ('TALK', 1, 'anciano', NULL,
+   '{"speaker": "Aldren", "dialog": "Llegaste. Esta es la Puerta del Vigía: el último de mi familia que la cruzó no volvió. Toma esta llave, era suya. Ahí abajo hay guardianes de hueso y algo peor en el fondo. Ten cuidado… y cuando lo venzas, vuelve a la Aldea. Te estaré esperando junto a la fogata.", "gives": {"item": "LLAVE_DEL_VIGIA", "qty": 1}}',
+   'Reúnete con Aldren en la entrada de la Cripta del Vigía (Ruinas del Vigía)'),
+  ('DEFEAT_BOSS', 2, NULL, 'CRIPTA_VIGIA', NULL, 'Entra a la Cripta y vence al Vigía Caído')
+) AS v(t, step, target, monster, params, descr)
+WHERE (SELECT id FROM quests WHERE code = 'PRADERA_HISTORIA_08_TORRE') IS NOT NULL;
+
+-- mientras dura el paso 1, Aldren espera en la puerta de la Cripta (y no en su fogata)
+DELETE FROM quest_npc_spots WHERE quest_id = (SELECT id FROM quests WHERE code = 'PRADERA_HISTORIA_08_TORRE');
+INSERT INTO quest_npc_spots (quest_id, step, npc, zone, x, y, hide_home)
+SELECT id, 1, 'anciano', 'pradera', 31, 106, TRUE FROM quests WHERE code = 'PRADERA_HISTORIA_08_TORRE';
+
+-- ============================================================================================
+-- Monstruos nuevos de la Pradera (repetible; sin ON CONFLICT). Uno por subzona alta, ligados a la
+-- historia: Jabalí Cornudo (bosque y este), Sapo de Lodo (lago), Esqueleto del Vigía (ruinas),
+-- Acólito del Eclipse (círculo y tierras heridas), Bestia de la Grieta (tierras heridas) y el
+-- Golem de Menhir (raro del círculo). Stats por fórmula (lib/equilibrio.js, perfiles en
+-- scripts/equilibrio/generar.js); su botín sale de materiales que ya existen.
+-- ============================================================================================
+-- Jabalí Cornudo
+INSERT INTO monsters (code, name, zone_id, rarity, base_level, min_spawn_level, max_spawn_level, base_hp, base_atk, base_def, base_magic_atk, base_magic_def, base_spd, base_evasion, base_crit_chance, base_crit_damage, xp_reward, gold_reward, description, category, element_id)
+SELECT 'JABALI_CORNUDO', 'Jabalí Cornudo', 1, 'COMMON', 2, 2, 9, 231, 19, 28, 9, 18, 10, 5.3, 6.2, 50, 125, 85, 'Jabalí de colmillos curvos como cuernos. Desde que el bosque enfermó embiste a todo lo que se mueve.', 'BESTIA', NULL
+WHERE NOT EXISTS (SELECT 1 FROM monsters WHERE code = 'JABALI_CORNUDO');
+UPDATE monsters SET name = 'Jabalí Cornudo', zone_id = 1, rarity = 'COMMON', base_level = 2, min_spawn_level = 2, max_spawn_level = 9, base_hp = 231, base_atk = 19, base_def = 28, base_magic_atk = 9, base_magic_def = 18, base_spd = 10, base_evasion = 5.3, base_crit_chance = 6.2, base_crit_damage = 50, xp_reward = 125, gold_reward = 85, description = 'Jabalí de colmillos curvos como cuernos. Desde que el bosque enfermó embiste a todo lo que se mueve.', category = 'BESTIA', element_id = NULL WHERE code = 'JABALI_CORNUDO';
+DELETE FROM monster_level_scalings WHERE monster_id = (SELECT id FROM monsters WHERE code = 'JABALI_CORNUDO');
+INSERT INTO monster_level_scalings (monster_id, level, hp, atk, def, magic_atk, magic_def, spd, evasion, crit_chance, crit_damage, elemental_damage)
+SELECT (SELECT id FROM monsters WHERE code = 'JABALI_CORNUDO'), v.* FROM (VALUES
+  (2, 231, 19, 28, 9, 18, 10, 5.3, 6.2, 50, 0),
+  (9, 625, 48, 76, 24, 51, 22, 7.4, 7.6, 50, 0),
+  (15, 1375, 74, 117, 37, 79, 32, 9.2, 8.8, 50, 0)
+) AS v(level, hp, atk, def, magic_atk, magic_def, spd, evasion, crit_chance, crit_damage, elemental_damage);
+DELETE FROM monster_element_resistances WHERE monster_id = (SELECT id FROM monsters WHERE code = 'JABALI_CORNUDO');
+INSERT INTO monster_element_resistances (monster_id, element_id, resistance_percent)
+SELECT (SELECT id FROM monsters WHERE code = 'JABALI_CORNUDO'), e.id, COALESCE(v.pct, 0) FROM elements e LEFT JOIN (VALUES ('ICE', -30), ('EARTH', 15)) AS v(code, pct) ON v.code = e.code;
+DELETE FROM monster_drops WHERE monster_id = (SELECT id FROM monsters WHERE code = 'JABALI_CORNUDO');
+INSERT INTO monster_drops (monster_id, item_id, drop_chance_percent, min_quantity, max_quantity)
+SELECT (SELECT id FROM monsters WHERE code = 'JABALI_CORNUDO'), i.id, v.pct, v.mn, v.mx FROM (VALUES ('CUERO_CRUDO', 30, 1, 2), ('PIEL', 10, 1, 1), ('HIERBA_CURATIVA', 5, 1, 1), ('MIEL_ABEJA_ANTIGUA', 5, 1, 1), ('HUEVO_COMUN', 3, 1, 1)) AS v(code, pct, mn, mx)
+JOIN items i ON i.code = v.code;
+DELETE FROM monster_skills WHERE monster_id = (SELECT id FROM monsters WHERE code = 'JABALI_CORNUDO');
+INSERT INTO monster_skills (monster_id, skill_id, use_chance_percent)
+SELECT (SELECT id FROM monsters WHERE code = 'JABALI_CORNUDO'), id, 20 FROM skills WHERE code = 'MONSTRUO_GOLPE_BRUTAL';
+-- Sapo de Lodo
+INSERT INTO monsters (code, name, zone_id, rarity, base_level, min_spawn_level, max_spawn_level, base_hp, base_atk, base_def, base_magic_atk, base_magic_def, base_spd, base_evasion, base_crit_chance, base_crit_damage, xp_reward, gold_reward, description, category, element_id)
+SELECT 'SAPO_DE_LODO', 'Sapo de Lodo', 1, 'COMMON', 4, 4, 8, 303, 23, 32, 12, 35, 13, 5.9, 6.6, 50, 140, 90, 'Sapo enorme que salió del Lago Cristalino cuando el agua se enturbió. Su piel suelta un veneno espeso.', 'ACUATICO', (SELECT id FROM elements WHERE code = 'WATER')
+WHERE NOT EXISTS (SELECT 1 FROM monsters WHERE code = 'SAPO_DE_LODO');
+UPDATE monsters SET name = 'Sapo de Lodo', zone_id = 1, rarity = 'COMMON', base_level = 4, min_spawn_level = 4, max_spawn_level = 8, base_hp = 303, base_atk = 23, base_def = 32, base_magic_atk = 12, base_magic_def = 35, base_spd = 13, base_evasion = 5.9, base_crit_chance = 6.6, base_crit_damage = 50, xp_reward = 140, gold_reward = 90, description = 'Sapo enorme que salió del Lago Cristalino cuando el agua se enturbió. Su piel suelta un veneno espeso.', category = 'ACUATICO', element_id = (SELECT id FROM elements WHERE code = 'WATER') WHERE code = 'SAPO_DE_LODO';
+DELETE FROM monster_level_scalings WHERE monster_id = (SELECT id FROM monsters WHERE code = 'SAPO_DE_LODO');
+INSERT INTO monster_level_scalings (monster_id, level, hp, atk, def, magic_atk, magic_def, spd, evasion, crit_chance, crit_damage, elemental_damage)
+SELECT (SELECT id FROM monsters WHERE code = 'SAPO_DE_LODO'), v.* FROM (VALUES
+  (4, 303, 23, 32, 12, 35, 13, 5.9, 6.6, 50, 0),
+  (9, 550, 41, 59, 21, 65, 21, 7.4, 7.6, 50, 0),
+  (15, 1210, 63, 92, 32, 102, 30, 9.2, 8.8, 50, 0)
+) AS v(level, hp, atk, def, magic_atk, magic_def, spd, evasion, crit_chance, crit_damage, elemental_damage);
+DELETE FROM monster_element_resistances WHERE monster_id = (SELECT id FROM monsters WHERE code = 'SAPO_DE_LODO');
+INSERT INTO monster_element_resistances (monster_id, element_id, resistance_percent)
+SELECT (SELECT id FROM monsters WHERE code = 'SAPO_DE_LODO'), e.id, COALESCE(v.pct, 0) FROM elements e LEFT JOIN (VALUES ('LIGHTNING', -50), ('WATER', 25), ('FIRE', 10)) AS v(code, pct) ON v.code = e.code;
+DELETE FROM monster_drops WHERE monster_id = (SELECT id FROM monsters WHERE code = 'SAPO_DE_LODO');
+INSERT INTO monster_drops (monster_id, item_id, drop_chance_percent, min_quantity, max_quantity)
+SELECT (SELECT id FROM monsters WHERE code = 'SAPO_DE_LODO'), i.id, v.pct, v.mn, v.mx FROM (VALUES ('VENENO_DE_ARANA', 20, 1, 1), ('AGUA_FRESCA', 12, 1, 2), ('HIERBA_MAGICA', 10, 1, 1), ('CUARZO_RIO', 8, 1, 1), ('HUEVO_COMUN', 3, 1, 1)) AS v(code, pct, mn, mx)
+JOIN items i ON i.code = v.code;
+DELETE FROM monster_skills WHERE monster_id = (SELECT id FROM monsters WHERE code = 'SAPO_DE_LODO');
+INSERT INTO monster_skills (monster_id, skill_id, use_chance_percent)
+SELECT (SELECT id FROM monsters WHERE code = 'SAPO_DE_LODO'), id, 30 FROM skills WHERE code = 'MONSTRUO_VENENO_COLMILLO';
+-- Esqueleto del Vigía
+INSERT INTO monsters (code, name, zone_id, rarity, base_level, min_spawn_level, max_spawn_level, base_hp, base_atk, base_def, base_magic_atk, base_magic_def, base_spd, base_evasion, base_crit_chance, base_crit_damage, xp_reward, gold_reward, description, category, element_id)
+SELECT 'ESQUELETO_VIGIA', 'Esqueleto del Vigía', 1, 'COMMON', 5, 5, 9, 288, 32, 55, 16, 30, 18, 6.2, 6.8, 50, 170, 100, 'Soldado de la antigua guardia del Vigía. Algo bajo la torre lo hizo levantarse otra vez, todavía con el tabardo azul de su orden.', 'MUERTO_VIVIENTE', NULL
+WHERE NOT EXISTS (SELECT 1 FROM monsters WHERE code = 'ESQUELETO_VIGIA');
+UPDATE monsters SET name = 'Esqueleto del Vigía', zone_id = 1, rarity = 'COMMON', base_level = 5, min_spawn_level = 5, max_spawn_level = 9, base_hp = 288, base_atk = 32, base_def = 55, base_magic_atk = 16, base_magic_def = 30, base_spd = 18, base_evasion = 6.2, base_crit_chance = 6.8, base_crit_damage = 50, xp_reward = 170, gold_reward = 100, description = 'Soldado de la antigua guardia del Vigía. Algo bajo la torre lo hizo levantarse otra vez, todavía con el tabardo azul de su orden.', category = 'MUERTO_VIVIENTE', element_id = NULL WHERE code = 'ESQUELETO_VIGIA';
+DELETE FROM monster_level_scalings WHERE monster_id = (SELECT id FROM monsters WHERE code = 'ESQUELETO_VIGIA');
+INSERT INTO monster_level_scalings (monster_id, level, hp, atk, def, magic_atk, magic_def, spd, evasion, crit_chance, crit_damage, elemental_damage)
+SELECT (SELECT id FROM monsters WHERE code = 'ESQUELETO_VIGIA'), v.* FROM (VALUES
+  (5, 288, 32, 55, 16, 30, 18, 6.2, 6.8, 50, 0),
+  (9, 450, 48, 86, 24, 48, 26, 7.4, 7.6, 50, 0),
+  (15, 990, 74, 133, 37, 74, 38, 9.2, 8.8, 50, 0)
+) AS v(level, hp, atk, def, magic_atk, magic_def, spd, evasion, crit_chance, crit_damage, elemental_damage);
+DELETE FROM monster_element_resistances WHERE monster_id = (SELECT id FROM monsters WHERE code = 'ESQUELETO_VIGIA');
+INSERT INTO monster_element_resistances (monster_id, element_id, resistance_percent)
+SELECT (SELECT id FROM monsters WHERE code = 'ESQUELETO_VIGIA'), e.id, COALESCE(v.pct, 0) FROM elements e LEFT JOIN (VALUES ('LIGHT', -50), ('DARK', 25)) AS v(code, pct) ON v.code = e.code;
+DELETE FROM monster_drops WHERE monster_id = (SELECT id FROM monsters WHERE code = 'ESQUELETO_VIGIA');
+INSERT INTO monster_drops (monster_id, item_id, drop_chance_percent, min_quantity, max_quantity)
+SELECT (SELECT id FROM monsters WHERE code = 'ESQUELETO_VIGIA'), i.id, v.pct, v.mn, v.mx FROM (VALUES ('POLVO_DE_PIEDRA', 20, 1, 2), ('LINGOTE_BRONCE', 10, 1, 1), ('TELA_COMUN', 8, 1, 1), ('PIEDRA_ENCANT_MENOR', 3, 1, 1)) AS v(code, pct, mn, mx)
+JOIN items i ON i.code = v.code;
+DELETE FROM monster_skills WHERE monster_id = (SELECT id FROM monsters WHERE code = 'ESQUELETO_VIGIA');
+-- Acólito del Eclipse
+INSERT INTO monsters (code, name, zone_id, rarity, base_level, min_spawn_level, max_spawn_level, base_hp, base_atk, base_def, base_magic_atk, base_magic_def, base_spd, base_evasion, base_crit_chance, base_crit_damage, xp_reward, gold_reward, description, category, element_id)
+SELECT 'ACOLITO_ECLIPSE', 'Acólito del Eclipse', 1, 'COMMON', 8, 8, 15, 387, 17, 48, 44, 65, 24, 7.1, 7.4, 50, 230, 120, 'Cultista de los Ocultos con el eclipse negro bordado en la túnica. Planta cristales oscuros y maldice a quien se acerca.', 'HUMANOIDE', (SELECT id FROM elements WHERE code = 'DARK')
+WHERE NOT EXISTS (SELECT 1 FROM monsters WHERE code = 'ACOLITO_ECLIPSE');
+UPDATE monsters SET name = 'Acólito del Eclipse', zone_id = 1, rarity = 'COMMON', base_level = 8, min_spawn_level = 8, max_spawn_level = 15, base_hp = 387, base_atk = 17, base_def = 48, base_magic_atk = 44, base_magic_def = 65, base_spd = 24, base_evasion = 7.1, base_crit_chance = 7.4, base_crit_damage = 50, xp_reward = 230, gold_reward = 120, description = 'Cultista de los Ocultos con el eclipse negro bordado en la túnica. Planta cristales oscuros y maldice a quien se acerca.', category = 'HUMANOIDE', element_id = (SELECT id FROM elements WHERE code = 'DARK') WHERE code = 'ACOLITO_ECLIPSE';
+DELETE FROM monster_level_scalings WHERE monster_id = (SELECT id FROM monsters WHERE code = 'ACOLITO_ECLIPSE');
+INSERT INTO monster_level_scalings (monster_id, level, hp, atk, def, magic_atk, magic_def, spd, evasion, crit_chance, crit_damage, elemental_damage)
+SELECT (SELECT id FROM monsters WHERE code = 'ACOLITO_ECLIPSE'), v.* FROM (VALUES
+  (8, 387, 17, 48, 44, 65, 24, 7.1, 7.4, 50, 0),
+  (9, 425, 18, 53, 48, 71, 26, 7.4, 7.6, 50, 0),
+  (15, 935, 28, 82, 74, 111, 38, 9.2, 8.8, 50, 0)
+) AS v(level, hp, atk, def, magic_atk, magic_def, spd, evasion, crit_chance, crit_damage, elemental_damage);
+DELETE FROM monster_element_resistances WHERE monster_id = (SELECT id FROM monsters WHERE code = 'ACOLITO_ECLIPSE');
+INSERT INTO monster_element_resistances (monster_id, element_id, resistance_percent)
+SELECT (SELECT id FROM monsters WHERE code = 'ACOLITO_ECLIPSE'), e.id, COALESCE(v.pct, 0) FROM elements e LEFT JOIN (VALUES ('LIGHT', -50), ('DARK', 20)) AS v(code, pct) ON v.code = e.code;
+DELETE FROM monster_drops WHERE monster_id = (SELECT id FROM monsters WHERE code = 'ACOLITO_ECLIPSE');
+INSERT INTO monster_drops (monster_id, item_id, drop_chance_percent, min_quantity, max_quantity)
+SELECT (SELECT id FROM monsters WHERE code = 'ACOLITO_ECLIPSE'), i.id, v.pct, v.mn, v.mx FROM (VALUES ('TELA_COMUN', 15, 1, 1), ('POLVO_ARCANO', 12, 1, 1), ('GEMA_COMUN', 8, 1, 1), ('TOTEM_OSCURO', 8, 1, 1), ('HIERBA_MAGICA', 8, 1, 1)) AS v(code, pct, mn, mx)
+JOIN items i ON i.code = v.code;
+DELETE FROM monster_skills WHERE monster_id = (SELECT id FROM monsters WHERE code = 'ACOLITO_ECLIPSE');
+INSERT INTO monster_skills (monster_id, skill_id, use_chance_percent)
+SELECT (SELECT id FROM monsters WHERE code = 'ACOLITO_ECLIPSE'), id, 25 FROM skills WHERE code = 'MONSTRUO_MALDICION_OSCURA';
+-- Bestia de la Grieta
+INSERT INTO monsters (code, name, zone_id, rarity, base_level, min_spawn_level, max_spawn_level, base_hp, base_atk, base_def, base_magic_atk, base_magic_def, base_spd, base_evasion, base_crit_chance, base_crit_damage, xp_reward, gold_reward, description, category, element_id)
+SELECT 'BESTIA_GRIETA', 'Bestia de la Grieta', 1, 'COMMON', 10, 10, 15, 600, 57, 65, 29, 65, 35, 7.7, 11.8, 50, 280, 140, 'Un lobo deformado por los cristales del eclipse que le brotan del lomo. Sale de las grietas de las Tierras Heridas.', 'BESTIA', (SELECT id FROM elements WHERE code = 'DARK')
+WHERE NOT EXISTS (SELECT 1 FROM monsters WHERE code = 'BESTIA_GRIETA');
+UPDATE monsters SET name = 'Bestia de la Grieta', zone_id = 1, rarity = 'COMMON', base_level = 10, min_spawn_level = 10, max_spawn_level = 15, base_hp = 600, base_atk = 57, base_def = 65, base_magic_atk = 29, base_magic_def = 65, base_spd = 35, base_evasion = 7.7, base_crit_chance = 11.8, base_crit_damage = 50, xp_reward = 280, gold_reward = 140, description = 'Un lobo deformado por los cristales del eclipse que le brotan del lomo. Sale de las grietas de las Tierras Heridas.', category = 'BESTIA', element_id = (SELECT id FROM elements WHERE code = 'DARK') WHERE code = 'BESTIA_GRIETA';
+DELETE FROM monster_level_scalings WHERE monster_id = (SELECT id FROM monsters WHERE code = 'BESTIA_GRIETA');
+INSERT INTO monster_level_scalings (monster_id, level, hp, atk, def, magic_atk, magic_def, spd, evasion, crit_chance, crit_damage, elemental_damage)
+SELECT (SELECT id FROM monsters WHERE code = 'BESTIA_GRIETA'), v.* FROM (VALUES
+  (10, 600, 57, 65, 29, 65, 35, 7.7, 11.8, 50, 0),
+  (15, 1100, 81, 92, 40, 93, 48, 9.2, 12.8, 50, 0)
+) AS v(level, hp, atk, def, magic_atk, magic_def, spd, evasion, crit_chance, crit_damage, elemental_damage);
+DELETE FROM monster_element_resistances WHERE monster_id = (SELECT id FROM monsters WHERE code = 'BESTIA_GRIETA');
+INSERT INTO monster_element_resistances (monster_id, element_id, resistance_percent)
+SELECT (SELECT id FROM monsters WHERE code = 'BESTIA_GRIETA'), e.id, COALESCE(v.pct, 0) FROM elements e LEFT JOIN (VALUES ('LIGHT', -40), ('DARK', 25)) AS v(code, pct) ON v.code = e.code;
+DELETE FROM monster_drops WHERE monster_id = (SELECT id FROM monsters WHERE code = 'BESTIA_GRIETA');
+INSERT INTO monster_drops (monster_id, item_id, drop_chance_percent, min_quantity, max_quantity)
+SELECT (SELECT id FROM monsters WHERE code = 'BESTIA_GRIETA'), i.id, v.pct, v.mn, v.mx FROM (VALUES ('CUERO_CRUDO', 15, 1, 2), ('COLMILLO_LOBO_FEROZ', 12, 1, 1), ('POLVO_ARCANO', 8, 1, 1), ('GEMA_DE_PRECISION', 6, 1, 1)) AS v(code, pct, mn, mx)
+JOIN items i ON i.code = v.code;
+DELETE FROM monster_skills WHERE monster_id = (SELECT id FROM monsters WHERE code = 'BESTIA_GRIETA');
+INSERT INTO monster_skills (monster_id, skill_id, use_chance_percent)
+SELECT (SELECT id FROM monsters WHERE code = 'BESTIA_GRIETA'), id, 20 FROM skills WHERE code = 'MONSTRUO_AULLIDO_GUERRA';
+-- Golem de Menhir
+INSERT INTO monsters (code, name, zone_id, rarity, base_level, min_spawn_level, max_spawn_level, base_hp, base_atk, base_def, base_magic_atk, base_magic_def, base_spd, base_evasion, base_crit_chance, base_crit_damage, xp_reward, gold_reward, description, category, element_id)
+SELECT 'GOLEM_MENHIR', 'Golem de Menhir', 1, 'RARE', 9, 9, 11, 990, 55, 102, 28, 72, 19, 7.4, 7.6, 50, 600, 180, 'Una de las piedras del Círculo, despertada por el ritual del Chamán. Las runas de su pecho todavía brillan.', 'ELEMENTAL', (SELECT id FROM elements WHERE code = 'EARTH')
+WHERE NOT EXISTS (SELECT 1 FROM monsters WHERE code = 'GOLEM_MENHIR');
+UPDATE monsters SET name = 'Golem de Menhir', zone_id = 1, rarity = 'RARE', base_level = 9, min_spawn_level = 9, max_spawn_level = 11, base_hp = 990, base_atk = 55, base_def = 102, base_magic_atk = 28, base_magic_def = 72, base_spd = 19, base_evasion = 7.4, base_crit_chance = 7.6, base_crit_damage = 50, xp_reward = 600, gold_reward = 180, description = 'Una de las piedras del Círculo, despertada por el ritual del Chamán. Las runas de su pecho todavía brillan.', category = 'ELEMENTAL', element_id = (SELECT id FROM elements WHERE code = 'EARTH') WHERE code = 'GOLEM_MENHIR';
+DELETE FROM monster_level_scalings WHERE monster_id = (SELECT id FROM monsters WHERE code = 'GOLEM_MENHIR');
+INSERT INTO monster_level_scalings (monster_id, level, hp, atk, def, magic_atk, magic_def, spd, evasion, crit_chance, crit_damage, elemental_damage)
+SELECT (SELECT id FROM monsters WHERE code = 'GOLEM_MENHIR'), v.* FROM (VALUES
+  (9, 990, 55, 102, 28, 72, 19, 7.4, 7.6, 50, 0),
+  (15, 2178, 84, 157, 42, 112, 28, 9.2, 8.8, 50, 0)
+) AS v(level, hp, atk, def, magic_atk, magic_def, spd, evasion, crit_chance, crit_damage, elemental_damage);
+DELETE FROM monster_element_resistances WHERE monster_id = (SELECT id FROM monsters WHERE code = 'GOLEM_MENHIR');
+INSERT INTO monster_element_resistances (monster_id, element_id, resistance_percent)
+SELECT (SELECT id FROM monsters WHERE code = 'GOLEM_MENHIR'), e.id, COALESCE(v.pct, 0) FROM elements e LEFT JOIN (VALUES ('WIND', -40), ('EARTH', 30), ('FIRE', 15)) AS v(code, pct) ON v.code = e.code;
+DELETE FROM monster_drops WHERE monster_id = (SELECT id FROM monsters WHERE code = 'GOLEM_MENHIR');
+INSERT INTO monster_drops (monster_id, item_id, drop_chance_percent, min_quantity, max_quantity)
+SELECT (SELECT id FROM monsters WHERE code = 'GOLEM_MENHIR'), i.id, v.pct, v.mn, v.mx FROM (VALUES ('POLVO_DE_PIEDRA', 30, 1, 3), ('MINERAL_DE_HIERRO', 20, 1, 2), ('PIEDRA_ENCANT_MENOR', 12, 1, 1), ('GEMA_COMUN', 10, 1, 1), ('HUEVO_POCO_COMUN', 5, 1, 1)) AS v(code, pct, mn, mx)
+JOIN items i ON i.code = v.code;
+DELETE FROM monster_skills WHERE monster_id = (SELECT id FROM monsters WHERE code = 'GOLEM_MENHIR');
+INSERT INTO monster_skills (monster_id, skill_id, use_chance_percent)
+SELECT (SELECT id FROM monsters WHERE code = 'GOLEM_MENHIR'), id, 30 FROM skills WHERE code = 'MONSTRUO_TERREMOTO';
+
+-- ============================================================================================
+-- Botín de la Pradera sin repetidos (repetible; sin ON CONFLICT)
+-- * "Piel" era lo mismo que "Cuero Crudo" (las dos se curtían en Cuero Tratado) y "Tela Común" lo
+--   mismo que "Tela de Lino" (y no servía para nada): se pasan a la buena, como en el bloque de
+--   "Materiales duplicados". La receta de Cuero Tratado con Piel queda repetida y se borra.
+-- * Cada monstruo nuevo suelta un material propio con un uso claro, que vale la pena farmear:
+--   Carne de Jabalí → Asado de Jabalí (comida de defensa, Aldric el Cocinero)
+--   Glándula de Sapo → Elixir del Lago (maná + inteligencia, Alquimia)
+--   Medalla del Vigía → Emblema de la Guardia (accesorio de defensa, nv 6; usa Lingote de Bronce)
+--   Runa de Menhir (Golem) → Amuleto Rúnico (accesorio mágico, nv 8)
+--   Fragmento de Eclipse (Acólito y Bestia) → Amuleto del Alba (resistencia a oscuridad, nv 11);
+--     también lo piden las misiones de la historia
+-- * Los accesorios salen de lib/equilibrio.js itemStats y quedan por debajo del equipo del
+--   Capitán y del Titán del mismo nivel.
+-- ============================================================================================
+DO $$
+DECLARE
+  par RECORD;
+  viejo INT;
+  nuevo INT;
+BEGIN
+  FOR par IN SELECT * FROM (VALUES ('PIEL', 'CUERO_CRUDO'), ('TELA_COMUN', 'TELA_LINO')) AS v(viejo, nuevo) LOOP
+    SELECT id INTO viejo FROM items WHERE code = par.viejo;
+    SELECT id INTO nuevo FROM items WHERE code = par.nuevo;
+    IF viejo IS NULL OR nuevo IS NULL THEN CONTINUE; END IF;
+
+    UPDATE player_inventory c SET quantity = c.quantity + o.quantity
+      FROM player_inventory o
+      WHERE o.item_id = viejo AND c.item_id = nuevo AND c.player_id = o.player_id
+        AND c.enchant_level = o.enchant_level AND c.quality_tier = o.quality_tier;
+    UPDATE player_inventory o SET item_id = nuevo
+      WHERE o.item_id = viejo AND NOT EXISTS (
+        SELECT 1 FROM player_inventory c WHERE c.player_id = o.player_id AND c.item_id = nuevo
+          AND c.enchant_level = o.enchant_level AND c.quality_tier = o.quality_tier);
+    DELETE FROM player_inventory WHERE item_id = viejo;
+
+    UPDATE player_market_listings SET item_id = nuevo WHERE item_id = viejo;
+    UPDATE player_stall_items SET item_id = nuevo WHERE item_id = viejo;
+    UPDATE player_message_items SET item_id = nuevo WHERE item_id = viejo;
+
+    UPDATE artisan_shop a SET item_id = nuevo WHERE a.item_id = viejo
+      AND NOT EXISTS (SELECT 1 FROM artisan_shop b WHERE b.artisan_code = a.artisan_code AND b.item_id = nuevo);
+    DELETE FROM artisan_shop WHERE item_id = viejo;
+    UPDATE monster_drops a SET item_id = nuevo WHERE a.item_id = viejo
+      AND NOT EXISTS (SELECT 1 FROM monster_drops b WHERE b.monster_id = a.monster_id AND b.item_id = nuevo);
+    DELETE FROM monster_drops WHERE item_id = viejo;
+    UPDATE crafting_recipe_ingredients a SET item_id = nuevo WHERE a.item_id = viejo
+      AND NOT EXISTS (SELECT 1 FROM crafting_recipe_ingredients b WHERE b.recipe_id = a.recipe_id AND b.item_id = nuevo);
+    DELETE FROM crafting_recipe_ingredients WHERE item_id = viejo;
+    UPDATE crafting_recipes SET result_item_id = nuevo WHERE result_item_id = viejo;
+    UPDATE dismantle_recipes SET result_item_id = nuevo WHERE result_item_id = viejo;
+    UPDATE quest_item_rewards SET item_id = nuevo WHERE item_id = viejo;
+    UPDATE quest_objectives SET item_id = nuevo WHERE item_id = viejo;
+    UPDATE quest_hidden_requirements SET item_id = nuevo WHERE item_id = viejo;
+    UPDATE class_master_shop_items SET item_id = nuevo WHERE item_id = viejo;
+    UPDATE world_boss_shop SET item_id = nuevo WHERE item_id = viejo;
+    UPDATE tower_vendor_shop a SET item_id = nuevo WHERE a.item_id = viejo
+      AND NOT EXISTS (SELECT 1 FROM tower_vendor_shop b WHERE b.item_id = nuevo);
+    DELETE FROM tower_vendor_shop WHERE item_id = viejo;
+    UPDATE tower_settlement_shop a SET item_id = nuevo WHERE a.item_id = viejo
+      AND NOT EXISTS (SELECT 1 FROM tower_settlement_shop b WHERE b.item_id = nuevo);
+    DELETE FROM tower_settlement_shop WHERE item_id = viejo;
+    UPDATE daily_reward_catalog SET item_code = par.nuevo WHERE item_code = par.viejo;
+    UPDATE daily_event_catalog SET bonus_material_item_code = par.nuevo WHERE bonus_material_item_code = par.viejo;
+
+    UPDATE items SET name = name || ' (obsoleto)' WHERE id = viejo AND name NOT LIKE '% (obsoleto)';
+  END LOOP;
+END $$;
+
+-- con la Piel convertida en Cuero Crudo, "Cuero Tratado (piel)" quedó igual a "(cuero crudo)"
+DELETE FROM crafting_recipes WHERE code = 'CUERO_TRATADO_PIEL';
+
+-- materiales, comidas y accesorios nuevos
+INSERT INTO items (code, name, item_type, slot, rarity, required_level, is_craftable, obtain_method, description)
+SELECT 'CARNE_JABALI', 'Carne de Jabalí', 'MATERIAL', NULL, 'COMUN', NULL, FALSE, 'Drop de monstruo', 'La sueltan los Jabalíes Cornudos (Bosque de Robleviejo y Praderas del Este). Aldric el Cocinero la usa para el Asado de Jabalí.'
+WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'CARNE_JABALI');
+UPDATE items SET name = 'Carne de Jabalí', item_type = 'MATERIAL', slot = NULL, rarity = 'COMUN', required_level = NULL, is_craftable = FALSE, obtain_method = 'Drop de monstruo', description = 'La sueltan los Jabalíes Cornudos (Bosque de Robleviejo y Praderas del Este). Aldric el Cocinero la usa para el Asado de Jabalí.' WHERE code = 'CARNE_JABALI';
+INSERT INTO items (code, name, item_type, slot, rarity, required_level, is_craftable, obtain_method, description)
+SELECT 'GLANDULA_SAPO', 'Glándula de Sapo', 'MATERIAL', NULL, 'COMUN', NULL, FALSE, 'Drop de monstruo', 'La sueltan los Sapos de Lodo del Lago Cristalino. En alquimia se destila en el Elixir del Lago.'
+WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'GLANDULA_SAPO');
+UPDATE items SET name = 'Glándula de Sapo', item_type = 'MATERIAL', slot = NULL, rarity = 'COMUN', required_level = NULL, is_craftable = FALSE, obtain_method = 'Drop de monstruo', description = 'La sueltan los Sapos de Lodo del Lago Cristalino. En alquimia se destila en el Elixir del Lago.' WHERE code = 'GLANDULA_SAPO';
+INSERT INTO items (code, name, item_type, slot, rarity, required_level, is_craftable, obtain_method, description)
+SELECT 'MEDALLA_VIGIA', 'Medalla del Vigía', 'MATERIAL', NULL, 'COMUN', NULL, FALSE, 'Drop de monstruo', 'Insignia de bronce de la antigua guardia del Vigía. La llevan los esqueletos de las Ruinas. Cedric el Joyero la funde en el Emblema de la Guardia.'
+WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'MEDALLA_VIGIA');
+UPDATE items SET name = 'Medalla del Vigía', item_type = 'MATERIAL', slot = NULL, rarity = 'COMUN', required_level = NULL, is_craftable = FALSE, obtain_method = 'Drop de monstruo', description = 'Insignia de bronce de la antigua guardia del Vigía. La llevan los esqueletos de las Ruinas. Cedric el Joyero la funde en el Emblema de la Guardia.' WHERE code = 'MEDALLA_VIGIA';
+INSERT INTO items (code, name, item_type, slot, rarity, required_level, is_craftable, obtain_method, description)
+SELECT 'RUNA_MENHIR', 'Runa de Menhir', 'MATERIAL', NULL, 'POCO_COMUN', NULL, FALSE, 'Drop de monstruo', 'Trozo de piedra con una runa que todavía brilla. Lo suelta el Golem de Menhir del Círculo de Piedras. Sirve para el Amuleto Rúnico.'
+WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'RUNA_MENHIR');
+UPDATE items SET name = 'Runa de Menhir', item_type = 'MATERIAL', slot = NULL, rarity = 'POCO_COMUN', required_level = NULL, is_craftable = FALSE, obtain_method = 'Drop de monstruo', description = 'Trozo de piedra con una runa que todavía brilla. Lo suelta el Golem de Menhir del Círculo de Piedras. Sirve para el Amuleto Rúnico.' WHERE code = 'RUNA_MENHIR';
+INSERT INTO items (code, name, item_type, slot, rarity, required_level, is_craftable, obtain_method, description)
+SELECT 'FRAGMENTO_ECLIPSE', 'Fragmento de Eclipse', 'MATERIAL', NULL, 'POCO_COMUN', NULL, FALSE, 'Drop de monstruo', 'Astilla de cristal negro de los Ocultos. La sueltan los Acólitos del Eclipse y las Bestias de la Grieta. Con ella se hace el Amuleto del Alba.'
+WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'FRAGMENTO_ECLIPSE');
+UPDATE items SET name = 'Fragmento de Eclipse', item_type = 'MATERIAL', slot = NULL, rarity = 'POCO_COMUN', required_level = NULL, is_craftable = FALSE, obtain_method = 'Drop de monstruo', description = 'Astilla de cristal negro de los Ocultos. La sueltan los Acólitos del Eclipse y las Bestias de la Grieta. Con ella se hace el Amuleto del Alba.' WHERE code = 'FRAGMENTO_ECLIPSE';
+INSERT INTO items (code, name, item_type, slot, rarity, required_level, is_craftable, obtain_method, description)
+SELECT 'ASADO_JABALI', 'Asado de Jabalí', 'CONSUMABLE', NULL, 'COMUN', 2, TRUE, 'Crafteo', 'Cura 60 de vida y da +8 de defensa durante el combate.'
+WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'ASADO_JABALI');
+UPDATE items SET name = 'Asado de Jabalí', item_type = 'CONSUMABLE', slot = NULL, rarity = 'COMUN', required_level = 2, is_craftable = TRUE, obtain_method = 'Crafteo', description = 'Cura 60 de vida y da +8 de defensa durante el combate.' WHERE code = 'ASADO_JABALI';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'ASADO_JABALI');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent, description)
+SELECT (SELECT id FROM items WHERE code = 'ASADO_JABALI'), v.* FROM (VALUES ('HEAL_HP', 60, FALSE, 'Restaura 60 HP'), ('BUFF_DEF', 8, FALSE, '+8 de defensa durante el combate')) AS v(stat_code, amount, is_percent, description);
+INSERT INTO items (code, name, item_type, slot, rarity, required_level, is_craftable, obtain_method, description)
+SELECT 'ELIXIR_DEL_LAGO', 'Elixir del Lago', 'CONSUMABLE', NULL, 'POCO_COMUN', 4, TRUE, 'Crafteo', 'Devuelve 40 de maná y da +8 de inteligencia durante el combate.'
+WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'ELIXIR_DEL_LAGO');
+UPDATE items SET name = 'Elixir del Lago', item_type = 'CONSUMABLE', slot = NULL, rarity = 'POCO_COMUN', required_level = 4, is_craftable = TRUE, obtain_method = 'Crafteo', description = 'Devuelve 40 de maná y da +8 de inteligencia durante el combate.' WHERE code = 'ELIXIR_DEL_LAGO';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'ELIXIR_DEL_LAGO');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent, description)
+SELECT (SELECT id FROM items WHERE code = 'ELIXIR_DEL_LAGO'), v.* FROM (VALUES ('HEAL_MP', 40, FALSE, 'Restaura 40 MP'), ('BUFF_MAG', 8, FALSE, '+8 de inteligencia durante el combate')) AS v(stat_code, amount, is_percent, description);
+INSERT INTO items (code, name, item_type, slot, rarity, required_level, is_craftable, obtain_method, description)
+SELECT 'EMBLEMA_GUARDIA', 'Emblema de la Guardia', 'EQUIPMENT', 'ACCESSORY', 'POCO_COMUN', 6, TRUE, 'CRAFT', 'El emblema de la vieja guardia del Vigía, rehecho con sus medallas. Para quien aguanta los golpes.'
+WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'EMBLEMA_GUARDIA');
+UPDATE items SET name = 'Emblema de la Guardia', item_type = 'EQUIPMENT', slot = 'ACCESSORY', rarity = 'POCO_COMUN', required_level = 6, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'El emblema de la vieja guardia del Vigía, rehecho con sus medallas. Para quien aguanta los golpes.' WHERE code = 'EMBLEMA_GUARDIA';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'EMBLEMA_GUARDIA');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent, description)
+SELECT (SELECT id FROM items WHERE code = 'EMBLEMA_GUARDIA'), v.* FROM (VALUES ('HP', 9, FALSE, NULL), ('DEF', 4, FALSE, NULL), ('MAGIC_DEF', 3, FALSE, NULL)) AS v(stat_code, amount, is_percent, description);
+INSERT INTO items (code, name, item_type, slot, rarity, required_level, is_craftable, obtain_method, description)
+SELECT 'AMULETO_RUNICO', 'Amuleto Rúnico', 'EQUIPMENT', 'ACCESSORY', 'RARO', 8, TRUE, 'CRAFT', 'Una runa del Círculo engarzada en plata. Todavía zumba con la magia de las piedras.'
+WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'AMULETO_RUNICO');
+UPDATE items SET name = 'Amuleto Rúnico', item_type = 'EQUIPMENT', slot = 'ACCESSORY', rarity = 'RARO', required_level = 8, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Una runa del Círculo engarzada en plata. Todavía zumba con la magia de las piedras.' WHERE code = 'AMULETO_RUNICO';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'AMULETO_RUNICO');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent, description)
+SELECT (SELECT id FROM items WHERE code = 'AMULETO_RUNICO'), v.* FROM (VALUES ('MAG', 6, FALSE, NULL), ('MAGIC_DEF', 5, FALSE, NULL)) AS v(stat_code, amount, is_percent, description);
+INSERT INTO items (code, name, item_type, slot, rarity, required_level, is_craftable, obtain_method, description)
+SELECT 'AMULETO_DEL_ALBA', 'Amuleto del Alba', 'EQUIPMENT', 'ACCESSORY', 'RARO', 11, TRUE, 'CRAFT', 'Los fragmentos de eclipse, purificados con flores luminosas, guardan la luz del amanecer. Protege de la oscuridad de los Ocultos.'
+WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'AMULETO_DEL_ALBA');
+UPDATE items SET name = 'Amuleto del Alba', item_type = 'EQUIPMENT', slot = 'ACCESSORY', rarity = 'RARO', required_level = 11, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Los fragmentos de eclipse, purificados con flores luminosas, guardan la luz del amanecer. Protege de la oscuridad de los Ocultos.' WHERE code = 'AMULETO_DEL_ALBA';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'AMULETO_DEL_ALBA');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent, description)
+SELECT (SELECT id FROM items WHERE code = 'AMULETO_DEL_ALBA'), v.* FROM (VALUES ('MAGIC_DEF', 6, FALSE, NULL), ('HP', 8, FALSE, NULL), ('RESIST_DARK', 15, TRUE, NULL)) AS v(stat_code, amount, is_percent, description);
+
+-- recetas (Pradera: zone_id 1, sin pergamino)
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station)
+SELECT 'RECETA_ASADO_JABALI', (SELECT id FROM items WHERE code = 'ASADO_JABALI'), 1, 'COMUN', 2, 95, 1, 'Aldric el Cocinero', 1, NULL
+WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECETA_ASADO_JABALI');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'ASADO_JABALI'), result_quantity = 1, rarity = 'COMUN', required_level = 2, success_rate_percent = 95, craft_time_minutes = 1, artisan_name = 'Aldric el Cocinero', zone_id = 1, station = NULL WHERE code = 'RECETA_ASADO_JABALI';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECETA_ASADO_JABALI');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECETA_ASADO_JABALI'), i.id, v.qty FROM (VALUES ('CARNE_JABALI', 3), ('HIERBA_CURATIVA', 1)) AS v(code, qty) JOIN items i ON i.code = v.code;
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station)
+SELECT 'ELIXIR_DEL_LAGO', (SELECT id FROM items WHERE code = 'ELIXIR_DEL_LAGO'), 1, 'POCO_COMUN', 4, 95, 1, 'Alquimia', 1, NULL
+WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'ELIXIR_DEL_LAGO');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'ELIXIR_DEL_LAGO'), result_quantity = 1, rarity = 'POCO_COMUN', required_level = 4, success_rate_percent = 95, craft_time_minutes = 1, artisan_name = 'Alquimia', zone_id = 1, station = NULL WHERE code = 'ELIXIR_DEL_LAGO';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'ELIXIR_DEL_LAGO');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'ELIXIR_DEL_LAGO'), i.id, v.qty FROM (VALUES ('GLANDULA_SAPO', 2), ('AGUA_PURIFICADA', 1), ('HIERBA_MAGICA', 1)) AS v(code, qty) JOIN items i ON i.code = v.code;
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station)
+SELECT 'RECETA_EMBLEMA_GUARDIA', (SELECT id FROM items WHERE code = 'EMBLEMA_GUARDIA'), 1, 'POCO_COMUN', 6, 90, 1, 'Cedric el Joyero', 1, 'forja'
+WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECETA_EMBLEMA_GUARDIA');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'EMBLEMA_GUARDIA'), result_quantity = 1, rarity = 'POCO_COMUN', required_level = 6, success_rate_percent = 90, craft_time_minutes = 1, artisan_name = 'Cedric el Joyero', zone_id = 1, station = 'forja' WHERE code = 'RECETA_EMBLEMA_GUARDIA';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECETA_EMBLEMA_GUARDIA');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECETA_EMBLEMA_GUARDIA'), i.id, v.qty FROM (VALUES ('MEDALLA_VIGIA', 6), ('LINGOTE_BRONCE', 2), ('CUERO_TRATADO', 1)) AS v(code, qty) JOIN items i ON i.code = v.code;
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station)
+SELECT 'RECETA_AMULETO_RUNICO', (SELECT id FROM items WHERE code = 'AMULETO_RUNICO'), 1, 'RARO', 8, 85, 1, 'Cedric el Joyero', 1, 'forja'
+WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECETA_AMULETO_RUNICO');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'AMULETO_RUNICO'), result_quantity = 1, rarity = 'RARO', required_level = 8, success_rate_percent = 85, craft_time_minutes = 1, artisan_name = 'Cedric el Joyero', zone_id = 1, station = 'forja' WHERE code = 'RECETA_AMULETO_RUNICO';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECETA_AMULETO_RUNICO');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECETA_AMULETO_RUNICO'), i.id, v.qty FROM (VALUES ('RUNA_MENHIR', 5), ('GEMA_COMUN', 1), ('POLVO_ARCANO', 2)) AS v(code, qty) JOIN items i ON i.code = v.code;
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station)
+SELECT 'RECETA_AMULETO_DEL_ALBA', (SELECT id FROM items WHERE code = 'AMULETO_DEL_ALBA'), 1, 'RARO', 11, 85, 1, 'Cedric el Joyero', 1, 'forja'
+WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECETA_AMULETO_DEL_ALBA');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'AMULETO_DEL_ALBA'), result_quantity = 1, rarity = 'RARO', required_level = 11, success_rate_percent = 85, craft_time_minutes = 1, artisan_name = 'Cedric el Joyero', zone_id = 1, station = 'forja' WHERE code = 'RECETA_AMULETO_DEL_ALBA';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECETA_AMULETO_DEL_ALBA');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECETA_AMULETO_DEL_ALBA'), i.id, v.qty FROM (VALUES ('FRAGMENTO_ECLIPSE', 8), ('FLOR_LUMINOSA', 2), ('LINGOTE_HIERRO', 1)) AS v(code, qty) JOIN items i ON i.code = v.code;
+
+-- botín de los monstruos nuevos: su material propio + materiales que sí se usan
+DELETE FROM monster_drops WHERE monster_id = (SELECT id FROM monsters WHERE code = 'JABALI_CORNUDO');
+INSERT INTO monster_drops (monster_id, item_id, drop_chance_percent, min_quantity, max_quantity)
+SELECT (SELECT id FROM monsters WHERE code = 'JABALI_CORNUDO'), i.id, v.pct, v.mn, v.mx FROM (VALUES ('CARNE_JABALI', 30, 1, 2), ('CUERO_CRUDO', 20, 1, 2), ('HIERBA_CURATIVA', 8, 1, 1), ('MIEL_ABEJA_ANTIGUA', 5, 1, 1), ('HUEVO_COMUN', 3, 1, 1)) AS v(code, pct, mn, mx)
+JOIN items i ON i.code = v.code;
+DELETE FROM monster_drops WHERE monster_id = (SELECT id FROM monsters WHERE code = 'SAPO_DE_LODO');
+INSERT INTO monster_drops (monster_id, item_id, drop_chance_percent, min_quantity, max_quantity)
+SELECT (SELECT id FROM monsters WHERE code = 'SAPO_DE_LODO'), i.id, v.pct, v.mn, v.mx FROM (VALUES ('GLANDULA_SAPO', 30, 1, 1), ('AGUA_FRESCA', 12, 1, 2), ('HIERBA_MAGICA', 10, 1, 1), ('CUARZO_RIO', 8, 1, 1), ('HUEVO_COMUN', 3, 1, 1)) AS v(code, pct, mn, mx)
+JOIN items i ON i.code = v.code;
+DELETE FROM monster_drops WHERE monster_id = (SELECT id FROM monsters WHERE code = 'ESQUELETO_VIGIA');
+INSERT INTO monster_drops (monster_id, item_id, drop_chance_percent, min_quantity, max_quantity)
+SELECT (SELECT id FROM monsters WHERE code = 'ESQUELETO_VIGIA'), i.id, v.pct, v.mn, v.mx FROM (VALUES ('MEDALLA_VIGIA', 30, 1, 1), ('POLVO_DE_PIEDRA', 15, 1, 2), ('TELA_LINO', 6, 1, 1), ('PIEDRA_ENCANT_MENOR', 3, 1, 1)) AS v(code, pct, mn, mx)
+JOIN items i ON i.code = v.code;
+DELETE FROM monster_drops WHERE monster_id = (SELECT id FROM monsters WHERE code = 'ACOLITO_ECLIPSE');
+INSERT INTO monster_drops (monster_id, item_id, drop_chance_percent, min_quantity, max_quantity)
+SELECT (SELECT id FROM monsters WHERE code = 'ACOLITO_ECLIPSE'), i.id, v.pct, v.mn, v.mx FROM (VALUES ('FRAGMENTO_ECLIPSE', 25, 1, 1), ('POLVO_ARCANO', 12, 1, 1), ('TELA_LINO', 10, 1, 1), ('TOTEM_OSCURO', 8, 1, 1), ('GEMA_COMUN', 6, 1, 1)) AS v(code, pct, mn, mx)
+JOIN items i ON i.code = v.code;
+DELETE FROM monster_drops WHERE monster_id = (SELECT id FROM monsters WHERE code = 'BESTIA_GRIETA');
+INSERT INTO monster_drops (monster_id, item_id, drop_chance_percent, min_quantity, max_quantity)
+SELECT (SELECT id FROM monsters WHERE code = 'BESTIA_GRIETA'), i.id, v.pct, v.mn, v.mx FROM (VALUES ('FRAGMENTO_ECLIPSE', 20, 1, 1), ('CUERO_CRUDO', 20, 1, 2), ('POLVO_ARCANO', 8, 1, 1), ('GEMA_DE_PRECISION', 6, 1, 1)) AS v(code, pct, mn, mx)
+JOIN items i ON i.code = v.code;
+DELETE FROM monster_drops WHERE monster_id = (SELECT id FROM monsters WHERE code = 'GOLEM_MENHIR');
+INSERT INTO monster_drops (monster_id, item_id, drop_chance_percent, min_quantity, max_quantity)
+SELECT (SELECT id FROM monsters WHERE code = 'GOLEM_MENHIR'), i.id, v.pct, v.mn, v.mx FROM (VALUES ('RUNA_MENHIR', 40, 1, 2), ('POLVO_DE_PIEDRA', 30, 1, 3), ('MINERAL_DE_HIERRO', 20, 1, 2), ('PIEDRA_ENCANT_MENOR', 12, 1, 1), ('HUEVO_POCO_COMUN', 5, 1, 1)) AS v(code, pct, mn, mx)
+JOIN items i ON i.code = v.code;
+-- ============================================================================================
+-- Misiones de la Pradera (repetible; sin ON CONFLICT). Historia completa P1-P14 (docs/
+-- historia_etheria.md), secundarias con Tilo, Bruno, Tobías, Gaspar, Mirna, Ren y Marta, y
+-- diarias nuevas (el servidor sortea 3 por jugador cada día, routes/players.js). Las misiones
+-- viejas El Lobo del Bosque, El Bandido de la Pradera y El Titán de la Pradera se reaprovechan
+-- como P2, P3 y P13 (mismo código). Coordenadas en casillas de la zona.
+-- ============================================================================================
+
+-- objetos de misión (no se venden ni se regalan; se quitan al abandonar o entregar)
+INSERT INTO items (code, name, item_type, rarity, is_quest_item, description)
+SELECT 'COLLAR_CRISTAL_NEGRO', 'Collar de cristal negro', 'MATERIAL', 'POCO_COMUN', TRUE, 'Un collar de cuero con una piedra negra que late como un corazón. Lo llevaba un lobo del Camino Real.'
+WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'COLLAR_CRISTAL_NEGRO');
+UPDATE items SET name = 'Collar de cristal negro', is_quest_item = TRUE, description = 'Un collar de cuero con una piedra negra que late como un corazón. Lo llevaba un lobo del Camino Real.' WHERE code = 'COLLAR_CRISTAL_NEGRO';
+INSERT INTO items (code, name, item_type, rarity, is_quest_item, description)
+SELECT 'SACO_CRISTALES', 'Saco de cristales negros', 'MATERIAL', 'POCO_COMUN', TRUE, 'Un saco escondido entre lo robado a Goreth. Los cristales están fríos al tacto y no son suyos.'
+WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'SACO_CRISTALES');
+UPDATE items SET name = 'Saco de cristales negros', is_quest_item = TRUE, description = 'Un saco escondido entre lo robado a Goreth. Los cristales están fríos al tacto y no son suyos.' WHERE code = 'SACO_CRISTALES';
+INSERT INTO items (code, name, item_type, rarity, is_quest_item, description)
+SELECT 'CRISTAL_ENTERRADO', 'Cristal enterrado', 'MATERIAL', 'POCO_COMUN', TRUE, 'Una astilla de cristal negro que estaba enterrada bajo una mancha seca del trigo.'
+WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'CRISTAL_ENTERRADO');
+UPDATE items SET name = 'Cristal enterrado', is_quest_item = TRUE, description = 'Una astilla de cristal negro que estaba enterrada bajo una mancha seca del trigo.' WHERE code = 'CRISTAL_ENTERRADO';
+INSERT INTO items (code, name, item_type, rarity, is_quest_item, description)
+SELECT 'ENGRANAJE_MOLINO', 'Engranaje del molino', 'MATERIAL', 'POCO_COMUN', TRUE, 'Una rueda dentada de roble con herrajes de bronce. El molino de Tobías no gira sin ella.'
+WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'ENGRANAJE_MOLINO');
+UPDATE items SET name = 'Engranaje del molino', is_quest_item = TRUE, description = 'Una rueda dentada de roble con herrajes de bronce. El molino de Tobías no gira sin ella.' WHERE code = 'ENGRANAJE_MOLINO';
+INSERT INTO items (code, name, item_type, rarity, is_quest_item, description)
+SELECT 'UNGUENTO_RAIZ', 'Ungüento de Raíz', 'MATERIAL', 'POCO_COMUN', TRUE, 'Pasta verde y espesa que preparó Mirna con hierbas curativas, para sanar las raíces del roble viejo.'
+WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'UNGUENTO_RAIZ');
+UPDATE items SET name = 'Ungüento de Raíz', is_quest_item = TRUE, description = 'Pasta verde y espesa que preparó Mirna con hierbas curativas, para sanar las raíces del roble viejo.' WHERE code = 'UNGUENTO_RAIZ';
+INSERT INTO items (code, name, item_type, rarity, is_quest_item, description)
+SELECT 'CARTA_ECLIPSE', 'Carta con un eclipse', 'MATERIAL', 'POCO_COMUN', TRUE, 'Una carta empapada con un eclipse negro dibujado: «Reunión en la torre del Vigía. Que nadie te siga».'
+WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'CARTA_ECLIPSE');
+UPDATE items SET name = 'Carta con un eclipse', is_quest_item = TRUE, description = 'Una carta empapada con un eclipse negro dibujado: «Reunión en la torre del Vigía. Que nadie te siga».' WHERE code = 'CARTA_ECLIPSE';
+INSERT INTO items (code, name, item_type, rarity, is_quest_item, description)
+SELECT 'MAPA_DEL_CHAMAN', 'Mapa del Chamán', 'MATERIAL', 'POCO_COMUN', TRUE, 'Un mapa de la Pradera dibujado en piel. Tiene la Guarida de la Manada marcada con un círculo negro.'
+WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'MAPA_DEL_CHAMAN');
+UPDATE items SET name = 'Mapa del Chamán', is_quest_item = TRUE, description = 'Un mapa de la Pradera dibujado en piel. Tiene la Guarida de la Manada marcada con un círculo negro.' WHERE code = 'MAPA_DEL_CHAMAN';
+INSERT INTO items (code, name, item_type, rarity, is_quest_item, description)
+SELECT 'CRISTAL_DEL_CAPITAN', 'Cristal del Capitán', 'MATERIAL', 'POCO_COMUN', TRUE, 'El enorme cristal que colgaba del collar del Capitán de los Lobos. Con él el Chamán controlaba a la manada.'
+WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'CRISTAL_DEL_CAPITAN');
+UPDATE items SET name = 'Cristal del Capitán', is_quest_item = TRUE, description = 'El enorme cristal que colgaba del collar del Capitán de los Lobos. Con él el Chamán controlaba a la manada.' WHERE code = 'CRISTAL_DEL_CAPITAN';
+INSERT INTO items (code, name, item_type, rarity, is_quest_item, description)
+SELECT 'FRAGMENTO_SELLO_PRADERA', 'Primer Fragmento de Sello', 'MATERIAL', 'POCO_COMUN', TRUE, 'Una piedra tibia con una runa dorada. Es un pedazo del Primer Sello de Aethra, el que guardaba el Titán.'
+WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'FRAGMENTO_SELLO_PRADERA');
+UPDATE items SET name = 'Primer Fragmento de Sello', is_quest_item = TRUE, description = 'Una piedra tibia con una runa dorada. Es un pedazo del Primer Sello de Aethra, el que guardaba el Titán.' WHERE code = 'FRAGMENTO_SELLO_PRADERA';
+INSERT INTO items (code, name, item_type, rarity, is_quest_item, description)
+SELECT 'PALO_ROBLE', 'Palo de roble', 'MATERIAL', 'POCO_COMUN', TRUE, 'Una rama recta y firme del roble viejo. Para Tilo es la espada más bonita del mundo.'
+WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'PALO_ROBLE');
+UPDATE items SET name = 'Palo de roble', is_quest_item = TRUE, description = 'Una rama recta y firme del roble viejo. Para Tilo es la espada más bonita del mundo.' WHERE code = 'PALO_ROBLE';
+INSERT INTO items (code, name, item_type, rarity, is_quest_item, description)
+SELECT 'CARTA_DE_REN', 'Carta de Ren', 'MATERIAL', 'POCO_COMUN', TRUE, 'Una carta cerrada con cera verde y una pluma pegada. Huele a bosque. Va dirigida a Marta.'
+WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'CARTA_DE_REN');
+UPDATE items SET name = 'Carta de Ren', is_quest_item = TRUE, description = 'Una carta cerrada con cera verde y una pluma pegada. Huele a bosque. Va dirigida a Marta.' WHERE code = 'CARTA_DE_REN';
+INSERT INTO items (code, name, item_type, rarity, is_quest_item, description)
+SELECT 'CARTA_DE_MARTA', 'Carta de Marta', 'MATERIAL', 'POCO_COMUN', TRUE, 'Una carta con olor a pan recién hecho y una cinta roja. Va dirigida a Ren.'
+WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'CARTA_DE_MARTA');
+UPDATE items SET name = 'Carta de Marta', is_quest_item = TRUE, description = 'Una carta con olor a pan recién hecho y una cinta roja. Va dirigida a Ren.' WHERE code = 'CARTA_DE_MARTA';
+INSERT INTO items (code, name, item_type, rarity, is_quest_item, description)
+SELECT 'HACHA_DE_BRENNA', 'Hacha de Brenna', 'MATERIAL', 'POCO_COMUN', TRUE, 'Un hacha de leñador con el mango tallado. Tiene marcas de colmillos de jabalí.'
+WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'HACHA_DE_BRENNA');
+UPDATE items SET name = 'Hacha de Brenna', is_quest_item = TRUE, description = 'Un hacha de leñador con el mango tallado. Tiene marcas de colmillos de jabalí.' WHERE code = 'HACHA_DE_BRENNA';
+INSERT INTO items (code, name, item_type, rarity, is_quest_item, description)
+SELECT 'MUNECA_DE_TRAPO', 'Muñeca de trapo', 'MATERIAL', 'POCO_COMUN', TRUE, 'Una muñeca de trapo con un vestido amarillo remendado. Era de la hija de Sela.'
+WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'MUNECA_DE_TRAPO');
+UPDATE items SET name = 'Muñeca de trapo', is_quest_item = TRUE, description = 'Una muñeca de trapo con un vestido amarillo remendado. Era de la hija de Sela.' WHERE code = 'MUNECA_DE_TRAPO';
+
+-- Llegada a la Espiga
+INSERT INTO quests (code, name, quest_type, zone_id, min_level, max_level, difficulty_stars, npc_name, location_name, is_repeatable, repeat_cooldown_hours, reputation_reward, gold_reward, xp_reward, description, is_personal, giver_npc, turn_in_npc, dialog, chain_position, chain_total)
+SELECT 'PRADERA_HISTORIA_01_LLEGADA', 'Llegada a la Espiga', 'PRINCIPAL', 1, 1, 15, 1, 'Gaspar', 'Aldea Espiga', FALSE, NULL, 30, 150, 600, 'Gaspar se estira después del viaje. «Bienvenido a la Aldea Espiga. El viejo Aldren pidió que le trajera a alguien con agallas: dice que los lobos ya no le temen al fuego. Lo encuentras junto a la fogata.»', TRUE, 'cochero_aldea', 'anciano', '{"entrega":"Así que tú eres a quien mandó Gaspar. Bienvenido. Aquí las cosas están raras: el trigo se seca en manchas y los lobos bajan al camino a plena luz. Habla con Ren, nuestro guardabosque. Él sabrá por dónde empezar."}'::jsonb, 1, 14
+WHERE NOT EXISTS (SELECT 1 FROM quests WHERE code = 'PRADERA_HISTORIA_01_LLEGADA');
+UPDATE quests SET name = 'Llegada a la Espiga', quest_type = 'PRINCIPAL', zone_id = 1, min_level = 1, max_level = 15, difficulty_stars = 1, npc_name = 'Gaspar', location_name = 'Aldea Espiga', is_repeatable = FALSE, repeat_cooldown_hours = NULL, reputation_reward = 30, gold_reward = 150, xp_reward = 600, description = 'Gaspar se estira después del viaje. «Bienvenido a la Aldea Espiga. El viejo Aldren pidió que le trajera a alguien con agallas: dice que los lobos ya no le temen al fuego. Lo encuentras junto a la fogata.»', is_personal = TRUE, giver_npc = 'cochero_aldea', turn_in_npc = 'anciano', dialog = '{"entrega":"Así que tú eres a quien mandó Gaspar. Bienvenido. Aquí las cosas están raras: el trigo se seca en manchas y los lobos bajan al camino a plena luz. Habla con Ren, nuestro guardabosque. Él sabrá por dónde empezar."}'::jsonb, chain_position = 1, chain_total = 14 WHERE code = 'PRADERA_HISTORIA_01_LLEGADA';
+DELETE FROM quest_objectives WHERE quest_id = (SELECT id FROM quests WHERE code = 'PRADERA_HISTORIA_01_LLEGADA');
+INSERT INTO quest_objectives (quest_id, objective_type, step, target_code, monster_id, item_id, target_count, params, description)
+SELECT (SELECT id FROM quests WHERE code = 'PRADERA_HISTORIA_01_LLEGADA'), v.t, v.step, v.target, (SELECT id FROM monsters WHERE code = v.monster), (SELECT id FROM items WHERE code = v.item), v.n, v.params::jsonb, v.descr
+FROM (VALUES
+  ('TALK', 1, 'anciano', NULL, NULL, 1, '{"speaker":"Aldren","dialog":"Ah, una cara nueva. Siéntate un momento junto al fuego… Hace años que no veíamos a un aventurero por aquí."}', 'Habla con Aldren junto a la fogata de la Aldea')
+) AS v(t, step, target, monster, item, n, params, descr);
+DELETE FROM quest_npc_spots WHERE quest_id = (SELECT id FROM quests WHERE code = 'PRADERA_HISTORIA_01_LLEGADA');
+
+-- Lobos en el camino
+INSERT INTO quests (code, name, quest_type, zone_id, min_level, max_level, difficulty_stars, npc_name, location_name, is_repeatable, repeat_cooldown_hours, reputation_reward, gold_reward, xp_reward, description, is_personal, giver_npc, turn_in_npc, dialog, chain_position, chain_total)
+SELECT 'PRADERA_Q1_LOBO_DEL_BOSQUE', 'Lobos en el camino', 'PRINCIPAL', 1, 1, 15, 1, 'Ren', 'Camino Real', FALSE, NULL, 50, 600, 1810, '«Los lobos del Camino Real atacan a los carros a plena luz del día. Nunca hicieron eso. Espanta a cinco y fíjate bien en ellos: algo los está volviendo locos.»', TRUE, 'ren', 'ren', '{"entrega":"Un collar… en un lobo salvaje. Y esa piedra negra está fría como el hielo aunque le dé el sol. Alguien les está poniendo esto. Guárdate lo que viste: vamos a necesitar más pistas."}'::jsonb, 2, 14
+WHERE NOT EXISTS (SELECT 1 FROM quests WHERE code = 'PRADERA_Q1_LOBO_DEL_BOSQUE');
+UPDATE quests SET name = 'Lobos en el camino', quest_type = 'PRINCIPAL', zone_id = 1, min_level = 1, max_level = 15, difficulty_stars = 1, npc_name = 'Ren', location_name = 'Camino Real', is_repeatable = FALSE, repeat_cooldown_hours = NULL, reputation_reward = 50, gold_reward = 600, xp_reward = 1810, description = '«Los lobos del Camino Real atacan a los carros a plena luz del día. Nunca hicieron eso. Espanta a cinco y fíjate bien en ellos: algo los está volviendo locos.»', is_personal = TRUE, giver_npc = 'ren', turn_in_npc = 'ren', dialog = '{"entrega":"Un collar… en un lobo salvaje. Y esa piedra negra está fría como el hielo aunque le dé el sol. Alguien les está poniendo esto. Guárdate lo que viste: vamos a necesitar más pistas."}'::jsonb, chain_position = 2, chain_total = 14 WHERE code = 'PRADERA_Q1_LOBO_DEL_BOSQUE';
+DELETE FROM quest_objectives WHERE quest_id = (SELECT id FROM quests WHERE code = 'PRADERA_Q1_LOBO_DEL_BOSQUE');
+INSERT INTO quest_objectives (quest_id, objective_type, step, target_code, monster_id, item_id, target_count, params, description)
+SELECT (SELECT id FROM quests WHERE code = 'PRADERA_Q1_LOBO_DEL_BOSQUE'), v.t, v.step, v.target, (SELECT id FROM monsters WHERE code = v.monster), (SELECT id FROM items WHERE code = v.item), v.n, v.params::jsonb, v.descr
+FROM (VALUES
+  ('KILL_MONSTER', 1, NULL, 'LOBO_PRADERA', NULL, 5, NULL, 'Derrota 5 Lobos de Pradera en el Camino Real'),
+  ('INVESTIGATE', 2, NULL, NULL, NULL, 1, '{"zone":"pradera","x":76,"y":15,"radius":3,"label":"Examinar al lobo caído","speaker":"Tú","dialog":"El lobo lleva un collar de cuero con una piedra negra que late, como si estuviera viva. Te lo guardas.","gives":{"item":"COLLAR_CRISTAL_NEGRO","qty":1}}', 'Examina al lobo que cayó junto al camino')
+) AS v(t, step, target, monster, item, n, params, descr);
+DELETE FROM quest_npc_spots WHERE quest_id = (SELECT id FROM quests WHERE code = 'PRADERA_Q1_LOBO_DEL_BOSQUE');
+
+-- La caravana de Goreth
+INSERT INTO quests (code, name, quest_type, zone_id, min_level, max_level, difficulty_stars, npc_name, location_name, is_repeatable, repeat_cooldown_hours, reputation_reward, gold_reward, xp_reward, description, is_personal, giver_npc, turn_in_npc, dialog, chain_position, chain_total)
+SELECT 'PRADERA_Q2_BANDIDO_PRADERA', 'La caravana de Goreth', 'PRINCIPAL', 1, 2, 15, 1, 'Goreth', 'Camino Real', FALSE, NULL, 60, 700, 2262, '«Hmph. Asaltaron mi carro en el Camino Real, al norte de la aldea. Hierro, herramientas, todo. Ve a ver qué queda y, si los ladrones siguen por ahí, recuérdales que en esta aldea hay un herrero con mal genio.»', TRUE, 'goreth', 'goreth', '{"entrega":"¿Esto estaba entre mis cosas? No es mío. Nunca vi cristales así… y mira cómo se oscurece la luz a su alrededor. Llévale esto a Aldren algún día. Y toma, por recuperar lo mío."}'::jsonb, 3, 14
+WHERE NOT EXISTS (SELECT 1 FROM quests WHERE code = 'PRADERA_Q2_BANDIDO_PRADERA');
+UPDATE quests SET name = 'La caravana de Goreth', quest_type = 'PRINCIPAL', zone_id = 1, min_level = 2, max_level = 15, difficulty_stars = 1, npc_name = 'Goreth', location_name = 'Camino Real', is_repeatable = FALSE, repeat_cooldown_hours = NULL, reputation_reward = 60, gold_reward = 700, xp_reward = 2262, description = '«Hmph. Asaltaron mi carro en el Camino Real, al norte de la aldea. Hierro, herramientas, todo. Ve a ver qué queda y, si los ladrones siguen por ahí, recuérdales que en esta aldea hay un herrero con mal genio.»', is_personal = TRUE, giver_npc = 'goreth', turn_in_npc = 'goreth', dialog = '{"entrega":"¿Esto estaba entre mis cosas? No es mío. Nunca vi cristales así… y mira cómo se oscurece la luz a su alrededor. Llévale esto a Aldren algún día. Y toma, por recuperar lo mío."}'::jsonb, chain_position = 3, chain_total = 14 WHERE code = 'PRADERA_Q2_BANDIDO_PRADERA';
+DELETE FROM quest_objectives WHERE quest_id = (SELECT id FROM quests WHERE code = 'PRADERA_Q2_BANDIDO_PRADERA');
+INSERT INTO quest_objectives (quest_id, objective_type, step, target_code, monster_id, item_id, target_count, params, description)
+SELECT (SELECT id FROM quests WHERE code = 'PRADERA_Q2_BANDIDO_PRADERA'), v.t, v.step, v.target, (SELECT id FROM monsters WHERE code = v.monster), (SELECT id FROM items WHERE code = v.item), v.n, v.params::jsonb, v.descr
+FROM (VALUES
+  ('INVESTIGATE', 1, NULL, NULL, NULL, 1, '{"zone":"pradera","x":75,"y":34,"radius":3,"label":"Revisar el carro asaltado","speaker":"Tú","dialog":"Cajas rotas, huellas de botas y un rastro que se mete entre los trigales. Los ladrones no se fueron lejos…"}', 'Revisa el carro asaltado en el Camino Real'),
+  ('AMBUSH', 2, NULL, NULL, NULL, 1, '{"zone":"pradera","x":75,"y":34,"radius":3,"label":"Volver al carro","dialog":"¡Los bandidos volvieron por lo que dejaron!","monsters":[{"code":"BANDIDO_CORRUPTO","level":2},{"code":"BANDIDO_CORRUPTO","level":2},{"code":"BANDIDO_CORRUPTO","level":3}]}', 'Sobrevive a la emboscada de los bandidos'),
+  ('INVESTIGATE', 3, NULL, NULL, NULL, 1, '{"zone":"pradera","x":74,"y":32,"radius":3,"label":"Buscar entre lo robado","speaker":"Tú","dialog":"Bajo las herramientas de Goreth hay un saco que no es suyo: está lleno de cristales negros y fríos.","gives":{"item":"SACO_CRISTALES","qty":1}}', 'Busca lo que los bandidos escondieron')
+) AS v(t, step, target, monster, item, n, params, descr);
+DELETE FROM quest_npc_spots WHERE quest_id = (SELECT id FROM quests WHERE code = 'PRADERA_Q2_BANDIDO_PRADERA');
+
+-- El trigo que no crece
+INSERT INTO quests (code, name, quest_type, zone_id, min_level, max_level, difficulty_stars, npc_name, location_name, is_repeatable, repeat_cooldown_hours, reputation_reward, gold_reward, xp_reward, description, is_personal, giver_npc, turn_in_npc, dialog, chain_position, chain_total)
+SELECT 'PRADERA_HISTORIA_04_TRIGO', 'El trigo que no crece', 'PRINCIPAL', 1, 3, 15, 2, 'Mirna', 'Campos de Espiga', FALSE, NULL, 70, 650, 2400, '«En los Campos de Espiga el trigo se seca en manchas negras, redondas, como si alguien hubiera apagado la tierra con la mano. Ve a mirarlas, por favor. Y si encuentras algo raro… llévaselo a Aldren, él sabe de estas cosas.»', TRUE, 'mirna', 'anciano', '{"entrega":"Tres cristales… y enterrados a la misma hondura. Nadie siembra piedras por error. Alguien está envenenando la tierra a propósito. Esto se parece a lo que cuentan las historias viejas, pero no quiero asustarte todavía."}'::jsonb, 4, 14
+WHERE NOT EXISTS (SELECT 1 FROM quests WHERE code = 'PRADERA_HISTORIA_04_TRIGO');
+UPDATE quests SET name = 'El trigo que no crece', quest_type = 'PRINCIPAL', zone_id = 1, min_level = 3, max_level = 15, difficulty_stars = 2, npc_name = 'Mirna', location_name = 'Campos de Espiga', is_repeatable = FALSE, repeat_cooldown_hours = NULL, reputation_reward = 70, gold_reward = 650, xp_reward = 2400, description = '«En los Campos de Espiga el trigo se seca en manchas negras, redondas, como si alguien hubiera apagado la tierra con la mano. Ve a mirarlas, por favor. Y si encuentras algo raro… llévaselo a Aldren, él sabe de estas cosas.»', is_personal = TRUE, giver_npc = 'mirna', turn_in_npc = 'anciano', dialog = '{"entrega":"Tres cristales… y enterrados a la misma hondura. Nadie siembra piedras por error. Alguien está envenenando la tierra a propósito. Esto se parece a lo que cuentan las historias viejas, pero no quiero asustarte todavía."}'::jsonb, chain_position = 4, chain_total = 14 WHERE code = 'PRADERA_HISTORIA_04_TRIGO';
+DELETE FROM quest_objectives WHERE quest_id = (SELECT id FROM quests WHERE code = 'PRADERA_HISTORIA_04_TRIGO');
+INSERT INTO quest_objectives (quest_id, objective_type, step, target_code, monster_id, item_id, target_count, params, description)
+SELECT (SELECT id FROM quests WHERE code = 'PRADERA_HISTORIA_04_TRIGO'), v.t, v.step, v.target, (SELECT id FROM monsters WHERE code = v.monster), (SELECT id FROM items WHERE code = v.item), v.n, v.params::jsonb, v.descr
+FROM (VALUES
+  ('INVESTIGATE', 1, NULL, NULL, NULL, 1, '{"zone":"pradera","x":25,"y":48,"radius":3,"label":"Examinar la mancha negra","speaker":"Tú","dialog":"La tierra está seca y negra. Al escarbar encuentras una astilla de cristal enterrada.","gives":{"item":"CRISTAL_ENTERRADO","qty":1}}', 'Examina la primera mancha negra del trigo'),
+  ('INVESTIGATE', 1, NULL, NULL, NULL, 1, '{"zone":"pradera","x":40,"y":60,"radius":3,"label":"Examinar la mancha negra","speaker":"Tú","dialog":"Otra astilla, a la misma hondura que la primera. No llegó aquí sola.","gives":{"item":"CRISTAL_ENTERRADO","qty":1}}', 'Examina la segunda mancha negra'),
+  ('INVESTIGATE', 1, NULL, NULL, NULL, 1, '{"zone":"pradera","x":55,"y":70,"radius":3,"label":"Examinar la mancha negra","speaker":"Tú","dialog":"La tercera. Alrededor hay huellas de botas que se van hacia el molino.","gives":{"item":"CRISTAL_ENTERRADO","qty":1}}', 'Examina la tercera mancha negra'),
+  ('DELIVER', 2, 'anciano', NULL, 'CRISTAL_ENTERRADO', 3, '{"speaker":"Aldren","dialog":"Déjame verlos… Sí. Son cristales de eclipse. No pensé que volvería a ver uno en mi vida."}', 'Lleva los 3 cristales a Aldren')
+) AS v(t, step, target, monster, item, n, params, descr);
+DELETE FROM quest_npc_spots WHERE quest_id = (SELECT id FROM quests WHERE code = 'PRADERA_HISTORIA_04_TRIGO');
+
+-- El molino en silencio
+INSERT INTO quests (code, name, quest_type, zone_id, min_level, max_level, difficulty_stars, npc_name, location_name, is_repeatable, repeat_cooldown_hours, reputation_reward, gold_reward, xp_reward, description, is_personal, giver_npc, turn_in_npc, dialog, chain_position, chain_total)
+SELECT 'PRADERA_HISTORIA_05_MOLINO', 'El molino en silencio', 'PRINCIPAL', 1, 4, 15, 2, 'Mirna', 'Colina del Molino', FALSE, NULL, 70, 700, 2600, '«Sin molino no hay harina, y sin harina no hay pan para el Festival. Tobías, el molinero, dice que le robaron algo. Sube a la Colina del Molino y ayúdalo, ¿sí?»', TRUE, 'mirna', 'tobias', '{"entrega":"Mis engranajes… ¡todos! Ahora sí, a girar. Oye, una cosa más: los goblins no los querían para nada. Los cambiaban. Uno de ellos gritaba que «el hombre de la capucha» paga con piedras negras."}'::jsonb, 5, 14
+WHERE NOT EXISTS (SELECT 1 FROM quests WHERE code = 'PRADERA_HISTORIA_05_MOLINO');
+UPDATE quests SET name = 'El molino en silencio', quest_type = 'PRINCIPAL', zone_id = 1, min_level = 4, max_level = 15, difficulty_stars = 2, npc_name = 'Mirna', location_name = 'Colina del Molino', is_repeatable = FALSE, repeat_cooldown_hours = NULL, reputation_reward = 70, gold_reward = 700, xp_reward = 2600, description = '«Sin molino no hay harina, y sin harina no hay pan para el Festival. Tobías, el molinero, dice que le robaron algo. Sube a la Colina del Molino y ayúdalo, ¿sí?»', is_personal = TRUE, giver_npc = 'mirna', turn_in_npc = 'tobias', dialog = '{"entrega":"Mis engranajes… ¡todos! Ahora sí, a girar. Oye, una cosa más: los goblins no los querían para nada. Los cambiaban. Uno de ellos gritaba que «el hombre de la capucha» paga con piedras negras."}'::jsonb, chain_position = 5, chain_total = 14 WHERE code = 'PRADERA_HISTORIA_05_MOLINO';
+DELETE FROM quest_objectives WHERE quest_id = (SELECT id FROM quests WHERE code = 'PRADERA_HISTORIA_05_MOLINO');
+INSERT INTO quest_objectives (quest_id, objective_type, step, target_code, monster_id, item_id, target_count, params, description)
+SELECT (SELECT id FROM quests WHERE code = 'PRADERA_HISTORIA_05_MOLINO'), v.t, v.step, v.target, (SELECT id FROM monsters WHERE code = v.monster), (SELECT id FROM items WHERE code = v.item), v.n, v.params::jsonb, v.descr
+FROM (VALUES
+  ('TALK', 1, 'tobias', NULL, NULL, 1, '{"speaker":"Tobías","dialog":"¡Por fin alguien! Los goblins entraron de noche y se llevaron los cuatro engranajes de la rueda. Tienen un campamento al este de aquí."}', 'Habla con Tobías en el molino de la Colina'),
+  ('AMBUSH', 2, NULL, NULL, NULL, 1, '{"zone":"pradera","x":108,"y":36,"radius":3,"label":"Entrar al campamento goblin","dialog":"¡Los goblins defienden su botín!","monsters":[{"code":"GOBLIN_SAQUEADOR","level":4},{"code":"GOBLIN_SAQUEADOR","level":4},{"code":"GOBLIN_SAQUEADOR","level":5}]}', 'Entra al campamento goblin'),
+  ('INVESTIGATE', 3, NULL, NULL, NULL, 1, '{"zone":"pradera","x":109,"y":38,"radius":3,"label":"Revisar el botín goblin","speaker":"Tú","dialog":"Entre ollas sucias y monedas falsas están los cuatro engranajes de Tobías.","gives":{"item":"ENGRANAJE_MOLINO","qty":4}}', 'Recupera los engranajes del campamento'),
+  ('DELIVER', 4, 'tobias', NULL, 'ENGRANAJE_MOLINO', 4, NULL, 'Devuélvele los 4 engranajes a Tobías')
+) AS v(t, step, target, monster, item, n, params, descr);
+DELETE FROM quest_npc_spots WHERE quest_id = (SELECT id FROM quests WHERE code = 'PRADERA_HISTORIA_05_MOLINO');
+
+-- Raíces enfermas
+INSERT INTO quests (code, name, quest_type, zone_id, min_level, max_level, difficulty_stars, npc_name, location_name, is_repeatable, repeat_cooldown_hours, reputation_reward, gold_reward, xp_reward, description, is_personal, giver_npc, turn_in_npc, dialog, chain_position, chain_total)
+SELECT 'PRADERA_HISTORIA_06_RAICES', 'Raíces enfermas', 'PRINCIPAL', 1, 5, 15, 2, 'Ren', 'Bosque de Robleviejo', FALSE, NULL, 80, 750, 2800, '«El roble viejo del Bosque de Robleviejo se está muriendo. Tiene más años que la aldea y nunca se había enfermado. Ve al campamento de leñadores y busca a Brenna: conoce ese bosque mejor que yo. Cuidado con los jabalíes, andan furiosos.»', TRUE, 'ren', 'brenna', '{"entrega":"¿El roble te mostró eso? ¿Un gigante dormido y una mano con guante negro? …Llevo veinte años cortando árboles y nunca uno me habló. Y gracias: esta noche el bosque suena distinto. Mejor."}'::jsonb, 6, 14
+WHERE NOT EXISTS (SELECT 1 FROM quests WHERE code = 'PRADERA_HISTORIA_06_RAICES');
+UPDATE quests SET name = 'Raíces enfermas', quest_type = 'PRINCIPAL', zone_id = 1, min_level = 5, max_level = 15, difficulty_stars = 2, npc_name = 'Ren', location_name = 'Bosque de Robleviejo', is_repeatable = FALSE, repeat_cooldown_hours = NULL, reputation_reward = 80, gold_reward = 750, xp_reward = 2800, description = '«El roble viejo del Bosque de Robleviejo se está muriendo. Tiene más años que la aldea y nunca se había enfermado. Ve al campamento de leñadores y busca a Brenna: conoce ese bosque mejor que yo. Cuidado con los jabalíes, andan furiosos.»', is_personal = TRUE, giver_npc = 'ren', turn_in_npc = 'brenna', dialog = '{"entrega":"¿El roble te mostró eso? ¿Un gigante dormido y una mano con guante negro? …Llevo veinte años cortando árboles y nunca uno me habló. Y gracias: esta noche el bosque suena distinto. Mejor."}'::jsonb, chain_position = 6, chain_total = 14 WHERE code = 'PRADERA_HISTORIA_06_RAICES';
+DELETE FROM quest_objectives WHERE quest_id = (SELECT id FROM quests WHERE code = 'PRADERA_HISTORIA_06_RAICES');
+INSERT INTO quest_objectives (quest_id, objective_type, step, target_code, monster_id, item_id, target_count, params, description)
+SELECT (SELECT id FROM quests WHERE code = 'PRADERA_HISTORIA_06_RAICES'), v.t, v.step, v.target, (SELECT id FROM monsters WHERE code = v.monster), (SELECT id FROM items WHERE code = v.item), v.n, v.params::jsonb, v.descr
+FROM (VALUES
+  ('TALK', 1, 'brenna', NULL, NULL, 1, '{"speaker":"Brenna","dialog":"¿Te manda Ren? Bien. Para el roble hace falta un ungüento de raíz: tráeme cinco Hierbas Curativas y te lo preparo aquí mismo."}', 'Busca a Brenna en el campamento de leñadores'),
+  ('DELIVER', 2, 'brenna', NULL, 'HIERBA_CURATIVA', 5, '{"speaker":"Brenna","dialog":"Machaco las hierbas, un poco de resina y… listo. Úntalo en las raíces, no en las hojas. El roble está al norte del campamento.","gives":{"item":"UNGUENTO_RAIZ","qty":1}}', 'Lleva 5 Hierbas Curativas a Brenna'),
+  ('AMBUSH', 3, NULL, NULL, NULL, 1, '{"zone":"pradera","x":36,"y":24,"radius":3,"label":"Acercarse al roble viejo","dialog":"¡Dos jabalíes enloquecidos te cierran el paso!","monsters":[{"code":"JABALI_CORNUDO","level":5},{"code":"JABALI_CORNUDO","level":5}]}', 'Abre paso hasta el roble viejo'),
+  ('INVESTIGATE', 4, NULL, NULL, NULL, 1, '{"zone":"pradera","x":30,"y":20,"radius":3,"label":"Untar el ungüento en el roble","speaker":"El roble viejo","dialog":"Al tocar la corteza ves algo: un gigante de piedra y musgo duerme bajo la tierra del sureste… y una mano con guante negro clava un cristal en su pecho."}', 'Unta el ungüento en las raíces del roble viejo')
+) AS v(t, step, target, monster, item, n, params, descr);
+DELETE FROM quest_npc_spots WHERE quest_id = (SELECT id FROM quests WHERE code = 'PRADERA_HISTORIA_06_RAICES');
+
+-- Lo que guarda el agua
+INSERT INTO quests (code, name, quest_type, zone_id, min_level, max_level, difficulty_stars, npc_name, location_name, is_repeatable, repeat_cooldown_hours, reputation_reward, gold_reward, xp_reward, description, is_personal, giver_npc, turn_in_npc, dialog, chain_position, chain_total)
+SELECT 'PRADERA_HISTORIA_07_LAGO', 'Lo que guarda el agua', 'PRINCIPAL', 1, 6, 15, 2, 'Brenna', 'Lago Cristalino', FALSE, NULL, 80, 780, 2900, '«El Titán… y una mano con guante negro. Esto no se arregla con hachas. Dicen que el viejo Nilo, el pescador del Lago Cristalino, encontró a un forastero ahogado con capa negra. Ve a verlo: quizá sea el mismo del guante.»', TRUE, 'brenna', 'anciano', '{"entrega":"«Reunión en la torre del Vigía»… y el eclipse negro. Los Ocultos. Mi abuelo me contó de ellos cuando era niño. Si se reúnen en la torre, es por lo que hay debajo. Tengo que pedirte algo más grande… pero primero descansa."}'::jsonb, 7, 14
+WHERE NOT EXISTS (SELECT 1 FROM quests WHERE code = 'PRADERA_HISTORIA_07_LAGO');
+UPDATE quests SET name = 'Lo que guarda el agua', quest_type = 'PRINCIPAL', zone_id = 1, min_level = 6, max_level = 15, difficulty_stars = 2, npc_name = 'Brenna', location_name = 'Lago Cristalino', is_repeatable = FALSE, repeat_cooldown_hours = NULL, reputation_reward = 80, gold_reward = 780, xp_reward = 2900, description = '«El Titán… y una mano con guante negro. Esto no se arregla con hachas. Dicen que el viejo Nilo, el pescador del Lago Cristalino, encontró a un forastero ahogado con capa negra. Ve a verlo: quizá sea el mismo del guante.»', is_personal = TRUE, giver_npc = 'brenna', turn_in_npc = 'anciano', dialog = '{"entrega":"«Reunión en la torre del Vigía»… y el eclipse negro. Los Ocultos. Mi abuelo me contó de ellos cuando era niño. Si se reúnen en la torre, es por lo que hay debajo. Tengo que pedirte algo más grande… pero primero descansa."}'::jsonb, chain_position = 7, chain_total = 14 WHERE code = 'PRADERA_HISTORIA_07_LAGO';
+DELETE FROM quest_objectives WHERE quest_id = (SELECT id FROM quests WHERE code = 'PRADERA_HISTORIA_07_LAGO');
+INSERT INTO quest_objectives (quest_id, objective_type, step, target_code, monster_id, item_id, target_count, params, description)
+SELECT (SELECT id FROM quests WHERE code = 'PRADERA_HISTORIA_07_LAGO'), v.t, v.step, v.target, (SELECT id FROM monsters WHERE code = v.monster), (SELECT id FROM items WHERE code = v.item), v.n, v.params::jsonb, v.descr
+FROM (VALUES
+  ('TALK', 1, 'nilo', NULL, NULL, 1, '{"speaker":"Nilo","dialog":"El ahogado está ahí, junto a la orilla. Nadie se atreve a tocar sus cosas: los sapos no dejan acercarse. Si espantas cuatro, revisa su bolso. Yo vigilo."}', 'Habla con Nilo en el muelle del Lago Cristalino'),
+  ('KILL_MONSTER', 2, NULL, 'SAPO_DE_LODO', NULL, 4, NULL, 'Derrota 4 Sapos de Lodo en el Lago Cristalino'),
+  ('INVESTIGATE', 3, NULL, NULL, NULL, 1, '{"zone":"pradera","x":123,"y":24,"radius":3,"label":"Revisar el bolso del ahogado","speaker":"Tú","dialog":"Entre ropa mojada hay una carta con un eclipse negro dibujado: «Reunión en la torre del Vigía. Que nadie te siga».","gives":{"item":"CARTA_ECLIPSE","qty":1}}', 'Revisa el bolso del ahogado en la orilla'),
+  ('DELIVER', 4, 'anciano', NULL, 'CARTA_ECLIPSE', 1, NULL, 'Lleva la carta a Aldren')
+) AS v(t, step, target, monster, item, n, params, descr);
+DELETE FROM quest_npc_spots WHERE quest_id = (SELECT id FROM quests WHERE code = 'PRADERA_HISTORIA_07_LAGO');
+
+-- Ecos en el Este
+INSERT INTO quests (code, name, quest_type, zone_id, min_level, max_level, difficulty_stars, npc_name, location_name, is_repeatable, repeat_cooldown_hours, reputation_reward, gold_reward, xp_reward, description, is_personal, giver_npc, turn_in_npc, dialog, chain_position, chain_total)
+SELECT 'PRADERA_HISTORIA_09_ESTE', 'Ecos en el Este', 'PRINCIPAL', 1, 8, 15, 3, 'Goreth', 'Praderas del Este', FALSE, NULL, 90, 850, 3400, '«Unos granjeros de las Praderas del Este huyeron de sus casas y acampan junto al camino. Los guía una tal Sela. Están heridos: consíguete cinco Vendajes (Tela de Lino y una Hierba Curativa cada uno) y llévaselos. Y vigila: dicen que un lobo enorme los sigue.»', TRUE, 'goreth', 'sela', '{"entrega":"Vendajes, y un lobo menos rondando el campamento. No sé cómo pagarte… Lo que sí sé es lo que vimos: luces en el Círculo de Piedras, cada noche. Díselo a Aldren. Él sabrá qué hacer."}'::jsonb, 9, 14
+WHERE NOT EXISTS (SELECT 1 FROM quests WHERE code = 'PRADERA_HISTORIA_09_ESTE');
+UPDATE quests SET name = 'Ecos en el Este', quest_type = 'PRINCIPAL', zone_id = 1, min_level = 8, max_level = 15, difficulty_stars = 3, npc_name = 'Goreth', location_name = 'Praderas del Este', is_repeatable = FALSE, repeat_cooldown_hours = NULL, reputation_reward = 90, gold_reward = 850, xp_reward = 3400, description = '«Unos granjeros de las Praderas del Este huyeron de sus casas y acampan junto al camino. Los guía una tal Sela. Están heridos: consíguete cinco Vendajes (Tela de Lino y una Hierba Curativa cada uno) y llévaselos. Y vigila: dicen que un lobo enorme los sigue.»', is_personal = TRUE, giver_npc = 'goreth', turn_in_npc = 'sela', dialog = '{"entrega":"Vendajes, y un lobo menos rondando el campamento. No sé cómo pagarte… Lo que sí sé es lo que vimos: luces en el Círculo de Piedras, cada noche. Díselo a Aldren. Él sabrá qué hacer."}'::jsonb, chain_position = 9, chain_total = 14 WHERE code = 'PRADERA_HISTORIA_09_ESTE';
+DELETE FROM quest_objectives WHERE quest_id = (SELECT id FROM quests WHERE code = 'PRADERA_HISTORIA_09_ESTE');
+INSERT INTO quest_objectives (quest_id, objective_type, step, target_code, monster_id, item_id, target_count, params, description)
+SELECT (SELECT id FROM quests WHERE code = 'PRADERA_HISTORIA_09_ESTE'), v.t, v.step, v.target, (SELECT id FROM monsters WHERE code = v.monster), (SELECT id FROM items WHERE code = v.item), v.n, v.params::jsonb, v.descr
+FROM (VALUES
+  ('COLLECT_ITEM', 1, NULL, NULL, 'VENDAJE', 5, NULL, 'Consigue 5 Vendajes'),
+  ('AMBUSH', 2, NULL, NULL, NULL, 1, '{"zone":"pradera","x":138,"y":53,"radius":3,"label":"Llegar al campamento de los granjeros","dialog":"¡Un Lobo Feroz y un jabalí atacan el campamento!","monsters":[{"code":"LOBO_FEROZ","level":8},{"code":"JABALI_CORNUDO","level":7}]}', 'Defiende el campamento de los granjeros'),
+  ('TALK', 3, 'sela', NULL, NULL, 1, '{"speaker":"Sela","dialog":"Gracias, gracias… Huimos por las luces. Cada noche, en el Círculo de Piedras, las runas se encienden rojas y se oye cantar a alguien."}', 'Habla con Sela en el campamento de refugiados')
+) AS v(t, step, target, monster, item, n, params, descr);
+DELETE FROM quest_npc_spots WHERE quest_id = (SELECT id FROM quests WHERE code = 'PRADERA_HISTORIA_09_ESTE');
+
+-- El ritual de las piedras
+INSERT INTO quests (code, name, quest_type, zone_id, min_level, max_level, difficulty_stars, npc_name, location_name, is_repeatable, repeat_cooldown_hours, reputation_reward, gold_reward, xp_reward, description, is_personal, giver_npc, turn_in_npc, dialog, chain_position, chain_total)
+SELECT 'PRADERA_HISTORIA_10_RITUAL', 'El ritual de las piedras', 'PRINCIPAL', 1, 9, 15, 3, 'Aldren', 'Círculo de Piedras', FALSE, NULL, 110, 950, 4000, '«El Chamán Oscuro está despertando al Titán con sus rituales en el Círculo de Piedras. Hay que interrumpirlo esta misma noche. No vayas sin pociones: no estará solo.»', TRUE, 'anciano', 'anciano', '{"entrega":"Escapó… pero dejó el mapa. La Guarida de la Manada, marcada en negro. Ahí manda el Capitán de los Lobos. Ya entiendo cómo controla a los animales. Ren tiene que ver esto."}'::jsonb, 10, 14
+WHERE NOT EXISTS (SELECT 1 FROM quests WHERE code = 'PRADERA_HISTORIA_10_RITUAL');
+UPDATE quests SET name = 'El ritual de las piedras', quest_type = 'PRINCIPAL', zone_id = 1, min_level = 9, max_level = 15, difficulty_stars = 3, npc_name = 'Aldren', location_name = 'Círculo de Piedras', is_repeatable = FALSE, repeat_cooldown_hours = NULL, reputation_reward = 110, gold_reward = 950, xp_reward = 4000, description = '«El Chamán Oscuro está despertando al Titán con sus rituales en el Círculo de Piedras. Hay que interrumpirlo esta misma noche. No vayas sin pociones: no estará solo.»', is_personal = TRUE, giver_npc = 'anciano', turn_in_npc = 'anciano', dialog = '{"entrega":"Escapó… pero dejó el mapa. La Guarida de la Manada, marcada en negro. Ahí manda el Capitán de los Lobos. Ya entiendo cómo controla a los animales. Ren tiene que ver esto."}'::jsonb, chain_position = 10, chain_total = 14 WHERE code = 'PRADERA_HISTORIA_10_RITUAL';
+DELETE FROM quest_objectives WHERE quest_id = (SELECT id FROM quests WHERE code = 'PRADERA_HISTORIA_10_RITUAL');
+INSERT INTO quest_objectives (quest_id, objective_type, step, target_code, monster_id, item_id, target_count, params, description)
+SELECT (SELECT id FROM quests WHERE code = 'PRADERA_HISTORIA_10_RITUAL'), v.t, v.step, v.target, (SELECT id FROM monsters WHERE code = v.monster), (SELECT id FROM items WHERE code = v.item), v.n, v.params::jsonb, v.descr
+FROM (VALUES
+  ('VISIT', 1, NULL, NULL, NULL, 1, '{"zone":"pradera","x":80,"y":96,"radius":3,"label":"El Círculo de Piedras","speaker":"Tú","dialog":"Las runas de los menhires brillan rojas. En el centro, un hombre de túnica negra canta frente a un cristal enorme."}', 'Llega al centro del Círculo de Piedras'),
+  ('AMBUSH', 2, NULL, NULL, NULL, 1, '{"zone":"pradera","x":80,"y":96,"radius":3,"label":"Interrumpir el ritual","dialog":"«¡Nadie interrumpe el despertar!» El Chamán llama a sus acólitos.","monsters":[{"code":"CHAMAN_OSCURO","level":9},{"code":"ACOLITO_ECLIPSE","level":8},{"code":"ACOLITO_ECLIPSE","level":8}]}', 'Interrumpe el ritual del Chamán Oscuro'),
+  ('INVESTIGATE', 3, NULL, NULL, NULL, 1, '{"zone":"pradera","x":81,"y":97,"radius":3,"label":"Revisar el altar","speaker":"Tú","dialog":"El Chamán huyó entre la niebla, pero dejó caer un mapa de piel con la Guarida de la Manada marcada en negro.","gives":{"item":"MAPA_DEL_CHAMAN","qty":1}}', 'Revisa el altar del ritual')
+) AS v(t, step, target, monster, item, n, params, descr);
+DELETE FROM quest_npc_spots WHERE quest_id = (SELECT id FROM quests WHERE code = 'PRADERA_HISTORIA_10_RITUAL');
+
+-- La manada enloquecida
+INSERT INTO quests (code, name, quest_type, zone_id, min_level, max_level, difficulty_stars, npc_name, location_name, is_repeatable, repeat_cooldown_hours, reputation_reward, gold_reward, xp_reward, description, is_personal, giver_npc, turn_in_npc, dialog, chain_position, chain_total)
+SELECT 'PRADERA_HISTORIA_11_MANADA', 'La manada enloquecida', 'PRINCIPAL', 1, 10, 15, 3, 'Ren', 'Guarida de la Manada', FALSE, NULL, 130, 1050, 4800, '«El mapa del Chamán marca la Guarida. El Capitán de los Lobos manda ahí, y si lleva uno de esos cristales, toda la manada le obedece al Chamán. Vera, la cazadora, vigila la zona desde su atalaya al norte de las Tierras Heridas: pasa a verla antes de entrar.»', TRUE, 'ren', 'vera', '{"entrega":"Este cristal es diez veces más grande que los de las bestias que veo salir de las grietas. Con esto el Chamán movía a toda la manada como a un rebaño. Escucha: la Guarida está en silencio. Por primera vez en meses."}'::jsonb, 11, 14
+WHERE NOT EXISTS (SELECT 1 FROM quests WHERE code = 'PRADERA_HISTORIA_11_MANADA');
+UPDATE quests SET name = 'La manada enloquecida', quest_type = 'PRINCIPAL', zone_id = 1, min_level = 10, max_level = 15, difficulty_stars = 3, npc_name = 'Ren', location_name = 'Guarida de la Manada', is_repeatable = FALSE, repeat_cooldown_hours = NULL, reputation_reward = 130, gold_reward = 1050, xp_reward = 4800, description = '«El mapa del Chamán marca la Guarida. El Capitán de los Lobos manda ahí, y si lleva uno de esos cristales, toda la manada le obedece al Chamán. Vera, la cazadora, vigila la zona desde su atalaya al norte de las Tierras Heridas: pasa a verla antes de entrar.»', is_personal = TRUE, giver_npc = 'ren', turn_in_npc = 'vera', dialog = '{"entrega":"Este cristal es diez veces más grande que los de las bestias que veo salir de las grietas. Con esto el Chamán movía a toda la manada como a un rebaño. Escucha: la Guarida está en silencio. Por primera vez en meses."}'::jsonb, chain_position = 11, chain_total = 14 WHERE code = 'PRADERA_HISTORIA_11_MANADA';
+DELETE FROM quest_objectives WHERE quest_id = (SELECT id FROM quests WHERE code = 'PRADERA_HISTORIA_11_MANADA');
+INSERT INTO quest_objectives (quest_id, objective_type, step, target_code, monster_id, item_id, target_count, params, description)
+SELECT (SELECT id FROM quests WHERE code = 'PRADERA_HISTORIA_11_MANADA'), v.t, v.step, v.target, (SELECT id FROM monsters WHERE code = v.monster), (SELECT id FROM items WHERE code = v.item), v.n, v.params::jsonb, v.descr
+FROM (VALUES
+  ('TALK', 1, 'vera', NULL, NULL, 1, '{"speaker":"Vera","dialog":"El Capitán duerme al fondo de la Guarida, siempre con dos lobos al lado. Lleva un collar con una piedra que brilla. Quítasela y la manada vuelve a ser manada."}', 'Habla con Vera en su atalaya'),
+  ('DEFEAT_BOSS', 2, NULL, 'CAPITAN_LOBOS', NULL, 1, NULL, 'Derrota al Capitán de los Lobos en la Guarida'),
+  ('INVESTIGATE', 3, NULL, NULL, NULL, 1, '{"zone":"pradera","x":146,"y":30,"radius":3,"label":"Tomar el collar del Capitán","speaker":"Tú","dialog":"El collar del Capitán tiene un cristal negro del tamaño de un puño. Al quitárselo, los aullidos de la Guarida se callan.","gives":{"item":"CRISTAL_DEL_CAPITAN","qty":1}}', 'Quítale el collar al Capitán')
+) AS v(t, step, target, monster, item, n, params, descr);
+DELETE FROM quest_npc_spots WHERE quest_id = (SELECT id FROM quests WHERE code = 'PRADERA_HISTORIA_11_MANADA');
+
+-- La herida de la tierra
+INSERT INTO quests (code, name, quest_type, zone_id, min_level, max_level, difficulty_stars, npc_name, location_name, is_repeatable, repeat_cooldown_hours, reputation_reward, gold_reward, xp_reward, description, is_personal, giver_npc, turn_in_npc, dialog, chain_position, chain_total)
+SELECT 'PRADERA_HISTORIA_12_HERIDA', 'La herida de la tierra', 'PRINCIPAL', 1, 12, 15, 4, 'Aldren', 'Tierras Heridas', FALSE, NULL, 150, 1250, 5800, '«En las Tierras Heridas se abrieron grietas por donde sale la oscuridad. Solo el agua bendita del Pilar de Aethra puede cerrarlas. Ve a Aurelia y habla con la sacerdotisa Elenya: ella te dirá cómo.»', TRUE, 'anciano', 'anciano', '{"entrega":"¿El Encapuchado? ¿Y te llamó «Vigía»…? Entonces sabe quién eres antes que tú. Si el Titán despertó, no queda tiempo. Prepárate bien: lo que sigue es lo más difícil que te voy a pedir."}'::jsonb, 12, 14
+WHERE NOT EXISTS (SELECT 1 FROM quests WHERE code = 'PRADERA_HISTORIA_12_HERIDA');
+UPDATE quests SET name = 'La herida de la tierra', quest_type = 'PRINCIPAL', zone_id = 1, min_level = 12, max_level = 15, difficulty_stars = 4, npc_name = 'Aldren', location_name = 'Tierras Heridas', is_repeatable = FALSE, repeat_cooldown_hours = NULL, reputation_reward = 150, gold_reward = 1250, xp_reward = 5800, description = '«En las Tierras Heridas se abrieron grietas por donde sale la oscuridad. Solo el agua bendita del Pilar de Aethra puede cerrarlas. Ve a Aurelia y habla con la sacerdotisa Elenya: ella te dirá cómo.»', is_personal = TRUE, giver_npc = 'anciano', turn_in_npc = 'anciano', dialog = '{"entrega":"¿El Encapuchado? ¿Y te llamó «Vigía»…? Entonces sabe quién eres antes que tú. Si el Titán despertó, no queda tiempo. Prepárate bien: lo que sigue es lo más difícil que te voy a pedir."}'::jsonb, chain_position = 12, chain_total = 14 WHERE code = 'PRADERA_HISTORIA_12_HERIDA';
+DELETE FROM quest_objectives WHERE quest_id = (SELECT id FROM quests WHERE code = 'PRADERA_HISTORIA_12_HERIDA');
+INSERT INTO quest_objectives (quest_id, objective_type, step, target_code, monster_id, item_id, target_count, params, description)
+SELECT (SELECT id FROM quests WHERE code = 'PRADERA_HISTORIA_12_HERIDA'), v.t, v.step, v.target, (SELECT id FROM monsters WHERE code = v.monster), (SELECT id FROM items WHERE code = v.item), v.n, v.params::jsonb, v.descr
+FROM (VALUES
+  ('TALK', 1, 'elenya', NULL, NULL, 1, '{"speaker":"Elenya","dialog":"Grietas de oscuridad… Llena frascos con agua del Pilar de Aethra, en la plaza. Tres bastarán. Viértela en cada grieta y la tierra recordará quién es."}', 'Habla con la sacerdotisa Elenya en Aurelia'),
+  ('COLLECT_ITEM', 2, NULL, NULL, 'AGUA_PURIFICADA', 3, NULL, 'Consigue 3 Aguas Purificadas en el Pilar de Aethra'),
+  ('INVESTIGATE', 3, NULL, NULL, NULL, 1, '{"zone":"pradera","x":110,"y":85,"radius":3,"label":"Verter agua en la grieta","speaker":"Tú","dialog":"El agua sisea al tocar la grieta y la oscuridad se retira como humo."}', 'Cierra la primera grieta'),
+  ('INVESTIGATE', 3, NULL, NULL, NULL, 1, '{"zone":"pradera","x":125,"y":100,"radius":3,"label":"Verter agua en la grieta","speaker":"Tú","dialog":"La segunda grieta se cierra con un crujido de piedra."}', 'Cierra la segunda grieta'),
+  ('AMBUSH', 4, NULL, NULL, NULL, 1, '{"zone":"pradera","x":150,"y":80,"radius":3,"label":"Verter agua en la última grieta","dialog":"De la grieta sale una voz: «Llegas tarde, Vigía. El Titán ya despertó». Un hombre encapuchado desaparece y deja a sus bestias.","monsters":[{"code":"BESTIA_GRIETA","level":12},{"code":"BESTIA_GRIETA","level":12},{"code":"ACOLITO_ECLIPSE","level":12}]}', 'Cierra la última grieta')
+) AS v(t, step, target, monster, item, n, params, descr);
+DELETE FROM quest_npc_spots WHERE quest_id = (SELECT id FROM quests WHERE code = 'PRADERA_HISTORIA_12_HERIDA');
+
+-- El corazón que late
+INSERT INTO quests (code, name, quest_type, zone_id, min_level, max_level, difficulty_stars, npc_name, location_name, is_repeatable, repeat_cooldown_hours, reputation_reward, gold_reward, xp_reward, description, is_personal, giver_npc, turn_in_npc, dialog, chain_position, chain_total)
+SELECT 'PRADERA_Q3_TITAN_PRADERA', 'El corazón que late', 'PRINCIPAL', 1, 14, 15, 5, 'Aldren', 'Corazón de la Pradera', FALSE, NULL, 200, 1500, 7240, '«El Titán de la Pradera despertó con un cristal clavado en el pecho. No es malvado: es el guardián de algo muy antiguo, y lo están usando. Derrótalo y sácale ese cristal. Ve con amigos. No es una pelea para hacer solo.»', TRUE, 'anciano', 'anciano', '{"entrega":"«Protege los otros seis»… Eso dijo, ¿verdad? Entonces es cierto. Siete Sellos, siete guardianes. Siéntate: es hora de que te cuente la historia completa. Y de lo que quedó en el Corazón."}'::jsonb, 13, 14
+WHERE NOT EXISTS (SELECT 1 FROM quests WHERE code = 'PRADERA_Q3_TITAN_PRADERA');
+UPDATE quests SET name = 'El corazón que late', quest_type = 'PRINCIPAL', zone_id = 1, min_level = 14, max_level = 15, difficulty_stars = 5, npc_name = 'Aldren', location_name = 'Corazón de la Pradera', is_repeatable = FALSE, repeat_cooldown_hours = NULL, reputation_reward = 200, gold_reward = 1500, xp_reward = 7240, description = '«El Titán de la Pradera despertó con un cristal clavado en el pecho. No es malvado: es el guardián de algo muy antiguo, y lo están usando. Derrótalo y sácale ese cristal. Ve con amigos. No es una pelea para hacer solo.»', is_personal = TRUE, giver_npc = 'anciano', turn_in_npc = 'anciano', dialog = '{"entrega":"«Protege los otros seis»… Eso dijo, ¿verdad? Entonces es cierto. Siete Sellos, siete guardianes. Siéntate: es hora de que te cuente la historia completa. Y de lo que quedó en el Corazón."}'::jsonb, chain_position = 13, chain_total = 14 WHERE code = 'PRADERA_Q3_TITAN_PRADERA';
+DELETE FROM quest_objectives WHERE quest_id = (SELECT id FROM quests WHERE code = 'PRADERA_Q3_TITAN_PRADERA');
+INSERT INTO quest_objectives (quest_id, objective_type, step, target_code, monster_id, item_id, target_count, params, description)
+SELECT (SELECT id FROM quests WHERE code = 'PRADERA_Q3_TITAN_PRADERA'), v.t, v.step, v.target, (SELECT id FROM monsters WHERE code = v.monster), (SELECT id FROM items WHERE code = v.item), v.n, v.params::jsonb, v.descr
+FROM (VALUES
+  ('DEFEAT_BOSS', 1, NULL, 'TITAN_PRADERA', NULL, 1, NULL, 'Derrota al Titán de la Pradera en el Corazón'),
+  ('INVESTIGATE', 2, NULL, NULL, NULL, 1, '{"zone":"pradera","x":140,"y":106,"radius":3,"label":"Acercarte al Titán","speaker":"El Titán","dialog":"El cristal se rompe y los ojos del Titán se aclaran. «Gracias, Vigía… El Primer Sello resiste. Protege los otros seis…». Y vuelve a dormirse."}', 'Acércate al Titán caído')
+) AS v(t, step, target, monster, item, n, params, descr);
+DELETE FROM quest_npc_spots WHERE quest_id = (SELECT id FROM quests WHERE code = 'PRADERA_Q3_TITAN_PRADERA');
+
+-- Hacia las montañas
+INSERT INTO quests (code, name, quest_type, zone_id, min_level, max_level, difficulty_stars, npc_name, location_name, is_repeatable, repeat_cooldown_hours, reputation_reward, gold_reward, xp_reward, description, is_personal, giver_npc, turn_in_npc, dialog, chain_position, chain_total)
+SELECT 'PRADERA_HISTORIA_14_MONTANAS', 'Hacia las montañas', 'PRINCIPAL', 1, 15, 15, 3, 'Aldren', 'Aurelia', FALSE, NULL, 200, 1000, 4000, '«Del Corazón saqué esto: un pedazo del Primer Sello. Llévaselo a Elenya en Aurelia, ella sabrá protegerlo. Y después… el Encapuchado huyó hacia las Montañas Grises. Me temo que tu camino sigue por ahí.»', TRUE, 'anciano', 'elenya', '{"entrega":"Un Fragmento del Primer Sello… Aethra te eligió, aunque todavía no lo sepas. Lo guardaré en la Catedral. El Encapuchado fue hacia las Montañas Grises: el paso de montaña está al este de la Guarida. Que la luz te acompañe, Vigía."}'::jsonb, 14, 14
+WHERE NOT EXISTS (SELECT 1 FROM quests WHERE code = 'PRADERA_HISTORIA_14_MONTANAS');
+UPDATE quests SET name = 'Hacia las montañas', quest_type = 'PRINCIPAL', zone_id = 1, min_level = 15, max_level = 15, difficulty_stars = 3, npc_name = 'Aldren', location_name = 'Aurelia', is_repeatable = FALSE, repeat_cooldown_hours = NULL, reputation_reward = 200, gold_reward = 1000, xp_reward = 4000, description = '«Del Corazón saqué esto: un pedazo del Primer Sello. Llévaselo a Elenya en Aurelia, ella sabrá protegerlo. Y después… el Encapuchado huyó hacia las Montañas Grises. Me temo que tu camino sigue por ahí.»', is_personal = TRUE, giver_npc = 'anciano', turn_in_npc = 'elenya', dialog = '{"entrega":"Un Fragmento del Primer Sello… Aethra te eligió, aunque todavía no lo sepas. Lo guardaré en la Catedral. El Encapuchado fue hacia las Montañas Grises: el paso de montaña está al este de la Guarida. Que la luz te acompañe, Vigía."}'::jsonb, chain_position = 14, chain_total = 14 WHERE code = 'PRADERA_HISTORIA_14_MONTANAS';
+DELETE FROM quest_objectives WHERE quest_id = (SELECT id FROM quests WHERE code = 'PRADERA_HISTORIA_14_MONTANAS');
+INSERT INTO quest_objectives (quest_id, objective_type, step, target_code, monster_id, item_id, target_count, params, description)
+SELECT (SELECT id FROM quests WHERE code = 'PRADERA_HISTORIA_14_MONTANAS'), v.t, v.step, v.target, (SELECT id FROM monsters WHERE code = v.monster), (SELECT id FROM items WHERE code = v.item), v.n, v.params::jsonb, v.descr
+FROM (VALUES
+  ('TALK', 1, 'anciano', NULL, NULL, 1, '{"speaker":"Aldren","dialog":"Mi familia esperó siglos a que alguien volviera a cargar esto. Cuídalo como si fuera tu corazón.","gives":{"item":"FRAGMENTO_SELLO_PRADERA","qty":1}}', 'Recibe el Fragmento de Sello de Aldren'),
+  ('DELIVER', 2, 'elenya', NULL, 'FRAGMENTO_SELLO_PRADERA', 1, NULL, 'Lleva el Fragmento de Sello a Elenya, en Aurelia')
+) AS v(t, step, target, monster, item, n, params, descr);
+DELETE FROM quest_npc_spots WHERE quest_id = (SELECT id FROM quests WHERE code = 'PRADERA_HISTORIA_14_MONTANAS');
+DELETE FROM quest_item_rewards WHERE quest_id = (SELECT id FROM quests WHERE code = 'PRADERA_HISTORIA_14_MONTANAS');
+INSERT INTO quest_item_rewards (quest_id, item_id, quantity)
+SELECT (SELECT id FROM quests WHERE code = 'PRADERA_HISTORIA_14_MONTANAS'), i.id, v.qty FROM (VALUES ('POCION_DE_VIDA_MAYOR', 5), ('POCION_DE_MANA_MAYOR', 5)) AS v(code, qty) JOIN items i ON i.code = v.code;
+
+-- ¿Dónde está Trueno?
+INSERT INTO quests (code, name, quest_type, zone_id, min_level, max_level, difficulty_stars, npc_name, location_name, is_repeatable, repeat_cooldown_hours, reputation_reward, gold_reward, xp_reward, description, is_personal, giver_npc, turn_in_npc, dialog, chain_position, chain_total)
+SELECT 'PRADERA_SEC_TRUENO', '¿Dónde está Trueno?', 'SECUNDARIA', 1, 2, 15, 1, 'Gaspar', 'Aldea Espiga', FALSE, NULL, 40, 400, 1200, '«¡Trueno se escapó otra vez! Es mi caballo, el gris con la mancha blanca. Le encanta el trigo, el agua y dormir donde no debe. Si lo ves, ¡tráemelo, por lo que más quieras!»', FALSE, 'cochero_aldea', 'cochero_aldea', '{"entrega":"¡Trueno, caballo del demonio! ¿En la torre del Vigía? Ese animal se cree un héroe. Gracias, de verdad. Toma, pan del bueno, del que le robo a Mirna."}'::jsonb, NULL, NULL
+WHERE NOT EXISTS (SELECT 1 FROM quests WHERE code = 'PRADERA_SEC_TRUENO');
+UPDATE quests SET name = '¿Dónde está Trueno?', quest_type = 'SECUNDARIA', zone_id = 1, min_level = 2, max_level = 15, difficulty_stars = 1, npc_name = 'Gaspar', location_name = 'Aldea Espiga', is_repeatable = FALSE, repeat_cooldown_hours = NULL, reputation_reward = 40, gold_reward = 400, xp_reward = 1200, description = '«¡Trueno se escapó otra vez! Es mi caballo, el gris con la mancha blanca. Le encanta el trigo, el agua y dormir donde no debe. Si lo ves, ¡tráemelo, por lo que más quieras!»', is_personal = FALSE, giver_npc = 'cochero_aldea', turn_in_npc = 'cochero_aldea', dialog = '{"entrega":"¡Trueno, caballo del demonio! ¿En la torre del Vigía? Ese animal se cree un héroe. Gracias, de verdad. Toma, pan del bueno, del que le robo a Mirna."}'::jsonb, chain_position = NULL, chain_total = NULL WHERE code = 'PRADERA_SEC_TRUENO';
+DELETE FROM quest_objectives WHERE quest_id = (SELECT id FROM quests WHERE code = 'PRADERA_SEC_TRUENO');
+INSERT INTO quest_objectives (quest_id, objective_type, step, target_code, monster_id, item_id, target_count, params, description)
+SELECT (SELECT id FROM quests WHERE code = 'PRADERA_SEC_TRUENO'), v.t, v.step, v.target, (SELECT id FROM monsters WHERE code = v.monster), (SELECT id FROM items WHERE code = v.item), v.n, v.params::jsonb, v.descr
+FROM (VALUES
+  ('INVESTIGATE', 1, NULL, NULL, NULL, 1, '{"zone":"pradera","x":30,"y":55,"radius":3,"label":"Buscar a Trueno","speaker":"Tú","dialog":"Trueno está comiéndose el trigo de Mirna. Al verte relincha… y sale galopando hacia el norte."}', 'Busca a Trueno en los trigales de Mirna'),
+  ('INVESTIGATE', 2, NULL, NULL, NULL, 1, '{"zone":"pradera","x":127,"y":8,"radius":3,"label":"Buscar a Trueno","speaker":"Tú","dialog":"¡Trueno está nadando en el lago, feliz como un pato! Sale del agua, se sacude encima de ti y se va al trote hacia el sur."}', 'Sigue a Trueno hasta el lago'),
+  ('INVESTIGATE', 3, NULL, NULL, NULL, 1, '{"zone":"pradera","x":33,"y":102,"radius":3,"label":"Despertar a Trueno","speaker":"Tú","dialog":"Trueno duerme profundamente junto a la torre del Vigía, como si fuera su casa. Esta vez se deja llevar."}', 'Encuentra a Trueno en las Ruinas del Vigía')
+) AS v(t, step, target, monster, item, n, params, descr);
+DELETE FROM quest_npc_spots WHERE quest_id = (SELECT id FROM quests WHERE code = 'PRADERA_SEC_TRUENO');
+DELETE FROM quest_item_rewards WHERE quest_id = (SELECT id FROM quests WHERE code = 'PRADERA_SEC_TRUENO');
+INSERT INTO quest_item_rewards (quest_id, item_id, quantity)
+SELECT (SELECT id FROM quests WHERE code = 'PRADERA_SEC_TRUENO'), i.id, v.qty FROM (VALUES ('PAN_CAMPO', 3)) AS v(code, qty) JOIN items i ON i.code = v.code;
+
+-- Una espada para Tilo
+INSERT INTO quests (code, name, quest_type, zone_id, min_level, max_level, difficulty_stars, npc_name, location_name, is_repeatable, repeat_cooldown_hours, reputation_reward, gold_reward, xp_reward, description, is_personal, giver_npc, turn_in_npc, dialog, chain_position, chain_total)
+SELECT 'PRADERA_SEC_TILO_1', 'Una espada para Tilo', 'SECUNDARIA', 1, 3, 15, 1, 'Tilo', 'Aldea Espiga', FALSE, NULL, 30, 250, 900, '«¡Yo voy a ser un héroe como tú! Pero no tengo espada… Mi mamá dice que las espadas son peligrosas. ¿Me consigues una rama del roble viejo? Una recta. ¡La más recta del bosque!»', FALSE, 'tilo', 'tilo', '{"entrega":"¡Es perfecta! ¡La llamaré Partelobos! Ahora solo me falta entrenar. ¡Vuelve mañana, que te voy a enseñar mis movimientos!"}'::jsonb, 1, NULL
+WHERE NOT EXISTS (SELECT 1 FROM quests WHERE code = 'PRADERA_SEC_TILO_1');
+UPDATE quests SET name = 'Una espada para Tilo', quest_type = 'SECUNDARIA', zone_id = 1, min_level = 3, max_level = 15, difficulty_stars = 1, npc_name = 'Tilo', location_name = 'Aldea Espiga', is_repeatable = FALSE, repeat_cooldown_hours = NULL, reputation_reward = 30, gold_reward = 250, xp_reward = 900, description = '«¡Yo voy a ser un héroe como tú! Pero no tengo espada… Mi mamá dice que las espadas son peligrosas. ¿Me consigues una rama del roble viejo? Una recta. ¡La más recta del bosque!»', is_personal = FALSE, giver_npc = 'tilo', turn_in_npc = 'tilo', dialog = '{"entrega":"¡Es perfecta! ¡La llamaré Partelobos! Ahora solo me falta entrenar. ¡Vuelve mañana, que te voy a enseñar mis movimientos!"}'::jsonb, chain_position = 1, chain_total = NULL WHERE code = 'PRADERA_SEC_TILO_1';
+DELETE FROM quest_objectives WHERE quest_id = (SELECT id FROM quests WHERE code = 'PRADERA_SEC_TILO_1');
+INSERT INTO quest_objectives (quest_id, objective_type, step, target_code, monster_id, item_id, target_count, params, description)
+SELECT (SELECT id FROM quests WHERE code = 'PRADERA_SEC_TILO_1'), v.t, v.step, v.target, (SELECT id FROM monsters WHERE code = v.monster), (SELECT id FROM items WHERE code = v.item), v.n, v.params::jsonb, v.descr
+FROM (VALUES
+  ('INVESTIGATE', 1, NULL, NULL, NULL, 1, '{"zone":"pradera","x":40,"y":15,"radius":3,"label":"Buscar una rama recta","speaker":"Tú","dialog":"Entre las raíces del roble encuentras una rama recta y firme. Tilo va a estar feliz.","gives":{"item":"PALO_ROBLE","qty":1}}', 'Busca una rama recta en el Bosque de Robleviejo'),
+  ('DELIVER', 2, 'tilo', NULL, 'PALO_ROBLE', 1, NULL, 'Lleva el palo de roble a Tilo')
+) AS v(t, step, target, monster, item, n, params, descr);
+DELETE FROM quest_npc_spots WHERE quest_id = (SELECT id FROM quests WHERE code = 'PRADERA_SEC_TILO_1');
+
+-- El entrenamiento de Tilo
+INSERT INTO quests (code, name, quest_type, zone_id, min_level, max_level, difficulty_stars, npc_name, location_name, is_repeatable, repeat_cooldown_hours, reputation_reward, gold_reward, xp_reward, description, is_personal, giver_npc, turn_in_npc, dialog, chain_position, chain_total)
+SELECT 'PRADERA_SEC_TILO_2', 'El entrenamiento de Tilo', 'SECUNDARIA', 1, 4, 15, 1, 'Tilo', 'Aldea Espiga', FALSE, NULL, 30, 300, 1100, '«¡Ya sé pelear! Bueno… casi. Hay una rata GIGANTE en los trigales de la aldea. ¡Vamos juntos! Yo la ataco y tú… tú miras cómo lo hago.»', FALSE, 'tilo', 'tilo', '{"entrega":"Yo… yo no corrí. Fui a buscar ayuda. Muy rápido. ¡Pero la próxima vez sí! Toma, mi mamá hizo asado. Dice que los héroes comen bien."}'::jsonb, 2, NULL
+WHERE NOT EXISTS (SELECT 1 FROM quests WHERE code = 'PRADERA_SEC_TILO_2');
+UPDATE quests SET name = 'El entrenamiento de Tilo', quest_type = 'SECUNDARIA', zone_id = 1, min_level = 4, max_level = 15, difficulty_stars = 1, npc_name = 'Tilo', location_name = 'Aldea Espiga', is_repeatable = FALSE, repeat_cooldown_hours = NULL, reputation_reward = 30, gold_reward = 300, xp_reward = 1100, description = '«¡Ya sé pelear! Bueno… casi. Hay una rata GIGANTE en los trigales de la aldea. ¡Vamos juntos! Yo la ataco y tú… tú miras cómo lo hago.»', is_personal = FALSE, giver_npc = 'tilo', turn_in_npc = 'tilo', dialog = '{"entrega":"Yo… yo no corrí. Fui a buscar ayuda. Muy rápido. ¡Pero la próxima vez sí! Toma, mi mamá hizo asado. Dice que los héroes comen bien."}'::jsonb, chain_position = 2, chain_total = NULL WHERE code = 'PRADERA_SEC_TILO_2';
+DELETE FROM quest_objectives WHERE quest_id = (SELECT id FROM quests WHERE code = 'PRADERA_SEC_TILO_2');
+INSERT INTO quest_objectives (quest_id, objective_type, step, target_code, monster_id, item_id, target_count, params, description)
+SELECT (SELECT id FROM quests WHERE code = 'PRADERA_SEC_TILO_2'), v.t, v.step, v.target, (SELECT id FROM monsters WHERE code = v.monster), (SELECT id FROM items WHERE code = v.item), v.n, v.params::jsonb, v.descr
+FROM (VALUES
+  ('AMBUSH', 1, NULL, NULL, NULL, 1, '{"zone":"pradera","x":70,"y":58,"radius":3,"label":"Buscar a la rata gigante","dialog":"La rata es enorme. Tilo levanta su palo, grita «¡Partelobos!»… y sale corriendo hacia su casa.","monsters":[{"code":"RATA_ALCANTARILLA","level":5}]}', 'Enfrenta a la rata gorda con Tilo'),
+  ('TALK', 2, 'tilo', NULL, NULL, 1, '{"speaker":"Tilo","dialog":"¿Ya… ya se fue? Uf. Era más grande de lo que parecía desde lejos."}', 'Busca a Tilo, que se escondió')
+) AS v(t, step, target, monster, item, n, params, descr);
+DELETE FROM quest_npc_spots WHERE quest_id = (SELECT id FROM quests WHERE code = 'PRADERA_SEC_TILO_2');
+DELETE FROM quest_item_rewards WHERE quest_id = (SELECT id FROM quests WHERE code = 'PRADERA_SEC_TILO_2');
+INSERT INTO quest_item_rewards (quest_id, item_id, quantity)
+SELECT (SELECT id FROM quests WHERE code = 'PRADERA_SEC_TILO_2'), i.id, v.qty FROM (VALUES ('ASADO_JABALI', 2)) AS v(code, qty) JOIN items i ON i.code = v.code;
+
+-- Una aventura de verdad
+INSERT INTO quests (code, name, quest_type, zone_id, min_level, max_level, difficulty_stars, npc_name, location_name, is_repeatable, repeat_cooldown_hours, reputation_reward, gold_reward, xp_reward, description, is_personal, giver_npc, turn_in_npc, dialog, chain_position, chain_total)
+SELECT 'PRADERA_SEC_TILO_3', 'Una aventura de verdad', 'SECUNDARIA', 1, 6, 15, 2, 'Tilo', 'Aldea Espiga', FALSE, NULL, 60, 450, 1600, '«Ya entendí: los héroes primero aprenden mirando. Cuéntame una aventura de verdad. ¡Derrota a cinco goblins y vuelve a contármelo todo, con detalles!»', FALSE, 'tilo', 'tilo', '{"entrega":"¡Y entonces tú saltaste así, y PAM! ¡Algún día voy a ser como tú! Toma, te hice un dibujo. Eres tú peleando contra un dragón. Bueno, contra un goblin, pero lo dibujé grande."}'::jsonb, 3, NULL
+WHERE NOT EXISTS (SELECT 1 FROM quests WHERE code = 'PRADERA_SEC_TILO_3');
+UPDATE quests SET name = 'Una aventura de verdad', quest_type = 'SECUNDARIA', zone_id = 1, min_level = 6, max_level = 15, difficulty_stars = 2, npc_name = 'Tilo', location_name = 'Aldea Espiga', is_repeatable = FALSE, repeat_cooldown_hours = NULL, reputation_reward = 60, gold_reward = 450, xp_reward = 1600, description = '«Ya entendí: los héroes primero aprenden mirando. Cuéntame una aventura de verdad. ¡Derrota a cinco goblins y vuelve a contármelo todo, con detalles!»', is_personal = FALSE, giver_npc = 'tilo', turn_in_npc = 'tilo', dialog = '{"entrega":"¡Y entonces tú saltaste así, y PAM! ¡Algún día voy a ser como tú! Toma, te hice un dibujo. Eres tú peleando contra un dragón. Bueno, contra un goblin, pero lo dibujé grande."}'::jsonb, chain_position = 3, chain_total = NULL WHERE code = 'PRADERA_SEC_TILO_3';
+DELETE FROM quest_objectives WHERE quest_id = (SELECT id FROM quests WHERE code = 'PRADERA_SEC_TILO_3');
+INSERT INTO quest_objectives (quest_id, objective_type, step, target_code, monster_id, item_id, target_count, params, description)
+SELECT (SELECT id FROM quests WHERE code = 'PRADERA_SEC_TILO_3'), v.t, v.step, v.target, (SELECT id FROM monsters WHERE code = v.monster), (SELECT id FROM items WHERE code = v.item), v.n, v.params::jsonb, v.descr
+FROM (VALUES
+  ('KILL_MONSTER', 1, NULL, 'GOBLIN_SAQUEADOR', NULL, 5, NULL, 'Derrota 5 Goblins Saqueadores'),
+  ('TALK', 2, 'tilo', NULL, NULL, 1, '{"speaker":"Tilo","dialog":"¿Cinco? ¿Cinco goblins? ¡Cuéntamelo todo! ¿Tenían espadas? ¿Eran verdes? ¿Olían mal?"}', 'Cuéntale tu aventura a Tilo')
+) AS v(t, step, target, monster, item, n, params, descr);
+DELETE FROM quest_npc_spots WHERE quest_id = (SELECT id FROM quests WHERE code = 'PRADERA_SEC_TILO_3');
+DELETE FROM quest_item_rewards WHERE quest_id = (SELECT id FROM quests WHERE code = 'PRADERA_SEC_TILO_3');
+INSERT INTO quest_item_rewards (quest_id, item_id, quantity)
+SELECT (SELECT id FROM quests WHERE code = 'PRADERA_SEC_TILO_3'), i.id, v.qty FROM (VALUES ('ELIXIR_DEL_LAGO', 2), ('ASADO_JABALI', 2)) AS v(code, qty) JOIN items i ON i.code = v.code;
+
+-- La cerca de Bruno
+INSERT INTO quests (code, name, quest_type, zone_id, min_level, max_level, difficulty_stars, npc_name, location_name, is_repeatable, repeat_cooldown_hours, reputation_reward, gold_reward, xp_reward, description, is_personal, giver_npc, turn_in_npc, dialog, chain_position, chain_total)
+SELECT 'PRADERA_SEC_CERCA_1', 'La cerca de Bruno', 'SECUNDARIA', 1, 5, 15, 1, 'Bruno', 'Aldea Espiga', FALSE, NULL, 40, 350, 1200, '«Grrr. La vaca de Goreth se come mi cerca todas las semanas. ¡Todas! Tráeme cuatro troncos de Madera de Roble y la levanto otra vez. Más alta. Y con espinas, si pudiera.»', FALSE, 'bruno', 'bruno', '{"entrega":"Hmph. Buena madera. Esta vez la cerca va a aguantar. Si esa vaca la toca, le cobro la cerca a Goreth con intereses."}'::jsonb, 1, NULL
+WHERE NOT EXISTS (SELECT 1 FROM quests WHERE code = 'PRADERA_SEC_CERCA_1');
+UPDATE quests SET name = 'La cerca de Bruno', quest_type = 'SECUNDARIA', zone_id = 1, min_level = 5, max_level = 15, difficulty_stars = 1, npc_name = 'Bruno', location_name = 'Aldea Espiga', is_repeatable = FALSE, repeat_cooldown_hours = NULL, reputation_reward = 40, gold_reward = 350, xp_reward = 1200, description = '«Grrr. La vaca de Goreth se come mi cerca todas las semanas. ¡Todas! Tráeme cuatro troncos de Madera de Roble y la levanto otra vez. Más alta. Y con espinas, si pudiera.»', is_personal = FALSE, giver_npc = 'bruno', turn_in_npc = 'bruno', dialog = '{"entrega":"Hmph. Buena madera. Esta vez la cerca va a aguantar. Si esa vaca la toca, le cobro la cerca a Goreth con intereses."}'::jsonb, chain_position = 1, chain_total = NULL WHERE code = 'PRADERA_SEC_CERCA_1';
+DELETE FROM quest_objectives WHERE quest_id = (SELECT id FROM quests WHERE code = 'PRADERA_SEC_CERCA_1');
+INSERT INTO quest_objectives (quest_id, objective_type, step, target_code, monster_id, item_id, target_count, params, description)
+SELECT (SELECT id FROM quests WHERE code = 'PRADERA_SEC_CERCA_1'), v.t, v.step, v.target, (SELECT id FROM monsters WHERE code = v.monster), (SELECT id FROM items WHERE code = v.item), v.n, v.params::jsonb, v.descr
+FROM (VALUES
+  ('DELIVER', 1, 'bruno', NULL, 'MADERA_DE_ROBLE', 4, NULL, 'Lleva 4 Maderas de Roble a Bruno')
+) AS v(t, step, target, monster, item, n, params, descr);
+DELETE FROM quest_npc_spots WHERE quest_id = (SELECT id FROM quests WHERE code = 'PRADERA_SEC_CERCA_1');
+
+-- La vaca de la discordia
+INSERT INTO quests (code, name, quest_type, zone_id, min_level, max_level, difficulty_stars, npc_name, location_name, is_repeatable, repeat_cooldown_hours, reputation_reward, gold_reward, xp_reward, description, is_personal, giver_npc, turn_in_npc, dialog, chain_position, chain_total)
+SELECT 'PRADERA_SEC_CERCA_2', 'La vaca de la discordia', 'SECUNDARIA', 1, 6, 15, 1, 'Goreth', 'Aldea Espiga', FALSE, NULL, 40, 380, 1400, '«¿Que MI vaca se come su cerca? Yo no tengo vaca. Hmph. Ve a mirar la vaca esa y dile a Bruno que no es mía. Y que su cerca es fea.»', FALSE, 'goreth', 'goreth', '{"entrega":"Te lo dije: no es mía. Ese viejo gruñón culpa a todo el mundo. Ahora seguro trama algo. Lo conozco."}'::jsonb, 2, NULL
+WHERE NOT EXISTS (SELECT 1 FROM quests WHERE code = 'PRADERA_SEC_CERCA_2');
+UPDATE quests SET name = 'La vaca de la discordia', quest_type = 'SECUNDARIA', zone_id = 1, min_level = 6, max_level = 15, difficulty_stars = 1, npc_name = 'Goreth', location_name = 'Aldea Espiga', is_repeatable = FALSE, repeat_cooldown_hours = NULL, reputation_reward = 40, gold_reward = 380, xp_reward = 1400, description = '«¿Que MI vaca se come su cerca? Yo no tengo vaca. Hmph. Ve a mirar la vaca esa y dile a Bruno que no es mía. Y que su cerca es fea.»', is_personal = FALSE, giver_npc = 'goreth', turn_in_npc = 'goreth', dialog = '{"entrega":"Te lo dije: no es mía. Ese viejo gruñón culpa a todo el mundo. Ahora seguro trama algo. Lo conozco."}'::jsonb, chain_position = 2, chain_total = NULL WHERE code = 'PRADERA_SEC_CERCA_2';
+DELETE FROM quest_objectives WHERE quest_id = (SELECT id FROM quests WHERE code = 'PRADERA_SEC_CERCA_2');
+INSERT INTO quest_objectives (quest_id, objective_type, step, target_code, monster_id, item_id, target_count, params, description)
+SELECT (SELECT id FROM quests WHERE code = 'PRADERA_SEC_CERCA_2'), v.t, v.step, v.target, (SELECT id FROM monsters WHERE code = v.monster), (SELECT id FROM items WHERE code = v.item), v.n, v.params::jsonb, v.descr
+FROM (VALUES
+  ('INVESTIGATE', 1, NULL, NULL, NULL, 1, '{"zone":"pradera","x":93,"y":58,"radius":3,"label":"Mirar a la vaca","speaker":"Tú","dialog":"Una vaca tranquila, con un cencerro y una cinta azul. Está masticando la cerca nueva de Bruno con mucho gusto."}', 'Mira a la vaca junto a la cerca de Bruno'),
+  ('TALK', 2, 'bruno', NULL, NULL, 1, '{"speaker":"Bruno","dialog":"¿Que no es suya? ¡Mentira! Ese herrero me tiene envidia desde que gané el concurso de calabazas. Ya verá…"}', 'Dile a Bruno que la vaca no es de Goreth')
+) AS v(t, step, target, monster, item, n, params, descr);
+DELETE FROM quest_npc_spots WHERE quest_id = (SELECT id FROM quests WHERE code = 'PRADERA_SEC_CERCA_2');
+
+-- Un regalo envenenado
+INSERT INTO quests (code, name, quest_type, zone_id, min_level, max_level, difficulty_stars, npc_name, location_name, is_repeatable, repeat_cooldown_hours, reputation_reward, gold_reward, xp_reward, description, is_personal, giver_npc, turn_in_npc, dialog, chain_position, chain_total)
+SELECT 'PRADERA_SEC_CERCA_3', 'Un regalo envenenado', 'SECUNDARIA', 1, 7, 15, 2, 'Bruno', 'Aldea Espiga', FALSE, NULL, 50, 420, 1600, '«Je. Tengo un plan. Tráeme dos Glándulas de Sapo del lago. Las pongo en el guiso de Goreth y se pasa una semana con la panza revuelta. Así aprende.»', FALSE, 'bruno', 'goreth', '{"entrega":"¿Glándulas de sapo en mi guiso? ¡JA! Ese viejo… Bueno. Gracias por avisarme. Creo que es hora de hablar con él de una vez."}'::jsonb, 3, NULL
+WHERE NOT EXISTS (SELECT 1 FROM quests WHERE code = 'PRADERA_SEC_CERCA_3');
+UPDATE quests SET name = 'Un regalo envenenado', quest_type = 'SECUNDARIA', zone_id = 1, min_level = 7, max_level = 15, difficulty_stars = 2, npc_name = 'Bruno', location_name = 'Aldea Espiga', is_repeatable = FALSE, repeat_cooldown_hours = NULL, reputation_reward = 50, gold_reward = 420, xp_reward = 1600, description = '«Je. Tengo un plan. Tráeme dos Glándulas de Sapo del lago. Las pongo en el guiso de Goreth y se pasa una semana con la panza revuelta. Así aprende.»', is_personal = FALSE, giver_npc = 'bruno', turn_in_npc = 'goreth', dialog = '{"entrega":"¿Glándulas de sapo en mi guiso? ¡JA! Ese viejo… Bueno. Gracias por avisarme. Creo que es hora de hablar con él de una vez."}'::jsonb, chain_position = 3, chain_total = NULL WHERE code = 'PRADERA_SEC_CERCA_3';
+DELETE FROM quest_objectives WHERE quest_id = (SELECT id FROM quests WHERE code = 'PRADERA_SEC_CERCA_3');
+INSERT INTO quest_objectives (quest_id, objective_type, step, target_code, monster_id, item_id, target_count, params, description)
+SELECT (SELECT id FROM quests WHERE code = 'PRADERA_SEC_CERCA_3'), v.t, v.step, v.target, (SELECT id FROM monsters WHERE code = v.monster), (SELECT id FROM items WHERE code = v.item), v.n, v.params::jsonb, v.descr
+FROM (VALUES
+  ('DELIVER', 1, 'bruno', NULL, 'GLANDULA_SAPO', 2, NULL, 'Lleva 2 Glándulas de Sapo a Bruno'),
+  ('TALK', 2, 'goreth', NULL, NULL, 1, '{"speaker":"Goreth","dialog":"Hmph. Así que el viejo Bruno quería envenenarme. ¿Sabes qué? Casi me da risa."}', 'Avísale a Goreth antes de la cena')
+) AS v(t, step, target, monster, item, n, params, descr);
+DELETE FROM quest_npc_spots WHERE quest_id = (SELECT id FROM quests WHERE code = 'PRADERA_SEC_CERCA_3');
+
+-- ¿De quién es la vaca?
+INSERT INTO quests (code, name, quest_type, zone_id, min_level, max_level, difficulty_stars, npc_name, location_name, is_repeatable, repeat_cooldown_hours, reputation_reward, gold_reward, xp_reward, description, is_personal, giver_npc, turn_in_npc, dialog, chain_position, chain_total)
+SELECT 'PRADERA_SEC_CERCA_4', '¿De quién es la vaca?', 'SECUNDARIA', 1, 8, 15, 2, 'Mirna', 'Aldea Espiga', FALSE, NULL, 80, 500, 2000, '«¿Una vaca con cinta azul y cencerro? ¡Es Margarita! ¡Es mía! Se me escapa todas las semanas… Ay, no. ¿Bruno y Goreth se están peleando por MI vaca? Ayúdame a arreglar este lío.»', FALSE, 'mirna', 'mirna', '{"entrega":"Bruno y Goreth tomando cerveza juntos… nunca pensé que lo vería. Margarita vuelve al corral y la cerca de Bruno sigue en pie. Toma, para ti, por poner paz en la aldea."}'::jsonb, 4, NULL
+WHERE NOT EXISTS (SELECT 1 FROM quests WHERE code = 'PRADERA_SEC_CERCA_4');
+UPDATE quests SET name = '¿De quién es la vaca?', quest_type = 'SECUNDARIA', zone_id = 1, min_level = 8, max_level = 15, difficulty_stars = 2, npc_name = 'Mirna', location_name = 'Aldea Espiga', is_repeatable = FALSE, repeat_cooldown_hours = NULL, reputation_reward = 80, gold_reward = 500, xp_reward = 2000, description = '«¿Una vaca con cinta azul y cencerro? ¡Es Margarita! ¡Es mía! Se me escapa todas las semanas… Ay, no. ¿Bruno y Goreth se están peleando por MI vaca? Ayúdame a arreglar este lío.»', is_personal = FALSE, giver_npc = 'mirna', turn_in_npc = 'mirna', dialog = '{"entrega":"Bruno y Goreth tomando cerveza juntos… nunca pensé que lo vería. Margarita vuelve al corral y la cerca de Bruno sigue en pie. Toma, para ti, por poner paz en la aldea."}'::jsonb, chain_position = 4, chain_total = NULL WHERE code = 'PRADERA_SEC_CERCA_4';
+DELETE FROM quest_objectives WHERE quest_id = (SELECT id FROM quests WHERE code = 'PRADERA_SEC_CERCA_4');
+INSERT INTO quest_objectives (quest_id, objective_type, step, target_code, monster_id, item_id, target_count, params, description)
+SELECT (SELECT id FROM quests WHERE code = 'PRADERA_SEC_CERCA_4'), v.t, v.step, v.target, (SELECT id FROM monsters WHERE code = v.monster), (SELECT id FROM items WHERE code = v.item), v.n, v.params::jsonb, v.descr
+FROM (VALUES
+  ('TALK', 1, 'goreth', NULL, NULL, 1, '{"speaker":"Goreth","dialog":"¿De Mirna? …Bueno. Entonces le debo una disculpa a ese viejo. Pero que se la pida él primero."}', 'Cuéntale a Goreth de quién es la vaca'),
+  ('TALK', 2, 'bruno', NULL, NULL, 1, '{"speaker":"Bruno","dialog":"¿De Mirna? Grr… Está bien. Le diré a Goreth que su cerca… digo, que él… bah. Invito yo la cerveza."}', 'Cuéntaselo también a Bruno')
+) AS v(t, step, target, monster, item, n, params, descr);
+DELETE FROM quest_npc_spots WHERE quest_id = (SELECT id FROM quests WHERE code = 'PRADERA_SEC_CERCA_4');
+DELETE FROM quest_item_rewards WHERE quest_id = (SELECT id FROM quests WHERE code = 'PRADERA_SEC_CERCA_4');
+INSERT INTO quest_item_rewards (quest_id, item_id, quantity)
+SELECT (SELECT id FROM quests WHERE code = 'PRADERA_SEC_CERCA_4'), i.id, v.qty FROM (VALUES ('TONICO_MIEL', 3)) AS v(code, qty) JOIN items i ON i.code = v.code;
+
+-- Una carta tímida
+INSERT INTO quests (code, name, quest_type, zone_id, min_level, max_level, difficulty_stars, npc_name, location_name, is_repeatable, repeat_cooldown_hours, reputation_reward, gold_reward, xp_reward, description, is_personal, giver_npc, turn_in_npc, dialog, chain_position, chain_total)
+SELECT 'PRADERA_SEC_MARTA_1', 'Una carta tímida', 'SECUNDARIA', 1, 6, 15, 1, 'Ren', 'Aurelia', FALSE, NULL, 40, 350, 1300, '«Oye… ¿vas a ir a Aurelia? ¿Le llevarías esto a Marta, la de la posada? Es solo una carta. Nada importante. Bueno, un poco importante. No le digas que estaba nervioso.»', FALSE, 'ren', 'marta', '{"entrega":"¿Una carta de Ren? ¿De Ren el guardabosque? Ay… espera, no la abro delante de ti. Gracias, de verdad. Dile que… no, mejor no le digas nada."}'::jsonb, 1, NULL
+WHERE NOT EXISTS (SELECT 1 FROM quests WHERE code = 'PRADERA_SEC_MARTA_1');
+UPDATE quests SET name = 'Una carta tímida', quest_type = 'SECUNDARIA', zone_id = 1, min_level = 6, max_level = 15, difficulty_stars = 1, npc_name = 'Ren', location_name = 'Aurelia', is_repeatable = FALSE, repeat_cooldown_hours = NULL, reputation_reward = 40, gold_reward = 350, xp_reward = 1300, description = '«Oye… ¿vas a ir a Aurelia? ¿Le llevarías esto a Marta, la de la posada? Es solo una carta. Nada importante. Bueno, un poco importante. No le digas que estaba nervioso.»', is_personal = FALSE, giver_npc = 'ren', turn_in_npc = 'marta', dialog = '{"entrega":"¿Una carta de Ren? ¿De Ren el guardabosque? Ay… espera, no la abro delante de ti. Gracias, de verdad. Dile que… no, mejor no le digas nada."}'::jsonb, chain_position = 1, chain_total = NULL WHERE code = 'PRADERA_SEC_MARTA_1';
+DELETE FROM quest_objectives WHERE quest_id = (SELECT id FROM quests WHERE code = 'PRADERA_SEC_MARTA_1');
+INSERT INTO quest_objectives (quest_id, objective_type, step, target_code, monster_id, item_id, target_count, params, description)
+SELECT (SELECT id FROM quests WHERE code = 'PRADERA_SEC_MARTA_1'), v.t, v.step, v.target, (SELECT id FROM monsters WHERE code = v.monster), (SELECT id FROM items WHERE code = v.item), v.n, v.params::jsonb, v.descr
+FROM (VALUES
+  ('TALK', 1, 'ren', NULL, NULL, 1, '{"speaker":"Ren","dialog":"Aquí está. No la arrugues. Y no la leas. Y no…  bueno, ya, ve.","gives":{"item":"CARTA_DE_REN","qty":1}}', 'Recibe la carta de Ren'),
+  ('DELIVER', 2, 'marta', NULL, 'CARTA_DE_REN', 1, NULL, 'Lleva la carta a Marta, en la posada de Aurelia')
+) AS v(t, step, target, monster, item, n, params, descr);
+DELETE FROM quest_npc_spots WHERE quest_id = (SELECT id FROM quests WHERE code = 'PRADERA_SEC_MARTA_1');
+
+-- Una flor que brille
+INSERT INTO quests (code, name, quest_type, zone_id, min_level, max_level, difficulty_stars, npc_name, location_name, is_repeatable, repeat_cooldown_hours, reputation_reward, gold_reward, xp_reward, description, is_personal, giver_npc, turn_in_npc, dialog, chain_position, chain_total)
+SELECT 'PRADERA_SEC_MARTA_2', 'Una flor que brille', 'SECUNDARIA', 1, 9, 15, 2, 'Ren', 'Círculo de Piedras', FALSE, NULL, 50, 450, 1800, '«¿Se sonrojó? ¿De verdad? Quiero mandarle un regalo. En el Círculo de Piedras crecen Flores Luminosas, brillan de noche. Tráeme tres. Las mejores.»', FALSE, 'ren', 'ren', '{"entrega":"Son preciosas. Las voy a secar en un libro y se las mando con la próxima carta. Gracias. Eres un buen amigo, ¿sabes?"}'::jsonb, 2, NULL
+WHERE NOT EXISTS (SELECT 1 FROM quests WHERE code = 'PRADERA_SEC_MARTA_2');
+UPDATE quests SET name = 'Una flor que brille', quest_type = 'SECUNDARIA', zone_id = 1, min_level = 9, max_level = 15, difficulty_stars = 2, npc_name = 'Ren', location_name = 'Círculo de Piedras', is_repeatable = FALSE, repeat_cooldown_hours = NULL, reputation_reward = 50, gold_reward = 450, xp_reward = 1800, description = '«¿Se sonrojó? ¿De verdad? Quiero mandarle un regalo. En el Círculo de Piedras crecen Flores Luminosas, brillan de noche. Tráeme tres. Las mejores.»', is_personal = FALSE, giver_npc = 'ren', turn_in_npc = 'ren', dialog = '{"entrega":"Son preciosas. Las voy a secar en un libro y se las mando con la próxima carta. Gracias. Eres un buen amigo, ¿sabes?"}'::jsonb, chain_position = 2, chain_total = NULL WHERE code = 'PRADERA_SEC_MARTA_2';
+DELETE FROM quest_objectives WHERE quest_id = (SELECT id FROM quests WHERE code = 'PRADERA_SEC_MARTA_2');
+INSERT INTO quest_objectives (quest_id, objective_type, step, target_code, monster_id, item_id, target_count, params, description)
+SELECT (SELECT id FROM quests WHERE code = 'PRADERA_SEC_MARTA_2'), v.t, v.step, v.target, (SELECT id FROM monsters WHERE code = v.monster), (SELECT id FROM items WHERE code = v.item), v.n, v.params::jsonb, v.descr
+FROM (VALUES
+  ('DELIVER', 1, 'ren', NULL, 'FLOR_LUMINOSA', 3, NULL, 'Lleva 3 Flores Luminosas a Ren')
+) AS v(t, step, target, monster, item, n, params, descr);
+DELETE FROM quest_npc_spots WHERE quest_id = (SELECT id FROM quests WHERE code = 'PRADERA_SEC_MARTA_2');
+
+-- La respuesta de Marta
+INSERT INTO quests (code, name, quest_type, zone_id, min_level, max_level, difficulty_stars, npc_name, location_name, is_repeatable, repeat_cooldown_hours, reputation_reward, gold_reward, xp_reward, description, is_personal, giver_npc, turn_in_npc, dialog, chain_position, chain_total)
+SELECT 'PRADERA_SEC_MARTA_3', 'La respuesta de Marta', 'SECUNDARIA', 1, 11, 15, 2, 'Ren', 'Aurelia', FALSE, NULL, 60, 550, 2200, '«No me contestó… ¿y si no le gustó? ¿Y si las flores llegaron secas? ¿Podrías pasar por la posada y preguntarle? Sin presionar. Como quien no quiere la cosa.»', FALSE, 'ren', 'ren', '{"entrega":"«Ven al Festival de Aethra». ¡Me invitó al Festival! Yo… tengo que conseguir una camisa limpia. ¿Tengo camisas limpias?"}'::jsonb, 3, NULL
+WHERE NOT EXISTS (SELECT 1 FROM quests WHERE code = 'PRADERA_SEC_MARTA_3');
+UPDATE quests SET name = 'La respuesta de Marta', quest_type = 'SECUNDARIA', zone_id = 1, min_level = 11, max_level = 15, difficulty_stars = 2, npc_name = 'Ren', location_name = 'Aurelia', is_repeatable = FALSE, repeat_cooldown_hours = NULL, reputation_reward = 60, gold_reward = 550, xp_reward = 2200, description = '«No me contestó… ¿y si no le gustó? ¿Y si las flores llegaron secas? ¿Podrías pasar por la posada y preguntarle? Sin presionar. Como quien no quiere la cosa.»', is_personal = FALSE, giver_npc = 'ren', turn_in_npc = 'ren', dialog = '{"entrega":"«Ven al Festival de Aethra». ¡Me invitó al Festival! Yo… tengo que conseguir una camisa limpia. ¿Tengo camisas limpias?"}'::jsonb, chain_position = 3, chain_total = NULL WHERE code = 'PRADERA_SEC_MARTA_3';
+DELETE FROM quest_objectives WHERE quest_id = (SELECT id FROM quests WHERE code = 'PRADERA_SEC_MARTA_3');
+INSERT INTO quest_objectives (quest_id, objective_type, step, target_code, monster_id, item_id, target_count, params, description)
+SELECT (SELECT id FROM quests WHERE code = 'PRADERA_SEC_MARTA_3'), v.t, v.step, v.target, (SELECT id FROM monsters WHERE code = v.monster), (SELECT id FROM items WHERE code = v.item), v.n, v.params::jsonb, v.descr
+FROM (VALUES
+  ('TALK', 1, 'marta', NULL, NULL, 1, '{"speaker":"Marta","dialog":"¡Claro que le iba a contestar! Es que no sabía qué decirle. Toma, llévale esto. Y no la leas, ¿eh?","gives":{"item":"CARTA_DE_MARTA","qty":1}}', 'Pregúntale a Marta por la carta de Ren'),
+  ('DELIVER', 2, 'ren', NULL, 'CARTA_DE_MARTA', 1, NULL, 'Lleva la respuesta de Marta a Ren')
+) AS v(t, step, target, monster, item, n, params, descr);
+DELETE FROM quest_npc_spots WHERE quest_id = (SELECT id FROM quests WHERE code = 'PRADERA_SEC_MARTA_3');
+
+-- Nos vemos en el Festival
+INSERT INTO quests (code, name, quest_type, zone_id, min_level, max_level, difficulty_stars, npc_name, location_name, is_repeatable, repeat_cooldown_hours, reputation_reward, gold_reward, xp_reward, description, is_personal, giver_npc, turn_in_npc, dialog, chain_position, chain_total)
+SELECT 'PRADERA_SEC_MARTA_4', 'Nos vemos en el Festival', 'SECUNDARIA', 1, 13, 15, 2, 'Ren', 'Aurelia', FALSE, NULL, 100, 700, 2800, '«Ya tengo camisa. Ya practiqué qué decir. Ya me peiné tres veces. Solo falta… ir. ¿Me acompañas hasta Aurelia? Si me ves dar media vuelta, empújame.»', FALSE, 'ren', 'marta', '{"entrega":"Ren vino. Y bailó. Muy mal, pero bailó. Gracias por todo lo que hiciste por nosotros. Desde hoy, en mi posada siempre tendrás un plato caliente."}'::jsonb, 4, NULL
+WHERE NOT EXISTS (SELECT 1 FROM quests WHERE code = 'PRADERA_SEC_MARTA_4');
+UPDATE quests SET name = 'Nos vemos en el Festival', quest_type = 'SECUNDARIA', zone_id = 1, min_level = 13, max_level = 15, difficulty_stars = 2, npc_name = 'Ren', location_name = 'Aurelia', is_repeatable = FALSE, repeat_cooldown_hours = NULL, reputation_reward = 100, gold_reward = 700, xp_reward = 2800, description = '«Ya tengo camisa. Ya practiqué qué decir. Ya me peiné tres veces. Solo falta… ir. ¿Me acompañas hasta Aurelia? Si me ves dar media vuelta, empújame.»', is_personal = FALSE, giver_npc = 'ren', turn_in_npc = 'marta', dialog = '{"entrega":"Ren vino. Y bailó. Muy mal, pero bailó. Gracias por todo lo que hiciste por nosotros. Desde hoy, en mi posada siempre tendrás un plato caliente."}'::jsonb, chain_position = 4, chain_total = NULL WHERE code = 'PRADERA_SEC_MARTA_4';
+DELETE FROM quest_objectives WHERE quest_id = (SELECT id FROM quests WHERE code = 'PRADERA_SEC_MARTA_4');
+INSERT INTO quest_objectives (quest_id, objective_type, step, target_code, monster_id, item_id, target_count, params, description)
+SELECT (SELECT id FROM quests WHERE code = 'PRADERA_SEC_MARTA_4'), v.t, v.step, v.target, (SELECT id FROM monsters WHERE code = v.monster), (SELECT id FROM items WHERE code = v.item), v.n, v.params::jsonb, v.descr
+FROM (VALUES
+  ('TALK', 1, 'ren', NULL, NULL, 1, '{"speaker":"Ren","dialog":"Bien. Respira, Ren. Es solo una posadera. Una posadera preciosa. Vamos antes de que me arrepienta."}', 'Dale ánimo a Ren antes del viaje'),
+  ('TALK', 2, 'marta', NULL, NULL, 1, '{"speaker":"Marta","dialog":"¿Ren está afuera? ¿Y no se atreve a entrar? Ay, ese hombre… Dile que lo estoy esperando."}', 'Busca a Marta en la posada de Aurelia')
+) AS v(t, step, target, monster, item, n, params, descr);
+DELETE FROM quest_npc_spots WHERE quest_id = (SELECT id FROM quests WHERE code = 'PRADERA_SEC_MARTA_4');
+DELETE FROM quest_item_rewards WHERE quest_id = (SELECT id FROM quests WHERE code = 'PRADERA_SEC_MARTA_4');
+INSERT INTO quest_item_rewards (quest_id, item_id, quantity)
+SELECT (SELECT id FROM quests WHERE code = 'PRADERA_SEC_MARTA_4'), i.id, v.qty FROM (VALUES ('POCION_DE_VIDA_MAYOR', 3)) AS v(code, qty) JOIN items i ON i.code = v.code;
+
+-- Pan para el Festival
+INSERT INTO quests (code, name, quest_type, zone_id, min_level, max_level, difficulty_stars, npc_name, location_name, is_repeatable, repeat_cooldown_hours, reputation_reward, gold_reward, xp_reward, description, is_personal, giver_npc, turn_in_npc, dialog, chain_position, chain_total)
+SELECT 'PRADERA_SEC_PAN', 'Pan para el Festival', 'SECUNDARIA', 1, 3, 15, 1, 'Mirna', 'Aldea Espiga', TRUE, 168, 40, 300, 1000, '«El Festival de la Cosecha se acerca y la aldea entera necesita pan. Trigo, harina en el molino, y al horno con un poco de Agua Purificada. Tráeme tres Panes de Campo. Lo pido cada semana, ¡aquí se come mucho!»', FALSE, 'mirna', 'mirna', '{"entrega":"¡Huele a gloria! Con esto los niños comen toda la semana. Vuelve la próxima, que siempre falta pan."}'::jsonb, NULL, NULL
+WHERE NOT EXISTS (SELECT 1 FROM quests WHERE code = 'PRADERA_SEC_PAN');
+UPDATE quests SET name = 'Pan para el Festival', quest_type = 'SECUNDARIA', zone_id = 1, min_level = 3, max_level = 15, difficulty_stars = 1, npc_name = 'Mirna', location_name = 'Aldea Espiga', is_repeatable = TRUE, repeat_cooldown_hours = 168, reputation_reward = 40, gold_reward = 300, xp_reward = 1000, description = '«El Festival de la Cosecha se acerca y la aldea entera necesita pan. Trigo, harina en el molino, y al horno con un poco de Agua Purificada. Tráeme tres Panes de Campo. Lo pido cada semana, ¡aquí se come mucho!»', is_personal = FALSE, giver_npc = 'mirna', turn_in_npc = 'mirna', dialog = '{"entrega":"¡Huele a gloria! Con esto los niños comen toda la semana. Vuelve la próxima, que siempre falta pan."}'::jsonb, chain_position = NULL, chain_total = NULL WHERE code = 'PRADERA_SEC_PAN';
+DELETE FROM quest_objectives WHERE quest_id = (SELECT id FROM quests WHERE code = 'PRADERA_SEC_PAN');
+INSERT INTO quest_objectives (quest_id, objective_type, step, target_code, monster_id, item_id, target_count, params, description)
+SELECT (SELECT id FROM quests WHERE code = 'PRADERA_SEC_PAN'), v.t, v.step, v.target, (SELECT id FROM monsters WHERE code = v.monster), (SELECT id FROM items WHERE code = v.item), v.n, v.params::jsonb, v.descr
+FROM (VALUES
+  ('COLLECT_ITEM', 1, NULL, NULL, 'PAN_CAMPO', 3, NULL, 'Consigue 3 Panes de Campo')
+) AS v(t, step, target, monster, item, n, params, descr);
+DELETE FROM quest_npc_spots WHERE quest_id = (SELECT id FROM quests WHERE code = 'PRADERA_SEC_PAN');
+DELETE FROM quest_item_rewards WHERE quest_id = (SELECT id FROM quests WHERE code = 'PRADERA_SEC_PAN');
+INSERT INTO quest_item_rewards (quest_id, item_id, quantity)
+SELECT (SELECT id FROM quests WHERE code = 'PRADERA_SEC_PAN'), i.id, v.qty FROM (VALUES ('TONICO_MIEL', 1)) AS v(code, qty) JOIN items i ON i.code = v.code;
+
+-- Herramientas para la aldea
+INSERT INTO quests (code, name, quest_type, zone_id, min_level, max_level, difficulty_stars, npc_name, location_name, is_repeatable, repeat_cooldown_hours, reputation_reward, gold_reward, xp_reward, description, is_personal, giver_npc, turn_in_npc, dialog, chain_position, chain_total)
+SELECT 'PRADERA_SEC_HERRAMIENTAS', 'Herramientas para la aldea', 'SECUNDARIA', 1, 5, 15, 1, 'Goreth', 'Aldea Espiga', FALSE, NULL, 50, 400, 1300, '«Los granjeros rompen las azadas más rápido de lo que las arreglo. Tráeme tres Lingotes de Hierro y dos Tablas de Roble. Del resto me encargo yo.»', FALSE, 'goreth', 'goreth', '{"entrega":"Hmph. Buen material. Con esto hago azadas para media aldea. No es una espada, pero también salva vidas."}'::jsonb, NULL, NULL
+WHERE NOT EXISTS (SELECT 1 FROM quests WHERE code = 'PRADERA_SEC_HERRAMIENTAS');
+UPDATE quests SET name = 'Herramientas para la aldea', quest_type = 'SECUNDARIA', zone_id = 1, min_level = 5, max_level = 15, difficulty_stars = 1, npc_name = 'Goreth', location_name = 'Aldea Espiga', is_repeatable = FALSE, repeat_cooldown_hours = NULL, reputation_reward = 50, gold_reward = 400, xp_reward = 1300, description = '«Los granjeros rompen las azadas más rápido de lo que las arreglo. Tráeme tres Lingotes de Hierro y dos Tablas de Roble. Del resto me encargo yo.»', is_personal = FALSE, giver_npc = 'goreth', turn_in_npc = 'goreth', dialog = '{"entrega":"Hmph. Buen material. Con esto hago azadas para media aldea. No es una espada, pero también salva vidas."}'::jsonb, chain_position = NULL, chain_total = NULL WHERE code = 'PRADERA_SEC_HERRAMIENTAS';
+DELETE FROM quest_objectives WHERE quest_id = (SELECT id FROM quests WHERE code = 'PRADERA_SEC_HERRAMIENTAS');
+INSERT INTO quest_objectives (quest_id, objective_type, step, target_code, monster_id, item_id, target_count, params, description)
+SELECT (SELECT id FROM quests WHERE code = 'PRADERA_SEC_HERRAMIENTAS'), v.t, v.step, v.target, (SELECT id FROM monsters WHERE code = v.monster), (SELECT id FROM items WHERE code = v.item), v.n, v.params::jsonb, v.descr
+FROM (VALUES
+  ('DELIVER', 1, 'goreth', NULL, 'LINGOTE_HIERRO', 3, NULL, 'Lleva 3 Lingotes de Hierro a Goreth'),
+  ('DELIVER', 1, 'goreth', NULL, 'TABLA_ROBLE', 2, NULL, 'Lleva 2 Tablas de Roble a Goreth')
+) AS v(t, step, target, monster, item, n, params, descr);
+DELETE FROM quest_npc_spots WHERE quest_id = (SELECT id FROM quests WHERE code = 'PRADERA_SEC_HERRAMIENTAS');
+
+-- Hilo de lino
+INSERT INTO quests (code, name, quest_type, zone_id, min_level, max_level, difficulty_stars, npc_name, location_name, is_repeatable, repeat_cooldown_hours, reputation_reward, gold_reward, xp_reward, description, is_personal, giver_npc, turn_in_npc, dialog, chain_position, chain_total)
+SELECT 'PRADERA_SEC_LINO', 'Hilo de lino', 'SECUNDARIA', 1, 7, 15, 1, 'Mirna', 'Aldea Espiga', FALSE, NULL, 50, 420, 1500, '«Desde que llegan heridos del este no me alcanza la tela. Tráeme cuatro Telas de Lino: la fibra crece por toda la Pradera y se teje en cualquier taller.»', FALSE, 'mirna', 'mirna', '{"entrega":"Perfecto. Con esto salen vendajes para todos los que lleguen del este. Gracias, de corazón."}'::jsonb, NULL, NULL
+WHERE NOT EXISTS (SELECT 1 FROM quests WHERE code = 'PRADERA_SEC_LINO');
+UPDATE quests SET name = 'Hilo de lino', quest_type = 'SECUNDARIA', zone_id = 1, min_level = 7, max_level = 15, difficulty_stars = 1, npc_name = 'Mirna', location_name = 'Aldea Espiga', is_repeatable = FALSE, repeat_cooldown_hours = NULL, reputation_reward = 50, gold_reward = 420, xp_reward = 1500, description = '«Desde que llegan heridos del este no me alcanza la tela. Tráeme cuatro Telas de Lino: la fibra crece por toda la Pradera y se teje en cualquier taller.»', is_personal = FALSE, giver_npc = 'mirna', turn_in_npc = 'mirna', dialog = '{"entrega":"Perfecto. Con esto salen vendajes para todos los que lleguen del este. Gracias, de corazón."}'::jsonb, chain_position = NULL, chain_total = NULL WHERE code = 'PRADERA_SEC_LINO';
+DELETE FROM quest_objectives WHERE quest_id = (SELECT id FROM quests WHERE code = 'PRADERA_SEC_LINO');
+INSERT INTO quest_objectives (quest_id, objective_type, step, target_code, monster_id, item_id, target_count, params, description)
+SELECT (SELECT id FROM quests WHERE code = 'PRADERA_SEC_LINO'), v.t, v.step, v.target, (SELECT id FROM monsters WHERE code = v.monster), (SELECT id FROM items WHERE code = v.item), v.n, v.params::jsonb, v.descr
+FROM (VALUES
+  ('DELIVER', 1, 'mirna', NULL, 'TELA_LINO', 4, NULL, 'Lleva 4 Telas de Lino a Mirna')
+) AS v(t, step, target, monster, item, n, params, descr);
+DELETE FROM quest_npc_spots WHERE quest_id = (SELECT id FROM quests WHERE code = 'PRADERA_SEC_LINO');
+
+-- La gallina que se creía lobo
+INSERT INTO quests (code, name, quest_type, zone_id, min_level, max_level, difficulty_stars, npc_name, location_name, is_repeatable, repeat_cooldown_hours, reputation_reward, gold_reward, xp_reward, description, is_personal, giver_npc, turn_in_npc, dialog, chain_position, chain_total)
+SELECT 'PRADERA_SEC_GALLINA', 'La gallina que se creía lobo', 'SECUNDARIA', 1, 4, 15, 1, 'Mirna', 'Camino Real', FALSE, NULL, 40, 320, 1100, '«Mi gallina Copito se fue detrás de los lobos del Camino Real. Juro que aúlla. Por favor, tráela antes de que se la coman… o de que ella se coma a algún lobo.»', FALSE, 'mirna', 'mirna', '{"entrega":"¡Copito! Mírala, toda despeinada y orgullosa. Esta noche duerme en la casa. Gracias, gracias."}'::jsonb, NULL, NULL
+WHERE NOT EXISTS (SELECT 1 FROM quests WHERE code = 'PRADERA_SEC_GALLINA');
+UPDATE quests SET name = 'La gallina que se creía lobo', quest_type = 'SECUNDARIA', zone_id = 1, min_level = 4, max_level = 15, difficulty_stars = 1, npc_name = 'Mirna', location_name = 'Camino Real', is_repeatable = FALSE, repeat_cooldown_hours = NULL, reputation_reward = 40, gold_reward = 320, xp_reward = 1100, description = '«Mi gallina Copito se fue detrás de los lobos del Camino Real. Juro que aúlla. Por favor, tráela antes de que se la coman… o de que ella se coma a algún lobo.»', is_personal = FALSE, giver_npc = 'mirna', turn_in_npc = 'mirna', dialog = '{"entrega":"¡Copito! Mírala, toda despeinada y orgullosa. Esta noche duerme en la casa. Gracias, gracias."}'::jsonb, chain_position = NULL, chain_total = NULL WHERE code = 'PRADERA_SEC_GALLINA';
+DELETE FROM quest_objectives WHERE quest_id = (SELECT id FROM quests WHERE code = 'PRADERA_SEC_GALLINA');
+INSERT INTO quest_objectives (quest_id, objective_type, step, target_code, monster_id, item_id, target_count, params, description)
+SELECT (SELECT id FROM quests WHERE code = 'PRADERA_SEC_GALLINA'), v.t, v.step, v.target, (SELECT id FROM monsters WHERE code = v.monster), (SELECT id FROM items WHERE code = v.item), v.n, v.params::jsonb, v.descr
+FROM (VALUES
+  ('INVESTIGATE', 1, NULL, NULL, NULL, 1, '{"zone":"pradera","x":88,"y":12,"radius":3,"label":"Buscar a la gallina","speaker":"Tú","dialog":"Copito está entre los lobos, con el pecho inflado, intentando aullar. Los lobos la miran confundidos. La tomas y te vas despacio."}', 'Busca a Copito entre los lobos del Camino Real')
+) AS v(t, step, target, monster, item, n, params, descr);
+DELETE FROM quest_npc_spots WHERE quest_id = (SELECT id FROM quests WHERE code = 'PRADERA_SEC_GALLINA');
+
+-- El hacha de Brenna
+INSERT INTO quests (code, name, quest_type, zone_id, min_level, max_level, difficulty_stars, npc_name, location_name, is_repeatable, repeat_cooldown_hours, reputation_reward, gold_reward, xp_reward, description, is_personal, giver_npc, turn_in_npc, dialog, chain_position, chain_total)
+SELECT 'PRADERA_SEC_HACHA', 'El hacha de Brenna', 'SECUNDARIA', 1, 4, 15, 1, 'Brenna', 'Bosque de Robleviejo', FALSE, NULL, 40, 350, 1200, '«Un jabalí me arrancó el hacha de las manos y se la llevó a su madriguera, al oeste del campamento. ¡Mi hacha! Era de mi padre. Tráemela y te invito a cenar.»', FALSE, 'brenna', 'brenna', '{"entrega":"¡Mi hacha! Mira esas marcas de colmillos… la voy a dejar así, para acordarme. Toma, asado de jabalí. Del mismo que me la robó, seguramente."}'::jsonb, NULL, NULL
+WHERE NOT EXISTS (SELECT 1 FROM quests WHERE code = 'PRADERA_SEC_HACHA');
+UPDATE quests SET name = 'El hacha de Brenna', quest_type = 'SECUNDARIA', zone_id = 1, min_level = 4, max_level = 15, difficulty_stars = 1, npc_name = 'Brenna', location_name = 'Bosque de Robleviejo', is_repeatable = FALSE, repeat_cooldown_hours = NULL, reputation_reward = 40, gold_reward = 350, xp_reward = 1200, description = '«Un jabalí me arrancó el hacha de las manos y se la llevó a su madriguera, al oeste del campamento. ¡Mi hacha! Era de mi padre. Tráemela y te invito a cenar.»', is_personal = FALSE, giver_npc = 'brenna', turn_in_npc = 'brenna', dialog = '{"entrega":"¡Mi hacha! Mira esas marcas de colmillos… la voy a dejar así, para acordarme. Toma, asado de jabalí. Del mismo que me la robó, seguramente."}'::jsonb, chain_position = NULL, chain_total = NULL WHERE code = 'PRADERA_SEC_HACHA';
+DELETE FROM quest_objectives WHERE quest_id = (SELECT id FROM quests WHERE code = 'PRADERA_SEC_HACHA');
+INSERT INTO quest_objectives (quest_id, objective_type, step, target_code, monster_id, item_id, target_count, params, description)
+SELECT (SELECT id FROM quests WHERE code = 'PRADERA_SEC_HACHA'), v.t, v.step, v.target, (SELECT id FROM monsters WHERE code = v.monster), (SELECT id FROM items WHERE code = v.item), v.n, v.params::jsonb, v.descr
+FROM (VALUES
+  ('INVESTIGATE', 1, NULL, NULL, NULL, 1, '{"zone":"pradera","x":20,"y":30,"radius":3,"label":"Revisar la madriguera","speaker":"Tú","dialog":"La tierra está revuelta y huele a jabalí. Entre las raíces asoma un mango de madera… y se oyen gruñidos detrás de ti."}', 'Busca la madriguera de los jabalíes'),
+  ('AMBUSH', 2, NULL, NULL, NULL, 1, '{"zone":"pradera","x":20,"y":30,"radius":3,"label":"Tomar el hacha","dialog":"¡La familia de jabalíes defiende su madriguera!","monsters":[{"code":"JABALI_CORNUDO","level":4},{"code":"JABALI_CORNUDO","level":4},{"code":"JABALI_CORNUDO","level":5}]}', 'Espanta a los jabalíes de la madriguera'),
+  ('INVESTIGATE', 3, NULL, NULL, NULL, 1, '{"zone":"pradera","x":21,"y":31,"radius":3,"label":"Sacar el hacha","speaker":"Tú","dialog":"Tiras del mango y sale el hacha de Brenna, mordida pero entera.","gives":{"item":"HACHA_DE_BRENNA","qty":1}}', 'Saca el hacha de la madriguera'),
+  ('DELIVER', 4, 'brenna', NULL, 'HACHA_DE_BRENNA', 1, NULL, 'Devuélvele el hacha a Brenna')
+) AS v(t, step, target, monster, item, n, params, descr);
+DELETE FROM quest_npc_spots WHERE quest_id = (SELECT id FROM quests WHERE code = 'PRADERA_SEC_HACHA');
+DELETE FROM quest_item_rewards WHERE quest_id = (SELECT id FROM quests WHERE code = 'PRADERA_SEC_HACHA');
+INSERT INTO quest_item_rewards (quest_id, item_id, quantity)
+SELECT (SELECT id FROM quests WHERE code = 'PRADERA_SEC_HACHA'), i.id, v.qty FROM (VALUES ('ASADO_JABALI', 3)) AS v(code, qty) JOIN items i ON i.code = v.code;
+
+-- La red de Nilo
+INSERT INTO quests (code, name, quest_type, zone_id, min_level, max_level, difficulty_stars, npc_name, location_name, is_repeatable, repeat_cooldown_hours, reputation_reward, gold_reward, xp_reward, description, is_personal, giver_npc, turn_in_npc, dialog, chain_position, chain_total)
+SELECT 'PRADERA_SEC_RED', 'La red de Nilo', 'SECUNDARIA', 1, 5, 15, 1, 'Nilo', 'Lago Cristalino', FALSE, NULL, 40, 380, 1300, '«Los sapos me rompieron la red. Sin red no hay pescado, y sin pescado este viejo no come. Tráeme seis puñados de Fibra de Lino para remendarla y te enseño a lanzarla.»', FALSE, 'nilo', 'nilo', '{"entrega":"Una bota, un sapo furioso y un pescado del tamaño de mi dedo. ¡La mejor pesca del mes! Ja, ja. Toma, esto lo destilan con las glándulas de esos sapos: algo bueno tenían que tener."}'::jsonb, NULL, NULL
+WHERE NOT EXISTS (SELECT 1 FROM quests WHERE code = 'PRADERA_SEC_RED');
+UPDATE quests SET name = 'La red de Nilo', quest_type = 'SECUNDARIA', zone_id = 1, min_level = 5, max_level = 15, difficulty_stars = 1, npc_name = 'Nilo', location_name = 'Lago Cristalino', is_repeatable = FALSE, repeat_cooldown_hours = NULL, reputation_reward = 40, gold_reward = 380, xp_reward = 1300, description = '«Los sapos me rompieron la red. Sin red no hay pescado, y sin pescado este viejo no come. Tráeme seis puñados de Fibra de Lino para remendarla y te enseño a lanzarla.»', is_personal = FALSE, giver_npc = 'nilo', turn_in_npc = 'nilo', dialog = '{"entrega":"Una bota, un sapo furioso y un pescado del tamaño de mi dedo. ¡La mejor pesca del mes! Ja, ja. Toma, esto lo destilan con las glándulas de esos sapos: algo bueno tenían que tener."}'::jsonb, chain_position = NULL, chain_total = NULL WHERE code = 'PRADERA_SEC_RED';
+DELETE FROM quest_objectives WHERE quest_id = (SELECT id FROM quests WHERE code = 'PRADERA_SEC_RED');
+INSERT INTO quest_objectives (quest_id, objective_type, step, target_code, monster_id, item_id, target_count, params, description)
+SELECT (SELECT id FROM quests WHERE code = 'PRADERA_SEC_RED'), v.t, v.step, v.target, (SELECT id FROM monsters WHERE code = v.monster), (SELECT id FROM items WHERE code = v.item), v.n, v.params::jsonb, v.descr
+FROM (VALUES
+  ('DELIVER', 1, 'nilo', NULL, 'FIBRA_LINO', 6, '{"speaker":"Nilo","dialog":"Nudo, vuelta, nudo… ¡lista! Ahora ve a la punta de la orilla y lánzala con fuerza. Con fuerza, he dicho."}', 'Lleva 6 Fibras de Lino a Nilo'),
+  ('INVESTIGATE', 2, NULL, NULL, NULL, 1, '{"zone":"pradera","x":128,"y":23,"radius":3,"label":"Lanzar la red","speaker":"Tú","dialog":"Lanzas la red… y sacas una bota vieja, un sapo indignado y un pescado diminuto que te mira con pena."}', 'Lanza la red desde la orilla'),
+  ('TALK', 3, 'nilo', NULL, NULL, 1, NULL, 'Cuéntale a Nilo lo que pescaste')
+) AS v(t, step, target, monster, item, n, params, descr);
+DELETE FROM quest_npc_spots WHERE quest_id = (SELECT id FROM quests WHERE code = 'PRADERA_SEC_RED');
+DELETE FROM quest_item_rewards WHERE quest_id = (SELECT id FROM quests WHERE code = 'PRADERA_SEC_RED');
+INSERT INTO quest_item_rewards (quest_id, item_id, quantity)
+SELECT (SELECT id FROM quests WHERE code = 'PRADERA_SEC_RED'), i.id, v.qty FROM (VALUES ('ELIXIR_DEL_LAGO', 2)) AS v(code, qty) JOIN items i ON i.code = v.code;
+
+-- Las inscripciones del Vigía
+INSERT INTO quests (code, name, quest_type, zone_id, min_level, max_level, difficulty_stars, npc_name, location_name, is_repeatable, repeat_cooldown_hours, reputation_reward, gold_reward, xp_reward, description, is_personal, giver_npc, turn_in_npc, dialog, chain_position, chain_total)
+SELECT 'PRADERA_SEC_INSCRIPCIONES', 'Las inscripciones del Vigía', 'SECUNDARIA', 1, 6, 15, 2, 'Maese Orlan', 'Ruinas del Vigía', FALSE, NULL, 50, 420, 1600, '«En las ruinas hay tres piedras con inscripciones de los Vigías, pero los esqueletos no me dejan copiarlas. Ve tú y dime qué dicen. Lee despacio: cada palabra cuenta.»', FALSE, 'orlan', 'orlan', '{"entrega":"«El ojo no duerme», «Siete guardianes, siete sellos», «Bajo la torre, la llave»… ¡Es un juramento! Los Vigías juraban proteger algo bajo esta torre. Esto cambia todo lo que sabía. ¡Tengo que escribirle a la Biblioteca!"}'::jsonb, NULL, NULL
+WHERE NOT EXISTS (SELECT 1 FROM quests WHERE code = 'PRADERA_SEC_INSCRIPCIONES');
+UPDATE quests SET name = 'Las inscripciones del Vigía', quest_type = 'SECUNDARIA', zone_id = 1, min_level = 6, max_level = 15, difficulty_stars = 2, npc_name = 'Maese Orlan', location_name = 'Ruinas del Vigía', is_repeatable = FALSE, repeat_cooldown_hours = NULL, reputation_reward = 50, gold_reward = 420, xp_reward = 1600, description = '«En las ruinas hay tres piedras con inscripciones de los Vigías, pero los esqueletos no me dejan copiarlas. Ve tú y dime qué dicen. Lee despacio: cada palabra cuenta.»', is_personal = FALSE, giver_npc = 'orlan', turn_in_npc = 'orlan', dialog = '{"entrega":"«El ojo no duerme», «Siete guardianes, siete sellos», «Bajo la torre, la llave»… ¡Es un juramento! Los Vigías juraban proteger algo bajo esta torre. Esto cambia todo lo que sabía. ¡Tengo que escribirle a la Biblioteca!"}'::jsonb, chain_position = NULL, chain_total = NULL WHERE code = 'PRADERA_SEC_INSCRIPCIONES';
+DELETE FROM quest_objectives WHERE quest_id = (SELECT id FROM quests WHERE code = 'PRADERA_SEC_INSCRIPCIONES');
+INSERT INTO quest_objectives (quest_id, objective_type, step, target_code, monster_id, item_id, target_count, params, description)
+SELECT (SELECT id FROM quests WHERE code = 'PRADERA_SEC_INSCRIPCIONES'), v.t, v.step, v.target, (SELECT id FROM monsters WHERE code = v.monster), (SELECT id FROM items WHERE code = v.item), v.n, v.params::jsonb, v.descr
+FROM (VALUES
+  ('INVESTIGATE', 1, NULL, NULL, NULL, 1, '{"zone":"pradera","x":8,"y":90,"radius":3,"label":"Leer la inscripción","speaker":"La piedra","dialog":"«El ojo no duerme. El ojo no olvida.»"}', 'Lee la inscripción del norte'),
+  ('INVESTIGATE', 1, NULL, NULL, NULL, 1, '{"zone":"pradera","x":35,"y":95,"radius":3,"label":"Leer la inscripción","speaker":"La piedra","dialog":"«Siete guardianes, siete sellos, siete vigías.»"}', 'Lee la inscripción del este'),
+  ('INVESTIGATE', 1, NULL, NULL, NULL, 1, '{"zone":"pradera","x":25,"y":110,"radius":3,"label":"Leer la inscripción","speaker":"La piedra","dialog":"«Bajo la torre duerme la llave. Que nadie la despierte.»"}', 'Lee la inscripción del sur'),
+  ('TALK', 2, 'orlan', NULL, NULL, 1, NULL, 'Cuéntale a Maese Orlan lo que dicen')
+) AS v(t, step, target, monster, item, n, params, descr);
+DELETE FROM quest_npc_spots WHERE quest_id = (SELECT id FROM quests WHERE code = 'PRADERA_SEC_INSCRIPCIONES');
+DELETE FROM quest_item_rewards WHERE quest_id = (SELECT id FROM quests WHERE code = 'PRADERA_SEC_INSCRIPCIONES');
+INSERT INTO quest_item_rewards (quest_id, item_id, quantity)
+SELECT (SELECT id FROM quests WHERE code = 'PRADERA_SEC_INSCRIPCIONES'), i.id, v.qty FROM (VALUES ('POCION_DE_VIDA_MENOR', 4)) AS v(code, qty) JOIN items i ON i.code = v.code;
+
+-- Lo que dejamos atrás
+INSERT INTO quests (code, name, quest_type, zone_id, min_level, max_level, difficulty_stars, npc_name, location_name, is_repeatable, repeat_cooldown_hours, reputation_reward, gold_reward, xp_reward, description, is_personal, giver_npc, turn_in_npc, dialog, chain_position, chain_total)
+SELECT 'PRADERA_SEC_RECUERDO', 'Lo que dejamos atrás', 'SECUNDARIA', 1, 8, 15, 2, 'Sela', 'Praderas del Este', FALSE, NULL, 70, 500, 2000, '«Mi hija no para de llorar. Cuando huimos, se nos quedó su muñeca en la granja, al este de aquí. Ahora los lobos duermen en la casa. Sé que es solo una muñeca… pero para ella es todo.»', FALSE, 'sela', 'sela', '{"entrega":"Su muñeca… Mírala, ya está sonriendo. No sé cómo agradecerte. Toma, es lo poco que tenemos, pero es de corazón."}'::jsonb, NULL, NULL
+WHERE NOT EXISTS (SELECT 1 FROM quests WHERE code = 'PRADERA_SEC_RECUERDO');
+UPDATE quests SET name = 'Lo que dejamos atrás', quest_type = 'SECUNDARIA', zone_id = 1, min_level = 8, max_level = 15, difficulty_stars = 2, npc_name = 'Sela', location_name = 'Praderas del Este', is_repeatable = FALSE, repeat_cooldown_hours = NULL, reputation_reward = 70, gold_reward = 500, xp_reward = 2000, description = '«Mi hija no para de llorar. Cuando huimos, se nos quedó su muñeca en la granja, al este de aquí. Ahora los lobos duermen en la casa. Sé que es solo una muñeca… pero para ella es todo.»', is_personal = FALSE, giver_npc = 'sela', turn_in_npc = 'sela', dialog = '{"entrega":"Su muñeca… Mírala, ya está sonriendo. No sé cómo agradecerte. Toma, es lo poco que tenemos, pero es de corazón."}'::jsonb, chain_position = NULL, chain_total = NULL WHERE code = 'PRADERA_SEC_RECUERDO';
+DELETE FROM quest_objectives WHERE quest_id = (SELECT id FROM quests WHERE code = 'PRADERA_SEC_RECUERDO');
+INSERT INTO quest_objectives (quest_id, objective_type, step, target_code, monster_id, item_id, target_count, params, description)
+SELECT (SELECT id FROM quests WHERE code = 'PRADERA_SEC_RECUERDO'), v.t, v.step, v.target, (SELECT id FROM monsters WHERE code = v.monster), (SELECT id FROM items WHERE code = v.item), v.n, v.params::jsonb, v.descr
+FROM (VALUES
+  ('INVESTIGATE', 1, NULL, NULL, NULL, 1, '{"zone":"pradera","x":150,"y":58,"radius":3,"label":"Entrar a la granja","speaker":"Tú","dialog":"La puerta está rota y adentro huele a lobo. Algo gruñe en la oscuridad del granero."}', 'Ve a la granja abandonada de Sela'),
+  ('AMBUSH', 2, NULL, NULL, NULL, 1, '{"zone":"pradera","x":150,"y":58,"radius":3,"label":"Buscar la muñeca","dialog":"¡Los lobos defienden su nueva guarida!","monsters":[{"code":"LOBO_FEROZ","level":8},{"code":"LOBO_PRADERA","level":7}]}', 'Saca a los lobos de la granja'),
+  ('INVESTIGATE', 3, NULL, NULL, NULL, 1, '{"zone":"pradera","x":151,"y":59,"radius":3,"label":"Buscar la muñeca","speaker":"Tú","dialog":"Debajo de una cama volcada está la muñeca de trapo, sucia pero entera.","gives":{"item":"MUNECA_DE_TRAPO","qty":1}}', 'Encuentra la muñeca'),
+  ('DELIVER', 4, 'sela', NULL, 'MUNECA_DE_TRAPO', 1, NULL, 'Lleva la muñeca a Sela')
+) AS v(t, step, target, monster, item, n, params, descr);
+DELETE FROM quest_npc_spots WHERE quest_id = (SELECT id FROM quests WHERE code = 'PRADERA_SEC_RECUERDO');
+DELETE FROM quest_item_rewards WHERE quest_id = (SELECT id FROM quests WHERE code = 'PRADERA_SEC_RECUERDO');
+INSERT INTO quest_item_rewards (quest_id, item_id, quantity)
+SELECT (SELECT id FROM quests WHERE code = 'PRADERA_SEC_RECUERDO'), i.id, v.qty FROM (VALUES ('TONICO_MIEL', 3)) AS v(code, qty) JOIN items i ON i.code = v.code;
+
+-- Ojos en la Guarida
+INSERT INTO quests (code, name, quest_type, zone_id, min_level, max_level, difficulty_stars, npc_name, location_name, is_repeatable, repeat_cooldown_hours, reputation_reward, gold_reward, xp_reward, description, is_personal, giver_npc, turn_in_npc, dialog, chain_position, chain_total)
+SELECT 'PRADERA_SEC_GUARIDA', 'Ojos en la Guarida', 'SECUNDARIA', 1, 10, 15, 2, 'Vera', 'Guarida de la Manada', FALSE, NULL, 80, 600, 2400, '«Necesito saber cuántos lobos quedan en la Guarida y por dónde se mueven. Sube a los tres miradores que marqué en tu mapa y vuelve a contarme. Sin pelear si puedes evitarlo.»', FALSE, 'vera', 'vera', '{"entrega":"Tres miradores y sigues de una pieza. Con esto ya sé por dónde baja la manada. Toma, las vas a necesitar más que yo."}'::jsonb, NULL, NULL
+WHERE NOT EXISTS (SELECT 1 FROM quests WHERE code = 'PRADERA_SEC_GUARIDA');
+UPDATE quests SET name = 'Ojos en la Guarida', quest_type = 'SECUNDARIA', zone_id = 1, min_level = 10, max_level = 15, difficulty_stars = 2, npc_name = 'Vera', location_name = 'Guarida de la Manada', is_repeatable = FALSE, repeat_cooldown_hours = NULL, reputation_reward = 80, gold_reward = 600, xp_reward = 2400, description = '«Necesito saber cuántos lobos quedan en la Guarida y por dónde se mueven. Sube a los tres miradores que marqué en tu mapa y vuelve a contarme. Sin pelear si puedes evitarlo.»', is_personal = FALSE, giver_npc = 'vera', turn_in_npc = 'vera', dialog = '{"entrega":"Tres miradores y sigues de una pieza. Con esto ya sé por dónde baja la manada. Toma, las vas a necesitar más que yo."}'::jsonb, chain_position = NULL, chain_total = NULL WHERE code = 'PRADERA_SEC_GUARIDA';
+DELETE FROM quest_objectives WHERE quest_id = (SELECT id FROM quests WHERE code = 'PRADERA_SEC_GUARIDA');
+INSERT INTO quest_objectives (quest_id, objective_type, step, target_code, monster_id, item_id, target_count, params, description)
+SELECT (SELECT id FROM quests WHERE code = 'PRADERA_SEC_GUARIDA'), v.t, v.step, v.target, (SELECT id FROM monsters WHERE code = v.monster), (SELECT id FROM items WHERE code = v.item), v.n, v.params::jsonb, v.descr
+FROM (VALUES
+  ('VISIT', 1, NULL, NULL, NULL, 1, '{"zone":"pradera","x":135,"y":20,"radius":3,"label":"Mirador del oeste","speaker":"Tú","dialog":"Desde aquí se ven cuatro lobos dormidos junto al agua."}', 'Sube al mirador del oeste'),
+  ('VISIT', 1, NULL, NULL, NULL, 1, '{"zone":"pradera","x":140,"y":10,"radius":3,"label":"Mirador del norte","speaker":"Tú","dialog":"Huellas frescas que bajan hacia el lago. Muchas."}', 'Sube al mirador del norte'),
+  ('VISIT', 1, NULL, NULL, NULL, 1, '{"zone":"pradera","x":150,"y":40,"radius":3,"label":"Mirador del sur","speaker":"Tú","dialog":"Dos lobos con cristales en el lomo vigilan la entrada sur."}', 'Sube al mirador del sur'),
+  ('TALK', 2, 'vera', NULL, NULL, 1, NULL, 'Cuéntale a Vera lo que viste')
+) AS v(t, step, target, monster, item, n, params, descr);
+DELETE FROM quest_npc_spots WHERE quest_id = (SELECT id FROM quests WHERE code = 'PRADERA_SEC_GUARIDA');
+DELETE FROM quest_item_rewards WHERE quest_id = (SELECT id FROM quests WHERE code = 'PRADERA_SEC_GUARIDA');
+INSERT INTO quest_item_rewards (quest_id, item_id, quantity)
+SELECT (SELECT id FROM quests WHERE code = 'PRADERA_SEC_GUARIDA'), i.id, v.qty FROM (VALUES ('POCION_DE_VIDA_MAYOR', 2)) AS v(code, qty) JOIN items i ON i.code = v.code;
+
+-- Leña para el campamento
+INSERT INTO quests (code, name, quest_type, zone_id, min_level, max_level, difficulty_stars, npc_name, location_name, is_repeatable, repeat_cooldown_hours, reputation_reward, gold_reward, xp_reward, description, is_personal, giver_npc, turn_in_npc, dialog, chain_position, chain_total)
+SELECT 'PRADERA_DIARIA_LENA', 'Leña para el campamento', 'DIARIA', 1, 2, 15, 1, 'Brenna', 'Bosque de Robleviejo', TRUE, 20, 15, 340, 800, '«El fuego del campamento no se alimenta solo. Tres troncos de Madera de Roble y esta noche cenamos caliente.»', FALSE, 'brenna', NULL, NULL, NULL, NULL
+WHERE NOT EXISTS (SELECT 1 FROM quests WHERE code = 'PRADERA_DIARIA_LENA');
+UPDATE quests SET name = 'Leña para el campamento', quest_type = 'DIARIA', zone_id = 1, min_level = 2, max_level = 15, difficulty_stars = 1, npc_name = 'Brenna', location_name = 'Bosque de Robleviejo', is_repeatable = TRUE, repeat_cooldown_hours = 20, reputation_reward = 15, gold_reward = 340, xp_reward = 800, description = '«El fuego del campamento no se alimenta solo. Tres troncos de Madera de Roble y esta noche cenamos caliente.»', is_personal = FALSE, giver_npc = 'brenna', turn_in_npc = NULL, dialog = NULL, chain_position = NULL, chain_total = NULL WHERE code = 'PRADERA_DIARIA_LENA';
+DELETE FROM quest_objectives WHERE quest_id = (SELECT id FROM quests WHERE code = 'PRADERA_DIARIA_LENA');
+INSERT INTO quest_objectives (quest_id, objective_type, step, target_code, monster_id, item_id, target_count, params, description)
+SELECT (SELECT id FROM quests WHERE code = 'PRADERA_DIARIA_LENA'), v.t, v.step, v.target, (SELECT id FROM monsters WHERE code = v.monster), (SELECT id FROM items WHERE code = v.item), v.n, v.params::jsonb, v.descr
+FROM (VALUES
+  ('COLLECT_ITEM', 1, NULL, NULL, 'MADERA_DE_ROBLE', 3, NULL, 'Junta 3 Maderas de Roble')
+) AS v(t, step, target, monster, item, n, params, descr);
+DELETE FROM quest_npc_spots WHERE quest_id = (SELECT id FROM quests WHERE code = 'PRADERA_DIARIA_LENA');
+
+-- Polvo de la torre
+INSERT INTO quests (code, name, quest_type, zone_id, min_level, max_level, difficulty_stars, npc_name, location_name, is_repeatable, repeat_cooldown_hours, reputation_reward, gold_reward, xp_reward, description, is_personal, giver_npc, turn_in_npc, dialog, chain_position, chain_total)
+SELECT 'PRADERA_DIARIA_PIEDRA', 'Polvo de la torre', 'DIARIA', 1, 5, 15, 1, 'Maese Orlan', 'Ruinas del Vigía', TRUE, 20, 20, 450, 1100, '«Para fijar mis copias necesito Polvo de Piedra de las ruinas. Cuatro puñados, por favor. Los esqueletos lo llevan encima, no me preguntes por qué.»', FALSE, 'orlan', NULL, NULL, NULL, NULL
+WHERE NOT EXISTS (SELECT 1 FROM quests WHERE code = 'PRADERA_DIARIA_PIEDRA');
+UPDATE quests SET name = 'Polvo de la torre', quest_type = 'DIARIA', zone_id = 1, min_level = 5, max_level = 15, difficulty_stars = 1, npc_name = 'Maese Orlan', location_name = 'Ruinas del Vigía', is_repeatable = TRUE, repeat_cooldown_hours = 20, reputation_reward = 20, gold_reward = 450, xp_reward = 1100, description = '«Para fijar mis copias necesito Polvo de Piedra de las ruinas. Cuatro puñados, por favor. Los esqueletos lo llevan encima, no me preguntes por qué.»', is_personal = FALSE, giver_npc = 'orlan', turn_in_npc = NULL, dialog = NULL, chain_position = NULL, chain_total = NULL WHERE code = 'PRADERA_DIARIA_PIEDRA';
+DELETE FROM quest_objectives WHERE quest_id = (SELECT id FROM quests WHERE code = 'PRADERA_DIARIA_PIEDRA');
+INSERT INTO quest_objectives (quest_id, objective_type, step, target_code, monster_id, item_id, target_count, params, description)
+SELECT (SELECT id FROM quests WHERE code = 'PRADERA_DIARIA_PIEDRA'), v.t, v.step, v.target, (SELECT id FROM monsters WHERE code = v.monster), (SELECT id FROM items WHERE code = v.item), v.n, v.params::jsonb, v.descr
+FROM (VALUES
+  ('COLLECT_ITEM', 1, NULL, NULL, 'POLVO_DE_PIEDRA', 4, NULL, 'Junta 4 Polvos de Piedra')
+) AS v(t, step, target, monster, item, n, params, descr);
+DELETE FROM quest_npc_spots WHERE quest_id = (SELECT id FROM quests WHERE code = 'PRADERA_DIARIA_PIEDRA');
+
+-- Agua para los refugiados
+INSERT INTO quests (code, name, quest_type, zone_id, min_level, max_level, difficulty_stars, npc_name, location_name, is_repeatable, repeat_cooldown_hours, reputation_reward, gold_reward, xp_reward, description, is_personal, giver_npc, turn_in_npc, dialog, chain_position, chain_total)
+SELECT 'PRADERA_DIARIA_AGUA', 'Agua para los refugiados', 'DIARIA', 1, 5, 15, 1, 'Sela', 'Praderas del Este', TRUE, 20, 25, 440, 1100, '«El pozo más cercano está en manos de los lobos. ¿Nos traes tres Aguas Frescas? Los niños tienen sed.»', FALSE, 'sela', NULL, NULL, NULL, NULL
+WHERE NOT EXISTS (SELECT 1 FROM quests WHERE code = 'PRADERA_DIARIA_AGUA');
+UPDATE quests SET name = 'Agua para los refugiados', quest_type = 'DIARIA', zone_id = 1, min_level = 5, max_level = 15, difficulty_stars = 1, npc_name = 'Sela', location_name = 'Praderas del Este', is_repeatable = TRUE, repeat_cooldown_hours = 20, reputation_reward = 25, gold_reward = 440, xp_reward = 1100, description = '«El pozo más cercano está en manos de los lobos. ¿Nos traes tres Aguas Frescas? Los niños tienen sed.»', is_personal = FALSE, giver_npc = 'sela', turn_in_npc = NULL, dialog = NULL, chain_position = NULL, chain_total = NULL WHERE code = 'PRADERA_DIARIA_AGUA';
+DELETE FROM quest_objectives WHERE quest_id = (SELECT id FROM quests WHERE code = 'PRADERA_DIARIA_AGUA');
+INSERT INTO quest_objectives (quest_id, objective_type, step, target_code, monster_id, item_id, target_count, params, description)
+SELECT (SELECT id FROM quests WHERE code = 'PRADERA_DIARIA_AGUA'), v.t, v.step, v.target, (SELECT id FROM monsters WHERE code = v.monster), (SELECT id FROM items WHERE code = v.item), v.n, v.params::jsonb, v.descr
+FROM (VALUES
+  ('DELIVER', 1, 'sela', NULL, 'AGUA_FRESCA', 3, '{"speaker":"Sela","dialog":"Gracias. Hoy nadie se va a dormir con sed."}', 'Lleva 3 Aguas Frescas a Sela')
+) AS v(t, step, target, monster, item, n, params, descr);
+DELETE FROM quest_npc_spots WHERE quest_id = (SELECT id FROM quests WHERE code = 'PRADERA_DIARIA_AGUA');
+
+-- Cuenta de la manada
+INSERT INTO quests (code, name, quest_type, zone_id, min_level, max_level, difficulty_stars, npc_name, location_name, is_repeatable, repeat_cooldown_hours, reputation_reward, gold_reward, xp_reward, description, is_personal, giver_npc, turn_in_npc, dialog, chain_position, chain_total)
+SELECT 'PRADERA_DIARIA_MANADA', 'Cuenta de la manada', 'DIARIA', 1, 8, 15, 1, 'Vera', 'Guarida de la Manada', TRUE, 20, 30, 620, 2000, '«Mi ronda de hoy: el mirador del oeste y el del sur. Si te cruzas con dos lobos feroces, ya sabes qué hacer.»', FALSE, 'vera', NULL, NULL, NULL, NULL
+WHERE NOT EXISTS (SELECT 1 FROM quests WHERE code = 'PRADERA_DIARIA_MANADA');
+UPDATE quests SET name = 'Cuenta de la manada', quest_type = 'DIARIA', zone_id = 1, min_level = 8, max_level = 15, difficulty_stars = 1, npc_name = 'Vera', location_name = 'Guarida de la Manada', is_repeatable = TRUE, repeat_cooldown_hours = 20, reputation_reward = 30, gold_reward = 620, xp_reward = 2000, description = '«Mi ronda de hoy: el mirador del oeste y el del sur. Si te cruzas con dos lobos feroces, ya sabes qué hacer.»', is_personal = FALSE, giver_npc = 'vera', turn_in_npc = NULL, dialog = NULL, chain_position = NULL, chain_total = NULL WHERE code = 'PRADERA_DIARIA_MANADA';
+DELETE FROM quest_objectives WHERE quest_id = (SELECT id FROM quests WHERE code = 'PRADERA_DIARIA_MANADA');
+INSERT INTO quest_objectives (quest_id, objective_type, step, target_code, monster_id, item_id, target_count, params, description)
+SELECT (SELECT id FROM quests WHERE code = 'PRADERA_DIARIA_MANADA'), v.t, v.step, v.target, (SELECT id FROM monsters WHERE code = v.monster), (SELECT id FROM items WHERE code = v.item), v.n, v.params::jsonb, v.descr
+FROM (VALUES
+  ('VISIT', 1, NULL, NULL, NULL, 1, '{"zone":"pradera","x":135,"y":20,"radius":3,"label":"Mirador del oeste"}', 'Pasa por el mirador del oeste'),
+  ('VISIT', 1, NULL, NULL, NULL, 1, '{"zone":"pradera","x":150,"y":40,"radius":3,"label":"Mirador del sur"}', 'Pasa por el mirador del sur'),
+  ('KILL_MONSTER', 1, NULL, 'LOBO_FEROZ', NULL, 2, NULL, 'Derrota 2 Lobos Feroces')
+) AS v(t, step, target, monster, item, n, params, descr);
+DELETE FROM quest_npc_spots WHERE quest_id = (SELECT id FROM quests WHERE code = 'PRADERA_DIARIA_MANADA');
+
+-- Hierbas para la fogata
+INSERT INTO quests (code, name, quest_type, zone_id, min_level, max_level, difficulty_stars, npc_name, location_name, is_repeatable, repeat_cooldown_hours, reputation_reward, gold_reward, xp_reward, description, is_personal, giver_npc, turn_in_npc, dialog, chain_position, chain_total)
+SELECT 'PRADERA_DIARIA_HIERBAS', 'Hierbas para la fogata', 'DIARIA', 1, 1, 15, 1, 'Mirna', 'Aldea Espiga', TRUE, 20, 15, 300, 700, '«La enfermería de la fogata se queda sin hierbas. Tráeme cuatro Hierbas Curativas, que nunca sobran.»', FALSE, 'mirna', NULL, NULL, NULL, NULL
+WHERE NOT EXISTS (SELECT 1 FROM quests WHERE code = 'PRADERA_DIARIA_HIERBAS');
+UPDATE quests SET name = 'Hierbas para la fogata', quest_type = 'DIARIA', zone_id = 1, min_level = 1, max_level = 15, difficulty_stars = 1, npc_name = 'Mirna', location_name = 'Aldea Espiga', is_repeatable = TRUE, repeat_cooldown_hours = 20, reputation_reward = 15, gold_reward = 300, xp_reward = 700, description = '«La enfermería de la fogata se queda sin hierbas. Tráeme cuatro Hierbas Curativas, que nunca sobran.»', is_personal = FALSE, giver_npc = 'mirna', turn_in_npc = NULL, dialog = NULL, chain_position = NULL, chain_total = NULL WHERE code = 'PRADERA_DIARIA_HIERBAS';
+DELETE FROM quest_objectives WHERE quest_id = (SELECT id FROM quests WHERE code = 'PRADERA_DIARIA_HIERBAS');
+INSERT INTO quest_objectives (quest_id, objective_type, step, target_code, monster_id, item_id, target_count, params, description)
+SELECT (SELECT id FROM quests WHERE code = 'PRADERA_DIARIA_HIERBAS'), v.t, v.step, v.target, (SELECT id FROM monsters WHERE code = v.monster), (SELECT id FROM items WHERE code = v.item), v.n, v.params::jsonb, v.descr
+FROM (VALUES
+  ('COLLECT_ITEM', 1, NULL, NULL, 'HIERBA_CURATIVA', 4, NULL, 'Junta 4 Hierbas Curativas')
+) AS v(t, step, target, monster, item, n, params, descr);
+DELETE FROM quest_npc_spots WHERE quest_id = (SELECT id FROM quests WHERE code = 'PRADERA_DIARIA_HIERBAS');
+
+-- Lino para el telar
+INSERT INTO quests (code, name, quest_type, zone_id, min_level, max_level, difficulty_stars, npc_name, location_name, is_repeatable, repeat_cooldown_hours, reputation_reward, gold_reward, xp_reward, description, is_personal, giver_npc, turn_in_npc, dialog, chain_position, chain_total)
+SELECT 'PRADERA_DIARIA_LINO', 'Lino para el telar', 'DIARIA', 1, 2, 15, 1, 'Mirna', 'Pradera Dorada', TRUE, 20, 15, 320, 750, '«El telar está parado. Seis puñados de Fibra de Lino y vuelve a sonar.»', FALSE, 'mirna', NULL, NULL, NULL, NULL
+WHERE NOT EXISTS (SELECT 1 FROM quests WHERE code = 'PRADERA_DIARIA_LINO');
+UPDATE quests SET name = 'Lino para el telar', quest_type = 'DIARIA', zone_id = 1, min_level = 2, max_level = 15, difficulty_stars = 1, npc_name = 'Mirna', location_name = 'Pradera Dorada', is_repeatable = TRUE, repeat_cooldown_hours = 20, reputation_reward = 15, gold_reward = 320, xp_reward = 750, description = '«El telar está parado. Seis puñados de Fibra de Lino y vuelve a sonar.»', is_personal = FALSE, giver_npc = 'mirna', turn_in_npc = NULL, dialog = NULL, chain_position = NULL, chain_total = NULL WHERE code = 'PRADERA_DIARIA_LINO';
+DELETE FROM quest_objectives WHERE quest_id = (SELECT id FROM quests WHERE code = 'PRADERA_DIARIA_LINO');
+INSERT INTO quest_objectives (quest_id, objective_type, step, target_code, monster_id, item_id, target_count, params, description)
+SELECT (SELECT id FROM quests WHERE code = 'PRADERA_DIARIA_LINO'), v.t, v.step, v.target, (SELECT id FROM monsters WHERE code = v.monster), (SELECT id FROM items WHERE code = v.item), v.n, v.params::jsonb, v.descr
+FROM (VALUES
+  ('COLLECT_ITEM', 1, NULL, NULL, 'FIBRA_LINO', 6, NULL, 'Junta 6 Fibras de Lino')
+) AS v(t, step, target, monster, item, n, params, descr);
+DELETE FROM quest_npc_spots WHERE quest_id = (SELECT id FROM quests WHERE code = 'PRADERA_DIARIA_LINO');
+
+-- Ronda por el Camino Real
+INSERT INTO quests (code, name, quest_type, zone_id, min_level, max_level, difficulty_stars, npc_name, location_name, is_repeatable, repeat_cooldown_hours, reputation_reward, gold_reward, xp_reward, description, is_personal, giver_npc, turn_in_npc, dialog, chain_position, chain_total)
+SELECT 'PRADERA_DIARIA_RONDA', 'Ronda por el Camino Real', 'DIARIA', 1, 1, 15, 1, 'Ren', 'Camino Real', TRUE, 20, 15, 350, 800, '«Hoy me toca la ronda y tengo la pierna como un tronco. Pasa por el puesto del norte y por el puente del este, y avísame si ves algo raro.»', FALSE, 'ren', NULL, NULL, NULL, NULL
+WHERE NOT EXISTS (SELECT 1 FROM quests WHERE code = 'PRADERA_DIARIA_RONDA');
+UPDATE quests SET name = 'Ronda por el Camino Real', quest_type = 'DIARIA', zone_id = 1, min_level = 1, max_level = 15, difficulty_stars = 1, npc_name = 'Ren', location_name = 'Camino Real', is_repeatable = TRUE, repeat_cooldown_hours = 20, reputation_reward = 15, gold_reward = 350, xp_reward = 800, description = '«Hoy me toca la ronda y tengo la pierna como un tronco. Pasa por el puesto del norte y por el puente del este, y avísame si ves algo raro.»', is_personal = FALSE, giver_npc = 'ren', turn_in_npc = NULL, dialog = NULL, chain_position = NULL, chain_total = NULL WHERE code = 'PRADERA_DIARIA_RONDA';
+DELETE FROM quest_objectives WHERE quest_id = (SELECT id FROM quests WHERE code = 'PRADERA_DIARIA_RONDA');
+INSERT INTO quest_objectives (quest_id, objective_type, step, target_code, monster_id, item_id, target_count, params, description)
+SELECT (SELECT id FROM quests WHERE code = 'PRADERA_DIARIA_RONDA'), v.t, v.step, v.target, (SELECT id FROM monsters WHERE code = v.monster), (SELECT id FROM items WHERE code = v.item), v.n, v.params::jsonb, v.descr
+FROM (VALUES
+  ('VISIT', 1, NULL, NULL, NULL, 1, '{"zone":"pradera","x":76,"y":15,"radius":3,"label":"Puesto del norte"}', 'Pasa por el puesto del norte del Camino Real'),
+  ('VISIT', 1, NULL, NULL, NULL, 1, '{"zone":"pradera","x":100,"y":50,"radius":3,"label":"Puente del este"}', 'Pasa por el puente del este')
+) AS v(t, step, target, monster, item, n, params, descr);
+DELETE FROM quest_npc_spots WHERE quest_id = (SELECT id FROM quests WHERE code = 'PRADERA_DIARIA_RONDA');
+
+-- Pan para la guardia
+INSERT INTO quests (code, name, quest_type, zone_id, min_level, max_level, difficulty_stars, npc_name, location_name, is_repeatable, repeat_cooldown_hours, reputation_reward, gold_reward, xp_reward, description, is_personal, giver_npc, turn_in_npc, dialog, chain_position, chain_total)
+SELECT 'PRADERA_DIARIA_PAN', 'Pan para la guardia', 'DIARIA', 1, 3, 15, 1, 'Tilo', 'Aldea Espiga', TRUE, 20, 20, 360, 850, '«Mi mamá dice que Ren se olvida de comer cuando hace guardia. ¿Le llevas dos Panes de Campo? Yo iría, pero tengo… entrenamiento.»', FALSE, 'tilo', NULL, NULL, NULL, NULL
+WHERE NOT EXISTS (SELECT 1 FROM quests WHERE code = 'PRADERA_DIARIA_PAN');
+UPDATE quests SET name = 'Pan para la guardia', quest_type = 'DIARIA', zone_id = 1, min_level = 3, max_level = 15, difficulty_stars = 1, npc_name = 'Tilo', location_name = 'Aldea Espiga', is_repeatable = TRUE, repeat_cooldown_hours = 20, reputation_reward = 20, gold_reward = 360, xp_reward = 850, description = '«Mi mamá dice que Ren se olvida de comer cuando hace guardia. ¿Le llevas dos Panes de Campo? Yo iría, pero tengo… entrenamiento.»', is_personal = FALSE, giver_npc = 'tilo', turn_in_npc = NULL, dialog = NULL, chain_position = NULL, chain_total = NULL WHERE code = 'PRADERA_DIARIA_PAN';
+DELETE FROM quest_objectives WHERE quest_id = (SELECT id FROM quests WHERE code = 'PRADERA_DIARIA_PAN');
+INSERT INTO quest_objectives (quest_id, objective_type, step, target_code, monster_id, item_id, target_count, params, description)
+SELECT (SELECT id FROM quests WHERE code = 'PRADERA_DIARIA_PAN'), v.t, v.step, v.target, (SELECT id FROM monsters WHERE code = v.monster), (SELECT id FROM items WHERE code = v.item), v.n, v.params::jsonb, v.descr
+FROM (VALUES
+  ('DELIVER', 1, 'ren', NULL, 'PAN_CAMPO', 2, '{"speaker":"Ren","dialog":"¿Pan? ¿De parte de Tilo? Ese niño… Gracias. Tenía el estómago rugiendo."}', 'Lleva 2 Panes de Campo a Ren')
+) AS v(t, step, target, monster, item, n, params, descr);
+DELETE FROM quest_npc_spots WHERE quest_id = (SELECT id FROM quests WHERE code = 'PRADERA_DIARIA_PAN');
+
+-- Sacos para el molino
+INSERT INTO quests (code, name, quest_type, zone_id, min_level, max_level, difficulty_stars, npc_name, location_name, is_repeatable, repeat_cooldown_hours, reputation_reward, gold_reward, xp_reward, description, is_personal, giver_npc, turn_in_npc, dialog, chain_position, chain_total)
+SELECT 'PRADERA_DIARIA_TRIGO', 'Sacos para el molino', 'DIARIA', 1, 4, 15, 1, 'Tobías', 'Colina del Molino', TRUE, 20, 20, 380, 900, '«La rueda gira, pero se me acaba el grano. Tráeme seis manojos de Trigo de los campos y te muelo lo que quieras.»', FALSE, 'tobias', NULL, NULL, NULL, NULL
+WHERE NOT EXISTS (SELECT 1 FROM quests WHERE code = 'PRADERA_DIARIA_TRIGO');
+UPDATE quests SET name = 'Sacos para el molino', quest_type = 'DIARIA', zone_id = 1, min_level = 4, max_level = 15, difficulty_stars = 1, npc_name = 'Tobías', location_name = 'Colina del Molino', is_repeatable = TRUE, repeat_cooldown_hours = 20, reputation_reward = 20, gold_reward = 380, xp_reward = 900, description = '«La rueda gira, pero se me acaba el grano. Tráeme seis manojos de Trigo de los campos y te muelo lo que quieras.»', is_personal = FALSE, giver_npc = 'tobias', turn_in_npc = NULL, dialog = NULL, chain_position = NULL, chain_total = NULL WHERE code = 'PRADERA_DIARIA_TRIGO';
+DELETE FROM quest_objectives WHERE quest_id = (SELECT id FROM quests WHERE code = 'PRADERA_DIARIA_TRIGO');
+INSERT INTO quest_objectives (quest_id, objective_type, step, target_code, monster_id, item_id, target_count, params, description)
+SELECT (SELECT id FROM quests WHERE code = 'PRADERA_DIARIA_TRIGO'), v.t, v.step, v.target, (SELECT id FROM monsters WHERE code = v.monster), (SELECT id FROM items WHERE code = v.item), v.n, v.params::jsonb, v.descr
+FROM (VALUES
+  ('COLLECT_ITEM', 1, NULL, NULL, 'TRIGO', 6, NULL, 'Junta 6 Trigos')
+) AS v(t, step, target, monster, item, n, params, descr);
+DELETE FROM quest_npc_spots WHERE quest_id = (SELECT id FROM quests WHERE code = 'PRADERA_DIARIA_TRIGO');
+
+-- Cuarzo para la forja
+INSERT INTO quests (code, name, quest_type, zone_id, min_level, max_level, difficulty_stars, npc_name, location_name, is_repeatable, repeat_cooldown_hours, reputation_reward, gold_reward, xp_reward, description, is_personal, giver_npc, turn_in_npc, dialog, chain_position, chain_total)
+SELECT 'PRADERA_DIARIA_CUARZO', 'Cuarzo para la forja', 'DIARIA', 1, 4, 15, 1, 'Goreth', 'Pradera Dorada', TRUE, 20, 20, 400, 950, '«El Cuarzo de Río da el mejor temple. Tres piedras, y que sean claras.»', FALSE, 'goreth', NULL, NULL, NULL, NULL
+WHERE NOT EXISTS (SELECT 1 FROM quests WHERE code = 'PRADERA_DIARIA_CUARZO');
+UPDATE quests SET name = 'Cuarzo para la forja', quest_type = 'DIARIA', zone_id = 1, min_level = 4, max_level = 15, difficulty_stars = 1, npc_name = 'Goreth', location_name = 'Pradera Dorada', is_repeatable = TRUE, repeat_cooldown_hours = 20, reputation_reward = 20, gold_reward = 400, xp_reward = 950, description = '«El Cuarzo de Río da el mejor temple. Tres piedras, y que sean claras.»', is_personal = FALSE, giver_npc = 'goreth', turn_in_npc = NULL, dialog = NULL, chain_position = NULL, chain_total = NULL WHERE code = 'PRADERA_DIARIA_CUARZO';
+DELETE FROM quest_objectives WHERE quest_id = (SELECT id FROM quests WHERE code = 'PRADERA_DIARIA_CUARZO');
+INSERT INTO quest_objectives (quest_id, objective_type, step, target_code, monster_id, item_id, target_count, params, description)
+SELECT (SELECT id FROM quests WHERE code = 'PRADERA_DIARIA_CUARZO'), v.t, v.step, v.target, (SELECT id FROM monsters WHERE code = v.monster), (SELECT id FROM items WHERE code = v.item), v.n, v.params::jsonb, v.descr
+FROM (VALUES
+  ('COLLECT_ITEM', 1, NULL, NULL, 'CUARZO_RIO', 3, NULL, 'Junta 3 Cuarzos de Río')
+) AS v(t, step, target, monster, item, n, params, descr);
+DELETE FROM quest_npc_spots WHERE quest_id = (SELECT id FROM quests WHERE code = 'PRADERA_DIARIA_CUARZO');
+
+-- Jabalíes en los cultivos
+INSERT INTO quests (code, name, quest_type, zone_id, min_level, max_level, difficulty_stars, npc_name, location_name, is_repeatable, repeat_cooldown_hours, reputation_reward, gold_reward, xp_reward, description, is_personal, giver_npc, turn_in_npc, dialog, chain_position, chain_total)
+SELECT 'PRADERA_DIARIA_JABALIES', 'Jabalíes en los cultivos', 'DIARIA', 1, 3, 15, 1, 'Brenna', 'Bosque de Robleviejo', TRUE, 20, 20, 420, 1000, '«Los jabalíes del bosque bajan de noche y revuelven los cultivos. Espanta a cinco antes de que se coman la cosecha.»', FALSE, 'brenna', NULL, NULL, NULL, NULL
+WHERE NOT EXISTS (SELECT 1 FROM quests WHERE code = 'PRADERA_DIARIA_JABALIES');
+UPDATE quests SET name = 'Jabalíes en los cultivos', quest_type = 'DIARIA', zone_id = 1, min_level = 3, max_level = 15, difficulty_stars = 1, npc_name = 'Brenna', location_name = 'Bosque de Robleviejo', is_repeatable = TRUE, repeat_cooldown_hours = 20, reputation_reward = 20, gold_reward = 420, xp_reward = 1000, description = '«Los jabalíes del bosque bajan de noche y revuelven los cultivos. Espanta a cinco antes de que se coman la cosecha.»', is_personal = FALSE, giver_npc = 'brenna', turn_in_npc = NULL, dialog = NULL, chain_position = NULL, chain_total = NULL WHERE code = 'PRADERA_DIARIA_JABALIES';
+DELETE FROM quest_objectives WHERE quest_id = (SELECT id FROM quests WHERE code = 'PRADERA_DIARIA_JABALIES');
+INSERT INTO quest_objectives (quest_id, objective_type, step, target_code, monster_id, item_id, target_count, params, description)
+SELECT (SELECT id FROM quests WHERE code = 'PRADERA_DIARIA_JABALIES'), v.t, v.step, v.target, (SELECT id FROM monsters WHERE code = v.monster), (SELECT id FROM items WHERE code = v.item), v.n, v.params::jsonb, v.descr
+FROM (VALUES
+  ('KILL_MONSTER', 1, NULL, 'JABALI_CORNUDO', NULL, 5, NULL, 'Derrota 5 Jabalíes Cornudos')
+) AS v(t, step, target, monster, item, n, params, descr);
+DELETE FROM quest_npc_spots WHERE quest_id = (SELECT id FROM quests WHERE code = 'PRADERA_DIARIA_JABALIES');
+
+-- El lago revuelto
+INSERT INTO quests (code, name, quest_type, zone_id, min_level, max_level, difficulty_stars, npc_name, location_name, is_repeatable, repeat_cooldown_hours, reputation_reward, gold_reward, xp_reward, description, is_personal, giver_npc, turn_in_npc, dialog, chain_position, chain_total)
+SELECT 'PRADERA_DIARIA_SAPOS', 'El lago revuelto', 'DIARIA', 1, 5, 15, 1, 'Nilo', 'Lago Cristalino', TRUE, 20, 25, 480, 1200, '«El agua del lago sigue turbia. Echa un vistazo a la orilla y quítale de encima cuatro sapos a los pescadores.»', FALSE, 'nilo', NULL, NULL, NULL, NULL
+WHERE NOT EXISTS (SELECT 1 FROM quests WHERE code = 'PRADERA_DIARIA_SAPOS');
+UPDATE quests SET name = 'El lago revuelto', quest_type = 'DIARIA', zone_id = 1, min_level = 5, max_level = 15, difficulty_stars = 1, npc_name = 'Nilo', location_name = 'Lago Cristalino', is_repeatable = TRUE, repeat_cooldown_hours = 20, reputation_reward = 25, gold_reward = 480, xp_reward = 1200, description = '«El agua del lago sigue turbia. Echa un vistazo a la orilla y quítale de encima cuatro sapos a los pescadores.»', is_personal = FALSE, giver_npc = 'nilo', turn_in_npc = NULL, dialog = NULL, chain_position = NULL, chain_total = NULL WHERE code = 'PRADERA_DIARIA_SAPOS';
+DELETE FROM quest_objectives WHERE quest_id = (SELECT id FROM quests WHERE code = 'PRADERA_DIARIA_SAPOS');
+INSERT INTO quest_objectives (quest_id, objective_type, step, target_code, monster_id, item_id, target_count, params, description)
+SELECT (SELECT id FROM quests WHERE code = 'PRADERA_DIARIA_SAPOS'), v.t, v.step, v.target, (SELECT id FROM monsters WHERE code = v.monster), (SELECT id FROM items WHERE code = v.item), v.n, v.params::jsonb, v.descr
+FROM (VALUES
+  ('VISIT', 1, NULL, NULL, NULL, 1, '{"zone":"pradera","x":123,"y":24,"radius":3,"label":"Orilla del lago"}', 'Revisa la orilla del Lago Cristalino'),
+  ('KILL_MONSTER', 1, NULL, 'SAPO_DE_LODO', NULL, 4, NULL, 'Derrota 4 Sapos de Lodo')
+) AS v(t, step, target, monster, item, n, params, descr);
+DELETE FROM quest_npc_spots WHERE quest_id = (SELECT id FROM quests WHERE code = 'PRADERA_DIARIA_SAPOS');
+
+-- Huesos inquietos
+INSERT INTO quests (code, name, quest_type, zone_id, min_level, max_level, difficulty_stars, npc_name, location_name, is_repeatable, repeat_cooldown_hours, reputation_reward, gold_reward, xp_reward, description, is_personal, giver_npc, turn_in_npc, dialog, chain_position, chain_total)
+SELECT 'PRADERA_DIARIA_HUESOS', 'Huesos inquietos', 'DIARIA', 1, 6, 15, 1, 'Maese Orlan', 'Ruinas del Vigía', TRUE, 20, 25, 520, 1400, '«Los soldados del Vigía no descansan. Devuélvelos a la tierra: cinco esqueletos, con respeto.»', FALSE, 'orlan', NULL, NULL, NULL, NULL
+WHERE NOT EXISTS (SELECT 1 FROM quests WHERE code = 'PRADERA_DIARIA_HUESOS');
+UPDATE quests SET name = 'Huesos inquietos', quest_type = 'DIARIA', zone_id = 1, min_level = 6, max_level = 15, difficulty_stars = 1, npc_name = 'Maese Orlan', location_name = 'Ruinas del Vigía', is_repeatable = TRUE, repeat_cooldown_hours = 20, reputation_reward = 25, gold_reward = 520, xp_reward = 1400, description = '«Los soldados del Vigía no descansan. Devuélvelos a la tierra: cinco esqueletos, con respeto.»', is_personal = FALSE, giver_npc = 'orlan', turn_in_npc = NULL, dialog = NULL, chain_position = NULL, chain_total = NULL WHERE code = 'PRADERA_DIARIA_HUESOS';
+DELETE FROM quest_objectives WHERE quest_id = (SELECT id FROM quests WHERE code = 'PRADERA_DIARIA_HUESOS');
+INSERT INTO quest_objectives (quest_id, objective_type, step, target_code, monster_id, item_id, target_count, params, description)
+SELECT (SELECT id FROM quests WHERE code = 'PRADERA_DIARIA_HUESOS'), v.t, v.step, v.target, (SELECT id FROM monsters WHERE code = v.monster), (SELECT id FROM items WHERE code = v.item), v.n, v.params::jsonb, v.descr
+FROM (VALUES
+  ('KILL_MONSTER', 1, NULL, 'ESQUELETO_VIGIA', NULL, 5, NULL, 'Derrota 5 Esqueletos del Vigía')
+) AS v(t, step, target, monster, item, n, params, descr);
+DELETE FROM quest_npc_spots WHERE quest_id = (SELECT id FROM quests WHERE code = 'PRADERA_DIARIA_HUESOS');
+
+-- Sombras en el Círculo
+INSERT INTO quests (code, name, quest_type, zone_id, min_level, max_level, difficulty_stars, npc_name, location_name, is_repeatable, repeat_cooldown_hours, reputation_reward, gold_reward, xp_reward, description, is_personal, giver_npc, turn_in_npc, dialog, chain_position, chain_total)
+SELECT 'PRADERA_DIARIA_ACOLITOS', 'Sombras en el Círculo', 'DIARIA', 1, 9, 15, 1, 'Aldren', 'Círculo de Piedras', TRUE, 20, 30, 650, 2200, '«Los acólitos del eclipse siguen plantando cristales en el Círculo. Derrota a cuatro antes de que terminen.»', FALSE, 'anciano', NULL, NULL, NULL, NULL
+WHERE NOT EXISTS (SELECT 1 FROM quests WHERE code = 'PRADERA_DIARIA_ACOLITOS');
+UPDATE quests SET name = 'Sombras en el Círculo', quest_type = 'DIARIA', zone_id = 1, min_level = 9, max_level = 15, difficulty_stars = 1, npc_name = 'Aldren', location_name = 'Círculo de Piedras', is_repeatable = TRUE, repeat_cooldown_hours = 20, reputation_reward = 30, gold_reward = 650, xp_reward = 2200, description = '«Los acólitos del eclipse siguen plantando cristales en el Círculo. Derrota a cuatro antes de que terminen.»', is_personal = FALSE, giver_npc = 'anciano', turn_in_npc = NULL, dialog = NULL, chain_position = NULL, chain_total = NULL WHERE code = 'PRADERA_DIARIA_ACOLITOS';
+DELETE FROM quest_objectives WHERE quest_id = (SELECT id FROM quests WHERE code = 'PRADERA_DIARIA_ACOLITOS');
+INSERT INTO quest_objectives (quest_id, objective_type, step, target_code, monster_id, item_id, target_count, params, description)
+SELECT (SELECT id FROM quests WHERE code = 'PRADERA_DIARIA_ACOLITOS'), v.t, v.step, v.target, (SELECT id FROM monsters WHERE code = v.monster), (SELECT id FROM items WHERE code = v.item), v.n, v.params::jsonb, v.descr
+FROM (VALUES
+  ('KILL_MONSTER', 1, NULL, 'ACOLITO_ECLIPSE', NULL, 4, NULL, 'Derrota 4 Acólitos del Eclipse')
+) AS v(t, step, target, monster, item, n, params, descr);
+DELETE FROM quest_npc_spots WHERE quest_id = (SELECT id FROM quests WHERE code = 'PRADERA_DIARIA_ACOLITOS');
+
+-- La piedra que camina
+INSERT INTO quests (code, name, quest_type, zone_id, min_level, max_level, difficulty_stars, npc_name, location_name, is_repeatable, repeat_cooldown_hours, reputation_reward, gold_reward, xp_reward, description, is_personal, giver_npc, turn_in_npc, dialog, chain_position, chain_total)
+SELECT 'PRADERA_DIARIA_GOLEM', 'La piedra que camina', 'DIARIA', 1, 9, 15, 1, 'Goreth', 'Círculo de Piedras', TRUE, 20, 30, 700, 2400, '«Dicen que un menhir del Círculo camina solo. Si es verdad, quiero sus runas. Derrótalo.»', FALSE, 'goreth', NULL, NULL, NULL, NULL
+WHERE NOT EXISTS (SELECT 1 FROM quests WHERE code = 'PRADERA_DIARIA_GOLEM');
+UPDATE quests SET name = 'La piedra que camina', quest_type = 'DIARIA', zone_id = 1, min_level = 9, max_level = 15, difficulty_stars = 1, npc_name = 'Goreth', location_name = 'Círculo de Piedras', is_repeatable = TRUE, repeat_cooldown_hours = 20, reputation_reward = 30, gold_reward = 700, xp_reward = 2400, description = '«Dicen que un menhir del Círculo camina solo. Si es verdad, quiero sus runas. Derrótalo.»', is_personal = FALSE, giver_npc = 'goreth', turn_in_npc = NULL, dialog = NULL, chain_position = NULL, chain_total = NULL WHERE code = 'PRADERA_DIARIA_GOLEM';
+DELETE FROM quest_objectives WHERE quest_id = (SELECT id FROM quests WHERE code = 'PRADERA_DIARIA_GOLEM');
+INSERT INTO quest_objectives (quest_id, objective_type, step, target_code, monster_id, item_id, target_count, params, description)
+SELECT (SELECT id FROM quests WHERE code = 'PRADERA_DIARIA_GOLEM'), v.t, v.step, v.target, (SELECT id FROM monsters WHERE code = v.monster), (SELECT id FROM items WHERE code = v.item), v.n, v.params::jsonb, v.descr
+FROM (VALUES
+  ('KILL_MONSTER', 1, NULL, 'GOLEM_MENHIR', NULL, 1, NULL, 'Derrota al Golem de Menhir')
+) AS v(t, step, target, monster, item, n, params, descr);
+DELETE FROM quest_npc_spots WHERE quest_id = (SELECT id FROM quests WHERE code = 'PRADERA_DIARIA_GOLEM');
+
+-- Bestias de la grieta
+INSERT INTO quests (code, name, quest_type, zone_id, min_level, max_level, difficulty_stars, npc_name, location_name, is_repeatable, repeat_cooldown_hours, reputation_reward, gold_reward, xp_reward, description, is_personal, giver_npc, turn_in_npc, dialog, chain_position, chain_total)
+SELECT 'PRADERA_DIARIA_GRIETA', 'Bestias de la grieta', 'DIARIA', 1, 11, 15, 1, 'Vera', 'Tierras Heridas', TRUE, 20, 35, 720, 2600, '«De las grietas siguen saliendo lobos con cristales en el lomo. Cuatro menos hoy y dormimos más tranquilos.»', FALSE, 'vera', NULL, NULL, NULL, NULL
+WHERE NOT EXISTS (SELECT 1 FROM quests WHERE code = 'PRADERA_DIARIA_GRIETA');
+UPDATE quests SET name = 'Bestias de la grieta', quest_type = 'DIARIA', zone_id = 1, min_level = 11, max_level = 15, difficulty_stars = 1, npc_name = 'Vera', location_name = 'Tierras Heridas', is_repeatable = TRUE, repeat_cooldown_hours = 20, reputation_reward = 35, gold_reward = 720, xp_reward = 2600, description = '«De las grietas siguen saliendo lobos con cristales en el lomo. Cuatro menos hoy y dormimos más tranquilos.»', is_personal = FALSE, giver_npc = 'vera', turn_in_npc = NULL, dialog = NULL, chain_position = NULL, chain_total = NULL WHERE code = 'PRADERA_DIARIA_GRIETA';
+DELETE FROM quest_objectives WHERE quest_id = (SELECT id FROM quests WHERE code = 'PRADERA_DIARIA_GRIETA');
+INSERT INTO quest_objectives (quest_id, objective_type, step, target_code, monster_id, item_id, target_count, params, description)
+SELECT (SELECT id FROM quests WHERE code = 'PRADERA_DIARIA_GRIETA'), v.t, v.step, v.target, (SELECT id FROM monsters WHERE code = v.monster), (SELECT id FROM items WHERE code = v.item), v.n, v.params::jsonb, v.descr
+FROM (VALUES
+  ('KILL_MONSTER', 1, NULL, 'BESTIA_GRIETA', NULL, 4, NULL, 'Derrota 4 Bestias de la Grieta')
+) AS v(t, step, target, monster, item, n, params, descr);
+DELETE FROM quest_npc_spots WHERE quest_id = (SELECT id FROM quests WHERE code = 'PRADERA_DIARIA_GRIETA');
+
+-- la cadena: cada misión pide la anterior (también la P8, que ya existía)
+UPDATE quests SET requires_quest_id = (SELECT id FROM quests WHERE code = 'PRADERA_HISTORIA_01_LLEGADA') WHERE code = 'PRADERA_Q1_LOBO_DEL_BOSQUE';
+UPDATE quests SET requires_quest_id = (SELECT id FROM quests WHERE code = 'PRADERA_Q1_LOBO_DEL_BOSQUE') WHERE code = 'PRADERA_Q2_BANDIDO_PRADERA';
+UPDATE quests SET requires_quest_id = (SELECT id FROM quests WHERE code = 'PRADERA_Q2_BANDIDO_PRADERA') WHERE code = 'PRADERA_HISTORIA_04_TRIGO';
+UPDATE quests SET requires_quest_id = (SELECT id FROM quests WHERE code = 'PRADERA_HISTORIA_04_TRIGO') WHERE code = 'PRADERA_HISTORIA_05_MOLINO';
+UPDATE quests SET requires_quest_id = (SELECT id FROM quests WHERE code = 'PRADERA_HISTORIA_05_MOLINO') WHERE code = 'PRADERA_HISTORIA_06_RAICES';
+UPDATE quests SET requires_quest_id = (SELECT id FROM quests WHERE code = 'PRADERA_HISTORIA_06_RAICES') WHERE code = 'PRADERA_HISTORIA_07_LAGO';
+UPDATE quests SET requires_quest_id = (SELECT id FROM quests WHERE code = 'PRADERA_HISTORIA_08_TORRE') WHERE code = 'PRADERA_HISTORIA_09_ESTE';
+UPDATE quests SET requires_quest_id = (SELECT id FROM quests WHERE code = 'PRADERA_HISTORIA_09_ESTE') WHERE code = 'PRADERA_HISTORIA_10_RITUAL';
+UPDATE quests SET requires_quest_id = (SELECT id FROM quests WHERE code = 'PRADERA_HISTORIA_10_RITUAL') WHERE code = 'PRADERA_HISTORIA_11_MANADA';
+UPDATE quests SET requires_quest_id = (SELECT id FROM quests WHERE code = 'PRADERA_HISTORIA_11_MANADA') WHERE code = 'PRADERA_HISTORIA_12_HERIDA';
+UPDATE quests SET requires_quest_id = (SELECT id FROM quests WHERE code = 'PRADERA_HISTORIA_12_HERIDA') WHERE code = 'PRADERA_Q3_TITAN_PRADERA';
+UPDATE quests SET requires_quest_id = (SELECT id FROM quests WHERE code = 'PRADERA_Q3_TITAN_PRADERA') WHERE code = 'PRADERA_HISTORIA_14_MONTANAS';
+UPDATE quests SET requires_quest_id = (SELECT id FROM quests WHERE code = 'PRADERA_SEC_TILO_1') WHERE code = 'PRADERA_SEC_TILO_2';
+UPDATE quests SET requires_quest_id = (SELECT id FROM quests WHERE code = 'PRADERA_SEC_TILO_2') WHERE code = 'PRADERA_SEC_TILO_3';
+UPDATE quests SET requires_quest_id = (SELECT id FROM quests WHERE code = 'PRADERA_SEC_CERCA_1') WHERE code = 'PRADERA_SEC_CERCA_2';
+UPDATE quests SET requires_quest_id = (SELECT id FROM quests WHERE code = 'PRADERA_SEC_CERCA_2') WHERE code = 'PRADERA_SEC_CERCA_3';
+UPDATE quests SET requires_quest_id = (SELECT id FROM quests WHERE code = 'PRADERA_SEC_CERCA_3') WHERE code = 'PRADERA_SEC_CERCA_4';
+UPDATE quests SET requires_quest_id = (SELECT id FROM quests WHERE code = 'PRADERA_SEC_MARTA_1') WHERE code = 'PRADERA_SEC_MARTA_2';
+UPDATE quests SET requires_quest_id = (SELECT id FROM quests WHERE code = 'PRADERA_SEC_MARTA_2') WHERE code = 'PRADERA_SEC_MARTA_3';
+UPDATE quests SET requires_quest_id = (SELECT id FROM quests WHERE code = 'PRADERA_SEC_MARTA_3') WHERE code = 'PRADERA_SEC_MARTA_4';
+UPDATE quests SET requires_quest_id = (SELECT id FROM quests WHERE code = 'PRADERA_HISTORIA_07_LAGO'),
+  chain_position = 8, chain_total = 14, min_level = 7, npc_name = 'Aldren', location_name = 'Ruinas del Vigía'
+WHERE code = 'PRADERA_HISTORIA_08_TORRE';
+-- las diarias viejas de la Pradera: las da su NPC del mapa y tardan 20 h en volver (sorteo diario)
+UPDATE quests SET repeat_cooldown_hours = 20 WHERE zone_id = 1 AND quest_type = 'DIARIA';
+UPDATE quests SET giver_npc = 'ren' WHERE zone_id = 1 AND quest_type = 'DIARIA' AND giver_npc IS NULL AND npc_name = 'Guardabosque Local';
+UPDATE quests SET giver_npc = 'anciano' WHERE zone_id = 1 AND quest_type = 'DIARIA' AND giver_npc IS NULL AND npc_name = 'Anciano Sabio';
+
+-- ============================================================================================
+-- Habilidades de los monstruos de la Pradera (repetible; sin ON CONFLICT). Cada monstruo tiene la
+-- suya, con su estado (sangrado, veneno, ceguera, debilidad, lentitud, aturdimiento) o un apoyo
+-- (escudo de hueso, aullido de la manada). Cuestan poco maná (los monstruos tienen nivel x 10).
+-- combat_log.skill_code: qué habilidad se usó, para que el combate 2D la anime con su efecto.
+-- ============================================================================================
+ALTER TABLE combat_log ADD COLUMN IF NOT EXISTS skill_code TEXT;
+
+-- Mordida Desgarradora
+INSERT INTO skills (code, name, skill_type, damage_school, target_type, base_value, scaling_stat, scaling_multiplier, hits, mana_cost, is_passive, learn_method, learn_level, learn_gold_cost, description)
+SELECT 'MONSTRUO_MORDIDA_DESGARRADORA', 'Mordida Desgarradora', 'ATAQUE', 'FISICO', 'ENEMY', 4, 'ATK', 1.25, 1, 10, FALSE, 'LEVEL', 1, 0, 'Muerde y desgarra. Puede dejar sangrando al objetivo.'
+WHERE NOT EXISTS (SELECT 1 FROM skills WHERE code = 'MONSTRUO_MORDIDA_DESGARRADORA');
+UPDATE skills SET name = 'Mordida Desgarradora', skill_type = 'ATAQUE', damage_school = 'FISICO', target_type = 'ENEMY', base_value = 4, scaling_stat = 'ATK', scaling_multiplier = 1.25, hits = 1, mana_cost = 10, is_passive = FALSE, learn_method = 'LEVEL', learn_level = 1, learn_gold_cost = 0, description = 'Muerde y desgarra. Puede dejar sangrando al objetivo.' WHERE code = 'MONSTRUO_MORDIDA_DESGARRADORA';
+DELETE FROM skill_effects WHERE skill_id = (SELECT id FROM skills WHERE code = 'MONSTRUO_MORDIDA_DESGARRADORA');
+INSERT INTO skill_effects (skill_id, effect_type, stat_code, percent_amount, duration_turns, chance_percent, status_code, description)
+SELECT (SELECT id FROM skills WHERE code = 'MONSTRUO_MORDIDA_DESGARRADORA'), v.* FROM (VALUES ('DOT', NULL, 5::numeric, 3, 35::numeric, 'BLEED', 'Sangrado: 5% del HP máximo por ronda durante 3 rondas.'))
+  AS v(effect_type, stat_code, percent_amount, duration_turns, chance_percent, status_code, description);
+
+-- Picadura Venenosa
+INSERT INTO skills (code, name, skill_type, damage_school, target_type, base_value, scaling_stat, scaling_multiplier, hits, mana_cost, is_passive, learn_method, learn_level, learn_gold_cost, description)
+SELECT 'MONSTRUO_PICADURA_VENENOSA', 'Picadura Venenosa', 'ATAQUE', 'FISICO', 'ENEMY', 2, 'ATK', 1.1, 1, 8, FALSE, 'LEVEL', 1, 0, 'Clava sus quelíceros y deja veneno en la herida.'
+WHERE NOT EXISTS (SELECT 1 FROM skills WHERE code = 'MONSTRUO_PICADURA_VENENOSA');
+UPDATE skills SET name = 'Picadura Venenosa', skill_type = 'ATAQUE', damage_school = 'FISICO', target_type = 'ENEMY', base_value = 2, scaling_stat = 'ATK', scaling_multiplier = 1.1, hits = 1, mana_cost = 8, is_passive = FALSE, learn_method = 'LEVEL', learn_level = 1, learn_gold_cost = 0, description = 'Clava sus quelíceros y deja veneno en la herida.' WHERE code = 'MONSTRUO_PICADURA_VENENOSA';
+DELETE FROM skill_effects WHERE skill_id = (SELECT id FROM skills WHERE code = 'MONSTRUO_PICADURA_VENENOSA');
+INSERT INTO skill_effects (skill_id, effect_type, stat_code, percent_amount, duration_turns, chance_percent, status_code, description)
+SELECT (SELECT id FROM skills WHERE code = 'MONSTRUO_PICADURA_VENENOSA'), v.* FROM (VALUES ('DOT', NULL, 6::numeric, 3, 45::numeric, 'POISON', 'Veneno: 6% del HP máximo por ronda durante 3 rondas.'))
+  AS v(effect_type, stat_code, percent_amount, duration_turns, chance_percent, status_code, description);
+
+-- Mordisco Infecto
+INSERT INTO skills (code, name, skill_type, damage_school, target_type, base_value, scaling_stat, scaling_multiplier, hits, mana_cost, is_passive, learn_method, learn_level, learn_gold_cost, description)
+SELECT 'MONSTRUO_MORDISCO_INFECTO', 'Mordisco Infecto', 'ATAQUE', 'FISICO', 'ENEMY', 2, 'ATK', 1.1, 1, 8, FALSE, 'LEVEL', 1, 0, 'Un mordisco sucio que puede infectar la herida.'
+WHERE NOT EXISTS (SELECT 1 FROM skills WHERE code = 'MONSTRUO_MORDISCO_INFECTO');
+UPDATE skills SET name = 'Mordisco Infecto', skill_type = 'ATAQUE', damage_school = 'FISICO', target_type = 'ENEMY', base_value = 2, scaling_stat = 'ATK', scaling_multiplier = 1.1, hits = 1, mana_cost = 8, is_passive = FALSE, learn_method = 'LEVEL', learn_level = 1, learn_gold_cost = 0, description = 'Un mordisco sucio que puede infectar la herida.' WHERE code = 'MONSTRUO_MORDISCO_INFECTO';
+DELETE FROM skill_effects WHERE skill_id = (SELECT id FROM skills WHERE code = 'MONSTRUO_MORDISCO_INFECTO');
+INSERT INTO skill_effects (skill_id, effect_type, stat_code, percent_amount, duration_turns, chance_percent, status_code, description)
+SELECT (SELECT id FROM skills WHERE code = 'MONSTRUO_MORDISCO_INFECTO'), v.* FROM (VALUES ('DOT', NULL, 4::numeric, 3, 35::numeric, 'POISON', 'Infección: 4% del HP máximo por ronda durante 3 rondas.'))
+  AS v(effect_type, stat_code, percent_amount, duration_turns, chance_percent, status_code, description);
+
+-- Piedrazo
+INSERT INTO skills (code, name, skill_type, damage_school, target_type, base_value, scaling_stat, scaling_multiplier, hits, mana_cost, is_passive, learn_method, learn_level, learn_gold_cost, description)
+SELECT 'MONSTRUO_PIEDRAZO', 'Piedrazo', 'ATAQUE', 'FISICO', 'ENEMY', 3, 'ATK', 1.15, 1, 10, FALSE, 'LEVEL', 1, 0, 'Lanza una piedra a la cara. Puede dejar ciego al objetivo.'
+WHERE NOT EXISTS (SELECT 1 FROM skills WHERE code = 'MONSTRUO_PIEDRAZO');
+UPDATE skills SET name = 'Piedrazo', skill_type = 'ATAQUE', damage_school = 'FISICO', target_type = 'ENEMY', base_value = 3, scaling_stat = 'ATK', scaling_multiplier = 1.15, hits = 1, mana_cost = 10, is_passive = FALSE, learn_method = 'LEVEL', learn_level = 1, learn_gold_cost = 0, description = 'Lanza una piedra a la cara. Puede dejar ciego al objetivo.' WHERE code = 'MONSTRUO_PIEDRAZO';
+DELETE FROM skill_effects WHERE skill_id = (SELECT id FROM skills WHERE code = 'MONSTRUO_PIEDRAZO');
+INSERT INTO skill_effects (skill_id, effect_type, stat_code, percent_amount, duration_turns, chance_percent, status_code, description)
+SELECT (SELECT id FROM skills WHERE code = 'MONSTRUO_PIEDRAZO'), v.* FROM (VALUES ('BLIND', NULL, 20::numeric, 2, 30::numeric, 'BLIND', 'Ceguera: 20% de fallar sus golpes durante 2 rondas.'))
+  AS v(effect_type, stat_code, percent_amount, duration_turns, chance_percent, status_code, description);
+
+-- Golpe Bajo
+INSERT INTO skills (code, name, skill_type, damage_school, target_type, base_value, scaling_stat, scaling_multiplier, hits, mana_cost, is_passive, learn_method, learn_level, learn_gold_cost, description)
+SELECT 'MONSTRUO_GOLPE_BAJO', 'Golpe Bajo', 'ATAQUE', 'FISICO', 'ENEMY', 4, 'ATK', 1.25, 1, 10, FALSE, 'LEVEL', 1, 0, 'Un golpe sucio que deja al objetivo sin fuerzas.'
+WHERE NOT EXISTS (SELECT 1 FROM skills WHERE code = 'MONSTRUO_GOLPE_BAJO');
+UPDATE skills SET name = 'Golpe Bajo', skill_type = 'ATAQUE', damage_school = 'FISICO', target_type = 'ENEMY', base_value = 4, scaling_stat = 'ATK', scaling_multiplier = 1.25, hits = 1, mana_cost = 10, is_passive = FALSE, learn_method = 'LEVEL', learn_level = 1, learn_gold_cost = 0, description = 'Un golpe sucio que deja al objetivo sin fuerzas.' WHERE code = 'MONSTRUO_GOLPE_BAJO';
+DELETE FROM skill_effects WHERE skill_id = (SELECT id FROM skills WHERE code = 'MONSTRUO_GOLPE_BAJO');
+INSERT INTO skill_effects (skill_id, effect_type, stat_code, percent_amount, duration_turns, chance_percent, status_code, description)
+SELECT (SELECT id FROM skills WHERE code = 'MONSTRUO_GOLPE_BAJO'), v.* FROM (VALUES ('STAT_MOD', 'ATK', -10::numeric, 2, 35::numeric, 'WEAKEN', 'Debilidad: -10% de ataque durante 2 rondas.'))
+  AS v(effect_type, stat_code, percent_amount, duration_turns, chance_percent, status_code, description);
+
+-- Lengua Pegajosa
+INSERT INTO skills (code, name, skill_type, damage_school, target_type, base_value, scaling_stat, scaling_multiplier, hits, mana_cost, is_passive, learn_method, learn_level, learn_gold_cost, description)
+SELECT 'MONSTRUO_LENGUA_PEGAJOSA', 'Lengua Pegajosa', 'ATAQUE', 'FISICO', 'ENEMY', 3, 'ATK', 1.15, 1, 10, FALSE, 'LEVEL', 1, 0, 'Atrapa al objetivo con su lengua viscosa y lo frena.'
+WHERE NOT EXISTS (SELECT 1 FROM skills WHERE code = 'MONSTRUO_LENGUA_PEGAJOSA');
+UPDATE skills SET name = 'Lengua Pegajosa', skill_type = 'ATAQUE', damage_school = 'FISICO', target_type = 'ENEMY', base_value = 3, scaling_stat = 'ATK', scaling_multiplier = 1.15, hits = 1, mana_cost = 10, is_passive = FALSE, learn_method = 'LEVEL', learn_level = 1, learn_gold_cost = 0, description = 'Atrapa al objetivo con su lengua viscosa y lo frena.' WHERE code = 'MONSTRUO_LENGUA_PEGAJOSA';
+DELETE FROM skill_effects WHERE skill_id = (SELECT id FROM skills WHERE code = 'MONSTRUO_LENGUA_PEGAJOSA');
+INSERT INTO skill_effects (skill_id, effect_type, stat_code, percent_amount, duration_turns, chance_percent, status_code, description)
+SELECT (SELECT id FROM skills WHERE code = 'MONSTRUO_LENGUA_PEGAJOSA'), v.* FROM (VALUES ('STAT_MOD', 'SPD', -25::numeric, 2, 40::numeric, 'SLOW', 'Lentitud: -25% de velocidad durante 2 rondas.'))
+  AS v(effect_type, stat_code, percent_amount, duration_turns, chance_percent, status_code, description);
+
+-- Embestida
+INSERT INTO skills (code, name, skill_type, damage_school, target_type, base_value, scaling_stat, scaling_multiplier, hits, mana_cost, is_passive, learn_method, learn_level, learn_gold_cost, description)
+SELECT 'MONSTRUO_EMBESTIDA', 'Embestida', 'ATAQUE', 'FISICO', 'ENEMY', 5, 'ATK', 1.35, 1, 12, FALSE, 'LEVEL', 1, 0, 'Carga con los colmillos por delante. Puede dejar aturdido al objetivo.'
+WHERE NOT EXISTS (SELECT 1 FROM skills WHERE code = 'MONSTRUO_EMBESTIDA');
+UPDATE skills SET name = 'Embestida', skill_type = 'ATAQUE', damage_school = 'FISICO', target_type = 'ENEMY', base_value = 5, scaling_stat = 'ATK', scaling_multiplier = 1.35, hits = 1, mana_cost = 12, is_passive = FALSE, learn_method = 'LEVEL', learn_level = 1, learn_gold_cost = 0, description = 'Carga con los colmillos por delante. Puede dejar aturdido al objetivo.' WHERE code = 'MONSTRUO_EMBESTIDA';
+DELETE FROM skill_effects WHERE skill_id = (SELECT id FROM skills WHERE code = 'MONSTRUO_EMBESTIDA');
+INSERT INTO skill_effects (skill_id, effect_type, stat_code, percent_amount, duration_turns, chance_percent, status_code, description)
+SELECT (SELECT id FROM skills WHERE code = 'MONSTRUO_EMBESTIDA'), v.* FROM (VALUES ('PARALYZE', NULL, NULL::numeric, 2, 20::numeric, 'PARALYZE', 'Aturdido: puede perder su turno durante 2 rondas.'))
+  AS v(effect_type, stat_code, percent_amount, duration_turns, chance_percent, status_code, description);
+
+-- Escudo de Hueso
+INSERT INTO skills (code, name, skill_type, damage_school, target_type, base_value, scaling_stat, scaling_multiplier, hits, mana_cost, is_passive, learn_method, learn_level, learn_gold_cost, description)
+SELECT 'MONSTRUO_ESCUDO_HUESO', 'Escudo de Hueso', 'BUFF', NULL, 'SELF', NULL, NULL, NULL, 1, 10, FALSE, 'LEVEL', 1, 0, 'Levanta su escudo de hueso. +30% de defensa durante 2 rondas.'
+WHERE NOT EXISTS (SELECT 1 FROM skills WHERE code = 'MONSTRUO_ESCUDO_HUESO');
+UPDATE skills SET name = 'Escudo de Hueso', skill_type = 'BUFF', damage_school = NULL, target_type = 'SELF', base_value = NULL, scaling_stat = NULL, scaling_multiplier = NULL, hits = 1, mana_cost = 10, is_passive = FALSE, learn_method = 'LEVEL', learn_level = 1, learn_gold_cost = 0, description = 'Levanta su escudo de hueso. +30% de defensa durante 2 rondas.' WHERE code = 'MONSTRUO_ESCUDO_HUESO';
+DELETE FROM skill_effects WHERE skill_id = (SELECT id FROM skills WHERE code = 'MONSTRUO_ESCUDO_HUESO');
+INSERT INTO skill_effects (skill_id, effect_type, stat_code, percent_amount, duration_turns, chance_percent, status_code, description)
+SELECT (SELECT id FROM skills WHERE code = 'MONSTRUO_ESCUDO_HUESO'), v.* FROM (VALUES ('STAT_MOD', 'DEF', 30::numeric, 2, NULL::numeric, NULL, '+30% de defensa durante 2 rondas.'))
+  AS v(effect_type, stat_code, percent_amount, duration_turns, chance_percent, status_code, description);
+
+-- Aullido de la Manada
+INSERT INTO skills (code, name, skill_type, damage_school, target_type, base_value, scaling_stat, scaling_multiplier, hits, mana_cost, is_passive, learn_method, learn_level, learn_gold_cost, description)
+SELECT 'MONSTRUO_AULLIDO_MANADA', 'Aullido de la Manada', 'BUFF', NULL, 'ALL_ALLIES', NULL, NULL, NULL, 1, 15, FALSE, 'LEVEL', 1, 0, 'Un aullido que enardece a la manada. +15% de ataque a todos sus aliados durante 2 rondas.'
+WHERE NOT EXISTS (SELECT 1 FROM skills WHERE code = 'MONSTRUO_AULLIDO_MANADA');
+UPDATE skills SET name = 'Aullido de la Manada', skill_type = 'BUFF', damage_school = NULL, target_type = 'ALL_ALLIES', base_value = NULL, scaling_stat = NULL, scaling_multiplier = NULL, hits = 1, mana_cost = 15, is_passive = FALSE, learn_method = 'LEVEL', learn_level = 1, learn_gold_cost = 0, description = 'Un aullido que enardece a la manada. +15% de ataque a todos sus aliados durante 2 rondas.' WHERE code = 'MONSTRUO_AULLIDO_MANADA';
+DELETE FROM skill_effects WHERE skill_id = (SELECT id FROM skills WHERE code = 'MONSTRUO_AULLIDO_MANADA');
+INSERT INTO skill_effects (skill_id, effect_type, stat_code, percent_amount, duration_turns, chance_percent, status_code, description)
+SELECT (SELECT id FROM skills WHERE code = 'MONSTRUO_AULLIDO_MANADA'), v.* FROM (VALUES ('STAT_MOD', 'ATK', 15::numeric, 2, NULL::numeric, NULL, '+15% de ataque durante 2 rondas.'))
+  AS v(effect_type, stat_code, percent_amount, duration_turns, chance_percent, status_code, description);
+
+-- quién usa qué
+DELETE FROM monster_skills WHERE monster_id = (SELECT id FROM monsters WHERE code = 'LOBO_PRADERA');
+INSERT INTO monster_skills (monster_id, skill_id, use_chance_percent)
+SELECT (SELECT id FROM monsters WHERE code = 'LOBO_PRADERA'), s.id, v.pct FROM (VALUES ('MONSTRUO_MORDIDA_DESGARRADORA', 30)) AS v(code, pct) JOIN skills s ON s.code = v.code;
+DELETE FROM monster_skills WHERE monster_id = (SELECT id FROM monsters WHERE code = 'RATA_ALCANTARILLA');
+INSERT INTO monster_skills (monster_id, skill_id, use_chance_percent)
+SELECT (SELECT id FROM monsters WHERE code = 'RATA_ALCANTARILLA'), s.id, v.pct FROM (VALUES ('MONSTRUO_MORDISCO_INFECTO', 30)) AS v(code, pct) JOIN skills s ON s.code = v.code;
+DELETE FROM monster_skills WHERE monster_id = (SELECT id FROM monsters WHERE code = 'ARANA_VENENOSA');
+INSERT INTO monster_skills (monster_id, skill_id, use_chance_percent)
+SELECT (SELECT id FROM monsters WHERE code = 'ARANA_VENENOSA'), s.id, v.pct FROM (VALUES ('MONSTRUO_PICADURA_VENENOSA', 35)) AS v(code, pct) JOIN skills s ON s.code = v.code;
+DELETE FROM monster_skills WHERE monster_id = (SELECT id FROM monsters WHERE code = 'GOBLIN_SAQUEADOR');
+INSERT INTO monster_skills (monster_id, skill_id, use_chance_percent)
+SELECT (SELECT id FROM monsters WHERE code = 'GOBLIN_SAQUEADOR'), s.id, v.pct FROM (VALUES ('MONSTRUO_PIEDRAZO', 30)) AS v(code, pct) JOIN skills s ON s.code = v.code;
+DELETE FROM monster_skills WHERE monster_id = (SELECT id FROM monsters WHERE code = 'BANDIDO_CORRUPTO');
+INSERT INTO monster_skills (monster_id, skill_id, use_chance_percent)
+SELECT (SELECT id FROM monsters WHERE code = 'BANDIDO_CORRUPTO'), s.id, v.pct FROM (VALUES ('MONSTRUO_GOLPE_BAJO', 30)) AS v(code, pct) JOIN skills s ON s.code = v.code;
+DELETE FROM monster_skills WHERE monster_id = (SELECT id FROM monsters WHERE code = 'JABALI_CORNUDO');
+INSERT INTO monster_skills (monster_id, skill_id, use_chance_percent)
+SELECT (SELECT id FROM monsters WHERE code = 'JABALI_CORNUDO'), s.id, v.pct FROM (VALUES ('MONSTRUO_EMBESTIDA', 25)) AS v(code, pct) JOIN skills s ON s.code = v.code;
+DELETE FROM monster_skills WHERE monster_id = (SELECT id FROM monsters WHERE code = 'SAPO_DE_LODO');
+INSERT INTO monster_skills (monster_id, skill_id, use_chance_percent)
+SELECT (SELECT id FROM monsters WHERE code = 'SAPO_DE_LODO'), s.id, v.pct FROM (VALUES ('MONSTRUO_LENGUA_PEGAJOSA', 30)) AS v(code, pct) JOIN skills s ON s.code = v.code;
+DELETE FROM monster_skills WHERE monster_id = (SELECT id FROM monsters WHERE code = 'ESQUELETO_VIGIA');
+INSERT INTO monster_skills (monster_id, skill_id, use_chance_percent)
+SELECT (SELECT id FROM monsters WHERE code = 'ESQUELETO_VIGIA'), s.id, v.pct FROM (VALUES ('MONSTRUO_ESCUDO_HUESO', 25)) AS v(code, pct) JOIN skills s ON s.code = v.code;
+DELETE FROM monster_skills WHERE monster_id = (SELECT id FROM monsters WHERE code = 'LOBO_FEROZ');
+INSERT INTO monster_skills (monster_id, skill_id, use_chance_percent)
+SELECT (SELECT id FROM monsters WHERE code = 'LOBO_FEROZ'), s.id, v.pct FROM (VALUES ('MONSTRUO_AULLIDO_MANADA', 20), ('MONSTRUO_MORDIDA_DESGARRADORA', 30)) AS v(code, pct) JOIN skills s ON s.code = v.code;
+DELETE FROM monster_skills WHERE monster_id = (SELECT id FROM monsters WHERE code = 'BESTIA_GRIETA');
+INSERT INTO monster_skills (monster_id, skill_id, use_chance_percent)
+SELECT (SELECT id FROM monsters WHERE code = 'BESTIA_GRIETA'), s.id, v.pct FROM (VALUES ('MONSTRUO_AULLIDO_MANADA', 15), ('MONSTRUO_MORDIDA_DESGARRADORA', 25)) AS v(code, pct) JOIN skills s ON s.code = v.code;
+DELETE FROM monster_skills WHERE monster_id = (SELECT id FROM monsters WHERE code = 'ACOLITO_ECLIPSE');
+INSERT INTO monster_skills (monster_id, skill_id, use_chance_percent)
+SELECT (SELECT id FROM monsters WHERE code = 'ACOLITO_ECLIPSE'), s.id, v.pct FROM (VALUES ('MONSTRUO_MALDICION_OSCURA', 25), ('MONSTRUO_RAYO_OSCURO', 20)) AS v(code, pct) JOIN skills s ON s.code = v.code;
+DELETE FROM monster_skills WHERE monster_id = (SELECT id FROM monsters WHERE code = 'CAPITAN_LOBOS');
+INSERT INTO monster_skills (monster_id, skill_id, use_chance_percent)
+SELECT (SELECT id FROM monsters WHERE code = 'CAPITAN_LOBOS'), s.id, v.pct FROM (VALUES ('MONSTRUO_AULLIDO_MANADA', 40), ('MONSTRUO_GOLPE_BRUTAL', 35)) AS v(code, pct) JOIN skills s ON s.code = v.code;

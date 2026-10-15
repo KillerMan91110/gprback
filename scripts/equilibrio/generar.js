@@ -20,6 +20,13 @@ const PERFILES = {
   CHAMAN_OSCURO: { magic: true, def: 0.85, magic_def: 1.2 },
   CAPITAN_LOBOS: { magic_def: 0.95 },
   TITAN_PRADERA: {},
+  // nuevos de la historia (cada subzona alta con su enemigo propio)
+  JABALI_CORNUDO: { hp: 1.25, atk: 1.05, def: 1.15, magic_def: 0.85, spd: 0.85 },
+  SAPO_DE_LODO: { hp: 1.1, atk: 0.9, def: 0.9, magic_def: 1.1, spd: 0.8 },
+  ESQUELETO_VIGIA: { hp: 0.9, atk: 1.05, def: 1.3, magic_def: 0.8 },
+  ACOLITO_ECLIPSE: { magic: true, hp: 0.85, def: 0.8, magic_def: 1.2 },
+  BESTIA_GRIETA: { atk: 1.15, def: 0.9, spd: 1.25, crit_chance: 4 },
+  GOLEM_MENHIR: { hp: 1.1, def: 1.4, magic_def: 1.1, spd: 0.7 },
 };
 
 const SIM_LEVELS = [1, 3, 5, 8, 10, 12, 14, 15];

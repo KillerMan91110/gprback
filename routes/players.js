@@ -10,13 +10,14 @@ const { getEquipmentBonuses, applyHpBonusDelta, getNpcEquipmentBonuses, getNpcEq
 const { getClassPassiveBonuses } = require('../lib/passives');
 const evolution = require('../lib/evolution');
 const { fetchQuestDetail } = require('./quests');
+const questSteps = require('../lib/questSteps');
 const { requireAuth, requireSelf } = require('../lib/auth');
 const { getActivePetBonuses } = require('../lib/pets');
 const { incrementCounter } = require('../lib/counters');
 const { applyInnateTrigger } = require('../lib/innates');
 const { getPlayerGuildRow } = require('../lib/guilds');
 // servicios de la ciudad: hay que estar junto a quien los ofrece (ver lib/cercania.js)
-const { requireNear, lejosDe, SERVICIOS } = require('../lib/cercania');
+const { requireNear, lejosDe, SERVICIOS, cercaDe } = require('../lib/cercania');
 const { isFestival } = require('../lib/aurelia');
 
 // Crafteo: dónde se fabrica cada receta (crafting_recipes.station). Sin lugar, en cualquier lado
@@ -768,6 +769,7 @@ router.post('/:playerId/guild/shop/sell', requireNear('maestros'), async (req, r
       return res.status(404).json({ error: 'Item no encontrado' });
     }
     const item = itemResult.rows[0];
+    if (item.is_quest_item) return res.status(400).json({ error: `${item.name} es un objeto de misión: no se puede vender.` });
 
     const owned = await inventory.getQuantity(playerId, itemId, enchantLevel);
     if (owned < qty) {
@@ -1286,6 +1288,7 @@ router.get('/:playerId/quests/available', async (req, res, next) => {
                 q.min_level, q.max_level, q.min_rank_code, q.is_repeatable, q.repeat_cooldown_hours,
                 q.difficulty_stars, q.description, q.npc_name, q.location_name, q.required_class_id,
                 q.reputation_reward, q.gold_reward, q.xp_reward, q.requires_quest_id,
+                q.is_personal, q.giver_npc, q.turn_in_npc, q.dialog,
                 pqc.times_completed, pqc.last_completed_at,
                 paq.id IS NOT NULL AS accepted,
                 (q.requires_quest_id IS NULL OR prereq.quest_id IS NOT NULL) AS prerequisite_met
@@ -1301,7 +1304,13 @@ router.get('/:playerId/quests/available', async (req, res, next) => {
       getUnlockedZoneIds(playerId, player.level),
     ]);
 
+    const dailiesToday = dailyPickIds(questsResult.rows.filter((q) => q.quest_type === 'DIARIA'
+      && (!q.zone_id || unlockedZoneIds.has(q.zone_id))
+      && (!q.required_class_id || classChain.includes(q.required_class_id))
+      && (!q.min_rank_code || rankAtLeast(player.rank, q.min_rank_code))
+      && q.prerequisite_met), playerId, player.level);
     const available = questsResult.rows.filter((q) => {
+      if (q.quest_type === 'DIARIA' && !q.accepted && !dailiesToday.has(q.id)) return false;
       // Quests de zona sólo visibles si esa zona está desbloqueada
       if (q.zone_id && !unlockedZoneIds.has(q.zone_id)) return false;
       if (q.required_class_id && !classChain.includes(q.required_class_id)) return false;
@@ -1324,6 +1333,27 @@ router.get('/:playerId/quests/available', async (req, res, next) => {
     next(error);
   }
 });
+
+// Diarias sorteadas: cada jugador ve DAILY_PICKS diarias por día (como en un MMO), elegidas entre
+// las que le sirven por nivel en sus zonas. El sorteo depende del día (UTC) y del jugador, así que
+// durante el día son siempre las mismas aunque las entregue (no salen otras para farmear).
+// Las que ya aceptó se siguen viendo hasta que las entregue o abandone.
+const DAILY_PICKS = 3;
+const DAILY_TRIVIAL_LEVELS = 6; // igual que TRIVIAL_LEVELS del front (game/questGivers.js)
+function dailyPickIds(dailies, playerId, level) {
+  const eligible = dailies
+    .filter((q) => (!q.min_level || q.min_level <= level) && (!q.max_level || level <= q.max_level + DAILY_TRIVIAL_LEVELS))
+    .sort((a, b) => a.id - b.id);
+  // semilla: día + jugador (FNV-1a), barajado de Fisher-Yates con un generador simple
+  let h = 2166136261;
+  for (const ch of `${new Date().toISOString().slice(0, 10)}:${playerId}`) h = Math.imul(h ^ ch.charCodeAt(0), 16777619) >>> 0;
+  const rnd = () => { h = (Math.imul(h, 1664525) + 1013904223) >>> 0; return h / 4294967296; };
+  for (let i = eligible.length - 1; i > 0; i--) {
+    const j = Math.floor(rnd() * (i + 1));
+    [eligible[i], eligible[j]] = [eligible[j], eligible[i]];
+  }
+  return new Set(eligible.slice(0, DAILY_PICKS).map((q) => q.id));
+}
 
 // POST /api/players/:playerId/quests/:questId/accept
 // Marca una quest como "en curso" para que aparezca en /quests/active (panel Quests del
@@ -1380,6 +1410,25 @@ router.post('/:playerId/quests/:questId/accept', async (req, res, next) => {
       }
     }
 
+    if (quest.quest_type === 'DIARIA') {
+      // misma cuenta que GET /quests/available: solo se aceptan las diarias sorteadas para hoy
+      const [unlocked, classChain] = await Promise.all([
+        getUnlockedZoneIds(playerId, player.level),
+        evolution.getClassAncestorChain(player.evolution_class_id || player.current_class_id),
+      ]);
+      const dailies = (await db.query(
+        `SELECT q.id, q.zone_id, q.min_level, q.max_level, q.required_class_id, q.min_rank_code FROM quests q
+         WHERE q.quest_type = 'DIARIA' AND (q.requires_quest_id IS NULL OR EXISTS (
+           SELECT 1 FROM player_quest_completions c WHERE c.player_id = $1 AND c.quest_id = q.requires_quest_id))`,
+        [playerId]
+      )).rows.filter((q) => (!q.zone_id || unlocked.has(q.zone_id))
+        && (!q.required_class_id || classChain.includes(q.required_class_id))
+        && (!q.min_rank_code || rankAtLeast(player.rank, q.min_rank_code)));
+      if (!dailyPickIds(dailies, playerId, player.level).has(quest.id)) {
+        return res.status(400).json({ error: 'Esa diaria no está entre las de hoy. Mañana habrá otras.' });
+      }
+    }
+
     const already = await db.query(
       'SELECT 1 FROM player_active_quests WHERE player_id = $1 AND quest_id = $2',
       [playerId, questId]
@@ -1406,7 +1455,8 @@ router.get('/:playerId/quests/active', async (req, res, next) => {
       `SELECT q.id, q.code, q.name, q.quest_type, q.zone_id, mz.name AS zone_name,
               q.min_level, q.max_level, q.min_rank_code, q.is_repeatable,
               q.difficulty_stars, q.description, q.npc_name, q.location_name,
-              q.reputation_reward, q.gold_reward, q.xp_reward, paq.accepted_at
+              q.reputation_reward, q.gold_reward, q.xp_reward, paq.accepted_at,
+              q.is_personal, q.giver_npc, q.turn_in_npc, q.dialog
        FROM player_active_quests paq
        JOIN quests q ON q.id = paq.quest_id
        LEFT JOIN monster_zones mz ON mz.id = q.zone_id
@@ -1501,6 +1551,13 @@ router.post('/:playerId/quests/:questId/complete', async (req, res, next) => {
         error: `Objetivo incompleto: ${unmetObjective.description || 'todavía faltan requisitos por cumplir'}`,
       });
     }
+    // misiones de historia: se entregan en persona a quien corresponde
+    if (quest.turn_in_npc && !req.bot) {
+      const home = questSteps.NPC_HOMES[quest.turn_in_npc];
+      if (home && !cercaDe(playerId, home.zone, home.x, home.y, 5)) {
+        return res.status(403).json({ error: `Entrégale esta misión a ${home.name} en persona.`, lejos: true });
+      }
+    }
     // misiones de entregar objetos (COLLECT_ITEM): al entregarlas se los lleva el NPC. Antes solo
     // se miraba que los tuvieras, así que las diarias repetibles se cobraban siempre con los mismos.
     for (const o of quest.objectives.filter((x) => x.objective_type === 'COLLECT_ITEM' && x.item_id)) {
@@ -1561,7 +1618,8 @@ router.post('/:playerId/quests/:questId/complete', async (req, res, next) => {
       [playerId, questId]
     );
     await db.query('DELETE FROM player_active_quests WHERE player_id = $1 AND quest_id = $2', [playerId, questId]);
-    await questProgress.clearProgressForQuest(playerId, questId);
+    // progreso y objetos de misión (la llave, las cartas…): ya no hacen falta
+    await questSteps.resetQuestState(playerId, questId);
 
     for (const reward of quest.itemRewards) {
       await inventory.addItem(playerId, reward.item_id, reward.quantity);
@@ -1622,9 +1680,47 @@ router.delete('/:playerId/quests/:questId/abandon', async (req, res, next) => {
     const quest = questResult.rows[0];
 
     await db.query('DELETE FROM player_active_quests WHERE player_id = $1 AND quest_id = $2', [playerId, questId]);
-    await questProgress.clearProgressForQuest(playerId, questId);
+    await questSteps.resetQuestState(playerId, questId);
 
     res.json({ abandoned: true, questName: quest.name });
+  } catch (error) { next(error); }
+});
+
+// POST /api/player/:playerId/quests/:questId/reset
+// Reiniciar una misión trabada: vuelve al primer paso (sin progreso, sin sus objetos de misión)
+// y sigue aceptada. Es la salida segura si algo raro pasó a mitad de camino.
+router.post('/:playerId/quests/:questId/reset', async (req, res, next) => {
+  const { playerId, questId } = req.params;
+  try {
+    const active = await db.query(
+      `SELECT q.name FROM player_active_quests paq JOIN quests q ON q.id = paq.quest_id
+       WHERE paq.player_id = $1 AND paq.quest_id = $2`,
+      [playerId, questId]
+    );
+    if (!active.rows.length) return res.status(400).json({ error: 'No tienes esa misión activa' });
+    await questSteps.resetQuestState(playerId, questId);
+    res.json({ reset: true, questName: active.rows[0].name });
+  } catch (error) { next(error); }
+});
+
+// POST /api/player/:playerId/quests/interact  { kind: 'TALK'|'VISIT'|'INVESTIGATE'|'AMBUSH', target }
+// El mundo avisa que hablaste con un NPC, llegaste a un lugar, examinaste algo o caíste en una
+// emboscada; el servidor comprueba que estés ahí y en ese paso de la misión (lib/questSteps.js).
+router.post('/:playerId/quests/interact', async (req, res, next) => {
+  const { playerId } = req.params;
+  const kind = String(req.body?.kind ?? '');
+  if (!['TALK', 'VISIT', 'INVESTIGATE', 'AMBUSH'].includes(kind) || req.body?.target == null) {
+    return res.status(400).json({ error: 'Interacción inválida' });
+  }
+  try {
+    res.json(await questSteps.interact(playerId, { kind, target: req.body.target }));
+  } catch (error) { next(error); }
+});
+
+// GET /api/player/:playerId/quests/npc-spots — NPCs que una misión tuya movió de lugar
+router.get('/:playerId/quests/npc-spots', async (req, res, next) => {
+  try {
+    res.json(await questSteps.npcSpotsFor(req.params.playerId));
   } catch (error) { next(error); }
 });
 
@@ -1949,6 +2045,7 @@ router.post('/:playerId/craft', async (req, res, next) => {
     }
 
     const totalGained = recipe.result_quantity * successCount;
+    if (totalGained > 0) await questSteps.registerCraft(playerId, recipe.result_item_id, totalGained);
     const luckyCount = Object.entries(tierCounts).filter(([t]) => Number(t) > 0).reduce((s, [, c]) => s + c, 0);
 
     if (totalGained > 0 && recipe.result_item_type === 'CONSUMABLE') {
@@ -3530,6 +3627,7 @@ router.post('/:playerId/artisan-shop/sell', requireAuth, requireNear('artesanos'
   try {
     const itemRow = await npcSell.itemForSale(itemId);
     if (!itemRow) return res.status(404).json({ error: 'Ítem no encontrado' });
+    if (itemRow.is_quest_item) return res.status(400).json({ error: `${itemRow.name} es un objeto de misión: no se puede vender.` });
 
     const { name, item_type } = itemRow;
     // precio fijo por rareza, pero nunca más de la mitad de lo que cuesta en una tienda de oro

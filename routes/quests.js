@@ -11,7 +11,7 @@ async function fetchQuestDetail(idOrCode, byCode = false) {
             q.min_level, q.max_level, q.difficulty_stars, q.min_rank_code,
             q.npc_name, q.location_name, q.is_repeatable, q.repeat_cooldown_hours,
             q.reputation_reward, q.gold_reward, q.xp_reward, q.hidden_unlock_text, q.description,
-            q.required_class_id
+            q.required_class_id, q.is_personal, q.giver_npc, q.turn_in_npc, q.dialog
      FROM quests q
      LEFT JOIN monster_zones mz ON mz.id = q.zone_id
      WHERE ${column} = $1`,
@@ -24,7 +24,7 @@ async function fetchQuestDetail(idOrCode, byCode = false) {
   const [objectives, rewards, hiddenRequirements] = await Promise.all([
     db.query(
       `SELECT qo.id AS objective_id, qo.objective_type, qo.monster_id, qo.item_id, qo.target_count, qo.description,
-              m.name AS monster_name, i.name AS item_name
+              qo.step, m.name AS monster_name, i.name AS item_name
        FROM quest_objectives qo
        LEFT JOIN monsters m ON m.id = qo.monster_id
        LEFT JOIN items i ON i.id = qo.item_id

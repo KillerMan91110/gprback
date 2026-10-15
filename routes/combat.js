@@ -6,6 +6,7 @@ const leveling = require('../lib/leveling');
 const { getEquipmentBonuses, getNpcEquipmentBonuses } = require('../lib/equipment');
 const { getClassPassiveBonuses } = require('../lib/passives');
 const { getClassAncestorChain } = require('../lib/evolution');
+const questSteps = require('../lib/questSteps');
 const elements = require('../lib/elements');
 const { getRankBonuses, applyPercentBonus } = require('../lib/ranks');
 const questProgress = require('../lib/questProgress');
@@ -1344,14 +1345,21 @@ async function getLastActingSide(sessionId, round) {
   return result.rows[0] ? result.rows[0].side : null;
 }
 
+// combat_log.skill_code: qué habilidad se usó (el combate 2D la anima con su efecto propio).
+// Se agrega sola la primera vez, así el back no se cae si se despliega antes del schema.sql.
+let skillCodeColumn = null;
+const ensureSkillCodeColumn = () => (skillCodeColumn ??= db.query('ALTER TABLE combat_log ADD COLUMN IF NOT EXISTS skill_code TEXT')
+  .catch((err) => { skillCodeColumn = null; throw err; }));
+
 async function insertLog(sessionId, round, entry) {
+  await ensureSkillCodeColumn();
   await db.query(
-    `INSERT INTO combat_log(session_id, round, actor_participant_id, action, target_participant_id, item_id, damage, heal, evaded, crit, success, description, hp_after, mana_after)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)`,
+    `INSERT INTO combat_log(session_id, round, actor_participant_id, action, target_participant_id, item_id, damage, heal, evaded, crit, success, description, hp_after, mana_after, skill_code)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15)`,
     [
       sessionId, round, entry.actorId, entry.action, entry.targetId || null, entry.itemId || null,
       entry.damage ?? null, entry.heal ?? null, entry.evaded || false, entry.crit || false, entry.success !== false, entry.description,
-      entry.hp_after ?? null, entry.mana_after ?? null,
+      entry.hp_after ?? null, entry.mana_after ?? null, entry.skillCode ?? null,
     ]
   );
 }
@@ -1923,6 +1931,10 @@ async function finalizeSession(sessionId, status, participants) {
       for (const enemy of participants.enemy) {
         await questProgress.registerKill(heroP.player_id, enemy.monster_code);
       }
+      // emboscadas de misión (lib/questSteps.js): ganar el combate cumple el objetivo
+      for (const hp of heroPs) {
+        await questSteps.registerAmbushWin(hp.player_id, participants.enemy.map((e) => e.monster_code));
+      }
       await recordMonsterKills(heroPs.map((hp) => hp.player_id), participants.enemy);
       // Colección y jefe mítico (lib/huntRewards.js): bestiario, cuenta de la zona, esbirros y
       // los bonos de utilidad de cada héroe (amuletos + cartas engarzadas)
@@ -2280,6 +2292,7 @@ async function advanceEnemyTurns(sessionId) {
 
         actor.mana = Math.max(0, (actor.mana || 0) - Number(skill.mana_cost || 0));
         const skillDescParts = [];
+        let skillLog = null; // ataques y curaciones: con sus números (ver más abajo)
 
         if (['BUFF', 'DEBUFF'].includes(skill.skill_type)) {
           const isDebuff = skill.skill_type === 'DEBUFF';
@@ -2388,16 +2401,32 @@ async function advanceEnemyTurns(sessionId) {
           for (const r of results) await consumeCritImmunityIfUsed(r.target, r);
           for (const r of results) await checkOnceForCombatSave(r.target);
           for (const r of results) await persistParticipant(r.target);
-          await applyOnHitStatuses(sessionId, actor, skill, results, skillDescParts);
+          const statusParts = [];
+          await applyOnHitStatuses(sessionId, actor, skill, results, statusParts);
           for (const r of results) {
             if (!r.evaded) continue;
             if (r.target.player_id) await incrementCounter(r.target.player_id, 'ATAQUES_ESQUIVADOS');
             const dodgeInnate = await applyInnateTrigger('ON_DODGE', { actor: r.target, target: actor, allies: [], enemies: [] });
             if (dodgeInnate?.extra_json?.guarantee_next_crit) await grantGuaranteedNextCrit(sessionId, r.target.id);
           }
-          const verb = skill.skill_type === 'CURACION' ? 'cura' : 'daña';
-          const summary = results.map((r) => (r.evaded ? `${r.target.name} esquiva` : `${r.target.name} por ${r.amount}${r.crit ? ' (¡crítico!)' : ''}`)).join(', ');
-          skillDescParts.push(`${verb} a ${summary}`);
+          // misma forma que las habilidades del jugador: el combate 2D (BattleScene.skillHits) reparte
+          // los golpes por objetivo y muestra cada número; con un solo objetivo usa damage/crit/evaded
+          const heal = skill.skill_type === 'CURACION';
+          const summary = results.map((r) => (r.evaded
+            ? `${r.target.name} esquiva`
+            : heal ? `${r.target.name}, curándole ${r.amount} HP` : `${r.target.name}, haciéndole ${r.amount} de daño${r.crit ? ' (¡Crítico!)' : ''}`)).join('; ');
+          const total = results.reduce((sum, r) => sum + (r.evaded ? 0 : r.amount), 0);
+          skillLog = {
+            targetId: results[0]?.target.id ?? null,
+            damage: heal ? null : total,
+            heal: heal ? total : null,
+            evaded: results.length > 0 && results.every((r) => r.evaded),
+            crit: results.some((r) => r.crit),
+            description: heal
+              ? `${actor.name} usa ${skill.name} y cura a ${summary}.`
+              : `${actor.name} usa ${skill.name} sobre ${summary}.${statusParts.length ? ` ${statusParts.join(' ')}` : ''}`,
+            hp_after: results[0]?.target.hp ?? null,
+          };
         }
 
         actor.has_acted_this_round = true;
@@ -2405,9 +2434,12 @@ async function advanceEnemyTurns(sessionId) {
         await insertLog(sessionId, round, {
           actorId: actor.id,
           action: 'SKILL',
-          targetId: skillTargets[0]?.id || null,
-          description: `${actor.name} usa ${skill.name}: ${skillDescParts.join(', ') || 'sin efecto'}.`,
-          hp_after: skillTargets[0]?.hp ?? null,
+          skillCode: skill.code,
+          ...(skillLog ?? {
+            targetId: skillTargets[0]?.id || null,
+            description: `${actor.name} usa ${skill.name}: ${skillDescParts.join(', ') || 'sin efecto'}.`,
+            hp_after: skillTargets[0]?.hp ?? null,
+          }),
         });
         skillActionDone = true;
         break;
@@ -2554,9 +2586,10 @@ async function fetchSessionState(sessionId) {
     if (p.class_id) p.base_class_code = await baseClassCode(p.class_id);
   }
 
+  await ensureSkillCodeColumn();
   const logResult = await db.query(
     `SELECT cl.id, cl.round, cl.action, cl.damage, cl.heal, cl.evaded, cl.crit, cl.success, cl.description,
-            cl.hp_after, cl.mana_after, cl.actor_participant_id, cl.target_participant_id,
+            cl.hp_after, cl.mana_after, cl.actor_participant_id, cl.target_participant_id, cl.skill_code,
             a.name AS actor_name, t.name AS target_name
      FROM combat_log cl
      LEFT JOIN combat_participants a ON a.id = cl.actor_participant_id
