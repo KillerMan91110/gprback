@@ -882,7 +882,7 @@ router.get('/:playerId/inventory', async (req, res, next) => {
   try {
     const result = await db.query(
       `SELECT pi.id AS inventory_id, pi.item_id, pi.enchant_level, pi.quality_tier, pi.quantity,
-              i.code, i.name, i.item_type, i.slot, i.rarity, i.class_id,
+              i.code, i.name, i.item_type, i.slot, i.rarity, i.class_id, i.is_quest_item,
               i.required_level, i.is_two_handed, i.buy_price, ${npcSell.SELL_CAP_SQL} AS sell_cap,
               (EXISTS (SELECT 1 FROM crafting_recipes cr2 WHERE cr2.scroll_item_id = i.id)) AS is_scroll,
               (
