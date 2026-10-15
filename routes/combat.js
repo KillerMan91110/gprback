@@ -2590,10 +2590,14 @@ async function fetchSessionState(sessionId) {
   const logResult = await db.query(
     `SELECT cl.id, cl.round, cl.action, cl.damage, cl.heal, cl.evaded, cl.crit, cl.success, cl.description,
             cl.hp_after, cl.mana_after, cl.actor_participant_id, cl.target_participant_id, cl.skill_code,
+            sk.skill_type, sk.target_type AS skill_target, sk.damage_school AS skill_school, sk.hits AS skill_hits,
+            se.code AS skill_element,
             a.name AS actor_name, t.name AS target_name
      FROM combat_log cl
      LEFT JOIN combat_participants a ON a.id = cl.actor_participant_id
      LEFT JOIN combat_participants t ON t.id = cl.target_participant_id
+     LEFT JOIN skills sk ON sk.code = cl.skill_code
+     LEFT JOIN elements se ON se.id = sk.element_id
      WHERE cl.session_id = $1
      ORDER BY cl.id`,
     [sessionId]
@@ -3432,6 +3436,7 @@ router.post('/sessions/:id/action', async (req, res, next) => {
     }
 
     let logEntry;
+    let usedSkillCode = null; // qué habilidad usó (combat_log.skill_code: el resto del grupo la ve animada)
     actor.grants_extra_action = false; // Filo Constante / Manos Rápidas: no marcar como actuado al final
 
     if (action === 'ATTACK') {
@@ -3552,6 +3557,7 @@ router.post('/sessions/:id/action', async (req, res, next) => {
       const skillResult = await db.query('SELECT * FROM skills WHERE id = $1', [skillId]);
       if (!skillResult.rows.length) return res.status(404).json({ error: 'Skill no encontrada' });
       const skill = skillResult.rows[0];
+      usedSkillCode = skill.code;
 
       if (skill.is_passive || skill.skill_type === 'PASIVA') {
         return res.status(400).json({ error: 'Esa habilidad es pasiva y siempre está activa.' });
@@ -4395,6 +4401,7 @@ router.post('/sessions/:id/action', async (req, res, next) => {
 
     actor.has_acted_this_round = !actor.grants_extra_action;
     await persistParticipant(actor);
+    if (usedSkillCode && logEntry) logEntry.skillCode = usedSkillCode;
     await insertLog(sessionId, session.current_round, logEntry);
     await applyBreakAndFury(sessionId, session.current_round, actor, participants, hpBeforeAction, req.body);
 

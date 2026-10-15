@@ -3186,7 +3186,7 @@ WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECETA_EMBLEMA_GU
 UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'EMBLEMA_GUARDIA'), result_quantity = 1, rarity = 'POCO_COMUN', required_level = 6, success_rate_percent = 90, craft_time_minutes = 1, artisan_name = 'Cedric el Joyero', zone_id = 1, station = 'forja' WHERE code = 'RECETA_EMBLEMA_GUARDIA';
 DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECETA_EMBLEMA_GUARDIA');
 INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
-SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECETA_EMBLEMA_GUARDIA'), i.id, v.qty FROM (VALUES ('MEDALLA_VIGIA', 6), ('LINGOTE_BRONCE', 2), ('CUERO_TRATADO', 1)) AS v(code, qty) JOIN items i ON i.code = v.code;
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECETA_EMBLEMA_GUARDIA'), i.id, v.qty FROM (VALUES ('MEDALLA_VIGIA', 4), ('LINGOTE_BRONCE', 2), ('CUERO_TRATADO', 1)) AS v(code, qty) JOIN items i ON i.code = v.code;
 INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station)
 SELECT 'RECETA_AMULETO_RUNICO', (SELECT id FROM items WHERE code = 'AMULETO_RUNICO'), 1, 'RARO', 8, 85, 1, 'Cedric el Joyero', 1, 'forja'
 WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECETA_AMULETO_RUNICO');
@@ -3200,7 +3200,7 @@ WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECETA_AMULETO_DE
 UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'AMULETO_DEL_ALBA'), result_quantity = 1, rarity = 'RARO', required_level = 11, success_rate_percent = 85, craft_time_minutes = 1, artisan_name = 'Cedric el Joyero', zone_id = 1, station = 'forja' WHERE code = 'RECETA_AMULETO_DEL_ALBA';
 DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECETA_AMULETO_DEL_ALBA');
 INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
-SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECETA_AMULETO_DEL_ALBA'), i.id, v.qty FROM (VALUES ('FRAGMENTO_ECLIPSE', 8), ('FLOR_LUMINOSA', 2), ('LINGOTE_HIERRO', 1)) AS v(code, qty) JOIN items i ON i.code = v.code;
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECETA_AMULETO_DEL_ALBA'), i.id, v.qty FROM (VALUES ('FRAGMENTO_ECLIPSE', 6), ('FLOR_LUMINOSA', 2), ('LINGOTE_HIERRO', 1)) AS v(code, qty) JOIN items i ON i.code = v.code;
 
 -- botín de los monstruos nuevos: su material propio + materiales que sí se usan
 DELETE FROM monster_drops WHERE monster_id = (SELECT id FROM monsters WHERE code = 'JABALI_CORNUDO');
@@ -3227,6 +3227,7 @@ DELETE FROM monster_drops WHERE monster_id = (SELECT id FROM monsters WHERE code
 INSERT INTO monster_drops (monster_id, item_id, drop_chance_percent, min_quantity, max_quantity)
 SELECT (SELECT id FROM monsters WHERE code = 'GOLEM_MENHIR'), i.id, v.pct, v.mn, v.mx FROM (VALUES ('RUNA_MENHIR', 40, 1, 2), ('POLVO_DE_PIEDRA', 30, 1, 3), ('MINERAL_DE_HIERRO', 20, 1, 2), ('PIEDRA_ENCANT_MENOR', 12, 1, 1), ('HUEVO_POCO_COMUN', 5, 1, 1)) AS v(code, pct, mn, mx)
 JOIN items i ON i.code = v.code;
+
 -- ============================================================================================
 -- Misiones de la Pradera (repetible; sin ON CONFLICT). Historia completa P1-P14 (docs/
 -- historia_etheria.md), secundarias con Tilo, Bruno, Tobías, Gaspar, Mirna, Ren y Marta, y
@@ -4080,7 +4081,7 @@ WHERE NOT EXISTS (SELECT 1 FROM skills WHERE code = 'MONSTRUO_MORDIDA_DESGARRADO
 UPDATE skills SET name = 'Mordida Desgarradora', skill_type = 'ATAQUE', damage_school = 'FISICO', target_type = 'ENEMY', base_value = 4, scaling_stat = 'ATK', scaling_multiplier = 1.25, hits = 1, mana_cost = 10, is_passive = FALSE, learn_method = 'LEVEL', learn_level = 1, learn_gold_cost = 0, description = 'Muerde y desgarra. Puede dejar sangrando al objetivo.' WHERE code = 'MONSTRUO_MORDIDA_DESGARRADORA';
 DELETE FROM skill_effects WHERE skill_id = (SELECT id FROM skills WHERE code = 'MONSTRUO_MORDIDA_DESGARRADORA');
 INSERT INTO skill_effects (skill_id, effect_type, stat_code, percent_amount, duration_turns, chance_percent, status_code, description)
-SELECT (SELECT id FROM skills WHERE code = 'MONSTRUO_MORDIDA_DESGARRADORA'), v.* FROM (VALUES ('DOT', NULL, 5::numeric, 3, 35::numeric, 'BLEED', 'Sangrado: 5% del HP máximo por ronda durante 3 rondas.'))
+SELECT (SELECT id FROM skills WHERE code = 'MONSTRUO_MORDIDA_DESGARRADORA'), v.* FROM (VALUES ('DOT', NULL, 5::numeric, 4, 35::numeric, 'BLEED', 'Sangrado: 5% del HP máximo por ronda durante 4 rondas.'))
   AS v(effect_type, stat_code, percent_amount, duration_turns, chance_percent, status_code, description);
 
 -- Picadura Venenosa
@@ -4090,7 +4091,7 @@ WHERE NOT EXISTS (SELECT 1 FROM skills WHERE code = 'MONSTRUO_PICADURA_VENENOSA'
 UPDATE skills SET name = 'Picadura Venenosa', skill_type = 'ATAQUE', damage_school = 'FISICO', target_type = 'ENEMY', base_value = 2, scaling_stat = 'ATK', scaling_multiplier = 1.1, hits = 1, mana_cost = 8, is_passive = FALSE, learn_method = 'LEVEL', learn_level = 1, learn_gold_cost = 0, description = 'Clava sus quelíceros y deja veneno en la herida.' WHERE code = 'MONSTRUO_PICADURA_VENENOSA';
 DELETE FROM skill_effects WHERE skill_id = (SELECT id FROM skills WHERE code = 'MONSTRUO_PICADURA_VENENOSA');
 INSERT INTO skill_effects (skill_id, effect_type, stat_code, percent_amount, duration_turns, chance_percent, status_code, description)
-SELECT (SELECT id FROM skills WHERE code = 'MONSTRUO_PICADURA_VENENOSA'), v.* FROM (VALUES ('DOT', NULL, 6::numeric, 3, 45::numeric, 'POISON', 'Veneno: 6% del HP máximo por ronda durante 3 rondas.'))
+SELECT (SELECT id FROM skills WHERE code = 'MONSTRUO_PICADURA_VENENOSA'), v.* FROM (VALUES ('DOT', NULL, 6::numeric, 4, 45::numeric, 'POISON', 'Veneno: 6% del HP máximo por ronda durante 4 rondas.'))
   AS v(effect_type, stat_code, percent_amount, duration_turns, chance_percent, status_code, description);
 
 -- Mordisco Infecto
@@ -4100,7 +4101,7 @@ WHERE NOT EXISTS (SELECT 1 FROM skills WHERE code = 'MONSTRUO_MORDISCO_INFECTO')
 UPDATE skills SET name = 'Mordisco Infecto', skill_type = 'ATAQUE', damage_school = 'FISICO', target_type = 'ENEMY', base_value = 2, scaling_stat = 'ATK', scaling_multiplier = 1.1, hits = 1, mana_cost = 8, is_passive = FALSE, learn_method = 'LEVEL', learn_level = 1, learn_gold_cost = 0, description = 'Un mordisco sucio que puede infectar la herida.' WHERE code = 'MONSTRUO_MORDISCO_INFECTO';
 DELETE FROM skill_effects WHERE skill_id = (SELECT id FROM skills WHERE code = 'MONSTRUO_MORDISCO_INFECTO');
 INSERT INTO skill_effects (skill_id, effect_type, stat_code, percent_amount, duration_turns, chance_percent, status_code, description)
-SELECT (SELECT id FROM skills WHERE code = 'MONSTRUO_MORDISCO_INFECTO'), v.* FROM (VALUES ('DOT', NULL, 4::numeric, 3, 35::numeric, 'POISON', 'Infección: 4% del HP máximo por ronda durante 3 rondas.'))
+SELECT (SELECT id FROM skills WHERE code = 'MONSTRUO_MORDISCO_INFECTO'), v.* FROM (VALUES ('DOT', NULL, 4::numeric, 4, 35::numeric, 'POISON', 'Infección: 4% del HP máximo por ronda durante 4 rondas.'))
   AS v(effect_type, stat_code, percent_amount, duration_turns, chance_percent, status_code, description);
 
 -- Piedrazo
@@ -4110,7 +4111,7 @@ WHERE NOT EXISTS (SELECT 1 FROM skills WHERE code = 'MONSTRUO_PIEDRAZO');
 UPDATE skills SET name = 'Piedrazo', skill_type = 'ATAQUE', damage_school = 'FISICO', target_type = 'ENEMY', base_value = 3, scaling_stat = 'ATK', scaling_multiplier = 1.15, hits = 1, mana_cost = 10, is_passive = FALSE, learn_method = 'LEVEL', learn_level = 1, learn_gold_cost = 0, description = 'Lanza una piedra a la cara. Puede dejar ciego al objetivo.' WHERE code = 'MONSTRUO_PIEDRAZO';
 DELETE FROM skill_effects WHERE skill_id = (SELECT id FROM skills WHERE code = 'MONSTRUO_PIEDRAZO');
 INSERT INTO skill_effects (skill_id, effect_type, stat_code, percent_amount, duration_turns, chance_percent, status_code, description)
-SELECT (SELECT id FROM skills WHERE code = 'MONSTRUO_PIEDRAZO'), v.* FROM (VALUES ('BLIND', NULL, 20::numeric, 2, 30::numeric, 'BLIND', 'Ceguera: 20% de fallar sus golpes durante 2 rondas.'))
+SELECT (SELECT id FROM skills WHERE code = 'MONSTRUO_PIEDRAZO'), v.* FROM (VALUES ('BLIND', NULL, 20::numeric, 4, 30::numeric, 'BLIND', 'Ceguera: 20% de fallar sus golpes durante 4 rondas.'))
   AS v(effect_type, stat_code, percent_amount, duration_turns, chance_percent, status_code, description);
 
 -- Golpe Bajo
@@ -4120,7 +4121,7 @@ WHERE NOT EXISTS (SELECT 1 FROM skills WHERE code = 'MONSTRUO_GOLPE_BAJO');
 UPDATE skills SET name = 'Golpe Bajo', skill_type = 'ATAQUE', damage_school = 'FISICO', target_type = 'ENEMY', base_value = 4, scaling_stat = 'ATK', scaling_multiplier = 1.25, hits = 1, mana_cost = 10, is_passive = FALSE, learn_method = 'LEVEL', learn_level = 1, learn_gold_cost = 0, description = 'Un golpe sucio que deja al objetivo sin fuerzas.' WHERE code = 'MONSTRUO_GOLPE_BAJO';
 DELETE FROM skill_effects WHERE skill_id = (SELECT id FROM skills WHERE code = 'MONSTRUO_GOLPE_BAJO');
 INSERT INTO skill_effects (skill_id, effect_type, stat_code, percent_amount, duration_turns, chance_percent, status_code, description)
-SELECT (SELECT id FROM skills WHERE code = 'MONSTRUO_GOLPE_BAJO'), v.* FROM (VALUES ('STAT_MOD', 'ATK', -10::numeric, 2, 35::numeric, 'WEAKEN', 'Debilidad: -10% de ataque durante 2 rondas.'))
+SELECT (SELECT id FROM skills WHERE code = 'MONSTRUO_GOLPE_BAJO'), v.* FROM (VALUES ('STAT_MOD', 'ATK', -10::numeric, 4, 35::numeric, 'WEAKEN', 'Debilidad: -10% de ataque durante 4 rondas.'))
   AS v(effect_type, stat_code, percent_amount, duration_turns, chance_percent, status_code, description);
 
 -- Lengua Pegajosa
@@ -4130,7 +4131,7 @@ WHERE NOT EXISTS (SELECT 1 FROM skills WHERE code = 'MONSTRUO_LENGUA_PEGAJOSA');
 UPDATE skills SET name = 'Lengua Pegajosa', skill_type = 'ATAQUE', damage_school = 'FISICO', target_type = 'ENEMY', base_value = 3, scaling_stat = 'ATK', scaling_multiplier = 1.15, hits = 1, mana_cost = 10, is_passive = FALSE, learn_method = 'LEVEL', learn_level = 1, learn_gold_cost = 0, description = 'Atrapa al objetivo con su lengua viscosa y lo frena.' WHERE code = 'MONSTRUO_LENGUA_PEGAJOSA';
 DELETE FROM skill_effects WHERE skill_id = (SELECT id FROM skills WHERE code = 'MONSTRUO_LENGUA_PEGAJOSA');
 INSERT INTO skill_effects (skill_id, effect_type, stat_code, percent_amount, duration_turns, chance_percent, status_code, description)
-SELECT (SELECT id FROM skills WHERE code = 'MONSTRUO_LENGUA_PEGAJOSA'), v.* FROM (VALUES ('STAT_MOD', 'SPD', -25::numeric, 2, 40::numeric, 'SLOW', 'Lentitud: -25% de velocidad durante 2 rondas.'))
+SELECT (SELECT id FROM skills WHERE code = 'MONSTRUO_LENGUA_PEGAJOSA'), v.* FROM (VALUES ('STAT_MOD', 'SPD', -25::numeric, 4, 40::numeric, 'SLOW', 'Lentitud: -25% de velocidad durante 4 rondas.'))
   AS v(effect_type, stat_code, percent_amount, duration_turns, chance_percent, status_code, description);
 
 -- Embestida
@@ -4140,7 +4141,7 @@ WHERE NOT EXISTS (SELECT 1 FROM skills WHERE code = 'MONSTRUO_EMBESTIDA');
 UPDATE skills SET name = 'Embestida', skill_type = 'ATAQUE', damage_school = 'FISICO', target_type = 'ENEMY', base_value = 5, scaling_stat = 'ATK', scaling_multiplier = 1.35, hits = 1, mana_cost = 12, is_passive = FALSE, learn_method = 'LEVEL', learn_level = 1, learn_gold_cost = 0, description = 'Carga con los colmillos por delante. Puede dejar aturdido al objetivo.' WHERE code = 'MONSTRUO_EMBESTIDA';
 DELETE FROM skill_effects WHERE skill_id = (SELECT id FROM skills WHERE code = 'MONSTRUO_EMBESTIDA');
 INSERT INTO skill_effects (skill_id, effect_type, stat_code, percent_amount, duration_turns, chance_percent, status_code, description)
-SELECT (SELECT id FROM skills WHERE code = 'MONSTRUO_EMBESTIDA'), v.* FROM (VALUES ('PARALYZE', NULL, NULL::numeric, 2, 20::numeric, 'PARALYZE', 'Aturdido: puede perder su turno durante 2 rondas.'))
+SELECT (SELECT id FROM skills WHERE code = 'MONSTRUO_EMBESTIDA'), v.* FROM (VALUES ('PARALYZE', NULL, NULL::numeric, 4, 20::numeric, 'PARALYZE', 'Aturdido: puede perder su turno durante 4 rondas.'))
   AS v(effect_type, stat_code, percent_amount, duration_turns, chance_percent, status_code, description);
 
 -- Escudo de Hueso
@@ -4238,3 +4239,541 @@ UPDATE quest_objectives SET params = COALESCE(params, '{}'::jsonb) || '{"sprite"
 UPDATE quest_objectives SET params = COALESCE(params, '{}'::jsonb) || '{"sprite":"inscripcion"}'::jsonb WHERE quest_id = (SELECT id FROM quests WHERE code = 'PRADERA_SEC_INSCRIPCIONES') AND description = 'Lee la inscripción del este';
 UPDATE quest_objectives SET params = COALESCE(params, '{}'::jsonb) || '{"sprite":"inscripcion"}'::jsonb WHERE quest_id = (SELECT id FROM quests WHERE code = 'PRADERA_SEC_INSCRIPCIONES') AND description = 'Lee la inscripción del sur';
 UPDATE quest_objectives SET params = COALESCE(params, '{}'::jsonb) || '{"sprite":"muneca_suelo"}'::jsonb WHERE quest_id = (SELECT id FROM quests WHERE code = 'PRADERA_SEC_RECUERDO') AND description = 'Encuentra la muñeca';
+
+-- ============================================================================================
+-- Estados alterados de 4 rondas (repetible): quemadura, sangrado, lentitud, parálisis, ceguera,
+-- debilidad y veneno duraban 2-3 rondas y casi no se notaban. Ahora duran 4: los de las
+-- habilidades (con su probabilidad), el veneno del pícaro y todos los de los monstruos. Los daños
+-- por turno de las evoluciones (10-15% por turno) se quedan en 3 para no romper el equilibrio.
+-- ============================================================================================
+UPDATE skill_effects se SET duration_turns = 4
+WHERE se.duration_turns IS DISTINCT FROM 4
+  AND (se.status_code IN ('BLEED', 'BURN', 'SLOW', 'PARALYZE', 'BLIND', 'WEAKEN', 'POISON')
+       OR (se.effect_type = 'DOT' AND se.skill_id IN (SELECT id FROM skills WHERE code LIKE 'MONSTRUO_%')));
+
+-- los textos que dicen cuánto duran
+UPDATE skill_effects se SET description = regexp_replace(se.description, '([0-9]+) (rondas|turnos)', '4 \2', 'g')
+WHERE se.description ~ '[0-9]+ (rondas|turnos)'
+  AND (se.status_code IN ('BLEED', 'BURN', 'SLOW', 'PARALYZE', 'BLIND', 'WEAKEN', 'POISON')
+       OR (se.effect_type = 'DOT' AND se.skill_id IN (SELECT id FROM skills WHERE code LIKE 'MONSTRUO_%')));
+UPDATE skills SET description = regexp_replace(description, '(durante|por) [0-9]+ turnos', '\1 4 turnos', 'g')
+WHERE code IN ('MAGO_BOLA_DE_FUEGO', 'ARQUERO_FLECHA_EXPLOSIVA', 'MAGO_ESCARCHA', 'MAGO_RAYO', 'PICARO_PUNALADA_RAPIDA',
+               'GUERRERO_TAJO', 'SACERDOTE_ATAQUE', 'GUERRERO_GOLPE_BASICO', 'PICARO_ENVENENAMIENTO', 'MONSTRUO_VENENO_COLMILLO');
+
+-- ============================================================================================
+-- Ajustes del crafteo de la Pradera (repetible; sin ON CONFLICT)
+-- * Espada de Hierro y Daga de Precisión fabricadas no tenían nivel (se equipaban en el nivel 1 y
+--   la daga pegaba más que la del Capitán): ahora nivel 4 y 7, con stats por fórmula.
+-- * Comidas: el bono era fijo (+10 de ataque es +66% en nivel 1 y +16% en nivel 15); ahora es un
+--   porcentaje, igual en todos los niveles.
+-- * Sets del Capitán y del Titán: las piezas chicas (casco, guantes, botas) ya no piden el Collar
+--   del Capitán, y el Capitán lo suelta más seguido (40% → 60%).
+-- * Emblema de la Guardia (6 → 4 medallas) y Amuleto del Alba (8 → 6 fragmentos).
+-- ============================================================================================
+UPDATE items SET required_level = 4, rarity = 'COMUN', is_craftable = TRUE WHERE code = 'ESPADA_DE_HIERRO_CRAFTEADA';
+UPDATE crafting_recipes SET required_level = 4 WHERE code = 'RECETA_ESPADA_DE_HIERRO_CRAFTEADA';
+UPDATE item_stat_bonuses SET amount = 19 WHERE stat_code = 'ATK' AND item_id = (SELECT id FROM items WHERE code = 'ESPADA_DE_HIERRO_CRAFTEADA');
+UPDATE item_stat_bonuses SET amount = 7 WHERE stat_code = 'DEF' AND item_id = (SELECT id FROM items WHERE code = 'ESPADA_DE_HIERRO_CRAFTEADA');
+UPDATE items SET required_level = 7, rarity = 'POCO_COMUN', is_craftable = TRUE WHERE code = 'DAGA_DE_PRECISION_CRAFTEADA';
+UPDATE crafting_recipes SET required_level = 7 WHERE code = 'RECETA_DAGA_DE_PRECISION_CRAFTEADA';
+UPDATE item_stat_bonuses SET amount = 26 WHERE stat_code = 'ATK' AND item_id = (SELECT id FROM items WHERE code = 'DAGA_DE_PRECISION_CRAFTEADA');
+UPDATE item_stat_bonuses SET amount = 9 WHERE stat_code = 'SPD' AND item_id = (SELECT id FROM items WHERE code = 'DAGA_DE_PRECISION_CRAFTEADA');
+UPDATE item_stat_bonuses SET amount = 3.8 WHERE stat_code = 'CRIT_CHANCE' AND item_id = (SELECT id FROM items WHERE code = 'DAGA_DE_PRECISION_CRAFTEADA');
+-- Gran Espada de Hierro (nv 5): la sueltan los Esqueletos del Vigía; Arco de Precisión (nv 8): los Bandidos
+UPDATE item_stat_bonuses SET amount = 29 WHERE stat_code = 'ATK' AND item_id = (SELECT id FROM items WHERE code = 'GRAN_ESPADA_DE_HIERRO');
+UPDATE item_stat_bonuses SET amount = 10 WHERE stat_code = 'DEF' AND item_id = (SELECT id FROM items WHERE code = 'GRAN_ESPADA_DE_HIERRO');
+UPDATE item_stat_bonuses SET amount = 3.8 WHERE stat_code = 'CRIT_CHANCE' AND item_id = (SELECT id FROM items WHERE code = 'GRAN_ESPADA_DE_HIERRO');
+UPDATE items SET obtain_method = 'Drop de monstruo' WHERE code = 'GRAN_ESPADA_DE_HIERRO';
+INSERT INTO monster_drops (monster_id, item_id, drop_chance_percent, min_quantity, max_quantity)
+SELECT m.id, i.id, 2, 1, 1 FROM monsters m, items i WHERE m.code = 'ESQUELETO_VIGIA' AND i.code = 'GRAN_ESPADA_DE_HIERRO'
+  AND NOT EXISTS (SELECT 1 FROM monster_drops d WHERE d.monster_id = m.id AND d.item_id = i.id);
+UPDATE item_stat_bonuses SET amount = 24 WHERE stat_code = 'ATK' AND item_id = (SELECT id FROM items WHERE code = 'ARCO_DE_PRECISION');
+UPDATE item_stat_bonuses SET amount = 9 WHERE stat_code = 'SPD' AND item_id = (SELECT id FROM items WHERE code = 'ARCO_DE_PRECISION');
+UPDATE item_stat_bonuses SET amount = 3.8 WHERE stat_code = 'CRIT_CHANCE' AND item_id = (SELECT id FROM items WHERE code = 'ARCO_DE_PRECISION');
+UPDATE item_stat_bonuses SET amount = 1.5 WHERE stat_code = 'EVASION' AND item_id = (SELECT id FROM items WHERE code = 'ARCO_DE_PRECISION');
+UPDATE items SET obtain_method = 'Drop de monstruo' WHERE code = 'ARCO_DE_PRECISION';
+INSERT INTO monster_drops (monster_id, item_id, drop_chance_percent, min_quantity, max_quantity)
+SELECT m.id, i.id, 2, 1, 1 FROM monsters m, items i WHERE m.code = 'BANDIDO_CORRUPTO' AND i.code = 'ARCO_DE_PRECISION'
+  AND NOT EXISTS (SELECT 1 FROM monster_drops d WHERE d.monster_id = m.id AND d.item_id = i.id);
+UPDATE item_stat_bonuses SET amount = 12, is_percent = TRUE, description = '+12% de ataque durante el combate'
+WHERE stat_code = 'BUFF_ATK' AND item_id = (SELECT id FROM items WHERE code = 'ESTOFADO_DE_LOBO');
+UPDATE item_stat_bonuses SET amount = 10, is_percent = TRUE, description = '+10% de velocidad durante el combate'
+WHERE stat_code = 'BUFF_SPD' AND item_id = (SELECT id FROM items WHERE code = 'SOPA_GOBLIN');
+UPDATE item_stat_bonuses SET amount = 12, is_percent = TRUE, description = '+12% de defensa durante el combate'
+WHERE stat_code = 'BUFF_DEF' AND item_id = (SELECT id FROM items WHERE code = 'ASADO_JABALI');
+UPDATE item_stat_bonuses SET amount = 12, is_percent = TRUE, description = '+12% de inteligencia durante el combate'
+WHERE stat_code = 'BUFF_MAG' AND item_id = (SELECT id FROM items WHERE code = 'ELIXIR_DEL_LAGO');
+UPDATE item_stat_bonuses SET amount = 15, is_percent = TRUE, description = '+15% de defensa durante el combate'
+WHERE stat_code = 'BUFF_DEF' AND item_id = (SELECT id FROM items WHERE code = 'GUISO_TROLL');
+UPDATE item_stat_bonuses SET amount = 15, is_percent = TRUE, description = '+15% de ataque durante el combate'
+WHERE stat_code = 'BUFF_ATK' AND item_id = (SELECT id FROM items WHERE code = 'ASADO_SALAMANDRA');
+UPDATE item_stat_bonuses SET amount = 12, is_percent = TRUE, description = '+12% de inteligencia durante el combate'
+WHERE stat_code = 'BUFF_MAG' AND item_id = (SELECT id FROM items WHERE code = 'ASADO_SALAMANDRA');
+UPDATE item_stat_bonuses SET amount = 15, is_percent = TRUE, description = '+15% de defensa durante el combate'
+WHERE stat_code = 'BUFF_DEF' AND item_id = (SELECT id FROM items WHERE code = 'SOPA_CANGREJO');
+UPDATE item_stat_bonuses SET amount = 15, is_percent = TRUE, description = '+15% de inteligencia durante el combate'
+WHERE stat_code = 'BUFF_MAG' AND item_id = (SELECT id FROM items WHERE code = 'SOPA_CANGREJO');
+UPDATE item_stat_bonuses SET amount = 18, is_percent = TRUE, description = '+18% de ataque durante el combate'
+WHERE stat_code = 'BUFF_ATK' AND item_id = (SELECT id FROM items WHERE code = 'SOPA_JABALI');
+UPDATE item_stat_bonuses SET amount = 12, is_percent = TRUE, description = '+12% de velocidad durante el combate'
+WHERE stat_code = 'BUFF_SPD' AND item_id = (SELECT id FROM items WHERE code = 'SOPA_JABALI');
+UPDATE items i SET description = (
+  SELECT string_agg(CASE b.stat_code
+      WHEN 'HEAL_HP' THEN 'Cura ' || round(b.amount) || ' de vida'
+      WHEN 'HEAL_MP' THEN 'Devuelve ' || round(b.amount) || ' de maná'
+      ELSE '+' || round(b.amount) || '% de ' || CASE b.stat_code WHEN 'BUFF_ATK' THEN 'ataque' WHEN 'BUFF_DEF' THEN 'defensa' WHEN 'BUFF_MAG' THEN 'inteligencia' ELSE 'velocidad' END
+    END, ', ' ORDER BY b.stat_code LIKE 'BUFF%', b.stat_code) || ' durante el combate.'
+  FROM item_stat_bonuses b WHERE b.item_id = i.id)
+WHERE i.code IN ('ESTOFADO_DE_LOBO', 'SOPA_GOBLIN', 'ASADO_JABALI', 'ELIXIR_DEL_LAGO', 'GUISO_TROLL', 'ASADO_SALAMANDRA', 'SOPA_CANGREJO', 'SOPA_JABALI');
+DELETE FROM crafting_recipe_ingredients ci
+USING crafting_recipes cr, items r
+WHERE ci.recipe_id = cr.id AND r.id = cr.result_item_id
+  AND ci.item_id = (SELECT id FROM items WHERE code = 'COLLAR_CAPITAN_LOBOS')
+  AND r.slot IN ('HELMET', 'GLOVES', 'BOOTS') AND (r.code LIKE '%\_CAPITAN' OR r.code LIKE '%\_TITAN\_P');
+UPDATE monster_drops SET drop_chance_percent = 60
+WHERE monster_id = (SELECT id FROM monsters WHERE code = 'CAPITAN_LOBOS') AND item_id = (SELECT id FROM items WHERE code = 'COLLAR_CAPITAN_LOBOS');
+UPDATE crafting_recipe_ingredients SET quantity = 4
+WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECETA_EMBLEMA_GUARDIA') AND item_id = (SELECT id FROM items WHERE code = 'MEDALLA_VIGIA');
+UPDATE crafting_recipe_ingredients SET quantity = 6
+WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECETA_AMULETO_DEL_ALBA') AND item_id = (SELECT id FROM items WHERE code = 'FRAGMENTO_ECLIPSE');
+
+-- ============================================================================================
+-- Set de la Guardia (repetible; sin ON CONFLICT): equipo intermedio de la Pradera, nivel 6 y poco
+-- común, entre el set de la Pradera (nivel 1) y el del Capitán (nivel 10). Una pieza por cada pieza
+-- de la Pradera de las 5 clases, con stats por fórmula (lib/equilibrio.js itemStats). Se fabrica
+-- con Medallas del Vigía (Esqueletos de las Ruinas) y el material de cada clase.
+-- ============================================================================================
+
+-- Armadura de la Guardia (GUERRERO)
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'GUERRERO_ARMOR_VIGIA', 'Armadura de la Guardia', 'EQUIPMENT', 'ARMOR', FALSE, 'POCO_COMUN', 1, 6, TRUE, 'CRAFT', 'Equipo de la vieja Guardia del Vigía, rehecho con las medallas de sus soldados.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'GUERRERO_ARMOR_VIGIA');
+UPDATE items SET name = 'Armadura de la Guardia', item_type = 'EQUIPMENT', slot = 'ARMOR', is_two_handed = FALSE, rarity = 'POCO_COMUN', class_id = 1, required_level = 6, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Equipo de la vieja Guardia del Vigía, rehecho con las medallas de sus soldados.' WHERE code = 'GUERRERO_ARMOR_VIGIA';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'GUERRERO_ARMOR_VIGIA');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'GUERRERO_ARMOR_VIGIA'), v.* FROM (VALUES ('DEF', 9, FALSE), ('MAGIC_DEF', 3, FALSE), ('HP', 17, FALSE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station)
+SELECT 'RECIPE_GUERRERO_ARMOR_VIGIA', (SELECT id FROM items WHERE code = 'GUERRERO_ARMOR_VIGIA'), 1, 'POCO_COMUN', 6, 1, 90, 1, 'Maestro Goreth', 1, 'forja' WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_GUERRERO_ARMOR_VIGIA');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'GUERRERO_ARMOR_VIGIA'), result_quantity = 1, rarity = 'POCO_COMUN', required_level = 6, required_class_id = 1, success_rate_percent = 90, craft_time_minutes = 1, artisan_name = 'Maestro Goreth', zone_id = 1, station = 'forja' WHERE code = 'RECIPE_GUERRERO_ARMOR_VIGIA';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_GUERRERO_ARMOR_VIGIA');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_GUERRERO_ARMOR_VIGIA'), i.id, v.n FROM (VALUES ('MEDALLA_VIGIA', 2), ('LINGOTE_HIERRO', 3)) AS v(code, n) JOIN items i ON i.code = v.code;
+
+-- Botas de la Guardia (GUERRERO)
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'GUERRERO_BOOTS_VIGIA', 'Botas de la Guardia', 'EQUIPMENT', 'BOOTS', FALSE, 'POCO_COMUN', 1, 6, TRUE, 'CRAFT', 'Equipo de la vieja Guardia del Vigía, rehecho con las medallas de sus soldados.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'GUERRERO_BOOTS_VIGIA');
+UPDATE items SET name = 'Botas de la Guardia', item_type = 'EQUIPMENT', slot = 'BOOTS', is_two_handed = FALSE, rarity = 'POCO_COMUN', class_id = 1, required_level = 6, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Equipo de la vieja Guardia del Vigía, rehecho con las medallas de sus soldados.' WHERE code = 'GUERRERO_BOOTS_VIGIA';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'GUERRERO_BOOTS_VIGIA');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'GUERRERO_BOOTS_VIGIA'), v.* FROM (VALUES ('DEF', 2, FALSE), ('HP', 2, FALSE), ('SPD', 7, FALSE), ('EVASION', 1.5, TRUE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station)
+SELECT 'RECIPE_GUERRERO_BOOTS_VIGIA', (SELECT id FROM items WHERE code = 'GUERRERO_BOOTS_VIGIA'), 1, 'POCO_COMUN', 6, 1, 90, 1, 'Maestro Goreth', 1, 'forja' WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_GUERRERO_BOOTS_VIGIA');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'GUERRERO_BOOTS_VIGIA'), result_quantity = 1, rarity = 'POCO_COMUN', required_level = 6, required_class_id = 1, success_rate_percent = 90, craft_time_minutes = 1, artisan_name = 'Maestro Goreth', zone_id = 1, station = 'forja' WHERE code = 'RECIPE_GUERRERO_BOOTS_VIGIA';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_GUERRERO_BOOTS_VIGIA');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_GUERRERO_BOOTS_VIGIA'), i.id, v.n FROM (VALUES ('MEDALLA_VIGIA', 1), ('LINGOTE_HIERRO', 2)) AS v(code, n) JOIN items i ON i.code = v.code;
+
+-- Guanteletes de la Guardia (GUERRERO)
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'GUERRERO_GLOVES_VIGIA', 'Guanteletes de la Guardia', 'EQUIPMENT', 'GLOVES', FALSE, 'POCO_COMUN', 1, 6, TRUE, 'CRAFT', 'Equipo de la vieja Guardia del Vigía, rehecho con las medallas de sus soldados.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'GUERRERO_GLOVES_VIGIA');
+UPDATE items SET name = 'Guanteletes de la Guardia', item_type = 'EQUIPMENT', slot = 'GLOVES', is_two_handed = FALSE, rarity = 'POCO_COMUN', class_id = 1, required_level = 6, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Equipo de la vieja Guardia del Vigía, rehecho con las medallas de sus soldados.' WHERE code = 'GUERRERO_GLOVES_VIGIA';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'GUERRERO_GLOVES_VIGIA');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'GUERRERO_GLOVES_VIGIA'), v.* FROM (VALUES ('ATK', 11, FALSE), ('CRIT_CHANCE', 2.5, TRUE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station)
+SELECT 'RECIPE_GUERRERO_GLOVES_VIGIA', (SELECT id FROM items WHERE code = 'GUERRERO_GLOVES_VIGIA'), 1, 'POCO_COMUN', 6, 1, 90, 1, 'Maestro Goreth', 1, 'forja' WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_GUERRERO_GLOVES_VIGIA');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'GUERRERO_GLOVES_VIGIA'), result_quantity = 1, rarity = 'POCO_COMUN', required_level = 6, required_class_id = 1, success_rate_percent = 90, craft_time_minutes = 1, artisan_name = 'Maestro Goreth', zone_id = 1, station = 'forja' WHERE code = 'RECIPE_GUERRERO_GLOVES_VIGIA';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_GUERRERO_GLOVES_VIGIA');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_GUERRERO_GLOVES_VIGIA'), i.id, v.n FROM (VALUES ('MEDALLA_VIGIA', 1), ('LINGOTE_HIERRO', 2)) AS v(code, n) JOIN items i ON i.code = v.code;
+
+-- Yelmo de la Guardia (GUERRERO)
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'GUERRERO_HELMET_VIGIA', 'Yelmo de la Guardia', 'EQUIPMENT', 'HELMET', FALSE, 'POCO_COMUN', 1, 6, TRUE, 'CRAFT', 'Equipo de la vieja Guardia del Vigía, rehecho con las medallas de sus soldados.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'GUERRERO_HELMET_VIGIA');
+UPDATE items SET name = 'Yelmo de la Guardia', item_type = 'EQUIPMENT', slot = 'HELMET', is_two_handed = FALSE, rarity = 'POCO_COMUN', class_id = 1, required_level = 6, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Equipo de la vieja Guardia del Vigía, rehecho con las medallas de sus soldados.' WHERE code = 'GUERRERO_HELMET_VIGIA';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'GUERRERO_HELMET_VIGIA');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'GUERRERO_HELMET_VIGIA'), v.* FROM (VALUES ('DEF', 4, FALSE), ('MAGIC_DEF', 1, FALSE), ('HP', 4, FALSE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station)
+SELECT 'RECIPE_GUERRERO_HELMET_VIGIA', (SELECT id FROM items WHERE code = 'GUERRERO_HELMET_VIGIA'), 1, 'POCO_COMUN', 6, 1, 90, 1, 'Maestro Goreth', 1, 'forja' WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_GUERRERO_HELMET_VIGIA');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'GUERRERO_HELMET_VIGIA'), result_quantity = 1, rarity = 'POCO_COMUN', required_level = 6, required_class_id = 1, success_rate_percent = 90, craft_time_minutes = 1, artisan_name = 'Maestro Goreth', zone_id = 1, station = 'forja' WHERE code = 'RECIPE_GUERRERO_HELMET_VIGIA';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_GUERRERO_HELMET_VIGIA');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_GUERRERO_HELMET_VIGIA'), i.id, v.n FROM (VALUES ('MEDALLA_VIGIA', 1), ('LINGOTE_HIERRO', 2)) AS v(code, n) JOIN items i ON i.code = v.code;
+
+-- Escudo de la Guardia (GUERRERO)
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'GUERRERO_OFFHAND_VIGIA', 'Escudo de la Guardia', 'EQUIPMENT', 'OFFHAND', FALSE, 'POCO_COMUN', 1, 6, TRUE, 'CRAFT', 'Equipo de la vieja Guardia del Vigía, rehecho con las medallas de sus soldados.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'GUERRERO_OFFHAND_VIGIA');
+UPDATE items SET name = 'Escudo de la Guardia', item_type = 'EQUIPMENT', slot = 'OFFHAND', is_two_handed = FALSE, rarity = 'POCO_COMUN', class_id = 1, required_level = 6, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Equipo de la vieja Guardia del Vigía, rehecho con las medallas de sus soldados.' WHERE code = 'GUERRERO_OFFHAND_VIGIA';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'GUERRERO_OFFHAND_VIGIA');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'GUERRERO_OFFHAND_VIGIA'), v.* FROM (VALUES ('DEF', 5, FALSE), ('HP', 11, FALSE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station)
+SELECT 'RECIPE_GUERRERO_OFFHAND_VIGIA', (SELECT id FROM items WHERE code = 'GUERRERO_OFFHAND_VIGIA'), 1, 'POCO_COMUN', 6, 1, 90, 1, 'Maestro Goreth', 1, 'forja' WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_GUERRERO_OFFHAND_VIGIA');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'GUERRERO_OFFHAND_VIGIA'), result_quantity = 1, rarity = 'POCO_COMUN', required_level = 6, required_class_id = 1, success_rate_percent = 90, craft_time_minutes = 1, artisan_name = 'Maestro Goreth', zone_id = 1, station = 'forja' WHERE code = 'RECIPE_GUERRERO_OFFHAND_VIGIA';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_GUERRERO_OFFHAND_VIGIA');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_GUERRERO_OFFHAND_VIGIA'), i.id, v.n FROM (VALUES ('MEDALLA_VIGIA', 1), ('LINGOTE_HIERRO', 1), ('CUERO_TRATADO', 2)) AS v(code, n) JOIN items i ON i.code = v.code;
+
+-- Espada de la Guardia (GUERRERO)
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'GUERRERO_WEAPON_VIGIA', 'Espada de la Guardia', 'EQUIPMENT', 'WEAPON', FALSE, 'POCO_COMUN', 1, 6, TRUE, 'CRAFT', 'Equipo de la vieja Guardia del Vigía, rehecho con las medallas de sus soldados.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'GUERRERO_WEAPON_VIGIA');
+UPDATE items SET name = 'Espada de la Guardia', item_type = 'EQUIPMENT', slot = 'WEAPON', is_two_handed = FALSE, rarity = 'POCO_COMUN', class_id = 1, required_level = 6, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Equipo de la vieja Guardia del Vigía, rehecho con las medallas de sus soldados.' WHERE code = 'GUERRERO_WEAPON_VIGIA';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'GUERRERO_WEAPON_VIGIA');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'GUERRERO_WEAPON_VIGIA'), v.* FROM (VALUES ('ATK', 24, FALSE), ('CRIT_CHANCE', 3.8, TRUE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station)
+SELECT 'RECIPE_GUERRERO_WEAPON_VIGIA', (SELECT id FROM items WHERE code = 'GUERRERO_WEAPON_VIGIA'), 1, 'POCO_COMUN', 6, 1, 90, 1, 'Maestro Goreth', 1, 'forja' WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_GUERRERO_WEAPON_VIGIA');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'GUERRERO_WEAPON_VIGIA'), result_quantity = 1, rarity = 'POCO_COMUN', required_level = 6, required_class_id = 1, success_rate_percent = 90, craft_time_minutes = 1, artisan_name = 'Maestro Goreth', zone_id = 1, station = 'forja' WHERE code = 'RECIPE_GUERRERO_WEAPON_VIGIA';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_GUERRERO_WEAPON_VIGIA');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_GUERRERO_WEAPON_VIGIA'), i.id, v.n FROM (VALUES ('MEDALLA_VIGIA', 2), ('LINGOTE_HIERRO', 2), ('CUERO_TRATADO', 2)) AS v(code, n) JOIN items i ON i.code = v.code;
+
+-- Túnica de la Guardia (MAGO)
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'MAGO_ARMOR_VIGIA', 'Túnica de la Guardia', 'EQUIPMENT', 'ARMOR', FALSE, 'POCO_COMUN', 2, 6, TRUE, 'CRAFT', 'Equipo de la vieja Guardia del Vigía, rehecho con las medallas de sus soldados.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'MAGO_ARMOR_VIGIA');
+UPDATE items SET name = 'Túnica de la Guardia', item_type = 'EQUIPMENT', slot = 'ARMOR', is_two_handed = FALSE, rarity = 'POCO_COMUN', class_id = 2, required_level = 6, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Equipo de la vieja Guardia del Vigía, rehecho con las medallas de sus soldados.' WHERE code = 'MAGO_ARMOR_VIGIA';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'MAGO_ARMOR_VIGIA');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'MAGO_ARMOR_VIGIA'), v.* FROM (VALUES ('MAGIC_DEF', 9, FALSE), ('DEF', 2, FALSE), ('HP', 24, FALSE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station)
+SELECT 'RECIPE_MAGO_ARMOR_VIGIA', (SELECT id FROM items WHERE code = 'MAGO_ARMOR_VIGIA'), 1, 'POCO_COMUN', 6, 2, 90, 1, 'Faeron el Sastre', 1, 'forja' WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_MAGO_ARMOR_VIGIA');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'MAGO_ARMOR_VIGIA'), result_quantity = 1, rarity = 'POCO_COMUN', required_level = 6, required_class_id = 2, success_rate_percent = 90, craft_time_minutes = 1, artisan_name = 'Faeron el Sastre', zone_id = 1, station = 'forja' WHERE code = 'RECIPE_MAGO_ARMOR_VIGIA';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_MAGO_ARMOR_VIGIA');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_MAGO_ARMOR_VIGIA'), i.id, v.n FROM (VALUES ('MEDALLA_VIGIA', 2), ('TELA_LINO', 3)) AS v(code, n) JOIN items i ON i.code = v.code;
+
+-- Sandalias de la Guardia (MAGO)
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'MAGO_BOOTS_VIGIA', 'Sandalias de la Guardia', 'EQUIPMENT', 'BOOTS', FALSE, 'POCO_COMUN', 2, 6, TRUE, 'CRAFT', 'Equipo de la vieja Guardia del Vigía, rehecho con las medallas de sus soldados.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'MAGO_BOOTS_VIGIA');
+UPDATE items SET name = 'Sandalias de la Guardia', item_type = 'EQUIPMENT', slot = 'BOOTS', is_two_handed = FALSE, rarity = 'POCO_COMUN', class_id = 2, required_level = 6, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Equipo de la vieja Guardia del Vigía, rehecho con las medallas de sus soldados.' WHERE code = 'MAGO_BOOTS_VIGIA';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'MAGO_BOOTS_VIGIA');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'MAGO_BOOTS_VIGIA'), v.* FROM (VALUES ('MAGIC_DEF', 2, FALSE), ('HP', 2, FALSE), ('SPD', 7, FALSE), ('EVASION', 1.5, TRUE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station)
+SELECT 'RECIPE_MAGO_BOOTS_VIGIA', (SELECT id FROM items WHERE code = 'MAGO_BOOTS_VIGIA'), 1, 'POCO_COMUN', 6, 2, 90, 1, 'Faeron el Sastre', 1, 'forja' WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_MAGO_BOOTS_VIGIA');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'MAGO_BOOTS_VIGIA'), result_quantity = 1, rarity = 'POCO_COMUN', required_level = 6, required_class_id = 2, success_rate_percent = 90, craft_time_minutes = 1, artisan_name = 'Faeron el Sastre', zone_id = 1, station = 'forja' WHERE code = 'RECIPE_MAGO_BOOTS_VIGIA';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_MAGO_BOOTS_VIGIA');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_MAGO_BOOTS_VIGIA'), i.id, v.n FROM (VALUES ('MEDALLA_VIGIA', 1), ('TELA_LINO', 2)) AS v(code, n) JOIN items i ON i.code = v.code;
+
+-- Guantes de Tela de la Guardia (MAGO)
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'MAGO_GLOVES_VIGIA', 'Guantes de Tela de la Guardia', 'EQUIPMENT', 'GLOVES', FALSE, 'POCO_COMUN', 2, 6, TRUE, 'CRAFT', 'Equipo de la vieja Guardia del Vigía, rehecho con las medallas de sus soldados.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'MAGO_GLOVES_VIGIA');
+UPDATE items SET name = 'Guantes de Tela de la Guardia', item_type = 'EQUIPMENT', slot = 'GLOVES', is_two_handed = FALSE, rarity = 'POCO_COMUN', class_id = 2, required_level = 6, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Equipo de la vieja Guardia del Vigía, rehecho con las medallas de sus soldados.' WHERE code = 'MAGO_GLOVES_VIGIA';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'MAGO_GLOVES_VIGIA');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'MAGO_GLOVES_VIGIA'), v.* FROM (VALUES ('MAG', 11, FALSE), ('CRIT_CHANCE', 2.5, TRUE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station)
+SELECT 'RECIPE_MAGO_GLOVES_VIGIA', (SELECT id FROM items WHERE code = 'MAGO_GLOVES_VIGIA'), 1, 'POCO_COMUN', 6, 2, 90, 1, 'Faeron el Sastre', 1, 'forja' WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_MAGO_GLOVES_VIGIA');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'MAGO_GLOVES_VIGIA'), result_quantity = 1, rarity = 'POCO_COMUN', required_level = 6, required_class_id = 2, success_rate_percent = 90, craft_time_minutes = 1, artisan_name = 'Faeron el Sastre', zone_id = 1, station = 'forja' WHERE code = 'RECIPE_MAGO_GLOVES_VIGIA';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_MAGO_GLOVES_VIGIA');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_MAGO_GLOVES_VIGIA'), i.id, v.n FROM (VALUES ('MEDALLA_VIGIA', 1), ('TELA_LINO', 2)) AS v(code, n) JOIN items i ON i.code = v.code;
+
+-- Capirote de la Guardia (MAGO)
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'MAGO_HELMET_VIGIA', 'Capirote de la Guardia', 'EQUIPMENT', 'HELMET', FALSE, 'POCO_COMUN', 2, 6, TRUE, 'CRAFT', 'Equipo de la vieja Guardia del Vigía, rehecho con las medallas de sus soldados.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'MAGO_HELMET_VIGIA');
+UPDATE items SET name = 'Capirote de la Guardia', item_type = 'EQUIPMENT', slot = 'HELMET', is_two_handed = FALSE, rarity = 'POCO_COMUN', class_id = 2, required_level = 6, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Equipo de la vieja Guardia del Vigía, rehecho con las medallas de sus soldados.' WHERE code = 'MAGO_HELMET_VIGIA';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'MAGO_HELMET_VIGIA');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'MAGO_HELMET_VIGIA'), v.* FROM (VALUES ('MAGIC_DEF', 4, FALSE), ('DEF', 1, FALSE), ('HP', 4, FALSE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station)
+SELECT 'RECIPE_MAGO_HELMET_VIGIA', (SELECT id FROM items WHERE code = 'MAGO_HELMET_VIGIA'), 1, 'POCO_COMUN', 6, 2, 90, 1, 'Faeron el Sastre', 1, 'forja' WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_MAGO_HELMET_VIGIA');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'MAGO_HELMET_VIGIA'), result_quantity = 1, rarity = 'POCO_COMUN', required_level = 6, required_class_id = 2, success_rate_percent = 90, craft_time_minutes = 1, artisan_name = 'Faeron el Sastre', zone_id = 1, station = 'forja' WHERE code = 'RECIPE_MAGO_HELMET_VIGIA';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_MAGO_HELMET_VIGIA');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_MAGO_HELMET_VIGIA'), i.id, v.n FROM (VALUES ('MEDALLA_VIGIA', 1), ('TELA_LINO', 2)) AS v(code, n) JOIN items i ON i.code = v.code;
+
+-- Cristal de la Guardia (MAGO)
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'MAGO_ACCESSORY_VIGIA', 'Cristal de la Guardia', 'EQUIPMENT', 'OFFHAND', FALSE, 'POCO_COMUN', 2, 6, TRUE, 'CRAFT', 'Equipo de la vieja Guardia del Vigía, rehecho con las medallas de sus soldados.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'MAGO_ACCESSORY_VIGIA');
+UPDATE items SET name = 'Cristal de la Guardia', item_type = 'EQUIPMENT', slot = 'OFFHAND', is_two_handed = FALSE, rarity = 'POCO_COMUN', class_id = 2, required_level = 6, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Equipo de la vieja Guardia del Vigía, rehecho con las medallas de sus soldados.' WHERE code = 'MAGO_ACCESSORY_VIGIA';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'MAGO_ACCESSORY_VIGIA');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'MAGO_ACCESSORY_VIGIA'), v.* FROM (VALUES ('MAG', 13, FALSE), ('CRIT_CHANCE', 2.5, TRUE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station)
+SELECT 'RECIPE_MAGO_ACCESSORY_VIGIA', (SELECT id FROM items WHERE code = 'MAGO_ACCESSORY_VIGIA'), 1, 'POCO_COMUN', 6, 2, 90, 1, 'Faeron el Sastre', 1, 'forja' WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_MAGO_ACCESSORY_VIGIA');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'MAGO_ACCESSORY_VIGIA'), result_quantity = 1, rarity = 'POCO_COMUN', required_level = 6, required_class_id = 2, success_rate_percent = 90, craft_time_minutes = 1, artisan_name = 'Faeron el Sastre', zone_id = 1, station = 'forja' WHERE code = 'RECIPE_MAGO_ACCESSORY_VIGIA';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_MAGO_ACCESSORY_VIGIA');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_MAGO_ACCESSORY_VIGIA'), i.id, v.n FROM (VALUES ('MEDALLA_VIGIA', 1), ('TELA_LINO', 1), ('GLANDULA_SAPO', 2)) AS v(code, n) JOIN items i ON i.code = v.code;
+
+-- Orbe de la Guardia (MAGO)
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'MAGO_OFFHAND_VIGIA', 'Orbe de la Guardia', 'EQUIPMENT', 'OFFHAND', FALSE, 'POCO_COMUN', 2, 6, TRUE, 'CRAFT', 'Equipo de la vieja Guardia del Vigía, rehecho con las medallas de sus soldados.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'MAGO_OFFHAND_VIGIA');
+UPDATE items SET name = 'Orbe de la Guardia', item_type = 'EQUIPMENT', slot = 'OFFHAND', is_two_handed = FALSE, rarity = 'POCO_COMUN', class_id = 2, required_level = 6, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Equipo de la vieja Guardia del Vigía, rehecho con las medallas de sus soldados.' WHERE code = 'MAGO_OFFHAND_VIGIA';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'MAGO_OFFHAND_VIGIA');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'MAGO_OFFHAND_VIGIA'), v.* FROM (VALUES ('MAG', 3, FALSE), ('SPD', 8, FALSE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station)
+SELECT 'RECIPE_MAGO_OFFHAND_VIGIA', (SELECT id FROM items WHERE code = 'MAGO_OFFHAND_VIGIA'), 1, 'POCO_COMUN', 6, 2, 90, 1, 'Faeron el Sastre', 1, 'forja' WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_MAGO_OFFHAND_VIGIA');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'MAGO_OFFHAND_VIGIA'), result_quantity = 1, rarity = 'POCO_COMUN', required_level = 6, required_class_id = 2, success_rate_percent = 90, craft_time_minutes = 1, artisan_name = 'Faeron el Sastre', zone_id = 1, station = 'forja' WHERE code = 'RECIPE_MAGO_OFFHAND_VIGIA';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_MAGO_OFFHAND_VIGIA');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_MAGO_OFFHAND_VIGIA'), i.id, v.n FROM (VALUES ('MEDALLA_VIGIA', 1), ('TELA_LINO', 1), ('GLANDULA_SAPO', 2)) AS v(code, n) JOIN items i ON i.code = v.code;
+
+-- Báculo Arcano de la Guardia (MAGO)
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'MAGO_WEAPON_VIGIA', 'Báculo Arcano de la Guardia', 'EQUIPMENT', 'WEAPON', FALSE, 'POCO_COMUN', 2, 6, TRUE, 'CRAFT', 'Equipo de la vieja Guardia del Vigía, rehecho con las medallas de sus soldados.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'MAGO_WEAPON_VIGIA');
+UPDATE items SET name = 'Báculo Arcano de la Guardia', item_type = 'EQUIPMENT', slot = 'WEAPON', is_two_handed = FALSE, rarity = 'POCO_COMUN', class_id = 2, required_level = 6, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Equipo de la vieja Guardia del Vigía, rehecho con las medallas de sus soldados.' WHERE code = 'MAGO_WEAPON_VIGIA';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'MAGO_WEAPON_VIGIA');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'MAGO_WEAPON_VIGIA'), v.* FROM (VALUES ('MAG', 24, FALSE), ('CRIT_CHANCE', 3.8, TRUE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station)
+SELECT 'RECIPE_MAGO_WEAPON_VIGIA', (SELECT id FROM items WHERE code = 'MAGO_WEAPON_VIGIA'), 1, 'POCO_COMUN', 6, 2, 90, 1, 'Faeron el Sastre', 1, 'forja' WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_MAGO_WEAPON_VIGIA');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'MAGO_WEAPON_VIGIA'), result_quantity = 1, rarity = 'POCO_COMUN', required_level = 6, required_class_id = 2, success_rate_percent = 90, craft_time_minutes = 1, artisan_name = 'Faeron el Sastre', zone_id = 1, station = 'forja' WHERE code = 'RECIPE_MAGO_WEAPON_VIGIA';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_MAGO_WEAPON_VIGIA');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_MAGO_WEAPON_VIGIA'), i.id, v.n FROM (VALUES ('MEDALLA_VIGIA', 2), ('TELA_LINO', 2), ('GLANDULA_SAPO', 2)) AS v(code, n) JOIN items i ON i.code = v.code;
+
+-- Gabán de la Guardia (ARQUERO)
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'ARQUERO_ARMOR_VIGIA', 'Gabán de la Guardia', 'EQUIPMENT', 'ARMOR', FALSE, 'POCO_COMUN', 3, 6, TRUE, 'CRAFT', 'Equipo de la vieja Guardia del Vigía, rehecho con las medallas de sus soldados.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'ARQUERO_ARMOR_VIGIA');
+UPDATE items SET name = 'Gabán de la Guardia', item_type = 'EQUIPMENT', slot = 'ARMOR', is_two_handed = FALSE, rarity = 'POCO_COMUN', class_id = 3, required_level = 6, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Equipo de la vieja Guardia del Vigía, rehecho con las medallas de sus soldados.' WHERE code = 'ARQUERO_ARMOR_VIGIA';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'ARQUERO_ARMOR_VIGIA');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'ARQUERO_ARMOR_VIGIA'), v.* FROM (VALUES ('DEF', 9, FALSE), ('MAGIC_DEF', 2, FALSE), ('HP', 24, FALSE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station)
+SELECT 'RECIPE_ARQUERO_ARMOR_VIGIA', (SELECT id FROM items WHERE code = 'ARQUERO_ARMOR_VIGIA'), 1, 'POCO_COMUN', 6, 3, 90, 1, 'Bram el Peletero', 1, 'forja' WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_ARQUERO_ARMOR_VIGIA');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'ARQUERO_ARMOR_VIGIA'), result_quantity = 1, rarity = 'POCO_COMUN', required_level = 6, required_class_id = 3, success_rate_percent = 90, craft_time_minutes = 1, artisan_name = 'Bram el Peletero', zone_id = 1, station = 'forja' WHERE code = 'RECIPE_ARQUERO_ARMOR_VIGIA';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_ARQUERO_ARMOR_VIGIA');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_ARQUERO_ARMOR_VIGIA'), i.id, v.n FROM (VALUES ('MEDALLA_VIGIA', 2), ('CUERO_TRATADO', 3)) AS v(code, n) JOIN items i ON i.code = v.code;
+
+-- Botas de la Guardia (ARQUERO)
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'ARQUERO_BOOTS_VIGIA', 'Botas de la Guardia', 'EQUIPMENT', 'BOOTS', FALSE, 'POCO_COMUN', 3, 6, TRUE, 'CRAFT', 'Equipo de la vieja Guardia del Vigía, rehecho con las medallas de sus soldados.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'ARQUERO_BOOTS_VIGIA');
+UPDATE items SET name = 'Botas de la Guardia', item_type = 'EQUIPMENT', slot = 'BOOTS', is_two_handed = FALSE, rarity = 'POCO_COMUN', class_id = 3, required_level = 6, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Equipo de la vieja Guardia del Vigía, rehecho con las medallas de sus soldados.' WHERE code = 'ARQUERO_BOOTS_VIGIA';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'ARQUERO_BOOTS_VIGIA');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'ARQUERO_BOOTS_VIGIA'), v.* FROM (VALUES ('DEF', 2, FALSE), ('HP', 2, FALSE), ('SPD', 7, FALSE), ('EVASION', 1.5, TRUE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station)
+SELECT 'RECIPE_ARQUERO_BOOTS_VIGIA', (SELECT id FROM items WHERE code = 'ARQUERO_BOOTS_VIGIA'), 1, 'POCO_COMUN', 6, 3, 90, 1, 'Bram el Peletero', 1, 'forja' WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_ARQUERO_BOOTS_VIGIA');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'ARQUERO_BOOTS_VIGIA'), result_quantity = 1, rarity = 'POCO_COMUN', required_level = 6, required_class_id = 3, success_rate_percent = 90, craft_time_minutes = 1, artisan_name = 'Bram el Peletero', zone_id = 1, station = 'forja' WHERE code = 'RECIPE_ARQUERO_BOOTS_VIGIA';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_ARQUERO_BOOTS_VIGIA');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_ARQUERO_BOOTS_VIGIA'), i.id, v.n FROM (VALUES ('MEDALLA_VIGIA', 1), ('CUERO_TRATADO', 2)) AS v(code, n) JOIN items i ON i.code = v.code;
+
+-- Guantes de la Guardia (ARQUERO)
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'ARQUERO_GLOVES_VIGIA', 'Guantes de la Guardia', 'EQUIPMENT', 'GLOVES', FALSE, 'POCO_COMUN', 3, 6, TRUE, 'CRAFT', 'Equipo de la vieja Guardia del Vigía, rehecho con las medallas de sus soldados.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'ARQUERO_GLOVES_VIGIA');
+UPDATE items SET name = 'Guantes de la Guardia', item_type = 'EQUIPMENT', slot = 'GLOVES', is_two_handed = FALSE, rarity = 'POCO_COMUN', class_id = 3, required_level = 6, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Equipo de la vieja Guardia del Vigía, rehecho con las medallas de sus soldados.' WHERE code = 'ARQUERO_GLOVES_VIGIA';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'ARQUERO_GLOVES_VIGIA');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'ARQUERO_GLOVES_VIGIA'), v.* FROM (VALUES ('ATK', 11, FALSE), ('CRIT_CHANCE', 2.5, TRUE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station)
+SELECT 'RECIPE_ARQUERO_GLOVES_VIGIA', (SELECT id FROM items WHERE code = 'ARQUERO_GLOVES_VIGIA'), 1, 'POCO_COMUN', 6, 3, 90, 1, 'Bram el Peletero', 1, 'forja' WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_ARQUERO_GLOVES_VIGIA');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'ARQUERO_GLOVES_VIGIA'), result_quantity = 1, rarity = 'POCO_COMUN', required_level = 6, required_class_id = 3, success_rate_percent = 90, craft_time_minutes = 1, artisan_name = 'Bram el Peletero', zone_id = 1, station = 'forja' WHERE code = 'RECIPE_ARQUERO_GLOVES_VIGIA';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_ARQUERO_GLOVES_VIGIA');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_ARQUERO_GLOVES_VIGIA'), i.id, v.n FROM (VALUES ('MEDALLA_VIGIA', 1), ('CUERO_TRATADO', 2)) AS v(code, n) JOIN items i ON i.code = v.code;
+
+-- Capucha de la Guardia (ARQUERO)
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'ARQUERO_HELMET_VIGIA', 'Capucha de la Guardia', 'EQUIPMENT', 'HELMET', FALSE, 'POCO_COMUN', 3, 6, TRUE, 'CRAFT', 'Equipo de la vieja Guardia del Vigía, rehecho con las medallas de sus soldados.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'ARQUERO_HELMET_VIGIA');
+UPDATE items SET name = 'Capucha de la Guardia', item_type = 'EQUIPMENT', slot = 'HELMET', is_two_handed = FALSE, rarity = 'POCO_COMUN', class_id = 3, required_level = 6, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Equipo de la vieja Guardia del Vigía, rehecho con las medallas de sus soldados.' WHERE code = 'ARQUERO_HELMET_VIGIA';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'ARQUERO_HELMET_VIGIA');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'ARQUERO_HELMET_VIGIA'), v.* FROM (VALUES ('DEF', 4, FALSE), ('MAGIC_DEF', 1, FALSE), ('HP', 4, FALSE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station)
+SELECT 'RECIPE_ARQUERO_HELMET_VIGIA', (SELECT id FROM items WHERE code = 'ARQUERO_HELMET_VIGIA'), 1, 'POCO_COMUN', 6, 3, 90, 1, 'Bram el Peletero', 1, 'forja' WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_ARQUERO_HELMET_VIGIA');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'ARQUERO_HELMET_VIGIA'), result_quantity = 1, rarity = 'POCO_COMUN', required_level = 6, required_class_id = 3, success_rate_percent = 90, craft_time_minutes = 1, artisan_name = 'Bram el Peletero', zone_id = 1, station = 'forja' WHERE code = 'RECIPE_ARQUERO_HELMET_VIGIA';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_ARQUERO_HELMET_VIGIA');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_ARQUERO_HELMET_VIGIA'), i.id, v.n FROM (VALUES ('MEDALLA_VIGIA', 1), ('CUERO_TRATADO', 2)) AS v(code, n) JOIN items i ON i.code = v.code;
+
+-- Carcaj de la Guardia (ARQUERO)
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'ARQUERO_OFFHAND_VIGIA', 'Carcaj de la Guardia', 'EQUIPMENT', 'OFFHAND', FALSE, 'POCO_COMUN', 3, 6, TRUE, 'CRAFT', 'Equipo de la vieja Guardia del Vigía, rehecho con las medallas de sus soldados.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'ARQUERO_OFFHAND_VIGIA');
+UPDATE items SET name = 'Carcaj de la Guardia', item_type = 'EQUIPMENT', slot = 'OFFHAND', is_two_handed = FALSE, rarity = 'POCO_COMUN', class_id = 3, required_level = 6, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Equipo de la vieja Guardia del Vigía, rehecho con las medallas de sus soldados.' WHERE code = 'ARQUERO_OFFHAND_VIGIA';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'ARQUERO_OFFHAND_VIGIA');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'ARQUERO_OFFHAND_VIGIA'), v.* FROM (VALUES ('ATK', 3, FALSE), ('SPD', 8, FALSE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station)
+SELECT 'RECIPE_ARQUERO_OFFHAND_VIGIA', (SELECT id FROM items WHERE code = 'ARQUERO_OFFHAND_VIGIA'), 1, 'POCO_COMUN', 6, 3, 90, 1, 'Bram el Peletero', 1, 'forja' WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_ARQUERO_OFFHAND_VIGIA');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'ARQUERO_OFFHAND_VIGIA'), result_quantity = 1, rarity = 'POCO_COMUN', required_level = 6, required_class_id = 3, success_rate_percent = 90, craft_time_minutes = 1, artisan_name = 'Bram el Peletero', zone_id = 1, station = 'forja' WHERE code = 'RECIPE_ARQUERO_OFFHAND_VIGIA';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_ARQUERO_OFFHAND_VIGIA');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_ARQUERO_OFFHAND_VIGIA'), i.id, v.n FROM (VALUES ('MEDALLA_VIGIA', 1), ('CUERO_TRATADO', 1), ('TABLA_ROBLE', 2)) AS v(code, n) JOIN items i ON i.code = v.code;
+
+-- Arco de la Guardia (ARQUERO)
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'ARQUERO_WEAPON_VIGIA', 'Arco de la Guardia', 'EQUIPMENT', 'WEAPON', FALSE, 'POCO_COMUN', 3, 6, TRUE, 'CRAFT', 'Equipo de la vieja Guardia del Vigía, rehecho con las medallas de sus soldados.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'ARQUERO_WEAPON_VIGIA');
+UPDATE items SET name = 'Arco de la Guardia', item_type = 'EQUIPMENT', slot = 'WEAPON', is_two_handed = FALSE, rarity = 'POCO_COMUN', class_id = 3, required_level = 6, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Equipo de la vieja Guardia del Vigía, rehecho con las medallas de sus soldados.' WHERE code = 'ARQUERO_WEAPON_VIGIA';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'ARQUERO_WEAPON_VIGIA');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'ARQUERO_WEAPON_VIGIA'), v.* FROM (VALUES ('ATK', 24, FALSE), ('CRIT_CHANCE', 3.8, TRUE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station)
+SELECT 'RECIPE_ARQUERO_WEAPON_VIGIA', (SELECT id FROM items WHERE code = 'ARQUERO_WEAPON_VIGIA'), 1, 'POCO_COMUN', 6, 3, 90, 1, 'Bram el Peletero', 1, 'forja' WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_ARQUERO_WEAPON_VIGIA');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'ARQUERO_WEAPON_VIGIA'), result_quantity = 1, rarity = 'POCO_COMUN', required_level = 6, required_class_id = 3, success_rate_percent = 90, craft_time_minutes = 1, artisan_name = 'Bram el Peletero', zone_id = 1, station = 'forja' WHERE code = 'RECIPE_ARQUERO_WEAPON_VIGIA';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_ARQUERO_WEAPON_VIGIA');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_ARQUERO_WEAPON_VIGIA'), i.id, v.n FROM (VALUES ('MEDALLA_VIGIA', 2), ('CUERO_TRATADO', 2), ('TABLA_ROBLE', 2)) AS v(code, n) JOIN items i ON i.code = v.code;
+
+-- Cuero de la Guardia (PICARO)
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'PICARO_ARMOR_VIGIA', 'Cuero de la Guardia', 'EQUIPMENT', 'ARMOR', FALSE, 'POCO_COMUN', 4, 6, TRUE, 'CRAFT', 'Equipo de la vieja Guardia del Vigía, rehecho con las medallas de sus soldados.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'PICARO_ARMOR_VIGIA');
+UPDATE items SET name = 'Cuero de la Guardia', item_type = 'EQUIPMENT', slot = 'ARMOR', is_two_handed = FALSE, rarity = 'POCO_COMUN', class_id = 4, required_level = 6, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Equipo de la vieja Guardia del Vigía, rehecho con las medallas de sus soldados.' WHERE code = 'PICARO_ARMOR_VIGIA';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'PICARO_ARMOR_VIGIA');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'PICARO_ARMOR_VIGIA'), v.* FROM (VALUES ('DEF', 9, FALSE), ('MAGIC_DEF', 3, FALSE), ('HP', 26, FALSE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station)
+SELECT 'RECIPE_PICARO_ARMOR_VIGIA', (SELECT id FROM items WHERE code = 'PICARO_ARMOR_VIGIA'), 1, 'POCO_COMUN', 6, 4, 90, 1, 'Bram el Peletero', 1, 'forja' WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_PICARO_ARMOR_VIGIA');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'PICARO_ARMOR_VIGIA'), result_quantity = 1, rarity = 'POCO_COMUN', required_level = 6, required_class_id = 4, success_rate_percent = 90, craft_time_minutes = 1, artisan_name = 'Bram el Peletero', zone_id = 1, station = 'forja' WHERE code = 'RECIPE_PICARO_ARMOR_VIGIA';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_PICARO_ARMOR_VIGIA');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_PICARO_ARMOR_VIGIA'), i.id, v.n FROM (VALUES ('MEDALLA_VIGIA', 2), ('CUERO_TRATADO', 3)) AS v(code, n) JOIN items i ON i.code = v.code;
+
+-- Botas de la Guardia (PICARO)
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'PICARO_BOOTS_VIGIA', 'Botas de la Guardia', 'EQUIPMENT', 'BOOTS', FALSE, 'POCO_COMUN', 4, 6, TRUE, 'CRAFT', 'Equipo de la vieja Guardia del Vigía, rehecho con las medallas de sus soldados.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'PICARO_BOOTS_VIGIA');
+UPDATE items SET name = 'Botas de la Guardia', item_type = 'EQUIPMENT', slot = 'BOOTS', is_two_handed = FALSE, rarity = 'POCO_COMUN', class_id = 4, required_level = 6, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Equipo de la vieja Guardia del Vigía, rehecho con las medallas de sus soldados.' WHERE code = 'PICARO_BOOTS_VIGIA';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'PICARO_BOOTS_VIGIA');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'PICARO_BOOTS_VIGIA'), v.* FROM (VALUES ('DEF', 2, FALSE), ('HP', 2, FALSE), ('SPD', 7, FALSE), ('EVASION', 1.5, TRUE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station)
+SELECT 'RECIPE_PICARO_BOOTS_VIGIA', (SELECT id FROM items WHERE code = 'PICARO_BOOTS_VIGIA'), 1, 'POCO_COMUN', 6, 4, 90, 1, 'Bram el Peletero', 1, 'forja' WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_PICARO_BOOTS_VIGIA');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'PICARO_BOOTS_VIGIA'), result_quantity = 1, rarity = 'POCO_COMUN', required_level = 6, required_class_id = 4, success_rate_percent = 90, craft_time_minutes = 1, artisan_name = 'Bram el Peletero', zone_id = 1, station = 'forja' WHERE code = 'RECIPE_PICARO_BOOTS_VIGIA';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_PICARO_BOOTS_VIGIA');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_PICARO_BOOTS_VIGIA'), i.id, v.n FROM (VALUES ('MEDALLA_VIGIA', 1), ('CUERO_TRATADO', 2)) AS v(code, n) JOIN items i ON i.code = v.code;
+
+-- Guantes de la Guardia (PICARO)
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'PICARO_GLOVES_VIGIA', 'Guantes de la Guardia', 'EQUIPMENT', 'GLOVES', FALSE, 'POCO_COMUN', 4, 6, TRUE, 'CRAFT', 'Equipo de la vieja Guardia del Vigía, rehecho con las medallas de sus soldados.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'PICARO_GLOVES_VIGIA');
+UPDATE items SET name = 'Guantes de la Guardia', item_type = 'EQUIPMENT', slot = 'GLOVES', is_two_handed = FALSE, rarity = 'POCO_COMUN', class_id = 4, required_level = 6, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Equipo de la vieja Guardia del Vigía, rehecho con las medallas de sus soldados.' WHERE code = 'PICARO_GLOVES_VIGIA';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'PICARO_GLOVES_VIGIA');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'PICARO_GLOVES_VIGIA'), v.* FROM (VALUES ('ATK', 11, FALSE), ('CRIT_CHANCE', 2.5, TRUE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station)
+SELECT 'RECIPE_PICARO_GLOVES_VIGIA', (SELECT id FROM items WHERE code = 'PICARO_GLOVES_VIGIA'), 1, 'POCO_COMUN', 6, 4, 90, 1, 'Bram el Peletero', 1, 'forja' WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_PICARO_GLOVES_VIGIA');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'PICARO_GLOVES_VIGIA'), result_quantity = 1, rarity = 'POCO_COMUN', required_level = 6, required_class_id = 4, success_rate_percent = 90, craft_time_minutes = 1, artisan_name = 'Bram el Peletero', zone_id = 1, station = 'forja' WHERE code = 'RECIPE_PICARO_GLOVES_VIGIA';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_PICARO_GLOVES_VIGIA');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_PICARO_GLOVES_VIGIA'), i.id, v.n FROM (VALUES ('MEDALLA_VIGIA', 1), ('CUERO_TRATADO', 2)) AS v(code, n) JOIN items i ON i.code = v.code;
+
+-- Máscara de la Guardia (PICARO)
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'PICARO_HELMET_VIGIA', 'Máscara de la Guardia', 'EQUIPMENT', 'HELMET', FALSE, 'POCO_COMUN', 4, 6, TRUE, 'CRAFT', 'Equipo de la vieja Guardia del Vigía, rehecho con las medallas de sus soldados.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'PICARO_HELMET_VIGIA');
+UPDATE items SET name = 'Máscara de la Guardia', item_type = 'EQUIPMENT', slot = 'HELMET', is_two_handed = FALSE, rarity = 'POCO_COMUN', class_id = 4, required_level = 6, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Equipo de la vieja Guardia del Vigía, rehecho con las medallas de sus soldados.' WHERE code = 'PICARO_HELMET_VIGIA';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'PICARO_HELMET_VIGIA');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'PICARO_HELMET_VIGIA'), v.* FROM (VALUES ('DEF', 4, FALSE), ('MAGIC_DEF', 1, FALSE), ('HP', 4, FALSE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station)
+SELECT 'RECIPE_PICARO_HELMET_VIGIA', (SELECT id FROM items WHERE code = 'PICARO_HELMET_VIGIA'), 1, 'POCO_COMUN', 6, 4, 90, 1, 'Bram el Peletero', 1, 'forja' WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_PICARO_HELMET_VIGIA');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'PICARO_HELMET_VIGIA'), result_quantity = 1, rarity = 'POCO_COMUN', required_level = 6, required_class_id = 4, success_rate_percent = 90, craft_time_minutes = 1, artisan_name = 'Bram el Peletero', zone_id = 1, station = 'forja' WHERE code = 'RECIPE_PICARO_HELMET_VIGIA';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_PICARO_HELMET_VIGIA');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_PICARO_HELMET_VIGIA'), i.id, v.n FROM (VALUES ('MEDALLA_VIGIA', 1), ('CUERO_TRATADO', 2)) AS v(code, n) JOIN items i ON i.code = v.code;
+
+-- Daga Gemela de la Guardia (PICARO)
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'PICARO_OFFHAND_VIGIA', 'Daga Gemela de la Guardia', 'EQUIPMENT', 'OFFHAND', FALSE, 'POCO_COMUN', 4, 6, TRUE, 'CRAFT', 'Equipo de la vieja Guardia del Vigía, rehecho con las medallas de sus soldados.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'PICARO_OFFHAND_VIGIA');
+UPDATE items SET name = 'Daga Gemela de la Guardia', item_type = 'EQUIPMENT', slot = 'OFFHAND', is_two_handed = FALSE, rarity = 'POCO_COMUN', class_id = 4, required_level = 6, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Equipo de la vieja Guardia del Vigía, rehecho con las medallas de sus soldados.' WHERE code = 'PICARO_OFFHAND_VIGIA';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'PICARO_OFFHAND_VIGIA');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'PICARO_OFFHAND_VIGIA'), v.* FROM (VALUES ('ATK', 3, FALSE), ('SPD', 8, FALSE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station)
+SELECT 'RECIPE_PICARO_OFFHAND_VIGIA', (SELECT id FROM items WHERE code = 'PICARO_OFFHAND_VIGIA'), 1, 'POCO_COMUN', 6, 4, 90, 1, 'Bram el Peletero', 1, 'forja' WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_PICARO_OFFHAND_VIGIA');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'PICARO_OFFHAND_VIGIA'), result_quantity = 1, rarity = 'POCO_COMUN', required_level = 6, required_class_id = 4, success_rate_percent = 90, craft_time_minutes = 1, artisan_name = 'Bram el Peletero', zone_id = 1, station = 'forja' WHERE code = 'RECIPE_PICARO_OFFHAND_VIGIA';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_PICARO_OFFHAND_VIGIA');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_PICARO_OFFHAND_VIGIA'), i.id, v.n FROM (VALUES ('MEDALLA_VIGIA', 1), ('CUERO_TRATADO', 1), ('LINGOTE_HIERRO', 2)) AS v(code, n) JOIN items i ON i.code = v.code;
+
+-- Daga de la Guardia (PICARO)
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'PICARO_WEAPON_VIGIA', 'Daga de la Guardia', 'EQUIPMENT', 'WEAPON', FALSE, 'POCO_COMUN', 4, 6, TRUE, 'CRAFT', 'Equipo de la vieja Guardia del Vigía, rehecho con las medallas de sus soldados.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'PICARO_WEAPON_VIGIA');
+UPDATE items SET name = 'Daga de la Guardia', item_type = 'EQUIPMENT', slot = 'WEAPON', is_two_handed = FALSE, rarity = 'POCO_COMUN', class_id = 4, required_level = 6, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Equipo de la vieja Guardia del Vigía, rehecho con las medallas de sus soldados.' WHERE code = 'PICARO_WEAPON_VIGIA';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'PICARO_WEAPON_VIGIA');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'PICARO_WEAPON_VIGIA'), v.* FROM (VALUES ('ATK', 24, FALSE), ('CRIT_CHANCE', 3.8, TRUE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station)
+SELECT 'RECIPE_PICARO_WEAPON_VIGIA', (SELECT id FROM items WHERE code = 'PICARO_WEAPON_VIGIA'), 1, 'POCO_COMUN', 6, 4, 90, 1, 'Bram el Peletero', 1, 'forja' WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_PICARO_WEAPON_VIGIA');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'PICARO_WEAPON_VIGIA'), result_quantity = 1, rarity = 'POCO_COMUN', required_level = 6, required_class_id = 4, success_rate_percent = 90, craft_time_minutes = 1, artisan_name = 'Bram el Peletero', zone_id = 1, station = 'forja' WHERE code = 'RECIPE_PICARO_WEAPON_VIGIA';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_PICARO_WEAPON_VIGIA');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_PICARO_WEAPON_VIGIA'), i.id, v.n FROM (VALUES ('MEDALLA_VIGIA', 2), ('CUERO_TRATADO', 2), ('LINGOTE_HIERRO', 2)) AS v(code, n) JOIN items i ON i.code = v.code;
+
+-- Vestidura de la Guardia (SACERDOTE)
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'SACERDOTE_ARMOR_VIGIA', 'Vestidura de la Guardia', 'EQUIPMENT', 'ARMOR', FALSE, 'POCO_COMUN', 5, 6, TRUE, 'CRAFT', 'Equipo de la vieja Guardia del Vigía, rehecho con las medallas de sus soldados.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'SACERDOTE_ARMOR_VIGIA');
+UPDATE items SET name = 'Vestidura de la Guardia', item_type = 'EQUIPMENT', slot = 'ARMOR', is_two_handed = FALSE, rarity = 'POCO_COMUN', class_id = 5, required_level = 6, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Equipo de la vieja Guardia del Vigía, rehecho con las medallas de sus soldados.' WHERE code = 'SACERDOTE_ARMOR_VIGIA';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'SACERDOTE_ARMOR_VIGIA');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'SACERDOTE_ARMOR_VIGIA'), v.* FROM (VALUES ('MAGIC_DEF', 9, FALSE), ('DEF', 3, FALSE), ('HP', 17, FALSE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station)
+SELECT 'RECIPE_SACERDOTE_ARMOR_VIGIA', (SELECT id FROM items WHERE code = 'SACERDOTE_ARMOR_VIGIA'), 1, 'POCO_COMUN', 6, 5, 90, 1, 'Faeron el Sastre', 1, 'forja' WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_SACERDOTE_ARMOR_VIGIA');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'SACERDOTE_ARMOR_VIGIA'), result_quantity = 1, rarity = 'POCO_COMUN', required_level = 6, required_class_id = 5, success_rate_percent = 90, craft_time_minutes = 1, artisan_name = 'Faeron el Sastre', zone_id = 1, station = 'forja' WHERE code = 'RECIPE_SACERDOTE_ARMOR_VIGIA';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_SACERDOTE_ARMOR_VIGIA');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_SACERDOTE_ARMOR_VIGIA'), i.id, v.n FROM (VALUES ('MEDALLA_VIGIA', 2), ('TELA_LINO', 3)) AS v(code, n) JOIN items i ON i.code = v.code;
+
+-- Sandalias de la Guardia (SACERDOTE)
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'SACERDOTE_BOOTS_VIGIA', 'Sandalias de la Guardia', 'EQUIPMENT', 'BOOTS', FALSE, 'POCO_COMUN', 5, 6, TRUE, 'CRAFT', 'Equipo de la vieja Guardia del Vigía, rehecho con las medallas de sus soldados.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'SACERDOTE_BOOTS_VIGIA');
+UPDATE items SET name = 'Sandalias de la Guardia', item_type = 'EQUIPMENT', slot = 'BOOTS', is_two_handed = FALSE, rarity = 'POCO_COMUN', class_id = 5, required_level = 6, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Equipo de la vieja Guardia del Vigía, rehecho con las medallas de sus soldados.' WHERE code = 'SACERDOTE_BOOTS_VIGIA';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'SACERDOTE_BOOTS_VIGIA');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'SACERDOTE_BOOTS_VIGIA'), v.* FROM (VALUES ('MAGIC_DEF', 2, FALSE), ('HP', 2, FALSE), ('SPD', 7, FALSE), ('EVASION', 1.5, TRUE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station)
+SELECT 'RECIPE_SACERDOTE_BOOTS_VIGIA', (SELECT id FROM items WHERE code = 'SACERDOTE_BOOTS_VIGIA'), 1, 'POCO_COMUN', 6, 5, 90, 1, 'Faeron el Sastre', 1, 'forja' WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_SACERDOTE_BOOTS_VIGIA');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'SACERDOTE_BOOTS_VIGIA'), result_quantity = 1, rarity = 'POCO_COMUN', required_level = 6, required_class_id = 5, success_rate_percent = 90, craft_time_minutes = 1, artisan_name = 'Faeron el Sastre', zone_id = 1, station = 'forja' WHERE code = 'RECIPE_SACERDOTE_BOOTS_VIGIA';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_SACERDOTE_BOOTS_VIGIA');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_SACERDOTE_BOOTS_VIGIA'), i.id, v.n FROM (VALUES ('MEDALLA_VIGIA', 1), ('TELA_LINO', 2)) AS v(code, n) JOIN items i ON i.code = v.code;
+
+-- Guantes Bendecidos de la Guardia (SACERDOTE)
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'SACERDOTE_GLOVES_VIGIA', 'Guantes Bendecidos de la Guardia', 'EQUIPMENT', 'GLOVES', FALSE, 'POCO_COMUN', 5, 6, TRUE, 'CRAFT', 'Equipo de la vieja Guardia del Vigía, rehecho con las medallas de sus soldados.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'SACERDOTE_GLOVES_VIGIA');
+UPDATE items SET name = 'Guantes Bendecidos de la Guardia', item_type = 'EQUIPMENT', slot = 'GLOVES', is_two_handed = FALSE, rarity = 'POCO_COMUN', class_id = 5, required_level = 6, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Equipo de la vieja Guardia del Vigía, rehecho con las medallas de sus soldados.' WHERE code = 'SACERDOTE_GLOVES_VIGIA';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'SACERDOTE_GLOVES_VIGIA');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'SACERDOTE_GLOVES_VIGIA'), v.* FROM (VALUES ('MAG', 11, FALSE), ('CRIT_CHANCE', 2.5, TRUE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station)
+SELECT 'RECIPE_SACERDOTE_GLOVES_VIGIA', (SELECT id FROM items WHERE code = 'SACERDOTE_GLOVES_VIGIA'), 1, 'POCO_COMUN', 6, 5, 90, 1, 'Faeron el Sastre', 1, 'forja' WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_SACERDOTE_GLOVES_VIGIA');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'SACERDOTE_GLOVES_VIGIA'), result_quantity = 1, rarity = 'POCO_COMUN', required_level = 6, required_class_id = 5, success_rate_percent = 90, craft_time_minutes = 1, artisan_name = 'Faeron el Sastre', zone_id = 1, station = 'forja' WHERE code = 'RECIPE_SACERDOTE_GLOVES_VIGIA';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_SACERDOTE_GLOVES_VIGIA');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_SACERDOTE_GLOVES_VIGIA'), i.id, v.n FROM (VALUES ('MEDALLA_VIGIA', 1), ('TELA_LINO', 2)) AS v(code, n) JOIN items i ON i.code = v.code;
+
+-- Diadema de la Guardia (SACERDOTE)
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'SACERDOTE_HELMET_VIGIA', 'Diadema de la Guardia', 'EQUIPMENT', 'HELMET', FALSE, 'POCO_COMUN', 5, 6, TRUE, 'CRAFT', 'Equipo de la vieja Guardia del Vigía, rehecho con las medallas de sus soldados.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'SACERDOTE_HELMET_VIGIA');
+UPDATE items SET name = 'Diadema de la Guardia', item_type = 'EQUIPMENT', slot = 'HELMET', is_two_handed = FALSE, rarity = 'POCO_COMUN', class_id = 5, required_level = 6, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Equipo de la vieja Guardia del Vigía, rehecho con las medallas de sus soldados.' WHERE code = 'SACERDOTE_HELMET_VIGIA';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'SACERDOTE_HELMET_VIGIA');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'SACERDOTE_HELMET_VIGIA'), v.* FROM (VALUES ('MAGIC_DEF', 4, FALSE), ('DEF', 1, FALSE), ('HP', 4, FALSE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station)
+SELECT 'RECIPE_SACERDOTE_HELMET_VIGIA', (SELECT id FROM items WHERE code = 'SACERDOTE_HELMET_VIGIA'), 1, 'POCO_COMUN', 6, 5, 90, 1, 'Faeron el Sastre', 1, 'forja' WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_SACERDOTE_HELMET_VIGIA');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'SACERDOTE_HELMET_VIGIA'), result_quantity = 1, rarity = 'POCO_COMUN', required_level = 6, required_class_id = 5, success_rate_percent = 90, craft_time_minutes = 1, artisan_name = 'Faeron el Sastre', zone_id = 1, station = 'forja' WHERE code = 'RECIPE_SACERDOTE_HELMET_VIGIA';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_SACERDOTE_HELMET_VIGIA');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_SACERDOTE_HELMET_VIGIA'), i.id, v.n FROM (VALUES ('MEDALLA_VIGIA', 1), ('TELA_LINO', 2)) AS v(code, n) JOIN items i ON i.code = v.code;
+
+-- Símbolo Sagrado de la Guardia (SACERDOTE)
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'SACERDOTE_OFFHAND_VIGIA', 'Símbolo Sagrado de la Guardia', 'EQUIPMENT', 'OFFHAND', FALSE, 'POCO_COMUN', 5, 6, TRUE, 'CRAFT', 'Equipo de la vieja Guardia del Vigía, rehecho con las medallas de sus soldados.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'SACERDOTE_OFFHAND_VIGIA');
+UPDATE items SET name = 'Símbolo Sagrado de la Guardia', item_type = 'EQUIPMENT', slot = 'OFFHAND', is_two_handed = FALSE, rarity = 'POCO_COMUN', class_id = 5, required_level = 6, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Equipo de la vieja Guardia del Vigía, rehecho con las medallas de sus soldados.' WHERE code = 'SACERDOTE_OFFHAND_VIGIA';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'SACERDOTE_OFFHAND_VIGIA');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'SACERDOTE_OFFHAND_VIGIA'), v.* FROM (VALUES ('MAGIC_DEF', 5, FALSE), ('HP', 11, FALSE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station)
+SELECT 'RECIPE_SACERDOTE_OFFHAND_VIGIA', (SELECT id FROM items WHERE code = 'SACERDOTE_OFFHAND_VIGIA'), 1, 'POCO_COMUN', 6, 5, 90, 1, 'Faeron el Sastre', 1, 'forja' WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_SACERDOTE_OFFHAND_VIGIA');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'SACERDOTE_OFFHAND_VIGIA'), result_quantity = 1, rarity = 'POCO_COMUN', required_level = 6, required_class_id = 5, success_rate_percent = 90, craft_time_minutes = 1, artisan_name = 'Faeron el Sastre', zone_id = 1, station = 'forja' WHERE code = 'RECIPE_SACERDOTE_OFFHAND_VIGIA';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_SACERDOTE_OFFHAND_VIGIA');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_SACERDOTE_OFFHAND_VIGIA'), i.id, v.n FROM (VALUES ('MEDALLA_VIGIA', 1), ('TELA_LINO', 1), ('CUARZO_RIO', 2)) AS v(code, n) JOIN items i ON i.code = v.code;
+
+-- Báculo Sagrado de la Guardia (SACERDOTE)
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'SACERDOTE_WEAPON_VIGIA', 'Báculo Sagrado de la Guardia', 'EQUIPMENT', 'WEAPON', FALSE, 'POCO_COMUN', 5, 6, TRUE, 'CRAFT', 'Equipo de la vieja Guardia del Vigía, rehecho con las medallas de sus soldados.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'SACERDOTE_WEAPON_VIGIA');
+UPDATE items SET name = 'Báculo Sagrado de la Guardia', item_type = 'EQUIPMENT', slot = 'WEAPON', is_two_handed = FALSE, rarity = 'POCO_COMUN', class_id = 5, required_level = 6, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Equipo de la vieja Guardia del Vigía, rehecho con las medallas de sus soldados.' WHERE code = 'SACERDOTE_WEAPON_VIGIA';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'SACERDOTE_WEAPON_VIGIA');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'SACERDOTE_WEAPON_VIGIA'), v.* FROM (VALUES ('MAG', 24, FALSE), ('CRIT_CHANCE', 3.8, TRUE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station)
+SELECT 'RECIPE_SACERDOTE_WEAPON_VIGIA', (SELECT id FROM items WHERE code = 'SACERDOTE_WEAPON_VIGIA'), 1, 'POCO_COMUN', 6, 5, 90, 1, 'Faeron el Sastre', 1, 'forja' WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_SACERDOTE_WEAPON_VIGIA');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'SACERDOTE_WEAPON_VIGIA'), result_quantity = 1, rarity = 'POCO_COMUN', required_level = 6, required_class_id = 5, success_rate_percent = 90, craft_time_minutes = 1, artisan_name = 'Faeron el Sastre', zone_id = 1, station = 'forja' WHERE code = 'RECIPE_SACERDOTE_WEAPON_VIGIA';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_SACERDOTE_WEAPON_VIGIA');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_SACERDOTE_WEAPON_VIGIA'), i.id, v.n FROM (VALUES ('MEDALLA_VIGIA', 2), ('TELA_LINO', 2), ('CUARZO_RIO', 2)) AS v(code, n) JOIN items i ON i.code = v.code;
