@@ -1512,5 +1512,6 @@ Lo que le queda para probar en el juego:
 
 ## Última actualización
 
-- Commits de referencia: front `de56449` y back `0642b7b` (la primera parte del Volcán).
-- **Lo de esta tanda está sin commitear al escribir esto:** la Fisura, Marga, la música, el `!` rojo, el atlas, las misiones regeneradas y el SQL en `schema.sql`. Revisa `git status` y `git log` para ver si ya se subió y qué se hizo después.
+- Primera parte del Volcán: front `de56449`, back `0642b7b`.
+- Segunda parte (la Fisura, Marga, música, `!` rojo, atlas, misiones regeneradas y el SQL en `schema.sql`): front `2fc9088`, back `247ba7f`. **El usuario ya corrió el SQL del Volcán en Supabase.**
+- Para ver qué se hizo después, revisa `git log` en los dos repos desde esos commits.
