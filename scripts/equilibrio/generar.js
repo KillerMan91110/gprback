@@ -137,6 +137,7 @@ async function simulate({ classes, gear, monsters }) {
   }
   simulateCripta(classes, gear);
   await simulateMontanas(classes);
+  await simulateMina(classes);
   // jefes y raros contra un grupo de 3 héroes promedio de su nivel
   console.log('\nRaros y jefes (nivel típico): vida / ataque / defensa');
   for (const m of monsters.filter((x) => x.rarity !== 'COMMON')) {
@@ -167,6 +168,7 @@ async function simulateMontanas(classes) {
     'sin el set del Titán': (lv) => (lv >= 30 ? 'REY_MONT' : lv >= 26 ? 'ACANT' : lv >= 21 ? 'ESCARCHA' : lv >= 17 ? 'MONTANAS' : 'CAPITAN'),
   };
   const mons = (await db.query(`SELECT code, min_spawn_level mn, max_spawn_level mx FROM monsters WHERE zone_id = 2 AND rarity = 'COMMON'`)).rows;
+  montanasGear = { sets, PATHS };
   console.log('\nMontañas Grises · turnos para matar / golpes que aguanta (peor común que vive a ese nivel). Meta: 4 → 5-6, nunca perder');
   for (const [name, path] of Object.entries(PATHS)) {
     console.log(`  ${name}`);
@@ -194,6 +196,117 @@ async function simulateMontanas(classes) {
       });
       console.log(`  ${c.code.padEnd(10)} ${cells.join('  ')}`);
     }
+  }
+}
+
+// el héroe de las Montañas a un nivel, con el equipo de ese camino (lo arma simulateMontanas)
+let montanasGear = null;
+function heroMontanas(c, lv, pathName = 'sin el set del Titán', weapon = null) {
+  const { sets, PATHS } = montanasGear;
+  const g = EQ.CLASS_GROWTH[c.code]; const k = lv - 1; const e = { ...(sets[c.id]?.[PATHS[pathName](lv)] ?? {}) };
+  // otra arma (las de Hierro Negro): se cambia la del set por esa
+  if (weapon) for (const [s, v] of Object.entries(weapon)) e[s] = (e[s] || 0) + v;
+  return {
+    hp: Number(c.base_hp) + g.hp * k + (e.HP || 0), atk: Number(c.base_atk) + g.atk * k + (e.ATK || 0), mag: Number(c.base_mag) + g.mag * k + (e.MAG || 0),
+    def: Number(c.base_def) + g.def * k + (e.DEF || 0), magic_def: Number(c.base_magic_def) + g.magic_def * k + (e.MAGIC_DEF || 0),
+    crit: 10 + (PASSIVE_CRIT[c.code] || 0) + (e.CRIT_CHANCE || 0),
+  };
+}
+
+// Mina Profunda (lib/mina.js): igual que la Cripta pero con el equipo de las Montañas (nv 18-24).
+// Además: los raros y jefes de la zona 2 contra el grupo de 3 a su nivel.
+async function simulateMina(classes) {
+  const mina = require('../../lib/mina');
+  const rowAt = (m, lv) => {
+    const [a, b] = m.scalings;
+    const t = Math.max(0, Math.min(1, (lv - a.level) / (b.level - a.level)));
+    const out = {};
+    for (const k of Object.keys(a)) out[k] = typeof a[k] === 'number' ? a[k] + (b[k] - a[k]) * t : a[k];
+    return out;
+  };
+  const sk = EQ.skillTier(10);
+  const heroHit = (c, h, row) => {
+    const magic = EQ.MAIN_STAT[c.code] === 'mag';
+    const raw = sk.base + sk.mult * h[EQ.MAIN_STAT[c.code]];
+    return Math.max(raw * DAMAGE_FLOOR, raw - 0.5 * (magic ? row.magic_def : row.def)) * (1 + Math.min(100, h.crit) / 100 * 0.5);
+  };
+  const monHit = (row, h) => {
+    const magic = row.magic_atk > row.atk;
+    const raw = 1.2 * (magic ? row.magic_atk : row.atk);
+    return Math.max(raw * DAMAGE_FLOOR, raw - 0.5 * (magic ? h.magic_def : h.def)) * (1 + row.crit_chance / 100 * 0.5);
+  };
+  const byCode = Object.fromEntries(mina.MONSTERS.map((m) => [m.code, m]));
+  const LEVELS = [18, 20, 22, 24];
+  console.log('\nMina Profunda · guardianes contra un héroe solo: turnos para vencerlos / rondas que aguanta (meta: vence antes de caer)');
+  for (const [key, g] of Object.entries(mina.GUARDIANES)) {
+    const cells = LEVELS.map((lv) => {
+      const per = classes.map((c) => {
+        const h = heroMontanas(c, lv);
+        const rows = g.monsters.map((code) => rowAt(byCode[code], lv));
+        const ttk = rows.reduce((sum, r) => sum + Math.ceil(r.hp / heroHit(c, h, r)), 0);
+        const ttd = Math.floor(h.hp / rows.reduce((sum, r) => sum + monHit(r, h), 0));
+        return `${c.code.slice(0, 3)} ${ttk}/${ttd}`;
+      });
+      return `nv${lv}: ${per.join(' ')}`;
+    });
+    console.log(`${key.padEnd(13)} ${cells.join(' | ')}`);
+  }
+  const party = ['GUERRERO', 'MAGO', 'SACERDOTE'].map((code) => classes.find((c) => c.code === code));
+  console.log('Guardianes contra guerrero + mago + sacerdote: rondas para vencerlos / rondas que aguanta el grupo');
+  for (const [key, g] of Object.entries(mina.GUARDIANES)) {
+    const cells = LEVELS.map((lv) => {
+      const rows = g.monsters.map((code) => rowAt(byCode[code], lv));
+      const heroes = party.map((c) => ({ c, h: heroMontanas(c, lv) }));
+      const ttk = rows.reduce((sum, r) => sum + r.hp / heroes.reduce((t, x) => t + heroHit(x.c, x.h, r), 0), 0);
+      const hpTotal = heroes.reduce((t, x) => t + x.h.hp, 0);
+      const perRound = rows.reduce((sum, r) => sum + heroes.reduce((t, x) => t + monHit(r, x.h), 0) / heroes.length, 0);
+      return `nv${lv}: ${Math.ceil(ttk)}/${Math.floor(hpTotal / perRound)}`;
+    });
+    console.log(`  ${key.padEnd(13)} ${cells.join(' | ')}`);
+  }
+  // el jefe pega a uno; además cada 3 rondas el derrumbe quita el 50% (8% si se cubrió)
+  console.log('Gólem de Hierro Negro (nivel del héroe + 1) contra guerrero + mago + sacerdote: rondas para vencerlo / golpes que aguanta el guerrero');
+  console.log('  ' + LEVELS.map((lv) => {
+    const row = rowAt(byCode[mina.BOSS_CODE], lv + 1);
+    const dmg = party.reduce((sum, c) => sum + heroHit(c, heroMontanas(c, lv), row), 0);
+    const tank = heroMontanas(party[0], lv);
+    return `nv${lv}: ${Math.ceil(row.hp / dmg)} rondas / ${Math.floor(tank.hp / monHit(row, tank))} golpes`;
+  }).join(' | '));
+  // un héroe solo contra el jefe (no es la idea, pero para saber cuánto se estira)
+  console.log('  un héroe solo, nv 22: ' + classes.map((c) => {
+    const row = rowAt(byCode[mina.BOSS_CODE], 23);
+    const h = heroMontanas(c, 22);
+    return `${c.code.slice(0, 3)} ${Math.ceil(row.hp / heroHit(c, h, row))}/${Math.floor(h.hp / monHit(row, h))}`;
+  }).join(' '));
+
+  // las armas de Hierro Negro (nv 22) contra la de Escarcha (nv 21): turnos para matar al peor común de nv 22
+  const hn = (await db.query(`SELECT i.class_id, b.stat_code, b.amount FROM items i JOIN item_stat_bonuses b ON b.item_id = i.id
+    WHERE i.code ~ '^[A-Z]+_WEAPON_(HIERRO_NEGRO|ESCARCHA)$'`)).rows;
+  const esc = (await db.query(`SELECT i.class_id, b.stat_code, b.amount, i.code FROM items i JOIN item_stat_bonuses b ON b.item_id = i.id
+    WHERE i.code ~ '^[A-Z]+_WEAPON_(HIERRO_NEGRO|ESCARCHA)$'`)).rows;
+  const weaponOf = (cid, suf) => Object.fromEntries(esc.filter((r) => r.class_id === cid && r.code.endsWith(suf)).map((r) => [r.stat_code, Number(r.amount)]));
+  const mons = (await db.query(`SELECT code FROM monsters WHERE zone_id = 2 AND rarity = 'COMMON' AND min_spawn_level <= 22 AND max_spawn_level >= 22`)).rows;
+  console.log('Arma de Escarcha (nv 21) → de Hierro Negro (nv 22): turnos para matar al peor común de nv 22');
+  console.log('  ' + classes.map((c) => {
+    const ttk = (wpn) => {
+      // el set de Escarcha con su arma cambiada por esta
+      const base = weaponOf(c.id, '_ESCARCHA');
+      const swap = Object.fromEntries(Object.keys({ ...base, ...wpn }).map((s) => [s, (wpn[s] || 0) - (base[s] || 0)]));
+      const h = heroMontanas(c, 22, 'sin el set del Titán', swap);
+      return Math.max(...mons.map((m) => Math.ceil(EQ.monsterRow(22, 'COMMON', PERFILES[m.code]).hp / heroHit(c, h, EQ.monsterRow(22, 'COMMON', PERFILES[m.code])))));
+    };
+    return `${c.code.slice(0, 3)} ${ttk(weaponOf(c.id, '_ESCARCHA'))}→${ttk(weaponOf(c.id, '_HIERRO_NEGRO'))}`;
+  }).join('  '));
+  void hn;
+
+  // raros y jefes de la zona 2 contra el grupo de 3 a su nivel
+  const tough = (await db.query(`SELECT code, name, rarity, min_spawn_level lv FROM monsters WHERE zone_id = 2 AND rarity <> 'COMMON' ORDER BY min_spawn_level`)).rows;
+  console.log('Raros y jefes de las Montañas contra guerrero + mago + sacerdote a su nivel: rondas para vencerlo / golpes que aguanta el guerrero');
+  for (const m of tough) {
+    const row = EQ.monsterRow(m.lv, m.rarity, PERFILES[m.code]);
+    const dmg = party.reduce((sum, c) => sum + heroHit(c, heroMontanas(c, m.lv), row), 0);
+    const tank = heroMontanas(party[0], m.lv);
+    console.log(`  ${m.name} (${m.rarity}, nv ${m.lv}): ${Math.ceil(row.hp / dmg)} rondas / ${Math.floor(tank.hp / monHit(row, tank))} golpes`);
   }
 }
 

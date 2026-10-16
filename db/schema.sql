@@ -7809,11 +7809,11 @@ UPDATE quests SET giver_npc = 'durgan', npc_name = 'Durgan' WHERE zone_id = 2 AN
 UPDATE quests SET repeat_cooldown_hours = 20 WHERE zone_id = 2 AND quest_type = 'DIARIA';
 
 -- ============================================================================================
--- Armas de Hierro Negro (repetible; sin ON CONFLICT). Se forjan con lo que sale de la Mina
+-- Armas de Hierro Negro (repetible; sin ON CONFLICT). Legendarias de nivel 22. Se forjan con lo que sale de la Mina
 -- Profunda (lib/mina.js): Mena de Hierro Negro (mineros y gólems) y Corazón de Hierro Negro (el
--- Gólem de Hierro Negro y el cofre de los enanos). Nv 22 épico: algo mejores que las de la
--- Escarcha (nv 21, monstruos comunes) y por debajo del Acantilado (nv 26), porque piden vencer
--- en grupo al jefe de la mina. Las forja Durgan en el Bastión de Hierro.
+-- Gólem de Hierro Negro y el cofre de los enanos). Nv 22 legendario: un 15% mejores que las de la
+-- Escarcha (nv 21) y casi como las del Acantilado (nv 26): vale la pena bajar a la mina entre el
+-- 22 y el 25, porque piden vencer en grupo a su jefe. Las forja Durgan en el Bastión de Hierro.
 -- ============================================================================================
 INSERT INTO items (code, name, item_type, rarity, obtain_method, description)
 SELECT v.code, v.name, 'MATERIAL', v.rarity, 'Drop de monstruo', v.descr FROM (VALUES
@@ -7829,84 +7829,84 @@ WHERE code = 'CORAZON_HIERRO_NEGRO';
 
 -- Espada de Hierro Negro
 INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
-SELECT 'GUERRERO_WEAPON_HIERRO_NEGRO', 'Espada de Hierro Negro', 'EQUIPMENT', 'WEAPON', FALSE, 'EPICO', 1, 22, TRUE, 'CRAFT', 'Forjada por los enanos del Bastión con el hierro negro de la Mina Profunda y el corazón de su gólem. Pesa menos de lo que parece.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'GUERRERO_WEAPON_HIERRO_NEGRO');
-UPDATE items SET name = 'Espada de Hierro Negro', item_type = 'EQUIPMENT', slot = 'WEAPON', is_two_handed = FALSE, rarity = 'EPICO', class_id = 1, required_level = 22, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Forjada por los enanos del Bastión con el hierro negro de la Mina Profunda y el corazón de su gólem. Pesa menos de lo que parece.' WHERE code = 'GUERRERO_WEAPON_HIERRO_NEGRO';
+SELECT 'GUERRERO_WEAPON_HIERRO_NEGRO', 'Espada de Hierro Negro', 'EQUIPMENT', 'WEAPON', FALSE, 'LEGENDARIO', 1, 22, TRUE, 'CRAFT', 'Forjada por los enanos del Bastión con el hierro negro de la Mina Profunda y el corazón de su gólem. Pesa menos de lo que parece.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'GUERRERO_WEAPON_HIERRO_NEGRO');
+UPDATE items SET name = 'Espada de Hierro Negro', item_type = 'EQUIPMENT', slot = 'WEAPON', is_two_handed = FALSE, rarity = 'LEGENDARIO', class_id = 1, required_level = 22, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Forjada por los enanos del Bastión con el hierro negro de la Mina Profunda y el corazón de su gólem. Pesa menos de lo que parece.' WHERE code = 'GUERRERO_WEAPON_HIERRO_NEGRO';
 DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'GUERRERO_WEAPON_HIERRO_NEGRO');
 INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
-SELECT (SELECT id FROM items WHERE code = 'GUERRERO_WEAPON_HIERRO_NEGRO'), v.* FROM (VALUES ('ATK', 60, FALSE), ('CRIT_CHANCE', 6.8, TRUE)) AS v(stat_code, amount, is_percent);
+SELECT (SELECT id FROM items WHERE code = 'GUERRERO_WEAPON_HIERRO_NEGRO'), v.* FROM (VALUES ('ATK', 67, FALSE), ('CRIT_CHANCE', 8.3, TRUE)) AS v(stat_code, amount, is_percent);
 INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station)
-SELECT 'RECIPE_GUERRERO_WEAPON_HIERRO_NEGRO', (SELECT id FROM items WHERE code = 'GUERRERO_WEAPON_HIERRO_NEGRO'), 1, 'EPICO', 22, 1, 75, 1, 'Durgan, en la forja del Bastión de Hierro', 2, 'forja' WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_GUERRERO_WEAPON_HIERRO_NEGRO');
-UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'GUERRERO_WEAPON_HIERRO_NEGRO'), result_quantity = 1, rarity = 'EPICO', required_level = 22, required_class_id = 1, success_rate_percent = 75, craft_time_minutes = 1, artisan_name = 'Durgan, en la forja del Bastión de Hierro', zone_id = 2, station = 'forja' WHERE code = 'RECIPE_GUERRERO_WEAPON_HIERRO_NEGRO';
+SELECT 'RECIPE_GUERRERO_WEAPON_HIERRO_NEGRO', (SELECT id FROM items WHERE code = 'GUERRERO_WEAPON_HIERRO_NEGRO'), 1, 'LEGENDARIO', 22, 1, 75, 1, 'Durgan, en la forja del Bastión de Hierro', 2, 'forja' WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_GUERRERO_WEAPON_HIERRO_NEGRO');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'GUERRERO_WEAPON_HIERRO_NEGRO'), result_quantity = 1, rarity = 'LEGENDARIO', required_level = 22, required_class_id = 1, success_rate_percent = 75, craft_time_minutes = 1, artisan_name = 'Durgan, en la forja del Bastión de Hierro', zone_id = 2, station = 'forja' WHERE code = 'RECIPE_GUERRERO_WEAPON_HIERRO_NEGRO';
 DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_GUERRERO_WEAPON_HIERRO_NEGRO');
 INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
 SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_GUERRERO_WEAPON_HIERRO_NEGRO'), i.id, v.n FROM (VALUES ('CORAZON_HIERRO_NEGRO', 1), ('MENA_HIERRO_NEGRO', 6), ('ACERO_REFINADO', 3), ('PIEL_DE_TROLL', 2)) AS v(code, n) JOIN items i ON i.code = v.code;
 
 -- Gran Espada de Hierro Negro
 INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
-SELECT 'GUERRERO_WEAPON2H_HIERRO_NEGRO', 'Gran Espada de Hierro Negro', 'EQUIPMENT', 'WEAPON', TRUE, 'EPICO', 1, 22, TRUE, 'CRAFT', 'Forjada por los enanos del Bastión con el hierro negro de la Mina Profunda y el corazón de su gólem. Pesa menos de lo que parece.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'GUERRERO_WEAPON2H_HIERRO_NEGRO');
-UPDATE items SET name = 'Gran Espada de Hierro Negro', item_type = 'EQUIPMENT', slot = 'WEAPON', is_two_handed = TRUE, rarity = 'EPICO', class_id = 1, required_level = 22, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Forjada por los enanos del Bastión con el hierro negro de la Mina Profunda y el corazón de su gólem. Pesa menos de lo que parece.' WHERE code = 'GUERRERO_WEAPON2H_HIERRO_NEGRO';
+SELECT 'GUERRERO_WEAPON2H_HIERRO_NEGRO', 'Gran Espada de Hierro Negro', 'EQUIPMENT', 'WEAPON', TRUE, 'LEGENDARIO', 1, 22, TRUE, 'CRAFT', 'Forjada por los enanos del Bastión con el hierro negro de la Mina Profunda y el corazón de su gólem. Pesa menos de lo que parece.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'GUERRERO_WEAPON2H_HIERRO_NEGRO');
+UPDATE items SET name = 'Gran Espada de Hierro Negro', item_type = 'EQUIPMENT', slot = 'WEAPON', is_two_handed = TRUE, rarity = 'LEGENDARIO', class_id = 1, required_level = 22, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Forjada por los enanos del Bastión con el hierro negro de la Mina Profunda y el corazón de su gólem. Pesa menos de lo que parece.' WHERE code = 'GUERRERO_WEAPON2H_HIERRO_NEGRO';
 DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'GUERRERO_WEAPON2H_HIERRO_NEGRO');
 INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
-SELECT (SELECT id FROM items WHERE code = 'GUERRERO_WEAPON2H_HIERRO_NEGRO'), v.* FROM (VALUES ('ATK', 90, FALSE), ('DEF', -27, FALSE), ('SPD', -19, FALSE)) AS v(stat_code, amount, is_percent);
+SELECT (SELECT id FROM items WHERE code = 'GUERRERO_WEAPON2H_HIERRO_NEGRO'), v.* FROM (VALUES ('ATK', 100, FALSE), ('DEF', -30, FALSE), ('SPD', -22, FALSE)) AS v(stat_code, amount, is_percent);
 INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station)
-SELECT 'RECIPE_GUERRERO_WEAPON2H_HIERRO_NEGRO', (SELECT id FROM items WHERE code = 'GUERRERO_WEAPON2H_HIERRO_NEGRO'), 1, 'EPICO', 22, 1, 75, 1, 'Durgan, en la forja del Bastión de Hierro', 2, 'forja' WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_GUERRERO_WEAPON2H_HIERRO_NEGRO');
-UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'GUERRERO_WEAPON2H_HIERRO_NEGRO'), result_quantity = 1, rarity = 'EPICO', required_level = 22, required_class_id = 1, success_rate_percent = 75, craft_time_minutes = 1, artisan_name = 'Durgan, en la forja del Bastión de Hierro', zone_id = 2, station = 'forja' WHERE code = 'RECIPE_GUERRERO_WEAPON2H_HIERRO_NEGRO';
+SELECT 'RECIPE_GUERRERO_WEAPON2H_HIERRO_NEGRO', (SELECT id FROM items WHERE code = 'GUERRERO_WEAPON2H_HIERRO_NEGRO'), 1, 'LEGENDARIO', 22, 1, 75, 1, 'Durgan, en la forja del Bastión de Hierro', 2, 'forja' WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_GUERRERO_WEAPON2H_HIERRO_NEGRO');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'GUERRERO_WEAPON2H_HIERRO_NEGRO'), result_quantity = 1, rarity = 'LEGENDARIO', required_level = 22, required_class_id = 1, success_rate_percent = 75, craft_time_minutes = 1, artisan_name = 'Durgan, en la forja del Bastión de Hierro', zone_id = 2, station = 'forja' WHERE code = 'RECIPE_GUERRERO_WEAPON2H_HIERRO_NEGRO';
 DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_GUERRERO_WEAPON2H_HIERRO_NEGRO');
 INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
 SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_GUERRERO_WEAPON2H_HIERRO_NEGRO'), i.id, v.n FROM (VALUES ('CORAZON_HIERRO_NEGRO', 2), ('MENA_HIERRO_NEGRO', 8), ('ACERO_REFINADO', 4), ('PIEL_DE_TROLL', 3)) AS v(code, n) JOIN items i ON i.code = v.code;
 
 -- Báculo Arcano de Hierro Negro
 INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
-SELECT 'MAGO_WEAPON_HIERRO_NEGRO', 'Báculo Arcano de Hierro Negro', 'EQUIPMENT', 'WEAPON', FALSE, 'EPICO', 2, 22, TRUE, 'CRAFT', 'Forjada por los enanos del Bastión con el hierro negro de la Mina Profunda y el corazón de su gólem. Pesa menos de lo que parece.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'MAGO_WEAPON_HIERRO_NEGRO');
-UPDATE items SET name = 'Báculo Arcano de Hierro Negro', item_type = 'EQUIPMENT', slot = 'WEAPON', is_two_handed = FALSE, rarity = 'EPICO', class_id = 2, required_level = 22, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Forjada por los enanos del Bastión con el hierro negro de la Mina Profunda y el corazón de su gólem. Pesa menos de lo que parece.' WHERE code = 'MAGO_WEAPON_HIERRO_NEGRO';
+SELECT 'MAGO_WEAPON_HIERRO_NEGRO', 'Báculo Arcano de Hierro Negro', 'EQUIPMENT', 'WEAPON', FALSE, 'LEGENDARIO', 2, 22, TRUE, 'CRAFT', 'Forjada por los enanos del Bastión con el hierro negro de la Mina Profunda y el corazón de su gólem. Pesa menos de lo que parece.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'MAGO_WEAPON_HIERRO_NEGRO');
+UPDATE items SET name = 'Báculo Arcano de Hierro Negro', item_type = 'EQUIPMENT', slot = 'WEAPON', is_two_handed = FALSE, rarity = 'LEGENDARIO', class_id = 2, required_level = 22, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Forjada por los enanos del Bastión con el hierro negro de la Mina Profunda y el corazón de su gólem. Pesa menos de lo que parece.' WHERE code = 'MAGO_WEAPON_HIERRO_NEGRO';
 DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'MAGO_WEAPON_HIERRO_NEGRO');
 INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
-SELECT (SELECT id FROM items WHERE code = 'MAGO_WEAPON_HIERRO_NEGRO'), v.* FROM (VALUES ('MAG', 60, FALSE), ('CRIT_CHANCE', 6.8, TRUE)) AS v(stat_code, amount, is_percent);
+SELECT (SELECT id FROM items WHERE code = 'MAGO_WEAPON_HIERRO_NEGRO'), v.* FROM (VALUES ('MAG', 67, FALSE), ('CRIT_CHANCE', 8.3, TRUE)) AS v(stat_code, amount, is_percent);
 INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station)
-SELECT 'RECIPE_MAGO_WEAPON_HIERRO_NEGRO', (SELECT id FROM items WHERE code = 'MAGO_WEAPON_HIERRO_NEGRO'), 1, 'EPICO', 22, 2, 75, 1, 'Durgan, en la forja del Bastión de Hierro', 2, 'forja' WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_MAGO_WEAPON_HIERRO_NEGRO');
-UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'MAGO_WEAPON_HIERRO_NEGRO'), result_quantity = 1, rarity = 'EPICO', required_level = 22, required_class_id = 2, success_rate_percent = 75, craft_time_minutes = 1, artisan_name = 'Durgan, en la forja del Bastión de Hierro', zone_id = 2, station = 'forja' WHERE code = 'RECIPE_MAGO_WEAPON_HIERRO_NEGRO';
+SELECT 'RECIPE_MAGO_WEAPON_HIERRO_NEGRO', (SELECT id FROM items WHERE code = 'MAGO_WEAPON_HIERRO_NEGRO'), 1, 'LEGENDARIO', 22, 2, 75, 1, 'Durgan, en la forja del Bastión de Hierro', 2, 'forja' WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_MAGO_WEAPON_HIERRO_NEGRO');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'MAGO_WEAPON_HIERRO_NEGRO'), result_quantity = 1, rarity = 'LEGENDARIO', required_level = 22, required_class_id = 2, success_rate_percent = 75, craft_time_minutes = 1, artisan_name = 'Durgan, en la forja del Bastión de Hierro', zone_id = 2, station = 'forja' WHERE code = 'RECIPE_MAGO_WEAPON_HIERRO_NEGRO';
 DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_MAGO_WEAPON_HIERRO_NEGRO');
 INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
 SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_MAGO_WEAPON_HIERRO_NEGRO'), i.id, v.n FROM (VALUES ('CORAZON_HIERRO_NEGRO', 1), ('MENA_HIERRO_NEGRO', 6), ('ACERO_REFINADO', 3), ('ESENCIA_ESPECTRAL_HELADA', 2)) AS v(code, n) JOIN items i ON i.code = v.code;
 
 -- Arco de Hierro Negro
 INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
-SELECT 'ARQUERO_WEAPON_HIERRO_NEGRO', 'Arco de Hierro Negro', 'EQUIPMENT', 'WEAPON', FALSE, 'EPICO', 3, 22, TRUE, 'CRAFT', 'Forjada por los enanos del Bastión con el hierro negro de la Mina Profunda y el corazón de su gólem. Pesa menos de lo que parece.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'ARQUERO_WEAPON_HIERRO_NEGRO');
-UPDATE items SET name = 'Arco de Hierro Negro', item_type = 'EQUIPMENT', slot = 'WEAPON', is_two_handed = FALSE, rarity = 'EPICO', class_id = 3, required_level = 22, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Forjada por los enanos del Bastión con el hierro negro de la Mina Profunda y el corazón de su gólem. Pesa menos de lo que parece.' WHERE code = 'ARQUERO_WEAPON_HIERRO_NEGRO';
+SELECT 'ARQUERO_WEAPON_HIERRO_NEGRO', 'Arco de Hierro Negro', 'EQUIPMENT', 'WEAPON', FALSE, 'LEGENDARIO', 3, 22, TRUE, 'CRAFT', 'Forjada por los enanos del Bastión con el hierro negro de la Mina Profunda y el corazón de su gólem. Pesa menos de lo que parece.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'ARQUERO_WEAPON_HIERRO_NEGRO');
+UPDATE items SET name = 'Arco de Hierro Negro', item_type = 'EQUIPMENT', slot = 'WEAPON', is_two_handed = FALSE, rarity = 'LEGENDARIO', class_id = 3, required_level = 22, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Forjada por los enanos del Bastión con el hierro negro de la Mina Profunda y el corazón de su gólem. Pesa menos de lo que parece.' WHERE code = 'ARQUERO_WEAPON_HIERRO_NEGRO';
 DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'ARQUERO_WEAPON_HIERRO_NEGRO');
 INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
-SELECT (SELECT id FROM items WHERE code = 'ARQUERO_WEAPON_HIERRO_NEGRO'), v.* FROM (VALUES ('ATK', 60, FALSE), ('CRIT_CHANCE', 6.8, TRUE)) AS v(stat_code, amount, is_percent);
+SELECT (SELECT id FROM items WHERE code = 'ARQUERO_WEAPON_HIERRO_NEGRO'), v.* FROM (VALUES ('ATK', 67, FALSE), ('CRIT_CHANCE', 8.3, TRUE)) AS v(stat_code, amount, is_percent);
 INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station)
-SELECT 'RECIPE_ARQUERO_WEAPON_HIERRO_NEGRO', (SELECT id FROM items WHERE code = 'ARQUERO_WEAPON_HIERRO_NEGRO'), 1, 'EPICO', 22, 3, 75, 1, 'Durgan, en la forja del Bastión de Hierro', 2, 'forja' WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_ARQUERO_WEAPON_HIERRO_NEGRO');
-UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'ARQUERO_WEAPON_HIERRO_NEGRO'), result_quantity = 1, rarity = 'EPICO', required_level = 22, required_class_id = 3, success_rate_percent = 75, craft_time_minutes = 1, artisan_name = 'Durgan, en la forja del Bastión de Hierro', zone_id = 2, station = 'forja' WHERE code = 'RECIPE_ARQUERO_WEAPON_HIERRO_NEGRO';
+SELECT 'RECIPE_ARQUERO_WEAPON_HIERRO_NEGRO', (SELECT id FROM items WHERE code = 'ARQUERO_WEAPON_HIERRO_NEGRO'), 1, 'LEGENDARIO', 22, 3, 75, 1, 'Durgan, en la forja del Bastión de Hierro', 2, 'forja' WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_ARQUERO_WEAPON_HIERRO_NEGRO');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'ARQUERO_WEAPON_HIERRO_NEGRO'), result_quantity = 1, rarity = 'LEGENDARIO', required_level = 22, required_class_id = 3, success_rate_percent = 75, craft_time_minutes = 1, artisan_name = 'Durgan, en la forja del Bastión de Hierro', zone_id = 2, station = 'forja' WHERE code = 'RECIPE_ARQUERO_WEAPON_HIERRO_NEGRO';
 DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_ARQUERO_WEAPON_HIERRO_NEGRO');
 INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
 SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_ARQUERO_WEAPON_HIERRO_NEGRO'), i.id, v.n FROM (VALUES ('CORAZON_HIERRO_NEGRO', 1), ('MENA_HIERRO_NEGRO', 6), ('ACERO_REFINADO', 3), ('PLUMA_ARPIA_ECO', 2)) AS v(code, n) JOIN items i ON i.code = v.code;
 
 -- Daga de Hierro Negro
 INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
-SELECT 'PICARO_WEAPON_HIERRO_NEGRO', 'Daga de Hierro Negro', 'EQUIPMENT', 'WEAPON', FALSE, 'EPICO', 4, 22, TRUE, 'CRAFT', 'Forjada por los enanos del Bastión con el hierro negro de la Mina Profunda y el corazón de su gólem. Pesa menos de lo que parece.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'PICARO_WEAPON_HIERRO_NEGRO');
-UPDATE items SET name = 'Daga de Hierro Negro', item_type = 'EQUIPMENT', slot = 'WEAPON', is_two_handed = FALSE, rarity = 'EPICO', class_id = 4, required_level = 22, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Forjada por los enanos del Bastión con el hierro negro de la Mina Profunda y el corazón de su gólem. Pesa menos de lo que parece.' WHERE code = 'PICARO_WEAPON_HIERRO_NEGRO';
+SELECT 'PICARO_WEAPON_HIERRO_NEGRO', 'Daga de Hierro Negro', 'EQUIPMENT', 'WEAPON', FALSE, 'LEGENDARIO', 4, 22, TRUE, 'CRAFT', 'Forjada por los enanos del Bastión con el hierro negro de la Mina Profunda y el corazón de su gólem. Pesa menos de lo que parece.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'PICARO_WEAPON_HIERRO_NEGRO');
+UPDATE items SET name = 'Daga de Hierro Negro', item_type = 'EQUIPMENT', slot = 'WEAPON', is_two_handed = FALSE, rarity = 'LEGENDARIO', class_id = 4, required_level = 22, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Forjada por los enanos del Bastión con el hierro negro de la Mina Profunda y el corazón de su gólem. Pesa menos de lo que parece.' WHERE code = 'PICARO_WEAPON_HIERRO_NEGRO';
 DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'PICARO_WEAPON_HIERRO_NEGRO');
 INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
-SELECT (SELECT id FROM items WHERE code = 'PICARO_WEAPON_HIERRO_NEGRO'), v.* FROM (VALUES ('ATK', 60, FALSE), ('CRIT_CHANCE', 6.8, TRUE)) AS v(stat_code, amount, is_percent);
+SELECT (SELECT id FROM items WHERE code = 'PICARO_WEAPON_HIERRO_NEGRO'), v.* FROM (VALUES ('ATK', 67, FALSE), ('CRIT_CHANCE', 8.3, TRUE)) AS v(stat_code, amount, is_percent);
 INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station)
-SELECT 'RECIPE_PICARO_WEAPON_HIERRO_NEGRO', (SELECT id FROM items WHERE code = 'PICARO_WEAPON_HIERRO_NEGRO'), 1, 'EPICO', 22, 4, 75, 1, 'Durgan, en la forja del Bastión de Hierro', 2, 'forja' WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_PICARO_WEAPON_HIERRO_NEGRO');
-UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'PICARO_WEAPON_HIERRO_NEGRO'), result_quantity = 1, rarity = 'EPICO', required_level = 22, required_class_id = 4, success_rate_percent = 75, craft_time_minutes = 1, artisan_name = 'Durgan, en la forja del Bastión de Hierro', zone_id = 2, station = 'forja' WHERE code = 'RECIPE_PICARO_WEAPON_HIERRO_NEGRO';
+SELECT 'RECIPE_PICARO_WEAPON_HIERRO_NEGRO', (SELECT id FROM items WHERE code = 'PICARO_WEAPON_HIERRO_NEGRO'), 1, 'LEGENDARIO', 22, 4, 75, 1, 'Durgan, en la forja del Bastión de Hierro', 2, 'forja' WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_PICARO_WEAPON_HIERRO_NEGRO');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'PICARO_WEAPON_HIERRO_NEGRO'), result_quantity = 1, rarity = 'LEGENDARIO', required_level = 22, required_class_id = 4, success_rate_percent = 75, craft_time_minutes = 1, artisan_name = 'Durgan, en la forja del Bastión de Hierro', zone_id = 2, station = 'forja' WHERE code = 'RECIPE_PICARO_WEAPON_HIERRO_NEGRO';
 DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_PICARO_WEAPON_HIERRO_NEGRO');
 INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
 SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_PICARO_WEAPON_HIERRO_NEGRO'), i.id, v.n FROM (VALUES ('CORAZON_HIERRO_NEGRO', 1), ('MENA_HIERRO_NEGRO', 6), ('ACERO_REFINADO', 3), ('GARRA_OSO_CUMBRES', 2)) AS v(code, n) JOIN items i ON i.code = v.code;
 
 -- Báculo Sagrado de Hierro Negro
 INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
-SELECT 'SACERDOTE_WEAPON_HIERRO_NEGRO', 'Báculo Sagrado de Hierro Negro', 'EQUIPMENT', 'WEAPON', FALSE, 'EPICO', 5, 22, TRUE, 'CRAFT', 'Forjada por los enanos del Bastión con el hierro negro de la Mina Profunda y el corazón de su gólem. Pesa menos de lo que parece.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'SACERDOTE_WEAPON_HIERRO_NEGRO');
-UPDATE items SET name = 'Báculo Sagrado de Hierro Negro', item_type = 'EQUIPMENT', slot = 'WEAPON', is_two_handed = FALSE, rarity = 'EPICO', class_id = 5, required_level = 22, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Forjada por los enanos del Bastión con el hierro negro de la Mina Profunda y el corazón de su gólem. Pesa menos de lo que parece.' WHERE code = 'SACERDOTE_WEAPON_HIERRO_NEGRO';
+SELECT 'SACERDOTE_WEAPON_HIERRO_NEGRO', 'Báculo Sagrado de Hierro Negro', 'EQUIPMENT', 'WEAPON', FALSE, 'LEGENDARIO', 5, 22, TRUE, 'CRAFT', 'Forjada por los enanos del Bastión con el hierro negro de la Mina Profunda y el corazón de su gólem. Pesa menos de lo que parece.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'SACERDOTE_WEAPON_HIERRO_NEGRO');
+UPDATE items SET name = 'Báculo Sagrado de Hierro Negro', item_type = 'EQUIPMENT', slot = 'WEAPON', is_two_handed = FALSE, rarity = 'LEGENDARIO', class_id = 5, required_level = 22, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Forjada por los enanos del Bastión con el hierro negro de la Mina Profunda y el corazón de su gólem. Pesa menos de lo que parece.' WHERE code = 'SACERDOTE_WEAPON_HIERRO_NEGRO';
 DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'SACERDOTE_WEAPON_HIERRO_NEGRO');
 INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
-SELECT (SELECT id FROM items WHERE code = 'SACERDOTE_WEAPON_HIERRO_NEGRO'), v.* FROM (VALUES ('MAG', 60, FALSE), ('CRIT_CHANCE', 6.8, TRUE)) AS v(stat_code, amount, is_percent);
+SELECT (SELECT id FROM items WHERE code = 'SACERDOTE_WEAPON_HIERRO_NEGRO'), v.* FROM (VALUES ('MAG', 67, FALSE), ('CRIT_CHANCE', 8.3, TRUE)) AS v(stat_code, amount, is_percent);
 INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station)
-SELECT 'RECIPE_SACERDOTE_WEAPON_HIERRO_NEGRO', (SELECT id FROM items WHERE code = 'SACERDOTE_WEAPON_HIERRO_NEGRO'), 1, 'EPICO', 22, 5, 75, 1, 'Durgan, en la forja del Bastión de Hierro', 2, 'forja' WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_SACERDOTE_WEAPON_HIERRO_NEGRO');
-UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'SACERDOTE_WEAPON_HIERRO_NEGRO'), result_quantity = 1, rarity = 'EPICO', required_level = 22, required_class_id = 5, success_rate_percent = 75, craft_time_minutes = 1, artisan_name = 'Durgan, en la forja del Bastión de Hierro', zone_id = 2, station = 'forja' WHERE code = 'RECIPE_SACERDOTE_WEAPON_HIERRO_NEGRO';
+SELECT 'RECIPE_SACERDOTE_WEAPON_HIERRO_NEGRO', (SELECT id FROM items WHERE code = 'SACERDOTE_WEAPON_HIERRO_NEGRO'), 1, 'LEGENDARIO', 22, 5, 75, 1, 'Durgan, en la forja del Bastión de Hierro', 2, 'forja' WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_SACERDOTE_WEAPON_HIERRO_NEGRO');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'SACERDOTE_WEAPON_HIERRO_NEGRO'), result_quantity = 1, rarity = 'LEGENDARIO', required_level = 22, required_class_id = 5, success_rate_percent = 75, craft_time_minutes = 1, artisan_name = 'Durgan, en la forja del Bastión de Hierro', zone_id = 2, station = 'forja' WHERE code = 'RECIPE_SACERDOTE_WEAPON_HIERRO_NEGRO';
 DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_SACERDOTE_WEAPON_HIERRO_NEGRO');
 INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
 SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_SACERDOTE_WEAPON_HIERRO_NEGRO'), i.id, v.n FROM (VALUES ('CORAZON_HIERRO_NEGRO', 1), ('MENA_HIERRO_NEGRO', 6), ('ACERO_REFINADO', 3), ('FLOR_DE_NIEVE', 2)) AS v(code, n) JOIN items i ON i.code = v.code;
@@ -8214,3 +8214,126 @@ WHERE quest_id = (SELECT id FROM quests WHERE code = 'PRADERA_SEC_TILO_1') AND d
 -- las emboscadas sin dibujo muestran a su primer monstruo
 UPDATE quest_objectives SET params = params || jsonb_build_object('sprite', 'mon:' || (params->'monsters'->0->>'code'))
 WHERE objective_type = 'AMBUSH' AND params ? 'monsters' AND jsonb_array_length(params->'monsters') > 0 AND NOT params ? 'sprite';
+
+
+-- ============================================================================================
+-- Ajustes de la Mina Profunda (repetible; sin ON CONFLICT), después de simularla
+-- (scripts/equilibrio/generar.js --simular):
+--   - el Gólem de Hierro Negro con 10% menos de vida (duraba 8 rondas contra un grupo de 3)
+--   - el grupo del Pozo pasa de 3 monstruos a 2 (eso está en lib/mina.js, no en la base)
+--   - las armas de Hierro Negro pasan a legendarias (bloque «Armas de Hierro Negro», más arriba,
+--     repetido aquí abajo para la base que ya lo tenía)
+-- ============================================================================================
+DELETE FROM monster_level_scalings WHERE monster_id = (SELECT id FROM monsters WHERE code = 'MINA_GOLEM_NEGRO');
+INSERT INTO monster_level_scalings (monster_id, level, hp, atk, def, magic_atk, magic_def, spd, evasion, crit_chance, crit_damage, elemental_damage)
+SELECT (SELECT id FROM monsters WHERE code = 'MINA_GOLEM_NEGRO'), v.* FROM (VALUES
+  (18, 6797, 131, 175, 66, 138, 53, 10.1, 9.4, 50, 8),
+  (24, 9106, 170, 220, 85, 173, 67, 11.9, 10.6, 50, 8)
+) AS v(level, hp, atk, def, magic_atk, magic_def, spd, evasion, crit_chance, crit_damage, elemental_damage) WHERE (SELECT id FROM monsters WHERE code = 'MINA_GOLEM_NEGRO') IS NOT NULL;
+UPDATE monsters SET base_hp = 9106 WHERE code = 'MINA_GOLEM_NEGRO';
+
+-- ============================================================================================
+-- Armas de Hierro Negro (repetible; sin ON CONFLICT). Legendarias de nivel 22. Se forjan con lo que sale de la Mina
+-- Profunda (lib/mina.js): Mena de Hierro Negro (mineros y gólems) y Corazón de Hierro Negro (el
+-- Gólem de Hierro Negro y el cofre de los enanos). Nv 22 legendario: un 15% mejores que las de la
+-- Escarcha (nv 21) y casi como las del Acantilado (nv 26): vale la pena bajar a la mina entre el
+-- 22 y el 25, porque piden vencer en grupo a su jefe. Las forja Durgan en el Bastión de Hierro.
+-- ============================================================================================
+INSERT INTO items (code, name, item_type, rarity, obtain_method, description)
+SELECT v.code, v.name, 'MATERIAL', v.rarity, 'Drop de monstruo', v.descr FROM (VALUES
+  ('MENA_HIERRO_NEGRO', 'Mena de Hierro Negro', 'RARO', 'Roca oscura de la Mina Profunda con vetas que brillan azul. Solo los herreros enanos saben fundirla.'),
+  ('CORAZON_HIERRO_NEGRO', 'Corazón de Hierro Negro', 'EPICO', 'El núcleo todavía tibio del Gólem de Hierro Negro. Los herreros enanos pagarían mucho por trabajarlo.')
+) AS v(code, name, rarity, descr) WHERE NOT EXISTS (SELECT 1 FROM items i WHERE i.code = v.code);
+UPDATE items SET obtain_method = 'Drop de monstruo',
+  description = 'Roca oscura de la Mina Profunda con vetas que brillan azul. Solo los herreros enanos saben fundirla. Con ella se forjan las armas de Hierro Negro.'
+WHERE code = 'MENA_HIERRO_NEGRO';
+UPDATE items SET obtain_method = 'Drop de monstruo',
+  description = 'El núcleo todavía tibio del Gólem de Hierro Negro. Lo suelta él y a veces aparece en el cofre de los enanos. Cada arma de Hierro Negro lleva uno.'
+WHERE code = 'CORAZON_HIERRO_NEGRO';
+
+-- Espada de Hierro Negro
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'GUERRERO_WEAPON_HIERRO_NEGRO', 'Espada de Hierro Negro', 'EQUIPMENT', 'WEAPON', FALSE, 'LEGENDARIO', 1, 22, TRUE, 'CRAFT', 'Forjada por los enanos del Bastión con el hierro negro de la Mina Profunda y el corazón de su gólem. Pesa menos de lo que parece.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'GUERRERO_WEAPON_HIERRO_NEGRO');
+UPDATE items SET name = 'Espada de Hierro Negro', item_type = 'EQUIPMENT', slot = 'WEAPON', is_two_handed = FALSE, rarity = 'LEGENDARIO', class_id = 1, required_level = 22, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Forjada por los enanos del Bastión con el hierro negro de la Mina Profunda y el corazón de su gólem. Pesa menos de lo que parece.' WHERE code = 'GUERRERO_WEAPON_HIERRO_NEGRO';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'GUERRERO_WEAPON_HIERRO_NEGRO');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'GUERRERO_WEAPON_HIERRO_NEGRO'), v.* FROM (VALUES ('ATK', 67, FALSE), ('CRIT_CHANCE', 8.3, TRUE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station)
+SELECT 'RECIPE_GUERRERO_WEAPON_HIERRO_NEGRO', (SELECT id FROM items WHERE code = 'GUERRERO_WEAPON_HIERRO_NEGRO'), 1, 'LEGENDARIO', 22, 1, 75, 1, 'Durgan, en la forja del Bastión de Hierro', 2, 'forja' WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_GUERRERO_WEAPON_HIERRO_NEGRO');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'GUERRERO_WEAPON_HIERRO_NEGRO'), result_quantity = 1, rarity = 'LEGENDARIO', required_level = 22, required_class_id = 1, success_rate_percent = 75, craft_time_minutes = 1, artisan_name = 'Durgan, en la forja del Bastión de Hierro', zone_id = 2, station = 'forja' WHERE code = 'RECIPE_GUERRERO_WEAPON_HIERRO_NEGRO';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_GUERRERO_WEAPON_HIERRO_NEGRO');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_GUERRERO_WEAPON_HIERRO_NEGRO'), i.id, v.n FROM (VALUES ('CORAZON_HIERRO_NEGRO', 1), ('MENA_HIERRO_NEGRO', 6), ('ACERO_REFINADO', 3), ('PIEL_DE_TROLL', 2)) AS v(code, n) JOIN items i ON i.code = v.code;
+
+-- Gran Espada de Hierro Negro
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'GUERRERO_WEAPON2H_HIERRO_NEGRO', 'Gran Espada de Hierro Negro', 'EQUIPMENT', 'WEAPON', TRUE, 'LEGENDARIO', 1, 22, TRUE, 'CRAFT', 'Forjada por los enanos del Bastión con el hierro negro de la Mina Profunda y el corazón de su gólem. Pesa menos de lo que parece.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'GUERRERO_WEAPON2H_HIERRO_NEGRO');
+UPDATE items SET name = 'Gran Espada de Hierro Negro', item_type = 'EQUIPMENT', slot = 'WEAPON', is_two_handed = TRUE, rarity = 'LEGENDARIO', class_id = 1, required_level = 22, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Forjada por los enanos del Bastión con el hierro negro de la Mina Profunda y el corazón de su gólem. Pesa menos de lo que parece.' WHERE code = 'GUERRERO_WEAPON2H_HIERRO_NEGRO';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'GUERRERO_WEAPON2H_HIERRO_NEGRO');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'GUERRERO_WEAPON2H_HIERRO_NEGRO'), v.* FROM (VALUES ('ATK', 100, FALSE), ('DEF', -30, FALSE), ('SPD', -22, FALSE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station)
+SELECT 'RECIPE_GUERRERO_WEAPON2H_HIERRO_NEGRO', (SELECT id FROM items WHERE code = 'GUERRERO_WEAPON2H_HIERRO_NEGRO'), 1, 'LEGENDARIO', 22, 1, 75, 1, 'Durgan, en la forja del Bastión de Hierro', 2, 'forja' WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_GUERRERO_WEAPON2H_HIERRO_NEGRO');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'GUERRERO_WEAPON2H_HIERRO_NEGRO'), result_quantity = 1, rarity = 'LEGENDARIO', required_level = 22, required_class_id = 1, success_rate_percent = 75, craft_time_minutes = 1, artisan_name = 'Durgan, en la forja del Bastión de Hierro', zone_id = 2, station = 'forja' WHERE code = 'RECIPE_GUERRERO_WEAPON2H_HIERRO_NEGRO';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_GUERRERO_WEAPON2H_HIERRO_NEGRO');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_GUERRERO_WEAPON2H_HIERRO_NEGRO'), i.id, v.n FROM (VALUES ('CORAZON_HIERRO_NEGRO', 2), ('MENA_HIERRO_NEGRO', 8), ('ACERO_REFINADO', 4), ('PIEL_DE_TROLL', 3)) AS v(code, n) JOIN items i ON i.code = v.code;
+
+-- Báculo Arcano de Hierro Negro
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'MAGO_WEAPON_HIERRO_NEGRO', 'Báculo Arcano de Hierro Negro', 'EQUIPMENT', 'WEAPON', FALSE, 'LEGENDARIO', 2, 22, TRUE, 'CRAFT', 'Forjada por los enanos del Bastión con el hierro negro de la Mina Profunda y el corazón de su gólem. Pesa menos de lo que parece.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'MAGO_WEAPON_HIERRO_NEGRO');
+UPDATE items SET name = 'Báculo Arcano de Hierro Negro', item_type = 'EQUIPMENT', slot = 'WEAPON', is_two_handed = FALSE, rarity = 'LEGENDARIO', class_id = 2, required_level = 22, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Forjada por los enanos del Bastión con el hierro negro de la Mina Profunda y el corazón de su gólem. Pesa menos de lo que parece.' WHERE code = 'MAGO_WEAPON_HIERRO_NEGRO';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'MAGO_WEAPON_HIERRO_NEGRO');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'MAGO_WEAPON_HIERRO_NEGRO'), v.* FROM (VALUES ('MAG', 67, FALSE), ('CRIT_CHANCE', 8.3, TRUE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station)
+SELECT 'RECIPE_MAGO_WEAPON_HIERRO_NEGRO', (SELECT id FROM items WHERE code = 'MAGO_WEAPON_HIERRO_NEGRO'), 1, 'LEGENDARIO', 22, 2, 75, 1, 'Durgan, en la forja del Bastión de Hierro', 2, 'forja' WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_MAGO_WEAPON_HIERRO_NEGRO');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'MAGO_WEAPON_HIERRO_NEGRO'), result_quantity = 1, rarity = 'LEGENDARIO', required_level = 22, required_class_id = 2, success_rate_percent = 75, craft_time_minutes = 1, artisan_name = 'Durgan, en la forja del Bastión de Hierro', zone_id = 2, station = 'forja' WHERE code = 'RECIPE_MAGO_WEAPON_HIERRO_NEGRO';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_MAGO_WEAPON_HIERRO_NEGRO');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_MAGO_WEAPON_HIERRO_NEGRO'), i.id, v.n FROM (VALUES ('CORAZON_HIERRO_NEGRO', 1), ('MENA_HIERRO_NEGRO', 6), ('ACERO_REFINADO', 3), ('ESENCIA_ESPECTRAL_HELADA', 2)) AS v(code, n) JOIN items i ON i.code = v.code;
+
+-- Arco de Hierro Negro
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'ARQUERO_WEAPON_HIERRO_NEGRO', 'Arco de Hierro Negro', 'EQUIPMENT', 'WEAPON', FALSE, 'LEGENDARIO', 3, 22, TRUE, 'CRAFT', 'Forjada por los enanos del Bastión con el hierro negro de la Mina Profunda y el corazón de su gólem. Pesa menos de lo que parece.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'ARQUERO_WEAPON_HIERRO_NEGRO');
+UPDATE items SET name = 'Arco de Hierro Negro', item_type = 'EQUIPMENT', slot = 'WEAPON', is_two_handed = FALSE, rarity = 'LEGENDARIO', class_id = 3, required_level = 22, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Forjada por los enanos del Bastión con el hierro negro de la Mina Profunda y el corazón de su gólem. Pesa menos de lo que parece.' WHERE code = 'ARQUERO_WEAPON_HIERRO_NEGRO';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'ARQUERO_WEAPON_HIERRO_NEGRO');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'ARQUERO_WEAPON_HIERRO_NEGRO'), v.* FROM (VALUES ('ATK', 67, FALSE), ('CRIT_CHANCE', 8.3, TRUE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station)
+SELECT 'RECIPE_ARQUERO_WEAPON_HIERRO_NEGRO', (SELECT id FROM items WHERE code = 'ARQUERO_WEAPON_HIERRO_NEGRO'), 1, 'LEGENDARIO', 22, 3, 75, 1, 'Durgan, en la forja del Bastión de Hierro', 2, 'forja' WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_ARQUERO_WEAPON_HIERRO_NEGRO');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'ARQUERO_WEAPON_HIERRO_NEGRO'), result_quantity = 1, rarity = 'LEGENDARIO', required_level = 22, required_class_id = 3, success_rate_percent = 75, craft_time_minutes = 1, artisan_name = 'Durgan, en la forja del Bastión de Hierro', zone_id = 2, station = 'forja' WHERE code = 'RECIPE_ARQUERO_WEAPON_HIERRO_NEGRO';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_ARQUERO_WEAPON_HIERRO_NEGRO');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_ARQUERO_WEAPON_HIERRO_NEGRO'), i.id, v.n FROM (VALUES ('CORAZON_HIERRO_NEGRO', 1), ('MENA_HIERRO_NEGRO', 6), ('ACERO_REFINADO', 3), ('PLUMA_ARPIA_ECO', 2)) AS v(code, n) JOIN items i ON i.code = v.code;
+
+-- Daga de Hierro Negro
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'PICARO_WEAPON_HIERRO_NEGRO', 'Daga de Hierro Negro', 'EQUIPMENT', 'WEAPON', FALSE, 'LEGENDARIO', 4, 22, TRUE, 'CRAFT', 'Forjada por los enanos del Bastión con el hierro negro de la Mina Profunda y el corazón de su gólem. Pesa menos de lo que parece.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'PICARO_WEAPON_HIERRO_NEGRO');
+UPDATE items SET name = 'Daga de Hierro Negro', item_type = 'EQUIPMENT', slot = 'WEAPON', is_two_handed = FALSE, rarity = 'LEGENDARIO', class_id = 4, required_level = 22, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Forjada por los enanos del Bastión con el hierro negro de la Mina Profunda y el corazón de su gólem. Pesa menos de lo que parece.' WHERE code = 'PICARO_WEAPON_HIERRO_NEGRO';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'PICARO_WEAPON_HIERRO_NEGRO');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'PICARO_WEAPON_HIERRO_NEGRO'), v.* FROM (VALUES ('ATK', 67, FALSE), ('CRIT_CHANCE', 8.3, TRUE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station)
+SELECT 'RECIPE_PICARO_WEAPON_HIERRO_NEGRO', (SELECT id FROM items WHERE code = 'PICARO_WEAPON_HIERRO_NEGRO'), 1, 'LEGENDARIO', 22, 4, 75, 1, 'Durgan, en la forja del Bastión de Hierro', 2, 'forja' WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_PICARO_WEAPON_HIERRO_NEGRO');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'PICARO_WEAPON_HIERRO_NEGRO'), result_quantity = 1, rarity = 'LEGENDARIO', required_level = 22, required_class_id = 4, success_rate_percent = 75, craft_time_minutes = 1, artisan_name = 'Durgan, en la forja del Bastión de Hierro', zone_id = 2, station = 'forja' WHERE code = 'RECIPE_PICARO_WEAPON_HIERRO_NEGRO';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_PICARO_WEAPON_HIERRO_NEGRO');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_PICARO_WEAPON_HIERRO_NEGRO'), i.id, v.n FROM (VALUES ('CORAZON_HIERRO_NEGRO', 1), ('MENA_HIERRO_NEGRO', 6), ('ACERO_REFINADO', 3), ('GARRA_OSO_CUMBRES', 2)) AS v(code, n) JOIN items i ON i.code = v.code;
+
+-- Báculo Sagrado de Hierro Negro
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'SACERDOTE_WEAPON_HIERRO_NEGRO', 'Báculo Sagrado de Hierro Negro', 'EQUIPMENT', 'WEAPON', FALSE, 'LEGENDARIO', 5, 22, TRUE, 'CRAFT', 'Forjada por los enanos del Bastión con el hierro negro de la Mina Profunda y el corazón de su gólem. Pesa menos de lo que parece.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'SACERDOTE_WEAPON_HIERRO_NEGRO');
+UPDATE items SET name = 'Báculo Sagrado de Hierro Negro', item_type = 'EQUIPMENT', slot = 'WEAPON', is_two_handed = FALSE, rarity = 'LEGENDARIO', class_id = 5, required_level = 22, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Forjada por los enanos del Bastión con el hierro negro de la Mina Profunda y el corazón de su gólem. Pesa menos de lo que parece.' WHERE code = 'SACERDOTE_WEAPON_HIERRO_NEGRO';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'SACERDOTE_WEAPON_HIERRO_NEGRO');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'SACERDOTE_WEAPON_HIERRO_NEGRO'), v.* FROM (VALUES ('MAG', 67, FALSE), ('CRIT_CHANCE', 8.3, TRUE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station)
+SELECT 'RECIPE_SACERDOTE_WEAPON_HIERRO_NEGRO', (SELECT id FROM items WHERE code = 'SACERDOTE_WEAPON_HIERRO_NEGRO'), 1, 'LEGENDARIO', 22, 5, 75, 1, 'Durgan, en la forja del Bastión de Hierro', 2, 'forja' WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_SACERDOTE_WEAPON_HIERRO_NEGRO');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'SACERDOTE_WEAPON_HIERRO_NEGRO'), result_quantity = 1, rarity = 'LEGENDARIO', required_level = 22, required_class_id = 5, success_rate_percent = 75, craft_time_minutes = 1, artisan_name = 'Durgan, en la forja del Bastión de Hierro', zone_id = 2, station = 'forja' WHERE code = 'RECIPE_SACERDOTE_WEAPON_HIERRO_NEGRO';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_SACERDOTE_WEAPON_HIERRO_NEGRO');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_SACERDOTE_WEAPON_HIERRO_NEGRO'), i.id, v.n FROM (VALUES ('CORAZON_HIERRO_NEGRO', 1), ('MENA_HIERRO_NEGRO', 6), ('ACERO_REFINADO', 3), ('FLOR_DE_NIEVE', 2)) AS v(code, n) JOIN items i ON i.code = v.code;
+
+-- los jugadores con estas armas puestas: el servidor recalcula sus stats guardadas una vez
+INSERT INTO balance_versions (version) SELECT 'mina_v1' WHERE NOT EXISTS (SELECT 1 FROM balance_versions WHERE version = 'mina_v1');
