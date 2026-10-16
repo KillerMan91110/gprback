@@ -1,5 +1,10 @@
 # Cómo crear una base nueva (Supabase o local)
 
+> El contenido de las zonas que se agrega después (monstruos, equipo, recetas y misiones de las
+> Montañas, del Volcán, etc.) va **al final de `schema.sql`**, en bloques repetibles. Correr
+> `schema.sql` entero siempre deja la base al día; `seed_v2.sql` se regeneró por última vez el
+> 2026-10-13.
+
 Dos formas de seedear una base vacía. Las dos requieren correr `schema.sql` primero (crea las
 ~98 tablas y aplica todos los `ALTER TABLE` acumulados) y después un archivo de contenido.
 

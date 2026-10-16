@@ -68,8 +68,8 @@ termina siendo el nuevo Vigía de Etheria.
 | Zona | Mazmorra | Qué es en la historia | Se abre con |
 |---|---|---|---|
 | Pradera | **Cripta del Vigía** | la tumba del primer Vigía, bajo su torre en ruinas | misión P7 |
-| Montañas | **Mina Profunda** | la mina enana donde duerme el Segundo Sello | misión M3 |
-| Volcán | **Fisura Infernal** | la grieta donde los Ocultos forjan los cristales | misión V4 |
+| Montañas | **Mina Profunda** | la mina enana donde duerme el Segundo Sello | M5 «Los guardianes de piedra» (Durgan da la llave) |
+| Volcán | **Fisura Infernal** | la grieta donde los Ocultos forjan los cristales | V9 «El Maestro de la Lava» (Ignar forja la Llave de Brasa) y V10 |
 | Costas | **Arrecife Hundido** | la ciudad sumergida del Señor del Océano | misión C4 |
 | Tundra | **Cripta Congelada** | la tumba de la reina de hielo; baja al abismo | misión T5 |
 | Catacumbas | **Trono de Huesos** | la corte del Lich, fundador de los Ocultos | misión A4 |
@@ -187,7 +187,14 @@ las tormentas no paran y las minas enanas se inundan de criaturas de rayo y pied
 **Personajes:** **Durgan**, el **Enano Minero** (jefe de la mina, gruñón y orgulloso); **Ren**,
 que llega como explorador; **Tilo**, ahora escudero de los enanos; el **Brujo** como villano.
 
-**Principal (resumen):**
+> **Lo que quedó hecho** (14 principales, en la base y en `db/schema.sql`): El Bastión de Hierro →
+> Orcos en el Paso → Mineros perdidos → Vetas negras → Los guardianes de piedra (llave de la Mina) →
+> La Mina Profunda → Los que se perdieron en la nieve → El lago que no se derrite → El escudero
+> perdido → El Brujo de la tormenta → Limpiar el Corazón → El Señor del Acantilado → La guardia que
+> no descansa → El trono de la cumbre. El guion de abajo es el plan original: la historia es la
+> misma, pero más corta.
+
+**Principal (plan original, resumen):**
 1. **M1 El paso cerrado** — el **Señor del Acantilado** bloquea el paso; Durgan no te deja pasar
    si no ayudas en la mina.
 2. **M2 Mineros perdidos** — rescata enanos atrapados (escolta corta).
@@ -214,14 +221,27 @@ de Fuego** es el Guardián del **Tercer Sello**.
 **Personajes:** **Ignar, el Forjador de Fuego** (orgulloso, rival de Brokk), el **Dragón Menor
 Corrupto**, el **Maestro de la Lava** (agente de los Ocultos).
 
-**Principal:** V1 llegar al Campamento de la Caldera; V2 Ignar no confía en ti (pruebas de
-forja); V3 descubrir que **Ignar forjó sin saberlo los cristales** para los Ocultos (giro: se
-siente culpable y se une a ti); V4 se abre la **Fisura Infernal**; V5 derrotar al **Señor de la
-Caldera**; V6 el **Titán de Fuego** y el Tercer Fragmento. La lava baja al mar → Costas.
+**Principal (lo que quedó hecho, 14 misiones; detalle en `gprback/docs/zona3_volcan.md`):**
+V1 El Paso del Humo (Durgan te manda al sur) → V2 Ceniza que quema → V3 Las puertas de Ascuaria
+(los dracónidos no dejan entrar forasteros) → V4 El cargamento de Ignar → V5 El orgullo del
+forjador (pruebas de forja) → V6 Moldes con eclipse (los bandidos tenían moldes de Ignar con el
+eclipse grabado) → V7 Fuego que camina (Pumo y los Ríos de Lava) → V8 Vidrio negro (Kessa y los
+gólems despertados) → V9 El Maestro de la Lava (**giro: Ignar forjó sin saberlo los cristales**;
+se siente culpable, se une a ti y forja la Llave de Brasa) → V10 La Fisura Infernal (Morvak) →
+V11 El dragón que lloraba fuego (el Dragón Menor tenía un cristal clavado) → V12 Las puertas de la
+Caldera (el **Señor de la Caldera**) → V13 La ofrenda de Ascuaria (el talismán) → V14 El corazón
+del volcán (el **Titán de Fuego** y el Tercer Fragmento, que va a Elenya). La lava baja al mar →
+Costas.
 
-**Secundarias:** *Brokk contra Ignar* (rivalidad: los dos te encargan la misma espada y tienes
-que elegir quién la forja; cadena de 4 que termina con los dos forjando juntos); *El huevo de
-dragón* (cuidas un huevo que puede salir mascota); recolección de magma solidificado.
+**Personajes que quedaron:** Ignar, la matriarca Ascalia, Tuli (parrillera), Chispa (niña que
+quiere un dragón), Sulfo (alquimista), Ceniza (guardabosque), Pumo y sus primas Toba y Lapilli
+(balseras), Kessa (talladora de obsidiana), el Viejo Escamas (crió al dragón), Marga (mercader) y
+Gaspar persiguiendo a Trueno otra vez. Morvak, el Forjador de Eclipses, es el jefe de la Fisura.
+
+**Secundarias (hechas):** *Brokk contra Ignar* (cadena de 4 que termina con los dos forjando
+juntos); *El huevo de dragón* de Chispa (cadena de 3, termina en un huevo de mascota); *¿Picante?*
+(Tuli); el Bosque Calcinado (Ceniza, cadena de 3); *Pómez de calidad* (Pumo); *Artesana, no*
+(Kessa); *El olor del éxito* (Sulfo); *El último vuelo* (Escamas); *¿Dónde está Trueno? (otra vez)*.
 
 ---
 
@@ -311,20 +331,27 @@ y los maestros de las órdenes dan misiones de clase ligadas a lo que pasa en el
 
 ---
 
-## 6. Tipos de misión que hacen falta
+## 6. Tipos de misión
 
-Hoy el juego solo tiene: matar un monstruo, matar cualquiera en la zona, derrotar un jefe,
-juntar objetos y usar una acción. Para esta historia hacen falta:
+**Ya existen** (son los que usan las misiones de la Pradera, las Montañas y el Volcán):
 
-| Tipo nuevo | Ejemplo | Cómo se haría |
+- matar un monstruo (`KILL_MONSTER`);
+- derrotar un jefe (`DEFEAT_BOSS`);
+- juntar objetos (`COLLECT_ITEM`, se cobran al entregar);
+- **llegar a un lugar** (`VISIT`);
+- **hablar** con un NPC (`TALK`, puede darte un objeto);
+- **entregar** objetos a un NPC (`DELIVER`);
+- **investigar** un punto del mapa con la E (`INVESTIGATE`: cuenta lo que ves y puede darte un objeto);
+- **emboscada**: al llegar a un punto empieza un combate fijo (`AMBUSH`).
+
+Cómo se usan en una zona nueva: `gprback/docs/zona3_volcan_traspaso.md`, A9.
+
+**Todavía no existen** (ideas para más adelante):
+
+| Tipo | Ejemplo | Cómo se haría |
 |---|---|---|
-| **Explorar** | llegar al molino de la Colina | el mapa ya tiene puntos con nombre; al pisarlo se cumple |
-| **Hablar** | hablar con Tobías, el molinero | al abrir el diálogo de ese personaje |
-| **Entregar** | llevar 5 vendajes a los granjeros | al hablar con el personaje, si llevas los objetos |
-| **Investigar** | examinar 3 manchas negras | puntos nuevos en el mapa que se examinan con la E |
 | **Fabricar** | hacer un Ungüento de Raíz | al fabricar ese objeto en el taller |
-| **Emboscada** | 3 bandidos al llegar al carro | al pisar un punto empieza un combate fijo |
-| **Escolta** (después) | acompañar a los mineros | un personaje que te sigue hasta un punto |
+| **Escolta** | acompañar a los mineros | un personaje que te sigue hasta un punto |
 | **Decisión** | elegir entre Goreth y Bruno | dos opciones en el diálogo que abren misiones distintas |
 
 Además: cada misión tiene **diálogo propio** (al darla, en progreso y al entregarla), y las
@@ -340,4 +367,9 @@ diarias pasan a ser **3 sorteadas por día** entre tipos distintos.
    jugador y por día (`routes/players.js`, `dailyPickIds`). Tilo, Bruno y Tobías tienen sprite,
    retrato y diálogo. Queda pendiente la **decisión** de la cerca (elegir el lado de Goreth o de
    Bruno, con precio de amigo en su tienda): por ahora la cadena termina con los dos reconciliados.
-2. **Cada zona siguiente** se detalla misión por misión cuando se equilibre esa zona.
+2. **Montañas: hechas** (14 principales, secundarias y diarias; ver la sección de la zona 2).
+3. **Volcán: hecho** (14 principales, 16 secundarias y 3 diarias; ver la sección de la zona 3 y
+   `zona3_volcan.md`).
+4. **Cada zona siguiente** (Costas, Tundra, Catacumbas, Ruinas) se detalla misión por misión cuando
+   se construya, siguiendo `zona3_volcan_traspaso.md`. Su guion de arriba es el plan: se puede
+   alargar como pasó con las Montañas y el Volcán.

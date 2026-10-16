@@ -60,8 +60,8 @@ Cada zona nueva mide como la Pradera: 4×4 trozos (160×120 casillas). Coordenad
 | Catacumbas del Abismo | 76-85 | bajo tierra (mapa aparte, como las mazmorras) | 4×4 | por hacer |
 | Ruinas Ancestrales | 86-100 | 160, 90 | 4×4 | por hacer |
 
-**Ojo con el cambio de coordenadas.** Hoy Aurelia está en (20, 0), la Pradera en (0, 90) y las
-Montañas en (160, 90). Para que la fila norte (Ruinas y Tundra) no quede en coordenadas negativas,
+**Ojo con el cambio de coordenadas.** Hoy (`etheria.json`) Aurelia está en (20, 0), la Pradera en (0, 90), las
+Montañas en (160, 90) y el Volcán en (160, 210): todo 120 casillas más arriba que en la tabla. Para que la fila norte (Ruinas y Tundra) no quede en coordenadas negativas,
 cuando se agregue se corre **todo el continente 120 casillas hacia abajo** en `etheria.json`. Es
 seguro: cada zona guarda sus posiciones en coordenadas propias (`toLocal`/`toGlobal` de
 `WorldScene.js`), así que no se toca ningún mapa ni ninguna partida guardada.

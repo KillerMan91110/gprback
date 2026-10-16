@@ -230,6 +230,7 @@ Para que la página `/editor` pinte los terrenos nuevos de la zona, hay que agre
 | Fondos de combate (5 capas de 640x360 con parallax; el suelo empieza en y=248) | `crear_fondo_montanas.lua`, `crear_fondo_volcan.lua` | `public/assets/combate/fondos/<zona>/1_cielo…5_primer_plano.png` |
 | Mazmorra (tileset propio, brasero de control 5x32, puerta 3x128x64) | `crear_mina.lua` | `public/assets/tileset_<x>.png`, `mundo/mazmorra/*.png` |
 | Peligro de clima (tormenta, brasas) | `crear_tormenta.lua`, `crear_brasas.lua` | `public/assets/mundo/clima/*.png` |
+| Equipo: íconos de las piezas y lo que se ve en combate (forma + set de color) | `art/sprites/combate/crear_equipo.lua` + `src/game/gear.js` (`SHAPES`, `SETS`, `SET_BY_CODE`) | `public/assets/sprites/equipo/` (`iconos.png`, `paletas.json`, `combate/*.png`) |
 
 ### Reglas del tileset compartido (muy importante)
 
@@ -637,6 +638,162 @@ Cada zona tiene **su carne y 5 comidas** propias con buffs (`gen_comidas_<zona>.
 - Se definen tipos nuevos en `gprback/lib/worldNodes.js` (`NODE_TYPES`: loot, chance, respawn) y se colocan en `worldNodes.zonas.json` bajo la clave del id de la zona. Tienen que coincidir con `art/mapas/recursos_<zona>.json`, que escribe el generador del mapa.
 - En el front se agregan en `RESOURCES` (`src/game/world/shared.js`, con `sheet` y frames), `editor/render.js` (`RESOURCE_FRAMES`), en la carga de `WorldScene.js` y `MapEditor.js`, y en la lista de golpes de `resources.js`.
 - Cada zona tiene **unos 7 recursos únicos**: una veta, una planta, un nido, una geoda rara, restos y cofres.
+
+## A6b. Cómo se equilibra el equipo de una zona, paso a paso (con los números reales del Volcán)
+
+Este es el procedimiento completo que se usó en las Montañas y en el Volcán, para que el equipo de cada zona sea **justo en combate** y **rentable de fabricar**, venga el material de monstruos comunes, de la mazmorra o de los jefes. Hay que seguirlo en este orden.
+
+### Paso 0. El objetivo (qué es "equilibrado")
+
+Es un combate 1 contra 1, a tu nivel, con el equipo del tier que corresponde a ese nivel, contra el **peor monstruo común** que vive en ese nivel:
+
+- **matar en 3-5 turnos** con la habilidad principal (lo ideal son 4);
+- **aguantar unos 5-9 golpes** (el Guerrero, más);
+- **nunca perder** contra un común.
+
+El simulador escribe la meta como «4 → 5-6».
+
+### Paso 1. Decidir los tiers de la zona
+
+Cada zona tiene unos 5 escalones, puestos en los niveles donde el jugador **llega** a ellos, y cada uno pide algo más difícil:
+
+| Escalón | Nivel | Rareza | Éxito | De dónde sale lo que pide | Regla |
+|---|---|---|---|---|---|
+| común de entrada (Volcán) | el primero de la zona (31) | RARO | 90% | comunes de las primeras subzonas | barato: se arma al llegar |
+| tier medio (Obsidiana) | mitad de la zona (36) | ÉPICO | 80% | comunes de las subzonas medias + **un material POCO_COMÚN** de un raro o de un recurso raro (Corazón de Brasa) | el material raro es la "llave" |
+| armas de mazmorra (Forja Negra) | 1 nivel después del medio (37) | LEGENDARIO | 75% | **solo armas**, con el material del jefe de la mazmorra (Corazón de la Forja Negra) y su escoria | premia hacer la mazmorra |
+| set del minijefe (Caldera) | el nivel del minijefe (40) | ÉPICO | 70% | **pergamino** del minijefe + su núcleo | hay que vencerlo |
+| set del jefe (Titán de Fuego) | el último de la zona (45) | LEGENDARIO | 55% | **pergamino** del jefe legendario + su núcleo | el mejor equipo de la zona |
+
+Lo genera `gen_equipo_<zona>.js` (paso 1 del SQL), con los materiales por clase de A6.
+
+### Paso 2. Stats base por fórmula (`lib/equilibrio.js`)
+
+- `itemPower(nivel, rareza) = (10 + 1.5 × nivel) × rareza`. Rareza: COMÚN 1, POCO_COMÚN 1.1, RARO 1.2, ÉPICO 1.3, LEGENDARIO 1.45.
+- Las piezas **fabricadas** cuentan como **+2 niveles** (`CRAFTED_BONUS`). Por eso lo fabricado le gana a cualquier drop del mismo nivel.
+- Cada slot toma su parte (`SLOT_WEIGHT`): arma 1, armadura 0.9, mano izquierda 0.55, casco, guantes y botas 0.45, accesorio 0.4. Las armas **a dos manos**, ×1.5.
+- `itemStats` reparte ese presupuesto **respetando qué stats da cada pieza y en qué proporción**. Los costos están en `STAT_COST`: 1 de ATK o MAG vale lo mismo que 2.5 de DEF o 0.25 de HP.
+- Crítico, evasión y daño crítico salen de la rareza.
+
+Esto da piezas "parejas", pero todavía no garantiza que **el arma nueva le gane a la anterior** a su nivel. Eso lo hace el paso 3.
+
+### Paso 3. La escalera de daño (`gen_escalera_<zona>.js`)
+
+**Regla v2/v3:** el **arma lleva todo el daño** y cada arma pega un **porcentaje fijo más que la mejor arma anterior, medido al nivel de la nueva**:
+
+- +7% las comunes;
+- +8% (o +9%) las de mazmorra;
+- +9% las de jefe.
+
+El resto del equipo es supervivencia.
+
+**El modelo de daño** (función `damage` del script) es el golpe con la habilidad del tramo alto contra un común de ese nivel:
+
+```
+crudo  = 50 + 1.7 × (stat base de la clase + crecimiento × (nivel − 1) + stat del arma)
+golpe  = max(crudo × 0.35, crudo − 0.5 × defensa del común de ese nivel)   (0.35 = DAMAGE_FLOOR)
+daño   = golpe × (1 + prob. de crítico × daño crítico)
+         prob. de crítico = 10% + pasiva (Arquero 15, Pícaro 25) + crítico del equipo
+         daño crítico     = 50% + extra del arma (15 en mazmorra y minijefe, 18 en el jefe final)
+```
+
+Para la defensa usa la de `ATK` contra `def`, o `MAG` contra `magic_def` en el Mago y el Sacerdote.
+
+**Cómo se calcula cada arma:**
+
+1. **Objetivo** = el daño de la **mejor arma anterior** (incluidas las finales de la zona anterior: Acantilado y Rey de la Montaña), **calculado al nivel del arma nueva**, × (1 + %).
+2. Un **solver** (búsqueda binaria, `solveMain`) encuentra la stat principal que da exactamente ese daño.
+3. Casos especiales:
+   - **Mago:** su arma da el **mismo daño que la del Guerrero** en ese escalón (paridad). Su **Cristal** suma +8% aparte.
+   - **Arquero y Pícaro:** arma + mano izquierda llegan juntos al objetivo. El carcaj o la daga gemela se lleva una parte (`SHARE = 0.5` de `itemPower(nivel+2) × 0.55` en ATK), más crítico o daño crítico y evasión.
+   - **A dos manos:** misma proporción que tenía sobre la de una mano.
+   - **Guantes, Orbe y Símbolo:** salen de la defensa y la vida de la armadura del set, más su extra: Orbe `MANA_REGEN` 4-5.5%, Símbolo `HEALING` 4-5.5%.
+
+**Resultado real en el Volcán** (la stat principal del arma de una mano):
+
+| Clase | Acantilado 26 | Rey Mont. 30 | **Volcán 31** | **Obsidiana 36** | **Forja Negra 37** | **Caldera 40** | **Titán F 45** |
+|---|---|---|---|---|---|---|---|
+| Guerrero (ATK) | 136 (+12% cd) | 161 (+15% cd) | 175 | 210 | 247 (+15% cd) | 285 (+15% cd) | 326 (+18% cd) |
+| Mago (MAG) | 130 | 152 | 178 | 214 | 252 | 290 | 333 |
+| Arquero (ATK, sin el carcaj) | 119 | 134 | 162 | 189 | 217 | 250 | 277 |
+
+Se lee así:
+
+- La Forja Negra está **solo 1 nivel** después de la Obsidiana, pero pega +9% y suma daño crítico: el premio de hacer la mazmorra se siente **enseguida**.
+- La Caldera y el Titán F siguen subiendo aunque el jugador también sube de nivel, porque el % se mide al nivel de la pieza nueva.
+
+Al terminar, agrega las armas nuevas a la expresión `EQUIPO_V2` de `scripts/equilibrio/generar.js`, para que el simulador las use.
+
+### Paso 4. Validar con el simulador
+
+```bash
+node scripts/equilibrio/generar.js --simular
+```
+
+Agrega una función `simulate<Zona>` (modelo: `simulateVolcan`). Para cada clase y nivel, arma el equipo del tier de ese nivel y pelea contra **el peor común que vive a ese nivel**. Resultado real del Volcán, en *turnos para matar / golpes que aguanta*:
+
+| Clase | nv31 | nv33 | nv35 | nv36 | nv37 | nv39 | nv40 | nv42 | nv44 | nv45 |
+|---|---|---|---|---|---|---|---|---|---|---|
+| Guerrero | 4/9 | 4/8 | 4/8 | 4/9 | 4/9 | 4/9 | 4/9 | 4/9 | 4/13 | 3/14 |
+| Mago | 4/7 | 4/6 | 4/6 | 4/6 | 4/6 | 4/6 | 4/5 | 4/5 | 4/5 | 3/6 |
+| Arquero | 3/5 | 4/5 | 4/5 | 4/5 | 4/5 | 4/5 | 4/5 | 4/5 | 4/6 | 2/7 |
+| Pícaro | 3/5 | 4/5 | 4/5 | 4/5 | 4/5 | 4/5 | 4/5 | 4/5 | 4/6 | 2/8 |
+| Sacerdote | 4/7 | 4/6 | 5/6 | 4/6 | 4/6 | 4/6 | 4/6 | 4/6 | 4/6 | 3/7 |
+
+**Cómo leerlo:**
+
+- Todo está en 4 turnos y entre 5 y 9 golpes: está bien.
+- A nivel 45, con el set del Titán (el mejor de la zona), baja a 2-3 turnos. Está **aceptado**, porque es el premio final y la zona siguiente empieza más fuerte.
+- **Si algo se sale** (6 o más turnos, o menos de 4 golpes):
+  - si es en todos los niveles, ajusta el **perfil del monstruo** (`PERFILES`);
+  - si es en un tramo, el **% del escalón** o el **nivel del tier**.
+  - Nunca toques la fórmula general por una zona.
+
+### Paso 5. Que fabricarlo sea rentable (costo en combates)
+
+Para cada receta, calcula cuántos combates cuesta juntar sus materiales:
+
+```
+combates por material = cantidad / (probabilidad de drop × cantidad media por drop)
+costo de la receta    = suma de los materiales / probabilidad de éxito
+```
+
+**Ojo: usa la fuente REALISTA a ese nivel**, no la más generosa. El Corazón de Brasa sale al 100% del Titán (nivel 45), pero quien fabrica Obsidiana a nivel 36 lo saca de los **Dracos de Brasa al 6%** (≈17 combates) o de las geodas. El Acero Refinado no se caza: se **refina** con mineral y carbón (recolección), así que cuenta como recolección, no como combates.
+
+**Números del Guerrero en el Volcán:**
+
+| Receta | Lo que pide | Costo aproximado | ¿Cae en la tabla de esfuerzo (A6)? |
+|---|---|---|---|
+| Casco Volcán (pieza chica) | 2 Brasas de Bandido (30%, 1-2) + 1 Acero | ≈4-5 combates + refinar, /0.9 | sí, en el borde bajo: la pieza chica es barata a propósito |
+| Arma Volcán (pieza grande) | 3 Brasas + 2 Caparazones de Azufre + 2 Acero | ≈11 combates + refinar, /0.9 ≈ 13 | sí (se suma la recolección del acero) |
+| Arma Obsidiana (tier medio) | 3 Esquirlas + 2 Núcleos + 1 Corazón de Brasa + 2 Acero | ≈6.7 + 4.4 + 17 ≈ 28, /0.8 ≈ **35** | sí, 25-35 |
+| Arma Forja Negra (mazmorra) | 1 Corazón de la Forja Negra (Morvak 50%) + 6 Escoria Negra (Morvak 100% 2-3, guardianes 30-40%) + 2 Esquirlas + 3 Acero | ≈2 recorridos de la Fisura + unos combates | sí, 1-2 recorridos |
+| Sets de Caldera / Titán | pergamino del jefe (varios intentos) + su núcleo + materiales | lo marca el jefe | sí |
+
+**Preguntas de rentabilidad que hay que contestar con "sí" antes de dar una zona por terminada:**
+
+1. ¿Lo fabricado le gana a **cualquier drop** de su nivel? (Sí, por el +2 de `CRAFTED_BONUS` y la escalera.)
+2. ¿Cada tier **vale la pena al nivel en que se desbloquea**? Si un jugador puede saltarse un tier sin perder nada, ese tier sobra o está mal puesto.
+3. ¿Ningún tier **cuesta más** que el siguiente?
+4. ¿La **mazmorra** da algo que no se consigue fuera, y vale más que farmear comunes? (Forja Negra: +9% y daño crítico, un nivel después del tier medio.)
+5. ¿Los **jefes** dan el mejor equipo, protegido por el pergamino, para que haya que vencerlos?
+6. ¿Ninguna receta pide un material que **no se consigue** en esa zona o antes (o que solo da un jefe de más adelante)?
+7. ¿Vender lo fabricado da **menos** oro que comprar sus materiales? (Si no, hay oro infinito.)
+
+### Paso 6. Lo que NO entra en la escalera (pero hay que tener en cuenta)
+
+- **Calidad** de la pieza (`QUALITY_TIER_MULTIPLIER`): ×1 / ×1.15 / ×1.35 / ×1.6 / ×2.0.
+- **Encantamiento:** +5% por nivel, hasta +10 (+50%).
+
+La escalera compara piezas **base** (calidad 0, +0). Un arma vieja muy encantada y de calidad alta puede pegar más que la siguiente base. Eso está bien: es el premio por haber invertido. Pero **no se equilibra contando con eso**: el jugador normal tiene que poder avanzar con piezas base.
+
+### Paso 7. Cerrar
+
+1. Aplica el SQL (equipo, escalera) en local, con `aplicar_sql.js`, dos veces.
+2. Agrega una fila nueva en `balance_versions` (por ejemplo `'zonaN_v1'`), para que el servidor recalcule las stats guardadas de jugadores y compañeros.
+3. Vuelve a correr el simulador.
+4. Revisa en el Taller del juego, o pídele al usuario que lo revise, que la comparación verde/rojo con lo equipado sea coherente.
+5. Agrega el SQL a `schema.sql`.
 
 ## A7. La mazmorra
 
@@ -1479,6 +1636,10 @@ Están en **`D:\vscode\gpr\_respaldo_claude\volcan\`** (sin seguimiento de git).
 4. **Tienda propia de Ascuaria** en `artisan_shop`. Hoy Marga vende lo mismo que los artesanos de Aurelia, porque la ventana de comercio muestra todas las tiendas juntas.
 5. En el Taller, mostrar **de dónde sale un material que te falta** (A6, "Mejora pendiente").
 6. **Objetos del mapa con `requiere` / `oculto_tras`**, como los NPCs (A8, phasing).
+7. **Colores de equipo propios para la Obsidiana y la Forja Negra.** Hoy caen por rareza en los sets
+   "arcano" y "ancestral" (`gear.js`). Hay que agregar los sets `obsidiana` y `forja_negra` al
+   final de `crear_equipo.lua` y de `SETS`, con su sufijo en `SET_BY_CODE` (ver `CLAUDE.gpr.md`,
+   "Arte del equipo"). **Esto se hace con cada tier nuevo de cada zona.**
 
 ## B4. Qué se probó y qué no
 
