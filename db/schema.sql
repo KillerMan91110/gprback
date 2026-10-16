@@ -8443,3 +8443,21 @@ SELECT (SELECT id FROM monsters WHERE code = 'MINA_GOLEM_NEGRO'), v.* FROM (VALU
 ) AS v(level, hp, atk, def, magic_atk, magic_def, spd, evasion, crit_chance, crit_damage, elemental_damage) WHERE (SELECT id FROM monsters WHERE code = 'MINA_GOLEM_NEGRO') IS NOT NULL;
 UPDATE monsters SET min_spawn_level = 19, max_spawn_level = 27, base_hp = 10260, base_atk = 189, base_def = 242,
   base_magic_atk = 94, base_magic_def = 190, base_spd = 74 WHERE code = 'MINA_GOLEM_NEGRO';
+
+-- ============================================================================================
+-- Libro de recetas (repetible): las recetas básicas se DESCUBREN al conseguir alguno de sus
+-- materiales (o la pieza que fabrican) y quedan para siempre; las de pergamino se ven con candado
+-- y dicen de dónde sale el pergamino (lib/recetas.js; el servidor también crea estas tablas solo).
+-- ============================================================================================
+CREATE TABLE IF NOT EXISTS player_known_recipes (
+  player_id     INTEGER NOT NULL REFERENCES players(id) ON DELETE CASCADE,
+  recipe_id     INTEGER NOT NULL REFERENCES crafting_recipes(id) ON DELETE CASCADE,
+  discovered_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  seen          BOOLEAN NOT NULL DEFAULT FALSE,
+  notified      BOOLEAN NOT NULL DEFAULT FALSE,
+  PRIMARY KEY (player_id, recipe_id)
+);
+CREATE TABLE IF NOT EXISTS player_recipe_book (
+  player_id       INTEGER PRIMARY KEY REFERENCES players(id) ON DELETE CASCADE,
+  bootstrapped_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);

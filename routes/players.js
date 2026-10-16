@@ -28,6 +28,7 @@ function stationProblem(playerId, station) {
   return s ? lejosDe(playerId, s.lugares, s.nombre) : null;
 }
 const npcSell = require('../lib/npcSell');
+const recetas = require('../lib/recetas');
 const comida = require('../lib/comida');
 
 const router = express.Router();
@@ -1818,8 +1819,11 @@ router.get('/:playerId/achievements', async (req, res, next) => {
 });
 
 // GET /api/player/:playerId/craft/available
-// Solo recetas de zonas desbloqueadas + recetas scroll ya aprendidas.
-// Incluye para cada ingrediente cuánto tiene vs cuánto necesita.
+// Solo recetas de zonas desbloqueadas: las básicas que ya DESCUBRIÓ (lib/recetas.js) y las de
+// pergamino que ya aprendió. Incluye para cada ingrediente cuánto tiene vs cuánto necesita.
+// Con ?libro=1 (el Taller del mundo) además vienen las de pergamino de su clase todavía sin
+// aprender (locked, con de dónde sale el pergamino) y una fila "hidden" por cada básica sin
+// descubrir (sin nombre: solo su categoría, para contar "4 por descubrir").
 // GET /api/player/:playerId/craft/stations — ¿estás junto a una forja / al Pilar? (null = sí; si no,
 // el aviso). El taller lo pregunta cada pocos segundos mientras está abierto (es barato, a
 // diferencia de /craft/available que arma todas las recetas).
@@ -1829,26 +1833,52 @@ router.get('/:playerId/craft/stations', (req, res) => {
 
 router.get('/:playerId/craft/available', async (req, res, next) => {
   const { playerId } = req.params;
+  const libro = req.query.libro === '1';
   try {
+    await recetas.ensureBook(playerId);
     const recipesResult = await db.query(
       `SELECT cr.id, cr.code, i.name AS result_name, cr.result_quantity, cr.station,
               cr.rarity, cr.success_rate_percent, cr.artisan_name, cr.description,
-              cr.scroll_item_id, si.name AS scroll_item_name,
+              cr.scroll_item_id, si.name AS scroll_item_name, si.code AS scroll_item_code,
               cr.required_class_id, c.name AS required_class_name, c.code AS required_class_code,
-              i.item_type AS result_item_type, i.id AS result_item_id, i.slot AS result_slot
+              i.item_type AS result_item_type, i.id AS result_item_id, i.slot AS result_slot,
+              pk.recipe_id IS NOT NULL AS known, COALESCE(pk.seen, TRUE) AS seen,
+              EXISTS (SELECT 1 FROM player_learned_recipes plr WHERE plr.player_id = $1 AND plr.recipe_id = cr.id) AS learned
        FROM crafting_recipes cr
        JOIN items i ON i.id = cr.result_item_id
        LEFT JOIN items si ON si.id = cr.scroll_item_id
        LEFT JOIN classes c ON c.id = cr.required_class_id
+       LEFT JOIN player_known_recipes pk ON pk.player_id = $1 AND pk.recipe_id = cr.id
        WHERE (cr.zone_id IS NULL OR cr.zone_id IN (
          SELECT zone_id FROM player_zone_unlocks WHERE player_id = $1
-       ))
-       AND (cr.scroll_item_id IS NULL OR EXISTS (
-         SELECT 1 FROM player_learned_recipes plr WHERE plr.player_id = $1 AND plr.recipe_id = cr.id
        ))
        ORDER BY cr.rarity, i.name`,
       [playerId]
     );
+    // las de pergamino sin aprender solo se muestran (con candado) si son de la clase del jugador
+    const me = (await db.query('SELECT current_class_id, evolution_class_id FROM players WHERE id = $1', [playerId])).rows[0];
+    const myClasses = new Set(me ? await evolution.getClassAncestorChain(me.evolution_class_id || me.current_class_id) : []);
+    const myClassCodes = (await db.query('SELECT code FROM classes WHERE id = ANY($1::int[])', [[...myClasses]])).rows.map((r) => r.code);
+    // ¿la receta es de mi clase? (los accesorios de jefe no tienen clase: la dice su pergamino, …_MAGO)
+    const isMine = (r) => (r.required_class_id ? myClasses.has(r.required_class_id) : myClassCodes.some((c) => String(r.scroll_item_code ?? '').endsWith(`_${c}`)));
+    // de dónde sale cada pergamino (los monstruos que lo sueltan y con qué probabilidad)
+    const scrollIds = [...new Set(recipesResult.rows.filter((r) => r.scroll_item_id && !r.learned).map((r) => r.scroll_item_id))];
+    const scrollSources = new Map();
+    if (libro && scrollIds.length) {
+      // solo jefes de zonas que ya tiene abiertas (las recetas sin zona no adelantan las que vienen)
+      const src = await db.query(
+        `SELECT d.item_id, m.name, d.drop_chance_percent::float AS pct FROM monster_drops d JOIN monsters m ON m.id = d.monster_id
+         WHERE d.item_id = ANY($1::int[])
+           AND (m.zone_id IS NULL OR m.zone_id IN (SELECT zone_id FROM player_zone_unlocks WHERE player_id = $2))
+         ORDER BY d.drop_chance_percent DESC`,
+        [scrollIds, playerId]
+      );
+      for (const r of src.rows) {
+        if (!scrollSources.has(r.item_id)) scrollSources.set(r.item_id, []);
+        scrollSources.get(r.item_id).push({ monster: r.name, chance: r.pct });
+      }
+    }
+    const hidden = [];
 
     // ¿estás en una forja / junto al Pilar? (una vez por lugar, no por receta)
     const stationNote = {};
@@ -1856,6 +1886,15 @@ router.get('/:playerId/craft/available', async (req, res, next) => {
     const festival = isFestival();
     const available = [];
     for (const recipe of recipesResult.rows) {
+      const isScroll = !!recipe.scroll_item_id;
+      const locked = isScroll && !recipe.learned;
+      // básica sin descubrir: no se muestra (el Taller del mundo la cuenta como "por descubrir")
+      if (!isScroll && !recipe.known) {
+        if (libro) hidden.push({ hidden: true, classCode: recipe.required_class_code, resultType: recipe.result_item_type });
+        continue;
+      }
+      // con candado: de mi clase y con su pergamino al alcance (lo suelta un jefe de una zona abierta)
+      if (locked && (!libro || !isMine(recipe) || !scrollSources.has(recipe.scroll_item_id))) continue;
       const ingredients = await db.query(
         `SELECT ri.item_id, it.name AS item_name, ri.quantity
          FROM crafting_recipe_ingredients ri
@@ -1890,15 +1929,33 @@ router.get('/:playerId/craft/available', async (req, res, next) => {
         classId: recipe.required_class_id,
         className: recipe.required_class_name,
         classCode: recipe.required_class_code,
-        canCraft,
+        canCraft: canCraft && !locked,
         ingredients: ingredientStatus,
+        // libro de recetas: "NUEVO" hasta que la abre; candado si es de pergamino y no la aprendió
+        isNew: !isScroll && !recipe.seen,
+        locked,
+        scrollName: locked ? recipe.scroll_item_name : null,
+        scrollSources: locked ? scrollSources.get(recipe.scroll_item_id) ?? [] : null,
       });
     }
 
-    res.json(available);
+    res.json(libro ? [...available, ...hidden] : available);
   } catch (error) {
     next(error);
   }
+});
+
+// GET /api/player/:playerId/craft/novedades — crafteos descubiertos que todavía no se avisaron
+// (el mundo lo pregunta cuando cambia la mochila: "¡Descubriste un crafteo nuevo!")
+router.get('/:playerId/craft/novedades', async (req, res, next) => {
+  try { res.json({ discovered: await recetas.novedades(req.params.playerId) }); } catch (error) { next(error); }
+});
+// POST /api/player/:playerId/craft/seen { recipeCode } — la abrió en el Taller: ya no es "NUEVO"
+router.post('/:playerId/craft/seen', async (req, res, next) => {
+  try {
+    await recetas.markSeen(req.params.playerId, String(req.body?.recipeCode ?? ''));
+    res.json({ ok: true });
+  } catch (error) { next(error); }
 });
 
 // POST /api/players/:playerId/craft
