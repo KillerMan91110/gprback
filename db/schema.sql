@@ -8461,3 +8461,775 @@ CREATE TABLE IF NOT EXISTS player_recipe_book (
   player_id       INTEGER PRIMARY KEY REFERENCES players(id) ON DELETE CASCADE,
   bootstrapped_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
+
+-- ============================================================================================
+-- Equipo v2 de las clases base, zonas 1 y 2 (repetible). Lo calcula un script con el modelo de
+-- combate de scripts/equilibrio/generar.js:
+--   - el ARMA lleva todo el daño: lo que daban los guantes y la mano izquierda (ataque,
+--     inteligencia, crítico) pasa al arma; guantes y mano izquierda pasan a ser de supervivencia
+--     (defensa, defensa mágica y vida, con el reparto de la armadura de su clase y su set)
+--   - cada arma pega como antes, salvo donde no superaba a la anterior: ahí sube lo justo para
+--     pegar +7% (materiales comunes), +8% (de mazmorra) o +9% (de jefe o pergamino) más que la
+--     anterior a su nivel. La de Montaña se compara con la del Capitán (la del Titán, premio de
+--     jefe, dura hasta la Escarcha)
+--   - el Mago pega lo mismo que el Guerrero en cada escalón (y sube 7.6 de inteligencia por
+--     nivel, no 8)
+--   - las piezas de jefe traen un extra: el arma, daño crítico; el pecho, uno de su clase
+--     (guerrero: más vida; mago: regenera vida cada ronda; arquero y pícaro: evasión;
+--     sacerdote: más curación)
+-- Las stats guardadas de jugadores y compañeros se recalculan solas (balance_versions).
+-- ============================================================================================
+UPDATE class_growths SET mag_per_level = 7.6 WHERE class_id = (SELECT id FROM classes WHERE code = 'MAGO') AND stage = 'Base';
+-- Espada de Pradera (arma Pradera: ATK15 CRIT_CHANCE2.3% → ATK22 CRIT_CHANCE3.8%)
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'GUERRERO_WEAPON_PRADERA');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'ATK', 22, FALSE FROM items WHERE code = 'GUERRERO_WEAPON_PRADERA';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'CRIT_CHANCE', 3.8, TRUE FROM items WHERE code = 'GUERRERO_WEAPON_PRADERA';
+-- Gran Espada del Lobo (a dos manos Pradera: ATK34 DEF-8 → ATK50 CRIT_CHANCE1.5% DEF-8)
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'GUERRERO_WEAPON2H_PRADERA');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'ATK', 50, FALSE FROM items WHERE code = 'GUERRERO_WEAPON2H_PRADERA';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'CRIT_CHANCE', 1.5, TRUE FROM items WHERE code = 'GUERRERO_WEAPON2H_PRADERA';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'DEF', -8, FALSE FROM items WHERE code = 'GUERRERO_WEAPON2H_PRADERA';
+-- Guanteletes de Pradera (guantes Pradera: ATK7 CRIT_CHANCE1.5% → DEF3 MAGIC_DEF1 HP5)
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'GUERRERO_GLOVES_PRADERA');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'DEF', 3, FALSE FROM items WHERE code = 'GUERRERO_GLOVES_PRADERA';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'MAGIC_DEF', 1, FALSE FROM items WHERE code = 'GUERRERO_GLOVES_PRADERA';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'HP', 5, FALSE FROM items WHERE code = 'GUERRERO_GLOVES_PRADERA';
+-- Espada de la Guardia (arma Guardia: ATK24 CRIT_CHANCE3.8% → ATK35 CRIT_CHANCE6.3%)
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'GUERRERO_WEAPON_VIGIA');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'ATK', 35, FALSE FROM items WHERE code = 'GUERRERO_WEAPON_VIGIA';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'CRIT_CHANCE', 6.3, TRUE FROM items WHERE code = 'GUERRERO_WEAPON_VIGIA';
+-- Guanteletes de la Guardia (guantes Guardia: ATK11 CRIT_CHANCE2.5% → DEF5 MAGIC_DEF2 HP9)
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'GUERRERO_GLOVES_VIGIA');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'DEF', 5, FALSE FROM items WHERE code = 'GUERRERO_GLOVES_VIGIA';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'MAGIC_DEF', 2, FALSE FROM items WHERE code = 'GUERRERO_GLOVES_VIGIA';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'HP', 9, FALSE FROM items WHERE code = 'GUERRERO_GLOVES_VIGIA';
+-- Espada del Vigía Caído (arma Vigía Caído: ATK34 CRIT_CHANCE5.3% → ATK45 CRIT_CHANCE7.8%)
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'GUERRERO_WEAPON_VIGIA_CAIDO');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'ATK', 45, FALSE FROM items WHERE code = 'GUERRERO_WEAPON_VIGIA_CAIDO';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'CRIT_CHANCE', 7.8, TRUE FROM items WHERE code = 'GUERRERO_WEAPON_VIGIA_CAIDO';
+-- Espada del Capitán (arma Capitán: ATK36 CRIT_CHANCE6.8% → ATK53 CRIT_CHANCE11.3% CRIT_DAMAGE8%)
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'GUERRERO_WEAPON_CAPITAN');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'ATK', 53, FALSE FROM items WHERE code = 'GUERRERO_WEAPON_CAPITAN';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'CRIT_CHANCE', 11.3, TRUE FROM items WHERE code = 'GUERRERO_WEAPON_CAPITAN';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'CRIT_DAMAGE', 8, TRUE FROM items WHERE code = 'GUERRERO_WEAPON_CAPITAN';
+-- Gran Espada del Capitán (a dos manos Capitán: ATK55 → ATK81 CRIT_CHANCE4.5% CRIT_DAMAGE8%)
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'GUERRERO_WEAPON2H_CAPITAN');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'ATK', 81, FALSE FROM items WHERE code = 'GUERRERO_WEAPON2H_CAPITAN';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'CRIT_CHANCE', 4.5, TRUE FROM items WHERE code = 'GUERRERO_WEAPON2H_CAPITAN';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'CRIT_DAMAGE', 8, TRUE FROM items WHERE code = 'GUERRERO_WEAPON2H_CAPITAN';
+-- Guanteletes del Capitán (guantes Capitán: ATK16 CRIT_CHANCE4.5% → DEF7 HP11 MAGIC_DEF2)
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'GUERRERO_GLOVES_CAPITAN');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'DEF', 7, FALSE FROM items WHERE code = 'GUERRERO_GLOVES_CAPITAN';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'HP', 11, FALSE FROM items WHERE code = 'GUERRERO_GLOVES_CAPITAN';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'MAGIC_DEF', 2, FALSE FROM items WHERE code = 'GUERRERO_GLOVES_CAPITAN';
+-- Armadura del Capitán (pecho Capitán con su extra: DEF13 HP21 MAGIC_DEF4 → DEF11 HP41 MAGIC_DEF4)
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'GUERRERO_ARMOR_CAPITAN');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'DEF', 11, FALSE FROM items WHERE code = 'GUERRERO_ARMOR_CAPITAN';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'HP', 41, FALSE FROM items WHERE code = 'GUERRERO_ARMOR_CAPITAN';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'MAGIC_DEF', 4, FALSE FROM items WHERE code = 'GUERRERO_ARMOR_CAPITAN';
+-- Espada del Titán (arma Titán: ATK49 CRIT_CHANCE8.3% → ATK67 CRIT_CHANCE13.8% CRIT_DAMAGE10%)
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'GUERRERO_WEAPON_TITAN_P');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'ATK', 67, FALSE FROM items WHERE code = 'GUERRERO_WEAPON_TITAN_P';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'CRIT_CHANCE', 13.8, TRUE FROM items WHERE code = 'GUERRERO_WEAPON_TITAN_P';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'CRIT_DAMAGE', 10, TRUE FROM items WHERE code = 'GUERRERO_WEAPON_TITAN_P';
+-- Gran Espada del Titán (a dos manos Titán: ATK74 → ATK101 CRIT_CHANCE5.5% CRIT_DAMAGE10%)
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'GUERRERO_WEAPON2H_TITAN_P');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'ATK', 101, FALSE FROM items WHERE code = 'GUERRERO_WEAPON2H_TITAN_P';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'CRIT_CHANCE', 5.5, TRUE FROM items WHERE code = 'GUERRERO_WEAPON2H_TITAN_P';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'CRIT_DAMAGE', 10, TRUE FROM items WHERE code = 'GUERRERO_WEAPON2H_TITAN_P';
+-- Guanteletes del Titán (guantes Titán: ATK22 CRIT_CHANCE5.5% → DEF9 HP14 MAGIC_DEF3)
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'GUERRERO_GLOVES_TITAN_P');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'DEF', 9, FALSE FROM items WHERE code = 'GUERRERO_GLOVES_TITAN_P';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'HP', 14, FALSE FROM items WHERE code = 'GUERRERO_GLOVES_TITAN_P';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'MAGIC_DEF', 3, FALSE FROM items WHERE code = 'GUERRERO_GLOVES_TITAN_P';
+-- Armadura del Titán (pecho Titán con su extra: DEF18 HP28 MAGIC_DEF5 → DEF15 HP58 MAGIC_DEF5)
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'GUERRERO_ARMOR_TITAN_P');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'DEF', 15, FALSE FROM items WHERE code = 'GUERRERO_ARMOR_TITAN_P';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'HP', 58, FALSE FROM items WHERE code = 'GUERRERO_ARMOR_TITAN_P';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'MAGIC_DEF', 5, FALSE FROM items WHERE code = 'GUERRERO_ARMOR_TITAN_P';
+-- Espada de Montaña (arma Montaña: ATK46 CRIT_CHANCE5.3% → ATK72 CRIT_CHANCE8.8%)
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'GUERRERO_WEAPON_MONTANAS');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'ATK', 72, FALSE FROM items WHERE code = 'GUERRERO_WEAPON_MONTANAS';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'CRIT_CHANCE', 8.8, TRUE FROM items WHERE code = 'GUERRERO_WEAPON_MONTANAS';
+-- Gran Espada de Troll (a dos manos Montaña: ATK69 DEF-21 SPD-15 → ATK108 CRIT_CHANCE3.5% DEF-21 SPD-15)
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'GUERRERO_WEAPON2H_MONTANAS');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'ATK', 108, FALSE FROM items WHERE code = 'GUERRERO_WEAPON2H_MONTANAS';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'CRIT_CHANCE', 3.5, TRUE FROM items WHERE code = 'GUERRERO_WEAPON2H_MONTANAS';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'DEF', -21, FALSE FROM items WHERE code = 'GUERRERO_WEAPON2H_MONTANAS';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'SPD', -15, FALSE FROM items WHERE code = 'GUERRERO_WEAPON2H_MONTANAS';
+-- Guanteletes de Montaña (guantes Montaña: ATK21 CRIT_CHANCE3.5% → DEF9 MAGIC_DEF3 HP14)
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'GUERRERO_GLOVES_MONTANAS');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'DEF', 9, FALSE FROM items WHERE code = 'GUERRERO_GLOVES_MONTANAS';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'MAGIC_DEF', 3, FALSE FROM items WHERE code = 'GUERRERO_GLOVES_MONTANAS';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'HP', 14, FALSE FROM items WHERE code = 'GUERRERO_GLOVES_MONTANAS';
+-- Espada de la Escarcha (arma Escarcha: ATK58 CRIT_CHANCE6.8% → ATK91 CRIT_CHANCE11.3%)
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'GUERRERO_WEAPON_ESCARCHA');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'ATK', 91, FALSE FROM items WHERE code = 'GUERRERO_WEAPON_ESCARCHA';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'CRIT_CHANCE', 11.3, TRUE FROM items WHERE code = 'GUERRERO_WEAPON_ESCARCHA';
+-- Gran Espada de la Escarcha (a dos manos Escarcha: ATK87 → ATK137 CRIT_CHANCE4.5%)
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'GUERRERO_WEAPON2H_ESCARCHA');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'ATK', 137, FALSE FROM items WHERE code = 'GUERRERO_WEAPON2H_ESCARCHA';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'CRIT_CHANCE', 4.5, TRUE FROM items WHERE code = 'GUERRERO_WEAPON2H_ESCARCHA';
+-- Guanteletes de la Escarcha (guantes Escarcha: ATK26 CRIT_CHANCE4.5% → DEF11 HP17 MAGIC_DEF3)
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'GUERRERO_GLOVES_ESCARCHA');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'DEF', 11, FALSE FROM items WHERE code = 'GUERRERO_GLOVES_ESCARCHA';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'HP', 17, FALSE FROM items WHERE code = 'GUERRERO_GLOVES_ESCARCHA';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'MAGIC_DEF', 3, FALSE FROM items WHERE code = 'GUERRERO_GLOVES_ESCARCHA';
+-- Espada de Hierro Negro (arma Hierro Negro: ATK67 CRIT_CHANCE8.3% → ATK106 CRIT_CHANCE12.8% CRIT_DAMAGE12%)
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'GUERRERO_WEAPON_HIERRO_NEGRO');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'ATK', 106, FALSE FROM items WHERE code = 'GUERRERO_WEAPON_HIERRO_NEGRO';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'CRIT_CHANCE', 12.8, TRUE FROM items WHERE code = 'GUERRERO_WEAPON_HIERRO_NEGRO';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'CRIT_DAMAGE', 12, TRUE FROM items WHERE code = 'GUERRERO_WEAPON_HIERRO_NEGRO';
+-- Gran Espada de Hierro Negro (a dos manos Hierro Negro: ATK100 DEF-30 SPD-22 → ATK158 CRIT_CHANCE4.5% CRIT_DAMAGE12% DEF-30 SPD-22)
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'GUERRERO_WEAPON2H_HIERRO_NEGRO');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'ATK', 158, FALSE FROM items WHERE code = 'GUERRERO_WEAPON2H_HIERRO_NEGRO';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'CRIT_CHANCE', 4.5, TRUE FROM items WHERE code = 'GUERRERO_WEAPON2H_HIERRO_NEGRO';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'CRIT_DAMAGE', 12, TRUE FROM items WHERE code = 'GUERRERO_WEAPON2H_HIERRO_NEGRO';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'DEF', -30, FALSE FROM items WHERE code = 'GUERRERO_WEAPON2H_HIERRO_NEGRO';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'SPD', -22, FALSE FROM items WHERE code = 'GUERRERO_WEAPON2H_HIERRO_NEGRO';
+-- Espada del Acantilado (arma Acantilado: ATK68 CRIT_CHANCE6.8% → ATK136 CRIT_CHANCE11.3% CRIT_DAMAGE12%)
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'GUERRERO_WEAPON_ACANT');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'ATK', 136, FALSE FROM items WHERE code = 'GUERRERO_WEAPON_ACANT';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'CRIT_CHANCE', 11.3, TRUE FROM items WHERE code = 'GUERRERO_WEAPON_ACANT';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'CRIT_DAMAGE', 12, TRUE FROM items WHERE code = 'GUERRERO_WEAPON_ACANT';
+-- Gran Espada del Acantilado (a dos manos Acantilado: ATK101 → ATK202 CRIT_CHANCE4.5% CRIT_DAMAGE12%)
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'GUERRERO_WEAPON2H_ACANT');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'ATK', 202, FALSE FROM items WHERE code = 'GUERRERO_WEAPON2H_ACANT';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'CRIT_CHANCE', 4.5, TRUE FROM items WHERE code = 'GUERRERO_WEAPON2H_ACANT';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'CRIT_DAMAGE', 12, TRUE FROM items WHERE code = 'GUERRERO_WEAPON2H_ACANT';
+-- Guanteletes del Acantilado (guantes Acantilado: ATK30 CRIT_CHANCE4.5% → DEF12 HP20 MAGIC_DEF4)
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'GUERRERO_GLOVES_ACANT');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'DEF', 12, FALSE FROM items WHERE code = 'GUERRERO_GLOVES_ACANT';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'HP', 20, FALSE FROM items WHERE code = 'GUERRERO_GLOVES_ACANT';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'MAGIC_DEF', 4, FALSE FROM items WHERE code = 'GUERRERO_GLOVES_ACANT';
+-- Armadura del Acantilado (pecho Acantilado con su extra: DEF24 HP39 MAGIC_DEF7 → DEF20 HP79 MAGIC_DEF7)
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'GUERRERO_ARMOR_ACANT');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'DEF', 20, FALSE FROM items WHERE code = 'GUERRERO_ARMOR_ACANT';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'HP', 79, FALSE FROM items WHERE code = 'GUERRERO_ARMOR_ACANT';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'MAGIC_DEF', 7, FALSE FROM items WHERE code = 'GUERRERO_ARMOR_ACANT';
+-- Espada del Rey de las Montañas (arma Rey Montañas: ATK84 CRIT_CHANCE8.3% → ATK161 CRIT_CHANCE13.8% CRIT_DAMAGE15%)
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'GUERRERO_WEAPON_REY_MONT');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'ATK', 161, FALSE FROM items WHERE code = 'GUERRERO_WEAPON_REY_MONT';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'CRIT_CHANCE', 13.8, TRUE FROM items WHERE code = 'GUERRERO_WEAPON_REY_MONT';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'CRIT_DAMAGE', 15, TRUE FROM items WHERE code = 'GUERRERO_WEAPON_REY_MONT';
+-- Gran Espada del Rey de las Montañas (a dos manos Rey Montañas: ATK126 → ATK242 CRIT_CHANCE5.5% CRIT_DAMAGE15%)
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'GUERRERO_WEAPON2H_REY_MONT');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'ATK', 242, FALSE FROM items WHERE code = 'GUERRERO_WEAPON2H_REY_MONT';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'CRIT_CHANCE', 5.5, TRUE FROM items WHERE code = 'GUERRERO_WEAPON2H_REY_MONT';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'CRIT_DAMAGE', 15, TRUE FROM items WHERE code = 'GUERRERO_WEAPON2H_REY_MONT';
+-- Guanteletes del Rey de las Montañas (guantes Rey Montañas: ATK38 CRIT_CHANCE5.5% → DEF15 HP24 MAGIC_DEF5)
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'GUERRERO_GLOVES_REY_MONT');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'DEF', 15, FALSE FROM items WHERE code = 'GUERRERO_GLOVES_REY_MONT';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'HP', 24, FALSE FROM items WHERE code = 'GUERRERO_GLOVES_REY_MONT';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'MAGIC_DEF', 5, FALSE FROM items WHERE code = 'GUERRERO_GLOVES_REY_MONT';
+-- Armadura del Rey de las Montañas (pecho Rey Montañas con su extra: DEF30 HP48 MAGIC_DEF9 → DEF25 HP98 MAGIC_DEF9)
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'GUERRERO_ARMOR_REY_MONT');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'DEF', 25, FALSE FROM items WHERE code = 'GUERRERO_ARMOR_REY_MONT';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'HP', 98, FALSE FROM items WHERE code = 'GUERRERO_ARMOR_REY_MONT';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'MAGIC_DEF', 9, FALSE FROM items WHERE code = 'GUERRERO_ARMOR_REY_MONT';
+-- Báculo Arcano de Pradera (arma Pradera: MAG15 CRIT_CHANCE2.3% → MAG17 CRIT_CHANCE3.8%)
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'MAGO_WEAPON_PRADERA');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'MAG', 17, FALSE FROM items WHERE code = 'MAGO_WEAPON_PRADERA';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'CRIT_CHANCE', 3.8, TRUE FROM items WHERE code = 'MAGO_WEAPON_PRADERA';
+-- Guantes de Tela de Pradera (guantes Pradera: MAG7 CRIT_CHANCE1.5% → MAGIC_DEF3 DEF1 HP7)
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'MAGO_GLOVES_PRADERA');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'MAGIC_DEF', 3, FALSE FROM items WHERE code = 'MAGO_GLOVES_PRADERA';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'DEF', 1, FALSE FROM items WHERE code = 'MAGO_GLOVES_PRADERA';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'HP', 7, FALSE FROM items WHERE code = 'MAGO_GLOVES_PRADERA';
+-- Orbe de Pradera (mano izquierda Pradera: MAG2 SPD5 → MAGIC_DEF3 DEF1 HP9 SPD5)
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'MAGO_OFFHAND_PRADERA');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'MAGIC_DEF', 3, FALSE FROM items WHERE code = 'MAGO_OFFHAND_PRADERA';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'DEF', 1, FALSE FROM items WHERE code = 'MAGO_OFFHAND_PRADERA';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'HP', 9, FALSE FROM items WHERE code = 'MAGO_OFFHAND_PRADERA';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'SPD', 5, FALSE FROM items WHERE code = 'MAGO_OFFHAND_PRADERA';
+-- Báculo Arcano de la Guardia (arma Guardia: MAG24 CRIT_CHANCE3.8% → MAG32 CRIT_CHANCE6.3%)
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'MAGO_WEAPON_VIGIA');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'MAG', 32, FALSE FROM items WHERE code = 'MAGO_WEAPON_VIGIA';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'CRIT_CHANCE', 6.3, TRUE FROM items WHERE code = 'MAGO_WEAPON_VIGIA';
+-- Guantes de Tela de la Guardia (guantes Guardia: MAG11 CRIT_CHANCE2.5% → MAGIC_DEF5 DEF1 HP12)
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'MAGO_GLOVES_VIGIA');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'MAGIC_DEF', 5, FALSE FROM items WHERE code = 'MAGO_GLOVES_VIGIA';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'DEF', 1, FALSE FROM items WHERE code = 'MAGO_GLOVES_VIGIA';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'HP', 12, FALSE FROM items WHERE code = 'MAGO_GLOVES_VIGIA';
+-- Orbe de la Guardia (mano izquierda Guardia: MAG3 SPD8 → MAGIC_DEF6 DEF1 HP15 SPD8)
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'MAGO_OFFHAND_VIGIA');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'MAGIC_DEF', 6, FALSE FROM items WHERE code = 'MAGO_OFFHAND_VIGIA';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'DEF', 1, FALSE FROM items WHERE code = 'MAGO_OFFHAND_VIGIA';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'HP', 15, FALSE FROM items WHERE code = 'MAGO_OFFHAND_VIGIA';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'SPD', 8, FALSE FROM items WHERE code = 'MAGO_OFFHAND_VIGIA';
+-- Báculo Arcano del Vigía Caído (arma Vigía Caído: MAG34 CRIT_CHANCE5.3% → MAG43 CRIT_CHANCE7.8%)
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'MAGO_WEAPON_VIGIA_CAIDO');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'MAG', 43, FALSE FROM items WHERE code = 'MAGO_WEAPON_VIGIA_CAIDO';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'CRIT_CHANCE', 7.8, TRUE FROM items WHERE code = 'MAGO_WEAPON_VIGIA_CAIDO';
+-- Varita del Capitán (arma Capitán: MAG36 CRIT_CHANCE6.8% → MAG48 CRIT_CHANCE15.8% CRIT_DAMAGE8%)
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'MAGO_WEAPON_CAPITAN');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'MAG', 48, FALSE FROM items WHERE code = 'MAGO_WEAPON_CAPITAN';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'CRIT_CHANCE', 15.8, TRUE FROM items WHERE code = 'MAGO_WEAPON_CAPITAN';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'CRIT_DAMAGE', 8, TRUE FROM items WHERE code = 'MAGO_WEAPON_CAPITAN';
+-- Guantes del Capitán (guantes Capitán: MAG16 CRIT_CHANCE4.5% → DEF2 HP12 MAGIC_DEF7)
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'MAGO_GLOVES_CAPITAN');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'DEF', 2, FALSE FROM items WHERE code = 'MAGO_GLOVES_CAPITAN';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'HP', 12, FALSE FROM items WHERE code = 'MAGO_GLOVES_CAPITAN';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'MAGIC_DEF', 7, FALSE FROM items WHERE code = 'MAGO_GLOVES_CAPITAN';
+-- Orbe del Capitán (mano izquierda Capitán: MAG15 SPD12 → DEF2 HP15 MAGIC_DEF8 SPD12)
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'MAGO_OFFHAND_ORB_CAPITAN');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'DEF', 2, FALSE FROM items WHERE code = 'MAGO_OFFHAND_ORB_CAPITAN';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'HP', 15, FALSE FROM items WHERE code = 'MAGO_OFFHAND_ORB_CAPITAN';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'MAGIC_DEF', 8, FALSE FROM items WHERE code = 'MAGO_OFFHAND_ORB_CAPITAN';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'SPD', 12, FALSE FROM items WHERE code = 'MAGO_OFFHAND_ORB_CAPITAN';
+-- Cristal del Capitán (mano izquierda Capitán: MAG20 CRIT_CHANCE4.5% → DEF3 HP18 MAGIC_DEF10)
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'MAGO_OFFHAND_CRYSTAL_CAPITAN');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'DEF', 3, FALSE FROM items WHERE code = 'MAGO_OFFHAND_CRYSTAL_CAPITAN';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'HP', 18, FALSE FROM items WHERE code = 'MAGO_OFFHAND_CRYSTAL_CAPITAN';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'MAGIC_DEF', 10, FALSE FROM items WHERE code = 'MAGO_OFFHAND_CRYSTAL_CAPITAN';
+-- Túnica del Capitán (pecho Capitán con su extra: DEF4 HP24 MAGIC_DEF13 → DEF4 HP22 MAGIC_DEF12 HP_REGEN1%)
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'MAGO_ARMOR_CAPITAN');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'DEF', 4, FALSE FROM items WHERE code = 'MAGO_ARMOR_CAPITAN';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'HP', 22, FALSE FROM items WHERE code = 'MAGO_ARMOR_CAPITAN';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'MAGIC_DEF', 12, FALSE FROM items WHERE code = 'MAGO_ARMOR_CAPITAN';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'HP_REGEN', 1, TRUE FROM items WHERE code = 'MAGO_ARMOR_CAPITAN';
+-- Varita del Titán (arma Titán: MAG49 CRIT_CHANCE8.3% → MAG60 CRIT_CHANCE19.3% CRIT_DAMAGE10%)
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'MAGO_WEAPON_TITAN_P');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'MAG', 60, FALSE FROM items WHERE code = 'MAGO_WEAPON_TITAN_P';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'CRIT_CHANCE', 19.3, TRUE FROM items WHERE code = 'MAGO_WEAPON_TITAN_P';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'CRIT_DAMAGE', 10, TRUE FROM items WHERE code = 'MAGO_WEAPON_TITAN_P';
+-- Guantes del Titán (guantes Titán: MAG22 CRIT_CHANCE5.5% → DEF3 HP17 MAGIC_DEF9)
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'MAGO_GLOVES_TITAN_P');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'DEF', 3, FALSE FROM items WHERE code = 'MAGO_GLOVES_TITAN_P';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'HP', 17, FALSE FROM items WHERE code = 'MAGO_GLOVES_TITAN_P';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'MAGIC_DEF', 9, FALSE FROM items WHERE code = 'MAGO_GLOVES_TITAN_P';
+-- Orbe del Titán (mano izquierda Titán: MAG20 SPD16 → DEF4 HP20 MAGIC_DEF11 SPD16)
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'MAGO_OFFHAND_ORB_TITAN_P');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'DEF', 4, FALSE FROM items WHERE code = 'MAGO_OFFHAND_ORB_TITAN_P';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'HP', 20, FALSE FROM items WHERE code = 'MAGO_OFFHAND_ORB_TITAN_P';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'MAGIC_DEF', 11, FALSE FROM items WHERE code = 'MAGO_OFFHAND_ORB_TITAN_P';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'SPD', 16, FALSE FROM items WHERE code = 'MAGO_OFFHAND_ORB_TITAN_P';
+-- Cristal del Titán (mano izquierda Titán: MAG27 CRIT_CHANCE5.5% → DEF5 HP25 MAGIC_DEF14)
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'MAGO_OFFHAND_CRYSTAL_TITAN_P');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'DEF', 5, FALSE FROM items WHERE code = 'MAGO_OFFHAND_CRYSTAL_TITAN_P';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'HP', 25, FALSE FROM items WHERE code = 'MAGO_OFFHAND_CRYSTAL_TITAN_P';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'MAGIC_DEF', 14, FALSE FROM items WHERE code = 'MAGO_OFFHAND_CRYSTAL_TITAN_P';
+-- Túnica del Titán (pecho Titán con su extra: DEF6 HP33 MAGIC_DEF18 → DEF5 HP30 MAGIC_DEF16 HP_REGEN1.5%)
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'MAGO_ARMOR_TITAN_P');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'DEF', 5, FALSE FROM items WHERE code = 'MAGO_ARMOR_TITAN_P';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'HP', 30, FALSE FROM items WHERE code = 'MAGO_ARMOR_TITAN_P';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'MAGIC_DEF', 16, FALSE FROM items WHERE code = 'MAGO_ARMOR_TITAN_P';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'HP_REGEN', 1.5, TRUE FROM items WHERE code = 'MAGO_ARMOR_TITAN_P';
+-- Báculo Arcano de Montaña (arma Montaña: MAG46 CRIT_CHANCE5.3% → MAG71 CRIT_CHANCE8.8%)
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'MAGO_WEAPON_MONTANAS');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'MAG', 71, FALSE FROM items WHERE code = 'MAGO_WEAPON_MONTANAS';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'CRIT_CHANCE', 8.8, TRUE FROM items WHERE code = 'MAGO_WEAPON_MONTANAS';
+-- Guantes de Tela de Montaña (guantes Montaña: MAG21 CRIT_CHANCE3.5% → MAGIC_DEF9 DEF3 HP16)
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'MAGO_GLOVES_MONTANAS');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'MAGIC_DEF', 9, FALSE FROM items WHERE code = 'MAGO_GLOVES_MONTANAS';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'DEF', 3, FALSE FROM items WHERE code = 'MAGO_GLOVES_MONTANAS';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'HP', 16, FALSE FROM items WHERE code = 'MAGO_GLOVES_MONTANAS';
+-- Orbe de Montaña (mano izquierda Montaña: MAG14 SPD15 → MAGIC_DEF10 DEF3 HP19 SPD15)
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'MAGO_OFFHAND_MONTANAS');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'MAGIC_DEF', 10, FALSE FROM items WHERE code = 'MAGO_OFFHAND_MONTANAS';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'DEF', 3, FALSE FROM items WHERE code = 'MAGO_OFFHAND_MONTANAS';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'HP', 19, FALSE FROM items WHERE code = 'MAGO_OFFHAND_MONTANAS';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'SPD', 15, FALSE FROM items WHERE code = 'MAGO_OFFHAND_MONTANAS';
+-- Varita de la Escarcha (arma Escarcha: MAG58 CRIT_CHANCE6.8% → MAG86 CRIT_CHANCE15.8%)
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'MAGO_WEAPON_ESCARCHA');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'MAG', 86, FALSE FROM items WHERE code = 'MAGO_WEAPON_ESCARCHA';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'CRIT_CHANCE', 15.8, TRUE FROM items WHERE code = 'MAGO_WEAPON_ESCARCHA';
+-- Guantes de la Escarcha (guantes Escarcha: MAG26 CRIT_CHANCE4.5% → DEF4 HP19 MAGIC_DEF11)
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'MAGO_GLOVES_ESCARCHA');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'DEF', 4, FALSE FROM items WHERE code = 'MAGO_GLOVES_ESCARCHA';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'HP', 19, FALSE FROM items WHERE code = 'MAGO_GLOVES_ESCARCHA';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'MAGIC_DEF', 11, FALSE FROM items WHERE code = 'MAGO_GLOVES_ESCARCHA';
+-- Orbe de la Escarcha (mano izquierda Escarcha: MAG24 SPD19 → DEF4 HP23 MAGIC_DEF13 SPD19)
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'MAGO_OFFHAND_ORB_ESCARCHA');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'DEF', 4, FALSE FROM items WHERE code = 'MAGO_OFFHAND_ORB_ESCARCHA';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'HP', 23, FALSE FROM items WHERE code = 'MAGO_OFFHAND_ORB_ESCARCHA';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'MAGIC_DEF', 13, FALSE FROM items WHERE code = 'MAGO_OFFHAND_ORB_ESCARCHA';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'SPD', 19, FALSE FROM items WHERE code = 'MAGO_OFFHAND_ORB_ESCARCHA';
+-- Cristal de la Escarcha (mano izquierda Escarcha: MAG32 CRIT_CHANCE4.5% → DEF5 HP29 MAGIC_DEF16)
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'MAGO_OFFHAND_CRYSTAL_ESCARCHA');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'DEF', 5, FALSE FROM items WHERE code = 'MAGO_OFFHAND_CRYSTAL_ESCARCHA';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'HP', 29, FALSE FROM items WHERE code = 'MAGO_OFFHAND_CRYSTAL_ESCARCHA';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'MAGIC_DEF', 16, FALSE FROM items WHERE code = 'MAGO_OFFHAND_CRYSTAL_ESCARCHA';
+-- Báculo Arcano de Hierro Negro (arma Hierro Negro: MAG67 CRIT_CHANCE8.3% → MAG100 CRIT_CHANCE17.3% CRIT_DAMAGE12%)
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'MAGO_WEAPON_HIERRO_NEGRO');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'MAG', 100, FALSE FROM items WHERE code = 'MAGO_WEAPON_HIERRO_NEGRO';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'CRIT_CHANCE', 17.3, TRUE FROM items WHERE code = 'MAGO_WEAPON_HIERRO_NEGRO';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'CRIT_DAMAGE', 12, TRUE FROM items WHERE code = 'MAGO_WEAPON_HIERRO_NEGRO';
+-- Varita del Acantilado (arma Acantilado: MAG68 CRIT_CHANCE6.8% → MAG130 CRIT_CHANCE15.8% CRIT_DAMAGE12%)
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'MAGO_WEAPON_ACANT');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'MAG', 130, FALSE FROM items WHERE code = 'MAGO_WEAPON_ACANT';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'CRIT_CHANCE', 15.8, TRUE FROM items WHERE code = 'MAGO_WEAPON_ACANT';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'CRIT_DAMAGE', 12, TRUE FROM items WHERE code = 'MAGO_WEAPON_ACANT';
+-- Guantes del Acantilado (guantes Acantilado: MAG30 CRIT_CHANCE4.5% → DEF4 HP23 MAGIC_DEF12)
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'MAGO_GLOVES_ACANT');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'DEF', 4, FALSE FROM items WHERE code = 'MAGO_GLOVES_ACANT';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'HP', 23, FALSE FROM items WHERE code = 'MAGO_GLOVES_ACANT';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'MAGIC_DEF', 12, FALSE FROM items WHERE code = 'MAGO_GLOVES_ACANT';
+-- Orbe del Acantilado (mano izquierda Acantilado: MAG28 SPD22 → DEF5 HP28 MAGIC_DEF15 SPD22)
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'MAGO_OFFHAND_ORB_ACANT');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'DEF', 5, FALSE FROM items WHERE code = 'MAGO_OFFHAND_ORB_ACANT';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'HP', 28, FALSE FROM items WHERE code = 'MAGO_OFFHAND_ORB_ACANT';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'MAGIC_DEF', 15, FALSE FROM items WHERE code = 'MAGO_OFFHAND_ORB_ACANT';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'SPD', 22, FALSE FROM items WHERE code = 'MAGO_OFFHAND_ORB_ACANT';
+-- Cristal del Acantilado (mano izquierda Acantilado: MAG37 CRIT_CHANCE4.5% → DEF6 HP34 MAGIC_DEF18)
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'MAGO_OFFHAND_CRYSTAL_ACANT');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'DEF', 6, FALSE FROM items WHERE code = 'MAGO_OFFHAND_CRYSTAL_ACANT';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'HP', 34, FALSE FROM items WHERE code = 'MAGO_OFFHAND_CRYSTAL_ACANT';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'MAGIC_DEF', 18, FALSE FROM items WHERE code = 'MAGO_OFFHAND_CRYSTAL_ACANT';
+-- Túnica del Acantilado (pecho Acantilado con su extra: DEF8 HP45 MAGIC_DEF24 → DEF7 HP41 MAGIC_DEF22 HP_REGEN2%)
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'MAGO_ARMOR_ACANT');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'DEF', 7, FALSE FROM items WHERE code = 'MAGO_ARMOR_ACANT';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'HP', 41, FALSE FROM items WHERE code = 'MAGO_ARMOR_ACANT';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'MAGIC_DEF', 22, FALSE FROM items WHERE code = 'MAGO_ARMOR_ACANT';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'HP_REGEN', 2, TRUE FROM items WHERE code = 'MAGO_ARMOR_ACANT';
+-- Varita del Rey de las Montañas (arma Rey Montañas: MAG84 CRIT_CHANCE8.3% → MAG152 CRIT_CHANCE19.3% CRIT_DAMAGE15%)
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'MAGO_WEAPON_REY_MONT');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'MAG', 152, FALSE FROM items WHERE code = 'MAGO_WEAPON_REY_MONT';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'CRIT_CHANCE', 19.3, TRUE FROM items WHERE code = 'MAGO_WEAPON_REY_MONT';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'CRIT_DAMAGE', 15, TRUE FROM items WHERE code = 'MAGO_WEAPON_REY_MONT';
+-- Guantes del Rey de las Montañas (guantes Rey Montañas: MAG38 CRIT_CHANCE5.5% → DEF5 HP28 MAGIC_DEF15)
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'MAGO_GLOVES_REY_MONT');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'DEF', 5, FALSE FROM items WHERE code = 'MAGO_GLOVES_REY_MONT';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'HP', 28, FALSE FROM items WHERE code = 'MAGO_GLOVES_REY_MONT';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'MAGIC_DEF', 15, FALSE FROM items WHERE code = 'MAGO_GLOVES_REY_MONT';
+-- Orbe del Rey de las Montañas (mano izquierda Rey Montañas: MAG35 SPD28 → DEF6 HP34 MAGIC_DEF18 SPD28)
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'MAGO_OFFHAND_ORB_REY_MONT');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'DEF', 6, FALSE FROM items WHERE code = 'MAGO_OFFHAND_ORB_REY_MONT';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'HP', 34, FALSE FROM items WHERE code = 'MAGO_OFFHAND_ORB_REY_MONT';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'MAGIC_DEF', 18, FALSE FROM items WHERE code = 'MAGO_OFFHAND_ORB_REY_MONT';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'SPD', 28, FALSE FROM items WHERE code = 'MAGO_OFFHAND_ORB_REY_MONT';
+-- Cristal del Rey de las Montañas (mano izquierda Rey Montañas: MAG46 CRIT_CHANCE5.5% → DEF7 HP43 MAGIC_DEF23)
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'MAGO_OFFHAND_CRYSTAL_REY_MONT');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'DEF', 7, FALSE FROM items WHERE code = 'MAGO_OFFHAND_CRYSTAL_REY_MONT';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'HP', 43, FALSE FROM items WHERE code = 'MAGO_OFFHAND_CRYSTAL_REY_MONT';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'MAGIC_DEF', 23, FALSE FROM items WHERE code = 'MAGO_OFFHAND_CRYSTAL_REY_MONT';
+-- Túnica del Rey de las Montañas (pecho Rey Montañas con su extra: DEF9 HP56 MAGIC_DEF30 → DEF8 HP50 MAGIC_DEF27 HP_REGEN2.5%)
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'MAGO_ARMOR_REY_MONT');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'DEF', 8, FALSE FROM items WHERE code = 'MAGO_ARMOR_REY_MONT';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'HP', 50, FALSE FROM items WHERE code = 'MAGO_ARMOR_REY_MONT';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'MAGIC_DEF', 27, FALSE FROM items WHERE code = 'MAGO_ARMOR_REY_MONT';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'HP_REGEN', 2.5, TRUE FROM items WHERE code = 'MAGO_ARMOR_REY_MONT';
+-- Arco de Pradera (arma Pradera: ATK15 CRIT_CHANCE2.3% → ATK24 CRIT_CHANCE3.8%)
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'ARQUERO_WEAPON_PRADERA');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'ATK', 24, FALSE FROM items WHERE code = 'ARQUERO_WEAPON_PRADERA';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'CRIT_CHANCE', 3.8, TRUE FROM items WHERE code = 'ARQUERO_WEAPON_PRADERA';
+-- Guantes de Pradera (guantes Pradera: ATK7 CRIT_CHANCE1.5% → DEF3 MAGIC_DEF1 HP7)
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'ARQUERO_GLOVES_PRADERA');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'DEF', 3, FALSE FROM items WHERE code = 'ARQUERO_GLOVES_PRADERA';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'MAGIC_DEF', 1, FALSE FROM items WHERE code = 'ARQUERO_GLOVES_PRADERA';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'HP', 7, FALSE FROM items WHERE code = 'ARQUERO_GLOVES_PRADERA';
+-- Carcaj de Pradera (mano izquierda Pradera: ATK2 SPD5 → DEF3 MAGIC_DEF1 HP9 SPD5)
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'ARQUERO_OFFHAND_PRADERA');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'DEF', 3, FALSE FROM items WHERE code = 'ARQUERO_OFFHAND_PRADERA';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'MAGIC_DEF', 1, FALSE FROM items WHERE code = 'ARQUERO_OFFHAND_PRADERA';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'HP', 9, FALSE FROM items WHERE code = 'ARQUERO_OFFHAND_PRADERA';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'SPD', 5, FALSE FROM items WHERE code = 'ARQUERO_OFFHAND_PRADERA';
+-- Arco de la Guardia (arma Guardia: ATK24 CRIT_CHANCE3.8% → ATK38 CRIT_CHANCE6.3%)
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'ARQUERO_WEAPON_VIGIA');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'ATK', 38, FALSE FROM items WHERE code = 'ARQUERO_WEAPON_VIGIA';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'CRIT_CHANCE', 6.3, TRUE FROM items WHERE code = 'ARQUERO_WEAPON_VIGIA';
+-- Guantes de la Guardia (guantes Guardia: ATK11 CRIT_CHANCE2.5% → DEF5 MAGIC_DEF1 HP12)
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'ARQUERO_GLOVES_VIGIA');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'DEF', 5, FALSE FROM items WHERE code = 'ARQUERO_GLOVES_VIGIA';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'MAGIC_DEF', 1, FALSE FROM items WHERE code = 'ARQUERO_GLOVES_VIGIA';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'HP', 12, FALSE FROM items WHERE code = 'ARQUERO_GLOVES_VIGIA';
+-- Carcaj de la Guardia (mano izquierda Guardia: ATK3 SPD8 → DEF6 MAGIC_DEF1 HP15 SPD8)
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'ARQUERO_OFFHAND_VIGIA');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'DEF', 6, FALSE FROM items WHERE code = 'ARQUERO_OFFHAND_VIGIA';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'MAGIC_DEF', 1, FALSE FROM items WHERE code = 'ARQUERO_OFFHAND_VIGIA';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'HP', 15, FALSE FROM items WHERE code = 'ARQUERO_OFFHAND_VIGIA';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'SPD', 8, FALSE FROM items WHERE code = 'ARQUERO_OFFHAND_VIGIA';
+-- Arco del Vigía Caído (arma Vigía Caído: ATK34 CRIT_CHANCE5.3% → ATK48 CRIT_CHANCE7.8%)
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'ARQUERO_WEAPON_VIGIA_CAIDO');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'ATK', 48, FALSE FROM items WHERE code = 'ARQUERO_WEAPON_VIGIA_CAIDO';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'CRIT_CHANCE', 7.8, TRUE FROM items WHERE code = 'ARQUERO_WEAPON_VIGIA_CAIDO';
+-- Arco del Capitán (arma Capitán: ATK36 CRIT_CHANCE6.8% → ATK60 CRIT_CHANCE11.3% CRIT_DAMAGE8%)
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'ARQUERO_WEAPON_CAPITAN');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'ATK', 60, FALSE FROM items WHERE code = 'ARQUERO_WEAPON_CAPITAN';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'CRIT_CHANCE', 11.3, TRUE FROM items WHERE code = 'ARQUERO_WEAPON_CAPITAN';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'CRIT_DAMAGE', 8, TRUE FROM items WHERE code = 'ARQUERO_WEAPON_CAPITAN';
+-- Guantes del Capitán (guantes Capitán: ATK16 CRIT_CHANCE4.5% → DEF7 HP12 MAGIC_DEF2)
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'ARQUERO_GLOVES_CAPITAN');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'DEF', 7, FALSE FROM items WHERE code = 'ARQUERO_GLOVES_CAPITAN';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'HP', 12, FALSE FROM items WHERE code = 'ARQUERO_GLOVES_CAPITAN';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'MAGIC_DEF', 2, FALSE FROM items WHERE code = 'ARQUERO_GLOVES_CAPITAN';
+-- Carcaj del Capitán (mano izquierda Capitán: ATK12 SPD12 → DEF8 HP15 MAGIC_DEF2 SPD12)
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'ARQUERO_OFFHAND_CAPITAN');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'DEF', 8, FALSE FROM items WHERE code = 'ARQUERO_OFFHAND_CAPITAN';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'HP', 15, FALSE FROM items WHERE code = 'ARQUERO_OFFHAND_CAPITAN';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'MAGIC_DEF', 2, FALSE FROM items WHERE code = 'ARQUERO_OFFHAND_CAPITAN';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'SPD', 12, FALSE FROM items WHERE code = 'ARQUERO_OFFHAND_CAPITAN';
+-- Gabán del Capitán (pecho Capitán con su extra: DEF13 HP24 MAGIC_DEF3 → DEF12 HP22 MAGIC_DEF3 EVASION2%)
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'ARQUERO_ARMOR_CAPITAN');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'DEF', 12, FALSE FROM items WHERE code = 'ARQUERO_ARMOR_CAPITAN';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'HP', 22, FALSE FROM items WHERE code = 'ARQUERO_ARMOR_CAPITAN';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'MAGIC_DEF', 3, FALSE FROM items WHERE code = 'ARQUERO_ARMOR_CAPITAN';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'EVASION', 2, TRUE FROM items WHERE code = 'ARQUERO_ARMOR_CAPITAN';
+-- Arco del Titán (arma Titán: ATK49 CRIT_CHANCE8.3% → ATK81 CRIT_CHANCE13.8% CRIT_DAMAGE10%)
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'ARQUERO_WEAPON_TITAN_P');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'ATK', 81, FALSE FROM items WHERE code = 'ARQUERO_WEAPON_TITAN_P';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'CRIT_CHANCE', 13.8, TRUE FROM items WHERE code = 'ARQUERO_WEAPON_TITAN_P';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'CRIT_DAMAGE', 10, TRUE FROM items WHERE code = 'ARQUERO_WEAPON_TITAN_P';
+-- Guantes del Titán (guantes Titán: ATK22 CRIT_CHANCE5.5% → DEF9 HP16 MAGIC_DEF3)
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'ARQUERO_GLOVES_TITAN_P');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'DEF', 9, FALSE FROM items WHERE code = 'ARQUERO_GLOVES_TITAN_P';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'HP', 16, FALSE FROM items WHERE code = 'ARQUERO_GLOVES_TITAN_P';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'MAGIC_DEF', 3, FALSE FROM items WHERE code = 'ARQUERO_GLOVES_TITAN_P';
+-- Carcaj del Titán (mano izquierda Titán: ATK16 SPD16 → DEF11 HP19 MAGIC_DEF3 SPD16)
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'ARQUERO_OFFHAND_TITAN_P');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'DEF', 11, FALSE FROM items WHERE code = 'ARQUERO_OFFHAND_TITAN_P';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'HP', 19, FALSE FROM items WHERE code = 'ARQUERO_OFFHAND_TITAN_P';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'MAGIC_DEF', 3, FALSE FROM items WHERE code = 'ARQUERO_OFFHAND_TITAN_P';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'SPD', 16, FALSE FROM items WHERE code = 'ARQUERO_OFFHAND_TITAN_P';
+-- Gabán del Titán (pecho Titán con su extra: DEF18 HP31 MAGIC_DEF5 → DEF16 HP28 MAGIC_DEF5 EVASION2.5%)
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'ARQUERO_ARMOR_TITAN_P');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'DEF', 16, FALSE FROM items WHERE code = 'ARQUERO_ARMOR_TITAN_P';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'HP', 28, FALSE FROM items WHERE code = 'ARQUERO_ARMOR_TITAN_P';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'MAGIC_DEF', 5, FALSE FROM items WHERE code = 'ARQUERO_ARMOR_TITAN_P';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'EVASION', 2.5, TRUE FROM items WHERE code = 'ARQUERO_ARMOR_TITAN_P';
+-- Arco de Montaña (arma Montaña: ATK46 CRIT_CHANCE5.3% → ATK80 CRIT_CHANCE8.8%)
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'ARQUERO_WEAPON_MONTANAS');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'ATK', 80, FALSE FROM items WHERE code = 'ARQUERO_WEAPON_MONTANAS';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'CRIT_CHANCE', 8.8, TRUE FROM items WHERE code = 'ARQUERO_WEAPON_MONTANAS';
+-- Guantes de Montaña (guantes Montaña: ATK21 CRIT_CHANCE3.5% → DEF9 MAGIC_DEF3 HP16)
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'ARQUERO_GLOVES_MONTANAS');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'DEF', 9, FALSE FROM items WHERE code = 'ARQUERO_GLOVES_MONTANAS';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'MAGIC_DEF', 3, FALSE FROM items WHERE code = 'ARQUERO_GLOVES_MONTANAS';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'HP', 16, FALSE FROM items WHERE code = 'ARQUERO_GLOVES_MONTANAS';
+-- Carcaj de Montaña (mano izquierda Montaña: ATK11 SPD15 → DEF10 MAGIC_DEF3 HP19 SPD15)
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'ARQUERO_OFFHAND_MONTANAS');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'DEF', 10, FALSE FROM items WHERE code = 'ARQUERO_OFFHAND_MONTANAS';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'MAGIC_DEF', 3, FALSE FROM items WHERE code = 'ARQUERO_OFFHAND_MONTANAS';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'HP', 19, FALSE FROM items WHERE code = 'ARQUERO_OFFHAND_MONTANAS';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'SPD', 15, FALSE FROM items WHERE code = 'ARQUERO_OFFHAND_MONTANAS';
+-- Arco de la Escarcha (arma Escarcha: ATK58 CRIT_CHANCE6.8% → ATK108 CRIT_CHANCE11.3%)
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'ARQUERO_WEAPON_ESCARCHA');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'ATK', 108, FALSE FROM items WHERE code = 'ARQUERO_WEAPON_ESCARCHA';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'CRIT_CHANCE', 11.3, TRUE FROM items WHERE code = 'ARQUERO_WEAPON_ESCARCHA';
+-- Guantes de la Escarcha (guantes Escarcha: ATK26 CRIT_CHANCE4.5% → DEF11 HP19 MAGIC_DEF3)
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'ARQUERO_GLOVES_ESCARCHA');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'DEF', 11, FALSE FROM items WHERE code = 'ARQUERO_GLOVES_ESCARCHA';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'HP', 19, FALSE FROM items WHERE code = 'ARQUERO_GLOVES_ESCARCHA';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'MAGIC_DEF', 3, FALSE FROM items WHERE code = 'ARQUERO_GLOVES_ESCARCHA';
+-- Carcaj de la Escarcha (mano izquierda Escarcha: ATK19 SPD19 → DEF13 HP23 MAGIC_DEF4 SPD19)
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'ARQUERO_OFFHAND_ESCARCHA');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'DEF', 13, FALSE FROM items WHERE code = 'ARQUERO_OFFHAND_ESCARCHA';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'HP', 23, FALSE FROM items WHERE code = 'ARQUERO_OFFHAND_ESCARCHA';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'MAGIC_DEF', 4, FALSE FROM items WHERE code = 'ARQUERO_OFFHAND_ESCARCHA';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'SPD', 19, FALSE FROM items WHERE code = 'ARQUERO_OFFHAND_ESCARCHA';
+-- Arco de Hierro Negro (arma Hierro Negro: ATK67 CRIT_CHANCE8.3% → ATK119 CRIT_CHANCE12.8% CRIT_DAMAGE12%)
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'ARQUERO_WEAPON_HIERRO_NEGRO');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'ATK', 119, FALSE FROM items WHERE code = 'ARQUERO_WEAPON_HIERRO_NEGRO';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'CRIT_CHANCE', 12.8, TRUE FROM items WHERE code = 'ARQUERO_WEAPON_HIERRO_NEGRO';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'CRIT_DAMAGE', 12, TRUE FROM items WHERE code = 'ARQUERO_WEAPON_HIERRO_NEGRO';
+-- Arco del Acantilado (arma Acantilado: ATK68 CRIT_CHANCE6.8% → ATK148 CRIT_CHANCE11.3% CRIT_DAMAGE12%)
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'ARQUERO_WEAPON_ACANT');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'ATK', 148, FALSE FROM items WHERE code = 'ARQUERO_WEAPON_ACANT';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'CRIT_CHANCE', 11.3, TRUE FROM items WHERE code = 'ARQUERO_WEAPON_ACANT';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'CRIT_DAMAGE', 12, TRUE FROM items WHERE code = 'ARQUERO_WEAPON_ACANT';
+-- Guantes del Acantilado (guantes Acantilado: ATK30 CRIT_CHANCE4.5% → DEF12 HP22 MAGIC_DEF4)
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'ARQUERO_GLOVES_ACANT');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'DEF', 12, FALSE FROM items WHERE code = 'ARQUERO_GLOVES_ACANT';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'HP', 22, FALSE FROM items WHERE code = 'ARQUERO_GLOVES_ACANT';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'MAGIC_DEF', 4, FALSE FROM items WHERE code = 'ARQUERO_GLOVES_ACANT';
+-- Carcaj del Acantilado (mano izquierda Acantilado: ATK22 SPD22 → DEF15 HP27 MAGIC_DEF4 SPD22)
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'ARQUERO_OFFHAND_ACANT');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'DEF', 15, FALSE FROM items WHERE code = 'ARQUERO_OFFHAND_ACANT';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'HP', 27, FALSE FROM items WHERE code = 'ARQUERO_OFFHAND_ACANT';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'MAGIC_DEF', 4, FALSE FROM items WHERE code = 'ARQUERO_OFFHAND_ACANT';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'SPD', 22, FALSE FROM items WHERE code = 'ARQUERO_OFFHAND_ACANT';
+-- Gabán del Acantilado (pecho Acantilado con su extra: DEF24 HP44 MAGIC_DEF7 → DEF22 HP40 MAGIC_DEF6 EVASION3%)
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'ARQUERO_ARMOR_ACANT');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'DEF', 22, FALSE FROM items WHERE code = 'ARQUERO_ARMOR_ACANT';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'HP', 40, FALSE FROM items WHERE code = 'ARQUERO_ARMOR_ACANT';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'MAGIC_DEF', 6, FALSE FROM items WHERE code = 'ARQUERO_ARMOR_ACANT';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'EVASION', 3, TRUE FROM items WHERE code = 'ARQUERO_ARMOR_ACANT';
+-- Arco del Rey de las Montañas (arma Rey Montañas: ATK84 CRIT_CHANCE8.3% → ATK171 CRIT_CHANCE13.8% CRIT_DAMAGE15%)
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'ARQUERO_WEAPON_REY_MONT');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'ATK', 171, FALSE FROM items WHERE code = 'ARQUERO_WEAPON_REY_MONT';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'CRIT_CHANCE', 13.8, TRUE FROM items WHERE code = 'ARQUERO_WEAPON_REY_MONT';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'CRIT_DAMAGE', 15, TRUE FROM items WHERE code = 'ARQUERO_WEAPON_REY_MONT';
+-- Guantes del Rey de las Montañas (guantes Rey Montañas: ATK38 CRIT_CHANCE5.5% → DEF15 HP27 MAGIC_DEF5)
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'ARQUERO_GLOVES_REY_MONT');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'DEF', 15, FALSE FROM items WHERE code = 'ARQUERO_GLOVES_REY_MONT';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'HP', 27, FALSE FROM items WHERE code = 'ARQUERO_GLOVES_REY_MONT';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'MAGIC_DEF', 5, FALSE FROM items WHERE code = 'ARQUERO_GLOVES_REY_MONT';
+-- Carcaj del Rey de las Montañas (mano izquierda Rey Montañas: ATK28 SPD28 → DEF18 HP33 MAGIC_DEF6 SPD28)
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'ARQUERO_OFFHAND_REY_MONT');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'DEF', 18, FALSE FROM items WHERE code = 'ARQUERO_OFFHAND_REY_MONT';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'HP', 33, FALSE FROM items WHERE code = 'ARQUERO_OFFHAND_REY_MONT';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'MAGIC_DEF', 6, FALSE FROM items WHERE code = 'ARQUERO_OFFHAND_REY_MONT';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'SPD', 28, FALSE FROM items WHERE code = 'ARQUERO_OFFHAND_REY_MONT';
+-- Gabán del Rey de las Montañas (pecho Rey Montañas con su extra: DEF30 HP54 MAGIC_DEF9 → DEF27 HP49 MAGIC_DEF8 EVASION3.5%)
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'ARQUERO_ARMOR_REY_MONT');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'DEF', 27, FALSE FROM items WHERE code = 'ARQUERO_ARMOR_REY_MONT';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'HP', 49, FALSE FROM items WHERE code = 'ARQUERO_ARMOR_REY_MONT';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'MAGIC_DEF', 8, FALSE FROM items WHERE code = 'ARQUERO_ARMOR_REY_MONT';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'EVASION', 3.5, TRUE FROM items WHERE code = 'ARQUERO_ARMOR_REY_MONT';
+-- Daga de Pradera (arma Pradera: ATK15 CRIT_CHANCE2.3% → ATK24 CRIT_CHANCE3.8%)
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'PICARO_WEAPON_PRADERA');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'ATK', 24, FALSE FROM items WHERE code = 'PICARO_WEAPON_PRADERA';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'CRIT_CHANCE', 3.8, TRUE FROM items WHERE code = 'PICARO_WEAPON_PRADERA';
+-- Guantes de Pradera (guantes Pradera: ATK7 CRIT_CHANCE1.5% → DEF3 MAGIC_DEF1 HP8)
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'PICARO_GLOVES_PRADERA');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'DEF', 3, FALSE FROM items WHERE code = 'PICARO_GLOVES_PRADERA';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'MAGIC_DEF', 1, FALSE FROM items WHERE code = 'PICARO_GLOVES_PRADERA';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'HP', 8, FALSE FROM items WHERE code = 'PICARO_GLOVES_PRADERA';
+-- Daga Gemela de Pradera (mano izquierda Pradera: ATK2 SPD5 → DEF3 MAGIC_DEF1 HP9 SPD5)
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'PICARO_OFFHAND_PRADERA');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'DEF', 3, FALSE FROM items WHERE code = 'PICARO_OFFHAND_PRADERA';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'MAGIC_DEF', 1, FALSE FROM items WHERE code = 'PICARO_OFFHAND_PRADERA';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'HP', 9, FALSE FROM items WHERE code = 'PICARO_OFFHAND_PRADERA';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'SPD', 5, FALSE FROM items WHERE code = 'PICARO_OFFHAND_PRADERA';
+-- Daga de la Guardia (arma Guardia: ATK24 CRIT_CHANCE3.8% → ATK38 CRIT_CHANCE6.3%)
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'PICARO_WEAPON_VIGIA');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'ATK', 38, FALSE FROM items WHERE code = 'PICARO_WEAPON_VIGIA';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'CRIT_CHANCE', 6.3, TRUE FROM items WHERE code = 'PICARO_WEAPON_VIGIA';
+-- Guantes de la Guardia (guantes Guardia: ATK11 CRIT_CHANCE2.5% → DEF5 MAGIC_DEF2 HP13)
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'PICARO_GLOVES_VIGIA');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'DEF', 5, FALSE FROM items WHERE code = 'PICARO_GLOVES_VIGIA';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'MAGIC_DEF', 2, FALSE FROM items WHERE code = 'PICARO_GLOVES_VIGIA';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'HP', 13, FALSE FROM items WHERE code = 'PICARO_GLOVES_VIGIA';
+-- Daga Gemela de la Guardia (mano izquierda Guardia: ATK3 SPD8 → DEF6 MAGIC_DEF2 HP16 SPD8)
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'PICARO_OFFHAND_VIGIA');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'DEF', 6, FALSE FROM items WHERE code = 'PICARO_OFFHAND_VIGIA';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'MAGIC_DEF', 2, FALSE FROM items WHERE code = 'PICARO_OFFHAND_VIGIA';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'HP', 16, FALSE FROM items WHERE code = 'PICARO_OFFHAND_VIGIA';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'SPD', 8, FALSE FROM items WHERE code = 'PICARO_OFFHAND_VIGIA';
+-- Daga del Vigía Caído (arma Vigía Caído: ATK34 CRIT_CHANCE5.3% → ATK48 CRIT_CHANCE7.8%)
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'PICARO_WEAPON_VIGIA_CAIDO');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'ATK', 48, FALSE FROM items WHERE code = 'PICARO_WEAPON_VIGIA_CAIDO';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'CRIT_CHANCE', 7.8, TRUE FROM items WHERE code = 'PICARO_WEAPON_VIGIA_CAIDO';
+-- Daga del Capitán (arma Capitán: ATK36 CRIT_CHANCE6.8% → ATK60 CRIT_CHANCE11.3% CRIT_DAMAGE8%)
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'PICARO_WEAPON_CAPITAN');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'ATK', 60, FALSE FROM items WHERE code = 'PICARO_WEAPON_CAPITAN';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'CRIT_CHANCE', 11.3, TRUE FROM items WHERE code = 'PICARO_WEAPON_CAPITAN';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'CRIT_DAMAGE', 8, TRUE FROM items WHERE code = 'PICARO_WEAPON_CAPITAN';
+-- Guantes del Capitán (guantes Capitán: ATK16 CRIT_CHANCE4.5% → DEF7 HP13 MAGIC_DEF2)
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'PICARO_GLOVES_CAPITAN');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'DEF', 7, FALSE FROM items WHERE code = 'PICARO_GLOVES_CAPITAN';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'HP', 13, FALSE FROM items WHERE code = 'PICARO_GLOVES_CAPITAN';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'MAGIC_DEF', 2, FALSE FROM items WHERE code = 'PICARO_GLOVES_CAPITAN';
+-- Daga Gemela del Capitán (mano izquierda Capitán: ATK12 SPD12 → DEF8 HP15 MAGIC_DEF2 SPD12)
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'PICARO_OFFHAND_CAPITAN');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'DEF', 8, FALSE FROM items WHERE code = 'PICARO_OFFHAND_CAPITAN';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'HP', 15, FALSE FROM items WHERE code = 'PICARO_OFFHAND_CAPITAN';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'MAGIC_DEF', 2, FALSE FROM items WHERE code = 'PICARO_OFFHAND_CAPITAN';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'SPD', 12, FALSE FROM items WHERE code = 'PICARO_OFFHAND_CAPITAN';
+-- Cuero del Capitán (pecho Capitán con su extra: DEF13 HP25 MAGIC_DEF3 → DEF12 HP23 MAGIC_DEF3 EVASION2%)
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'PICARO_ARMOR_CAPITAN');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'DEF', 12, FALSE FROM items WHERE code = 'PICARO_ARMOR_CAPITAN';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'HP', 23, FALSE FROM items WHERE code = 'PICARO_ARMOR_CAPITAN';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'MAGIC_DEF', 3, FALSE FROM items WHERE code = 'PICARO_ARMOR_CAPITAN';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'EVASION', 2, TRUE FROM items WHERE code = 'PICARO_ARMOR_CAPITAN';
+-- Daga del Titán (arma Titán: ATK49 CRIT_CHANCE8.3% → ATK80 CRIT_CHANCE13.8% CRIT_DAMAGE10%)
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'PICARO_WEAPON_TITAN_P');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'ATK', 80, FALSE FROM items WHERE code = 'PICARO_WEAPON_TITAN_P';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'CRIT_CHANCE', 13.8, TRUE FROM items WHERE code = 'PICARO_WEAPON_TITAN_P';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'CRIT_DAMAGE', 10, TRUE FROM items WHERE code = 'PICARO_WEAPON_TITAN_P';
+-- Guantes del Titán (guantes Titán: ATK22 CRIT_CHANCE5.5% → DEF9 HP18 MAGIC_DEF3)
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'PICARO_GLOVES_TITAN_P');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'DEF', 9, FALSE FROM items WHERE code = 'PICARO_GLOVES_TITAN_P';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'HP', 18, FALSE FROM items WHERE code = 'PICARO_GLOVES_TITAN_P';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'MAGIC_DEF', 3, FALSE FROM items WHERE code = 'PICARO_GLOVES_TITAN_P';
+-- Daga Gemela del Titán (mano izquierda Titán: ATK16 SPD16 → DEF11 HP21 MAGIC_DEF4 SPD16)
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'PICARO_OFFHAND_TITAN_P');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'DEF', 11, FALSE FROM items WHERE code = 'PICARO_OFFHAND_TITAN_P';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'HP', 21, FALSE FROM items WHERE code = 'PICARO_OFFHAND_TITAN_P';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'MAGIC_DEF', 4, FALSE FROM items WHERE code = 'PICARO_OFFHAND_TITAN_P';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'SPD', 16, FALSE FROM items WHERE code = 'PICARO_OFFHAND_TITAN_P';
+-- Cuero del Titán (pecho Titán con su extra: DEF18 HP35 MAGIC_DEF6 → DEF16 HP32 MAGIC_DEF5 EVASION2.5%)
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'PICARO_ARMOR_TITAN_P');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'DEF', 16, FALSE FROM items WHERE code = 'PICARO_ARMOR_TITAN_P';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'HP', 32, FALSE FROM items WHERE code = 'PICARO_ARMOR_TITAN_P';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'MAGIC_DEF', 5, FALSE FROM items WHERE code = 'PICARO_ARMOR_TITAN_P';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'EVASION', 2.5, TRUE FROM items WHERE code = 'PICARO_ARMOR_TITAN_P';
+-- Daga de Montaña (arma Montaña: ATK46 CRIT_CHANCE5.3% → ATK82 CRIT_CHANCE8.8%)
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'PICARO_WEAPON_MONTANAS');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'ATK', 82, FALSE FROM items WHERE code = 'PICARO_WEAPON_MONTANAS';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'CRIT_CHANCE', 8.8, TRUE FROM items WHERE code = 'PICARO_WEAPON_MONTANAS';
+-- Guantes de Montaña (guantes Montaña: ATK21 CRIT_CHANCE3.5% → DEF9 MAGIC_DEF3 HP17)
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'PICARO_GLOVES_MONTANAS');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'DEF', 9, FALSE FROM items WHERE code = 'PICARO_GLOVES_MONTANAS';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'MAGIC_DEF', 3, FALSE FROM items WHERE code = 'PICARO_GLOVES_MONTANAS';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'HP', 17, FALSE FROM items WHERE code = 'PICARO_GLOVES_MONTANAS';
+-- Daga Gemela de Montaña (mano izquierda Montaña: ATK11 SPD15 → DEF10 MAGIC_DEF3 HP20 SPD15)
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'PICARO_OFFHAND_MONTANAS');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'DEF', 10, FALSE FROM items WHERE code = 'PICARO_OFFHAND_MONTANAS';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'MAGIC_DEF', 3, FALSE FROM items WHERE code = 'PICARO_OFFHAND_MONTANAS';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'HP', 20, FALSE FROM items WHERE code = 'PICARO_OFFHAND_MONTANAS';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'SPD', 15, FALSE FROM items WHERE code = 'PICARO_OFFHAND_MONTANAS';
+-- Daga de la Escarcha (arma Escarcha: ATK58 CRIT_CHANCE6.8% → ATK109 CRIT_CHANCE11.3%)
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'PICARO_WEAPON_ESCARCHA');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'ATK', 109, FALSE FROM items WHERE code = 'PICARO_WEAPON_ESCARCHA';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'CRIT_CHANCE', 11.3, TRUE FROM items WHERE code = 'PICARO_WEAPON_ESCARCHA';
+-- Guantes de la Escarcha (guantes Escarcha: ATK26 CRIT_CHANCE4.5% → DEF11 HP20 MAGIC_DEF3)
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'PICARO_GLOVES_ESCARCHA');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'DEF', 11, FALSE FROM items WHERE code = 'PICARO_GLOVES_ESCARCHA';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'HP', 20, FALSE FROM items WHERE code = 'PICARO_GLOVES_ESCARCHA';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'MAGIC_DEF', 3, FALSE FROM items WHERE code = 'PICARO_GLOVES_ESCARCHA';
+-- Daga Gemela de la Escarcha (mano izquierda Escarcha: ATK19 SPD19 → DEF13 HP24 MAGIC_DEF4 SPD19)
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'PICARO_OFFHAND_ESCARCHA');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'DEF', 13, FALSE FROM items WHERE code = 'PICARO_OFFHAND_ESCARCHA';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'HP', 24, FALSE FROM items WHERE code = 'PICARO_OFFHAND_ESCARCHA';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'MAGIC_DEF', 4, FALSE FROM items WHERE code = 'PICARO_OFFHAND_ESCARCHA';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'SPD', 19, FALSE FROM items WHERE code = 'PICARO_OFFHAND_ESCARCHA';
+-- Daga de Hierro Negro (arma Hierro Negro: ATK67 CRIT_CHANCE8.3% → ATK119 CRIT_CHANCE12.8% CRIT_DAMAGE12%)
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'PICARO_WEAPON_HIERRO_NEGRO');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'ATK', 119, FALSE FROM items WHERE code = 'PICARO_WEAPON_HIERRO_NEGRO';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'CRIT_CHANCE', 12.8, TRUE FROM items WHERE code = 'PICARO_WEAPON_HIERRO_NEGRO';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'CRIT_DAMAGE', 12, TRUE FROM items WHERE code = 'PICARO_WEAPON_HIERRO_NEGRO';
+-- Daga del Acantilado (arma Acantilado: ATK68 CRIT_CHANCE6.8% → ATK149 CRIT_CHANCE11.3% CRIT_DAMAGE12%)
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'PICARO_WEAPON_ACANT');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'ATK', 149, FALSE FROM items WHERE code = 'PICARO_WEAPON_ACANT';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'CRIT_CHANCE', 11.3, TRUE FROM items WHERE code = 'PICARO_WEAPON_ACANT';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'CRIT_DAMAGE', 12, TRUE FROM items WHERE code = 'PICARO_WEAPON_ACANT';
+-- Guantes del Acantilado (guantes Acantilado: ATK30 CRIT_CHANCE4.5% → DEF12 HP24 MAGIC_DEF4)
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'PICARO_GLOVES_ACANT');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'DEF', 12, FALSE FROM items WHERE code = 'PICARO_GLOVES_ACANT';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'HP', 24, FALSE FROM items WHERE code = 'PICARO_GLOVES_ACANT';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'MAGIC_DEF', 4, FALSE FROM items WHERE code = 'PICARO_GLOVES_ACANT';
+-- Daga Gemela del Acantilado (mano izquierda Acantilado: ATK22 SPD22 → DEF15 HP29 MAGIC_DEF4 SPD22)
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'PICARO_OFFHAND_ACANT');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'DEF', 15, FALSE FROM items WHERE code = 'PICARO_OFFHAND_ACANT';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'HP', 29, FALSE FROM items WHERE code = 'PICARO_OFFHAND_ACANT';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'MAGIC_DEF', 4, FALSE FROM items WHERE code = 'PICARO_OFFHAND_ACANT';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'SPD', 22, FALSE FROM items WHERE code = 'PICARO_OFFHAND_ACANT';
+-- Cuero del Acantilado (pecho Acantilado con su extra: DEF24 HP47 MAGIC_DEF7 → DEF22 HP42 MAGIC_DEF6 EVASION3%)
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'PICARO_ARMOR_ACANT');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'DEF', 22, FALSE FROM items WHERE code = 'PICARO_ARMOR_ACANT';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'HP', 42, FALSE FROM items WHERE code = 'PICARO_ARMOR_ACANT';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'MAGIC_DEF', 6, FALSE FROM items WHERE code = 'PICARO_ARMOR_ACANT';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'EVASION', 3, TRUE FROM items WHERE code = 'PICARO_ARMOR_ACANT';
+-- Daga del Rey de las Montañas (arma Rey Montañas: ATK84 CRIT_CHANCE8.3% → ATK172 CRIT_CHANCE13.8% CRIT_DAMAGE15%)
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'PICARO_WEAPON_REY_MONT');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'ATK', 172, FALSE FROM items WHERE code = 'PICARO_WEAPON_REY_MONT';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'CRIT_CHANCE', 13.8, TRUE FROM items WHERE code = 'PICARO_WEAPON_REY_MONT';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'CRIT_DAMAGE', 15, TRUE FROM items WHERE code = 'PICARO_WEAPON_REY_MONT';
+-- Guantes del Rey de las Montañas (guantes Rey Montañas: ATK38 CRIT_CHANCE5.5% → DEF15 HP30 MAGIC_DEF5)
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'PICARO_GLOVES_REY_MONT');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'DEF', 15, FALSE FROM items WHERE code = 'PICARO_GLOVES_REY_MONT';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'HP', 30, FALSE FROM items WHERE code = 'PICARO_GLOVES_REY_MONT';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'MAGIC_DEF', 5, FALSE FROM items WHERE code = 'PICARO_GLOVES_REY_MONT';
+-- Daga Gemela del Rey de las Montañas (mano izquierda Rey Montañas: ATK28 SPD28 → DEF18 HP36 MAGIC_DEF6 SPD28)
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'PICARO_OFFHAND_REY_MONT');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'DEF', 18, FALSE FROM items WHERE code = 'PICARO_OFFHAND_REY_MONT';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'HP', 36, FALSE FROM items WHERE code = 'PICARO_OFFHAND_REY_MONT';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'MAGIC_DEF', 6, FALSE FROM items WHERE code = 'PICARO_OFFHAND_REY_MONT';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'SPD', 28, FALSE FROM items WHERE code = 'PICARO_OFFHAND_REY_MONT';
+-- Cuero del Rey de las Montañas (pecho Rey Montañas con su extra: DEF30 HP59 MAGIC_DEF9 → DEF27 HP53 MAGIC_DEF8 EVASION3.5%)
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'PICARO_ARMOR_REY_MONT');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'DEF', 27, FALSE FROM items WHERE code = 'PICARO_ARMOR_REY_MONT';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'HP', 53, FALSE FROM items WHERE code = 'PICARO_ARMOR_REY_MONT';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'MAGIC_DEF', 8, FALSE FROM items WHERE code = 'PICARO_ARMOR_REY_MONT';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'EVASION', 3.5, TRUE FROM items WHERE code = 'PICARO_ARMOR_REY_MONT';
+-- Báculo Sagrado de Pradera (arma Pradera: MAG15 CRIT_CHANCE2.3% → MAG22 CRIT_CHANCE3.8%)
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'SACERDOTE_WEAPON_PRADERA');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'MAG', 22, FALSE FROM items WHERE code = 'SACERDOTE_WEAPON_PRADERA';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'CRIT_CHANCE', 3.8, TRUE FROM items WHERE code = 'SACERDOTE_WEAPON_PRADERA';
+-- Guantes Bendecidos de Pradera (guantes Pradera: MAG7 CRIT_CHANCE1.5% → MAGIC_DEF3 DEF1 HP5)
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'SACERDOTE_GLOVES_PRADERA');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'MAGIC_DEF', 3, FALSE FROM items WHERE code = 'SACERDOTE_GLOVES_PRADERA';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'DEF', 1, FALSE FROM items WHERE code = 'SACERDOTE_GLOVES_PRADERA';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'HP', 5, FALSE FROM items WHERE code = 'SACERDOTE_GLOVES_PRADERA';
+-- Báculo Sagrado de la Guardia (arma Guardia: MAG24 CRIT_CHANCE3.8% → MAG35 CRIT_CHANCE6.3%)
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'SACERDOTE_WEAPON_VIGIA');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'MAG', 35, FALSE FROM items WHERE code = 'SACERDOTE_WEAPON_VIGIA';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'CRIT_CHANCE', 6.3, TRUE FROM items WHERE code = 'SACERDOTE_WEAPON_VIGIA';
+-- Guantes Bendecidos de la Guardia (guantes Guardia: MAG11 CRIT_CHANCE2.5% → MAGIC_DEF5 DEF2 HP9)
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'SACERDOTE_GLOVES_VIGIA');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'MAGIC_DEF', 5, FALSE FROM items WHERE code = 'SACERDOTE_GLOVES_VIGIA';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'DEF', 2, FALSE FROM items WHERE code = 'SACERDOTE_GLOVES_VIGIA';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'HP', 9, FALSE FROM items WHERE code = 'SACERDOTE_GLOVES_VIGIA';
+-- Báculo Sagrado del Vigía Caído (arma Vigía Caído: MAG34 CRIT_CHANCE5.3% → MAG45 CRIT_CHANCE7.8%)
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'SACERDOTE_WEAPON_VIGIA_CAIDO');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'MAG', 45, FALSE FROM items WHERE code = 'SACERDOTE_WEAPON_VIGIA_CAIDO';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'CRIT_CHANCE', 7.8, TRUE FROM items WHERE code = 'SACERDOTE_WEAPON_VIGIA_CAIDO';
+-- Báculo del Capitán (arma Capitán: MAG36 CRIT_CHANCE6.8% → MAG52 CRIT_CHANCE11.3% CRIT_DAMAGE8%)
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'SACERDOTE_WEAPON_CAPITAN');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'MAG', 52, FALSE FROM items WHERE code = 'SACERDOTE_WEAPON_CAPITAN';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'CRIT_CHANCE', 11.3, TRUE FROM items WHERE code = 'SACERDOTE_WEAPON_CAPITAN';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'CRIT_DAMAGE', 8, TRUE FROM items WHERE code = 'SACERDOTE_WEAPON_CAPITAN';
+-- Guantes del Capitán (guantes Capitán: MAG16 CRIT_CHANCE4.5% → DEF2 HP11 MAGIC_DEF7)
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'SACERDOTE_GLOVES_CAPITAN');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'DEF', 2, FALSE FROM items WHERE code = 'SACERDOTE_GLOVES_CAPITAN';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'HP', 11, FALSE FROM items WHERE code = 'SACERDOTE_GLOVES_CAPITAN';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'MAGIC_DEF', 7, FALSE FROM items WHERE code = 'SACERDOTE_GLOVES_CAPITAN';
+-- Vestidura del Capitán (pecho Capitán con su extra: DEF4 HP22 MAGIC_DEF13 → DEF4 HP20 MAGIC_DEF12 HEALING4%)
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'SACERDOTE_ARMOR_CAPITAN');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'DEF', 4, FALSE FROM items WHERE code = 'SACERDOTE_ARMOR_CAPITAN';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'HP', 20, FALSE FROM items WHERE code = 'SACERDOTE_ARMOR_CAPITAN';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'MAGIC_DEF', 12, FALSE FROM items WHERE code = 'SACERDOTE_ARMOR_CAPITAN';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'HEALING', 4, TRUE FROM items WHERE code = 'SACERDOTE_ARMOR_CAPITAN';
+-- Báculo del Titán (arma Titán: MAG49 CRIT_CHANCE8.3% → MAG67 CRIT_CHANCE13.8% CRIT_DAMAGE10%)
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'SACERDOTE_WEAPON_TITAN_P');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'MAG', 67, FALSE FROM items WHERE code = 'SACERDOTE_WEAPON_TITAN_P';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'CRIT_CHANCE', 13.8, TRUE FROM items WHERE code = 'SACERDOTE_WEAPON_TITAN_P';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'CRIT_DAMAGE', 10, TRUE FROM items WHERE code = 'SACERDOTE_WEAPON_TITAN_P';
+-- Guantes del Titán (guantes Titán: MAG22 CRIT_CHANCE5.5% → DEF3 HP15 MAGIC_DEF9)
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'SACERDOTE_GLOVES_TITAN_P');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'DEF', 3, FALSE FROM items WHERE code = 'SACERDOTE_GLOVES_TITAN_P';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'HP', 15, FALSE FROM items WHERE code = 'SACERDOTE_GLOVES_TITAN_P';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'MAGIC_DEF', 9, FALSE FROM items WHERE code = 'SACERDOTE_GLOVES_TITAN_P';
+-- Vestidura del Titán (pecho Titán con su extra: DEF5 HP30 MAGIC_DEF18 → DEF5 HP27 MAGIC_DEF16 HEALING5%)
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'SACERDOTE_ARMOR_TITAN_P');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'DEF', 5, FALSE FROM items WHERE code = 'SACERDOTE_ARMOR_TITAN_P';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'HP', 27, FALSE FROM items WHERE code = 'SACERDOTE_ARMOR_TITAN_P';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'MAGIC_DEF', 16, FALSE FROM items WHERE code = 'SACERDOTE_ARMOR_TITAN_P';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'HEALING', 5, TRUE FROM items WHERE code = 'SACERDOTE_ARMOR_TITAN_P';
+-- Báculo Sagrado de Montaña (arma Montaña: MAG46 CRIT_CHANCE5.3% → MAG69 CRIT_CHANCE8.8%)
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'SACERDOTE_WEAPON_MONTANAS');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'MAG', 69, FALSE FROM items WHERE code = 'SACERDOTE_WEAPON_MONTANAS';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'CRIT_CHANCE', 8.8, TRUE FROM items WHERE code = 'SACERDOTE_WEAPON_MONTANAS';
+-- Guantes Bendecidos de Montaña (guantes Montaña: MAG21 CRIT_CHANCE3.5% → MAGIC_DEF9 DEF3 HP14)
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'SACERDOTE_GLOVES_MONTANAS');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'MAGIC_DEF', 9, FALSE FROM items WHERE code = 'SACERDOTE_GLOVES_MONTANAS';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'DEF', 3, FALSE FROM items WHERE code = 'SACERDOTE_GLOVES_MONTANAS';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'HP', 14, FALSE FROM items WHERE code = 'SACERDOTE_GLOVES_MONTANAS';
+-- Báculo de la Escarcha (arma Escarcha: MAG58 CRIT_CHANCE6.8% → MAG89 CRIT_CHANCE11.3%)
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'SACERDOTE_WEAPON_ESCARCHA');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'MAG', 89, FALSE FROM items WHERE code = 'SACERDOTE_WEAPON_ESCARCHA';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'CRIT_CHANCE', 11.3, TRUE FROM items WHERE code = 'SACERDOTE_WEAPON_ESCARCHA';
+-- Guantes de la Escarcha (guantes Escarcha: MAG26 CRIT_CHANCE4.5% → DEF3 HP18 MAGIC_DEF11)
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'SACERDOTE_GLOVES_ESCARCHA');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'DEF', 3, FALSE FROM items WHERE code = 'SACERDOTE_GLOVES_ESCARCHA';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'HP', 18, FALSE FROM items WHERE code = 'SACERDOTE_GLOVES_ESCARCHA';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'MAGIC_DEF', 11, FALSE FROM items WHERE code = 'SACERDOTE_GLOVES_ESCARCHA';
+-- Báculo Sagrado de Hierro Negro (arma Hierro Negro: MAG67 CRIT_CHANCE8.3% → MAG103 CRIT_CHANCE12.8% CRIT_DAMAGE12%)
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'SACERDOTE_WEAPON_HIERRO_NEGRO');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'MAG', 103, FALSE FROM items WHERE code = 'SACERDOTE_WEAPON_HIERRO_NEGRO';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'CRIT_CHANCE', 12.8, TRUE FROM items WHERE code = 'SACERDOTE_WEAPON_HIERRO_NEGRO';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'CRIT_DAMAGE', 12, TRUE FROM items WHERE code = 'SACERDOTE_WEAPON_HIERRO_NEGRO';
+-- Báculo del Acantilado (arma Acantilado: MAG68 CRIT_CHANCE6.8% → MAG130 CRIT_CHANCE11.3% CRIT_DAMAGE12%)
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'SACERDOTE_WEAPON_ACANT');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'MAG', 130, FALSE FROM items WHERE code = 'SACERDOTE_WEAPON_ACANT';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'CRIT_CHANCE', 11.3, TRUE FROM items WHERE code = 'SACERDOTE_WEAPON_ACANT';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'CRIT_DAMAGE', 12, TRUE FROM items WHERE code = 'SACERDOTE_WEAPON_ACANT';
+-- Guantes del Acantilado (guantes Acantilado: MAG30 CRIT_CHANCE4.5% → DEF4 HP21 MAGIC_DEF12)
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'SACERDOTE_GLOVES_ACANT');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'DEF', 4, FALSE FROM items WHERE code = 'SACERDOTE_GLOVES_ACANT';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'HP', 21, FALSE FROM items WHERE code = 'SACERDOTE_GLOVES_ACANT';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'MAGIC_DEF', 12, FALSE FROM items WHERE code = 'SACERDOTE_GLOVES_ACANT';
+-- Vestidura del Acantilado (pecho Acantilado con su extra: DEF7 HP41 MAGIC_DEF24 → DEF6 HP37 MAGIC_DEF22 HEALING6%)
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'SACERDOTE_ARMOR_ACANT');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'DEF', 6, FALSE FROM items WHERE code = 'SACERDOTE_ARMOR_ACANT';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'HP', 37, FALSE FROM items WHERE code = 'SACERDOTE_ARMOR_ACANT';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'MAGIC_DEF', 22, FALSE FROM items WHERE code = 'SACERDOTE_ARMOR_ACANT';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'HEALING', 6, TRUE FROM items WHERE code = 'SACERDOTE_ARMOR_ACANT';
+-- Báculo del Rey de las Montañas (arma Rey Montañas: MAG84 CRIT_CHANCE8.3% → MAG152 CRIT_CHANCE13.8% CRIT_DAMAGE15%)
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'SACERDOTE_WEAPON_REY_MONT');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'MAG', 152, FALSE FROM items WHERE code = 'SACERDOTE_WEAPON_REY_MONT';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'CRIT_CHANCE', 13.8, TRUE FROM items WHERE code = 'SACERDOTE_WEAPON_REY_MONT';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'CRIT_DAMAGE', 15, TRUE FROM items WHERE code = 'SACERDOTE_WEAPON_REY_MONT';
+-- Guantes del Rey de las Montañas (guantes Rey Montañas: MAG38 CRIT_CHANCE5.5% → DEF5 HP25 MAGIC_DEF15)
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'SACERDOTE_GLOVES_REY_MONT');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'DEF', 5, FALSE FROM items WHERE code = 'SACERDOTE_GLOVES_REY_MONT';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'HP', 25, FALSE FROM items WHERE code = 'SACERDOTE_GLOVES_REY_MONT';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'MAGIC_DEF', 15, FALSE FROM items WHERE code = 'SACERDOTE_GLOVES_REY_MONT';
+-- Vestidura del Rey de las Montañas (pecho Rey Montañas con su extra: DEF9 HP49 MAGIC_DEF30 → DEF8 HP44 MAGIC_DEF27 HEALING7%)
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'SACERDOTE_ARMOR_REY_MONT');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'DEF', 8, FALSE FROM items WHERE code = 'SACERDOTE_ARMOR_REY_MONT';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'HP', 44, FALSE FROM items WHERE code = 'SACERDOTE_ARMOR_REY_MONT';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'MAGIC_DEF', 27, FALSE FROM items WHERE code = 'SACERDOTE_ARMOR_REY_MONT';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'HEALING', 7, TRUE FROM items WHERE code = 'SACERDOTE_ARMOR_REY_MONT';
+INSERT INTO balance_versions (version) SELECT 'equipo_v2' WHERE NOT EXISTS (SELECT 1 FROM balance_versions WHERE version = 'equipo_v2');

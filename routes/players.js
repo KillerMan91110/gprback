@@ -1842,7 +1842,7 @@ router.get('/:playerId/craft/available', async (req, res, next) => {
               cr.rarity, cr.success_rate_percent, cr.artisan_name, cr.description,
               cr.scroll_item_id, si.name AS scroll_item_name, si.code AS scroll_item_code,
               cr.required_class_id, c.name AS required_class_name, c.code AS required_class_code,
-              i.item_type AS result_item_type, i.id AS result_item_id, i.slot AS result_slot,
+              i.item_type AS result_item_type, i.id AS result_item_id, i.slot AS result_slot, i.required_level,
               pk.recipe_id IS NOT NULL AS known, COALESCE(pk.seen, TRUE) AS seen,
               EXISTS (SELECT 1 FROM player_learned_recipes plr WHERE plr.player_id = $1 AND plr.recipe_id = cr.id) AS learned
        FROM crafting_recipes cr
@@ -1881,6 +1881,8 @@ router.get('/:playerId/craft/available', async (req, res, next) => {
     const stationNote = {};
     for (const st of Object.keys(SERVICIOS).filter((k) => k === 'forja' || k === 'pilar')) stationNote[st] = stationProblem(playerId, st);
     const festival = isFestival();
+    // el nivel del héroe: el Taller avisa del equipo que todavía no se puede poner
+    const heroLevel = Number((await db.query('SELECT level FROM players WHERE id = $1', [playerId])).rows[0]?.level ?? 1);
     const available = [];
     for (const recipe of recipesResult.rows) {
       const isScroll = !!recipe.scroll_item_id;
@@ -1919,6 +1921,9 @@ router.get('/:playerId/craft/available', async (req, res, next) => {
         stationNote: recipe.station ? stationNote[recipe.station] ?? null : null,
         resultItemId: recipe.result_item_id,
         resultSlot: recipe.result_slot,
+        // nivel para equiparlo (solo el equipo; levelOk: el héroe ya lo alcanza)
+        requiredLevel: recipe.result_item_type === 'EQUIPMENT' ? Number(recipe.required_level) || null : null,
+        levelOk: recipe.result_item_type !== 'EQUIPMENT' || heroLevel >= (Number(recipe.required_level) || 1),
         rarity: recipe.rarity,
         successRate: Number(recipe.success_rate_percent),
         artisanName: recipe.artisan_name,

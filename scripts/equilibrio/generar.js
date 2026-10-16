@@ -48,6 +48,10 @@ const PERFILES = {
 };
 
 const SIM_LEVELS = [1, 3, 5, 8, 10, 12, 14, 15];
+// Equipo v2 (schema.sql, "equipo v2"): las armas, guantes, manos izquierdas y pechos de los sets de las
+// clases base ya no salen de la fórmula de itemStats (el arma lleva todo el daño y sube 7-9% por
+// escalón). Este script no los reescribe y los simula con sus stats guardadas.
+const EQUIPO_V2 = /^(GUERRERO|MAGO|ARQUERO|PICARO|SACERDOTE)_(WEAPON2?H?|GLOVES|OFFHAND(_ORB|_CRYSTAL)?|ARMOR)_(PRADERA|VIGIA|VIGIA_CAIDO|CAPITAN|TITAN_P|MONTANAS|ESCARCHA|HIERRO_NEGRO|ACANT|REY_MONT)$/;
 const { DAMAGE_FLOOR } = require('../../lib/combat');
 const CLASS_IDS = { GUERRERO: 1, MAGO: 2, ARQUERO: 3, PICARO: 4, SACERDOTE: 5 };
 const PASSIVE_CRIT = { ARQUERO: 15, PICARO: 25 };
@@ -64,7 +68,7 @@ async function loadItems() {
     if (!items.has(r.id)) items.set(r.id, { ...r, stats: [] });
     items.get(r.id).stats.push({ bonus_id: r.bonus_id, stat_code: r.stat_code, amount: Number(r.amount), is_percent: r.is_percent });
   }
-  for (const it of items.values()) it.newStats = EQ.itemStats(it, it.stats);
+  for (const it of items.values()) it.newStats = EQUIPO_V2.test(it.code) ? it.stats : EQ.itemStats(it, it.stats);
   return [...items.values()];
 }
 
@@ -451,6 +455,7 @@ async function buildSql(data) {
   // o no aplicada la versión anterior
   parts.push('-- equipo de nivel 1-15 de las clases base: stats por fórmula según su nivel y rareza');
   for (const it of data.items) {
+    if (EQUIPO_V2.test(it.code)) continue; // equipo v2: no sale de la fórmula
     for (let i = 0; i < it.stats.length; i += 1) {
       const before = Number(it.stats[i].amount); const after = Number(it.newStats[i].amount);
       // por código de objeto y stat (los id de item_stat_bonuses cambian entre bases)
