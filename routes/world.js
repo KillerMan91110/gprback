@@ -11,6 +11,7 @@ const eventos = require('../lib/eventos');
 const piedra = require('../lib/piedraRegreso');
 const guildContracts = require('../lib/guildContracts');
 const { lejosDe } = require('../lib/cercania');
+const tormenta = require('../lib/tormenta');
 
 // Mundo 2D: recursos que se recolectan caminando (ver lib/worldNodes.js)
 const router = express.Router({ mergeParams: true });
@@ -285,6 +286,24 @@ router.post('/viaje', async (req, res, next) => {
     const gold = await spendCurrency(req.playerId, 'gold', aurelia.VIAJE_COST);
     if (gold == null) return res.status(400).json({ error: `El pasaje cuesta ${aurelia.VIAJE_COST} de oro` });
     res.json({ ok: true, gold, ...dest });
+  } catch (err) { next(err); }
+});
+
+// POST /world/vagoneta { destino } — viaje rápido entre las estaciones de las Montañas (lib/tormenta.js)
+router.post('/vagoneta', async (req, res, next) => {
+  try {
+    const r = await tormenta.viajar(req.playerId, String(req.body?.destino ?? ''));
+    if (r.error) return res.status(r.status ?? 400).json({ error: r.error, ...(r.lejos ? { lejos: true } : {}) });
+    res.json(r);
+  } catch (err) { next(err); }
+});
+
+// POST /world/rayo — te alcanzó un rayo de la tormenta (Cumbre y Acantilados): te quita vida
+router.post('/rayo', async (req, res, next) => {
+  try {
+    const r = await tormenta.rayo(req.playerId);
+    if (r.error) return res.status(r.status ?? 400).json({ error: r.error });
+    res.json(r);
   } catch (err) { next(err); }
 });
 
