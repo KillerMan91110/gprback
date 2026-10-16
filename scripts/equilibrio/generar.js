@@ -50,8 +50,9 @@ const PERFILES = {
 const SIM_LEVELS = [1, 3, 5, 8, 10, 12, 14, 15];
 // Equipo v2 (schema.sql, "equipo v2"): las armas, guantes, manos izquierdas y pechos de los sets de las
 // clases base ya no salen de la fórmula de itemStats (el arma lleva todo el daño y sube 7-9% por
-// escalón). Este script no los reescribe y los simula con sus stats guardadas.
-const EQUIPO_V2 = /^(GUERRERO|MAGO|ARQUERO|PICARO|SACERDOTE)_(WEAPON2?H?|GLOVES|OFFHAND(_ORB|_CRYSTAL)?|ARMOR)_(PRADERA|VIGIA|VIGIA_CAIDO|CAPITAN|TITAN_P|MONTANAS|ESCARCHA|HIERRO_NEGRO|ACANT|REY_MONT)$/;
+// escalón). Este script no los reescribe y los simula con sus stats guardadas. Tampoco las armas
+// viejas que el equipo v3 metió en la escalera.
+const EQUIPO_V2 = /^((GUERRERO|MAGO|ARQUERO|PICARO|SACERDOTE)_(WEAPON2?H?|GLOVES|OFFHAND(_ORB|_CRYSTAL)?|ARMOR)_(PRADERA|VIGIA|VIGIA_CAIDO|CAPITAN|TITAN_P|MONTANAS|ESCARCHA|HIERRO_NEGRO|ACANT|REY_MONT)|ESPADA_DE_HIERRO_CRAFTEADA|DAGA_DE_PRECISION_CRAFTEADA|ARCO_DE_PRECISION|KADRIC_ESPADA_VETERANO|GRAN_ESPADA_DE_HIERRO)$/;
 const { DAMAGE_FLOOR } = require('../../lib/combat');
 const CLASS_IDS = { GUERRERO: 1, MAGO: 2, ARQUERO: 3, PICARO: 4, SACERDOTE: 5 };
 const PASSIVE_CRIT = { ARQUERO: 15, PICARO: 25 };

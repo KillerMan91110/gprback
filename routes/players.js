@@ -6,7 +6,7 @@ const { spendCurrency, withTransaction, learnSkillForGold } = require('../lib/cu
 const leveling = require('../lib/leveling');
 const questProgress = require('../lib/questProgress');
 const achievements = require('../lib/achievements');
-const { getEquipmentBonuses, applyHpBonusDelta, getNpcEquipmentBonuses, getNpcEquipmentBonusesBatch, applyNpcHpBonusDelta } = require('../lib/equipment');
+const { getEquipmentBonuses, applyHpBonusDelta, getNpcEquipmentBonuses, getNpcEquipmentBonusesBatch, applyNpcHpBonusDelta, QUALITY_TIER_MULTIPLIER: EQUIP_QUALITY_MULT } = require('../lib/equipment');
 const { getClassPassiveBonuses } = require('../lib/passives');
 const evolution = require('../lib/evolution');
 const { fetchQuestDetail } = require('./quests');
@@ -1842,7 +1842,7 @@ router.get('/:playerId/craft/available', async (req, res, next) => {
               cr.rarity, cr.success_rate_percent, cr.artisan_name, cr.description,
               cr.scroll_item_id, si.name AS scroll_item_name, si.code AS scroll_item_code,
               cr.required_class_id, c.name AS required_class_name, c.code AS required_class_code,
-              i.item_type AS result_item_type, i.id AS result_item_id, i.slot AS result_slot, i.required_level,
+              i.item_type AS result_item_type, i.id AS result_item_id, i.slot AS result_slot, i.required_level, i.is_two_handed,
               pk.recipe_id IS NOT NULL AS known, COALESCE(pk.seen, TRUE) AS seen,
               EXISTS (SELECT 1 FROM player_learned_recipes plr WHERE plr.player_id = $1 AND plr.recipe_id = cr.id) AS learned
        FROM crafting_recipes cr
@@ -1883,6 +1883,37 @@ router.get('/:playerId/craft/available', async (req, res, next) => {
     const festival = isFestival();
     // el nivel del héroe: el Taller avisa del equipo que todavía no se puede poner
     const heroLevel = Number((await db.query('SELECT level FROM players WHERE id = $1', [playerId])).rows[0]?.level ?? 1);
+    // para comparar con lo que llevas puesto: las stats de cada pieza y las de tu equipo (con su calidad
+    // y encantamiento, lo que de verdad te da)
+    const eqIds = [...new Set(recipesResult.rows.filter((r) => r.result_item_type === 'EQUIPMENT').map((r) => r.result_item_id))];
+    const statsOf = new Map();
+    if (eqIds.length) {
+      const st = await db.query(
+        'SELECT item_id, stat_code, amount::float AS amount, is_percent FROM item_stat_bonuses WHERE item_id = ANY($1::int[]) ORDER BY id',
+        [eqIds]
+      );
+      for (const r of st.rows) {
+        if (!statsOf.has(r.item_id)) statsOf.set(r.item_id, []);
+        statsOf.get(r.item_id).push({ stat: r.stat_code, amount: r.amount, percent: r.is_percent });
+      }
+    }
+    const worn = {};
+    for (const r of (await db.query(
+      `SELECT pe.slot, i.name, i.is_two_handed, pe.quality_tier, pe.enchant_level, b.stat_code, b.amount::float AS amount, b.is_percent
+       FROM player_equipment pe JOIN items i ON i.id = pe.item_id LEFT JOIN item_stat_bonuses b ON b.item_id = pe.item_id
+       WHERE pe.player_id = $1 ORDER BY b.id`,
+      [playerId]
+    )).rows) {
+      const w = (worn[r.slot] ??= { name: r.name, twoHanded: r.is_two_handed, stats: [] });
+      const mult = (1 + (r.enchant_level || 0) * 0.05) * (EQUIP_QUALITY_MULT[r.quality_tier || 0] ?? 1);
+      if (r.stat_code) w.stats.push({ stat: r.stat_code, amount: Math.round(r.amount * mult * 10) / 10, percent: r.is_percent });
+    }
+    // lo que dejarías de llevar al ponerte esa pieza (un arma a dos manos también quita la mano izquierda)
+    const replaced = (slot, twoHanded) => {
+      const list = [worn[slot], twoHanded && slot === 'WEAPON' ? worn.OFFHAND : null,
+        slot === 'OFFHAND' && worn.WEAPON?.twoHanded ? worn.WEAPON : null].filter(Boolean);
+      return list.length ? { names: list.map((w) => w.name), stats: list.flatMap((w) => w.stats) } : null;
+    };
     const available = [];
     for (const recipe of recipesResult.rows) {
       const isScroll = !!recipe.scroll_item_id;
@@ -1921,6 +1952,9 @@ router.get('/:playerId/craft/available', async (req, res, next) => {
         stationNote: recipe.station ? stationNote[recipe.station] ?? null : null,
         resultItemId: recipe.result_item_id,
         resultSlot: recipe.result_slot,
+        twoHanded: !!recipe.is_two_handed,
+        resultStats: statsOf.get(recipe.result_item_id) ?? null,
+        equipped: recipe.result_item_type === 'EQUIPMENT' ? replaced(recipe.result_slot, recipe.is_two_handed) : null,
         // nivel para equiparlo (solo el equipo; levelOk: el héroe ya lo alcanza)
         requiredLevel: recipe.result_item_type === 'EQUIPMENT' ? Number(recipe.required_level) || null : null,
         levelOk: recipe.result_item_type !== 'EQUIPMENT' || heroLevel >= (Number(recipe.required_level) || 1),

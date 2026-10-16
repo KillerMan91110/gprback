@@ -169,6 +169,7 @@ async function hydratePlayers(playerIds) {
       evasion: DEFAULT_PLAYER_EVASION + passives.evasion + (bonus.evasion || 0) + petB.evasion,
       magic_damage_bonus: passives.magic_damage_bonus + passives.magical_damage,
       hot_hp_percent: passives.hot_hp_percent + petB.hot_hp_percent + (bonus.hot_hp_percent || 0),
+      mana_regen_percent: bonus.mana_regen_percent || 0,
       physical_damage_bonus: passives.physical_damage,
       elemental_damage_bonus: passives.elemental_damage,
       heal_bonus: passives.heal_bonus + petB.heal_bonus + (bonus.heal_bonus || 0),
@@ -225,6 +226,7 @@ async function hydratePartyNpcs(playerId, ownerPlayerId = null, slotLimit = null
       evasion: DEFAULT_PLAYER_EVASION + passives.evasion + (bonus.evasion || 0),
       magic_damage_bonus: passives.magic_damage_bonus + passives.magical_damage,
       hot_hp_percent: passives.hot_hp_percent + (bonus.hot_hp_percent || 0),
+      mana_regen_percent: bonus.mana_regen_percent || 0,
       physical_damage_bonus: passives.physical_damage,
       elemental_damage_bonus: passives.elemental_damage,
       heal_bonus: passives.heal_bonus + (bonus.heal_bonus || 0),
@@ -491,7 +493,14 @@ async function createCombatSessionWithClaim(insertSessionFn, playerIds) {
   }
 }
 
+// regeneración de maná por ronda (el Orbe del mago): la columna se crea sola si la base no la tiene
+let manaRegenColumn = null;
+const ensureManaRegenColumn = () => (manaRegenColumn ??= db.query(
+  'ALTER TABLE combat_participants ADD COLUMN IF NOT EXISTS mana_regen_percent NUMERIC(5,2) NOT NULL DEFAULT 0'
+).catch((err) => { manaRegenColumn = null; throw err; }));
+
 async function insertParticipants(sessionId, combatants) {
+  await ensureManaRegenColumn();
   const inserted = [];
   for (const c of combatants) {
     const result = await db.query(
@@ -500,8 +509,8 @@ async function insertParticipants(sessionId, combatants) {
          atk, mag, def, magic_def, spd, crit_chance, crit_damage, evasion,
          magic_damage_bonus, hot_hp_percent, xp_reward, gold_reward,
          physical_damage_bonus, elemental_damage_bonus, heal_bonus, luck, owner_player_id, damage_reduction, level,
-         mutation_code
-       ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27,$28,$29,$30,$31)
+         mutation_code, mana_regen_percent
+       ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27,$28,$29,$30,$31,$32)
        RETURNING *`,
       [
         sessionId, c.side, c.player_id ?? null, c.npc_id ?? null, c.class_id ?? null,
@@ -510,7 +519,7 @@ async function insertParticipants(sessionId, combatants) {
         c.magic_damage_bonus ?? 0, c.hot_hp_percent ?? 0, c.xp_reward, c.gold_reward,
         c.physical_damage_bonus ?? 0, c.elemental_damage_bonus ?? 0, c.heal_bonus ?? 0, c.luck ?? 0,
         c.owner_player_id ?? null, c.damage_reduction ?? 0, c.level ?? null,
-        c.mutation_code ?? null,
+        c.mutation_code ?? null, c.mana_regen_percent ?? 0,
       ]
     );
     inserted.push(result.rows[0]);
@@ -1478,6 +1487,15 @@ async function startNewRound(sessionId, participants) {
         p.hp = Math.min(Number(p.max_hp), p.hp + heal);
         await db.query('UPDATE combat_participants SET hp = $1 WHERE id = $2', [p.hp, p.id]);
       }
+    }
+  }
+
+  // regeneración de maná del equipo (el Orbe del mago): % del maná máximo al final de cada ronda
+  for (const p of participants.all) {
+    if (p.hp > 0 && Number(p.mana_regen_percent) > 0 && Number(p.mana) < Number(p.max_mana)) {
+      const gain = Math.max(1, Math.round(Number(p.max_mana) * Number(p.mana_regen_percent) / 100));
+      p.mana = Math.min(Number(p.max_mana), Number(p.mana) + gain);
+      await db.query('UPDATE combat_participants SET mana = $1 WHERE id = $2', [p.mana, p.id]);
     }
   }
 
