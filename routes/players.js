@@ -217,7 +217,9 @@ router.post('/:playerId/guild/heal', async (req, res, next) => {
     const points = Math.min(missingHp + missingMana, affordablePoints);
     const healHp = Math.min(missingHp, points);
     const healMana = Math.min(missingMana, points - healHp);
-    return { healHp, healMana, cost: isFree ? 0 : (healHp + healMana) * GUILD_HEAL_GOLD_PER_HP };
+    // el oro es entero: medio punto se cobra como uno (antes 65 puntos costaban 32,5 y la base lo
+    // rechazaba DESPUÉS de curar: «error interno», cura aplicada y gratis)
+    return { healHp, healMana, cost: isFree ? 0 : Math.ceil((healHp + healMana) * GUILD_HEAL_GOLD_PER_HP) };
   }
 
   try {
@@ -281,25 +283,28 @@ router.post('/:playerId/guild/heal', async (req, res, next) => {
     let heroHealed = null;
     const npcsHealed = [];
 
-    const heroHeal = calcHeal(effectiveMaxHp - player.hp, effectiveMaxMana - player.mana, gold, isFree);
-    if (heroHeal.healHp + heroHeal.healMana > 0) {
-      await db.query('UPDATE players SET hp = hp + $1, mana = mana + $2, updated_at = now() WHERE id = $3', [heroHeal.healHp, heroHeal.healMana, playerId]);
-      gold -= heroHeal.cost;
-      totalCost += heroHeal.cost;
-      heroHealed = { healedHp: heroHeal.healHp, healedMana: heroHeal.healMana };
-    }
+    // todo o nada: si algo falla no queda nadie curado sin cobrar
+    await withTransaction(async (client) => {
+      const heroHeal = calcHeal(effectiveMaxHp - player.hp, effectiveMaxMana - player.mana, gold, isFree);
+      if (heroHeal.healHp + heroHeal.healMana > 0) {
+        await client.query('UPDATE players SET hp = hp + $1, mana = mana + $2, updated_at = now() WHERE id = $3', [heroHeal.healHp, heroHeal.healMana, playerId]);
+        gold -= heroHeal.cost;
+        totalCost += heroHeal.cost;
+        heroHealed = { healedHp: heroHeal.healHp, healedMana: heroHeal.healMana };
+      }
 
-    for (const npc of npcs) {
-      if (!isFree && gold < GUILD_HEAL_GOLD_PER_HP) break;
-      const h = calcHeal(npc.max_hp - npc.hp, npc.max_mana - npc.mana, gold, isFree);
-      if (h.healHp + h.healMana === 0) continue;
-      await db.query('UPDATE player_npcs SET hp = hp + $1, mana = mana + $2 WHERE id = $3', [h.healHp, h.healMana, npc.id]);
-      gold -= h.cost;
-      totalCost += h.cost;
-      npcsHealed.push({ npcId: npc.id, name: npc.name, healedHp: h.healHp, healedMana: h.healMana });
-    }
+      for (const npc of npcs) {
+        if (!isFree && gold < GUILD_HEAL_GOLD_PER_HP) break;
+        const h = calcHeal(npc.max_hp - npc.hp, npc.max_mana - npc.mana, gold, isFree);
+        if (h.healHp + h.healMana === 0) continue;
+        await client.query('UPDATE player_npcs SET hp = hp + $1, mana = mana + $2 WHERE id = $3', [h.healHp, h.healMana, npc.id]);
+        gold -= h.cost;
+        totalCost += h.cost;
+        npcsHealed.push({ npcId: npc.id, name: npc.name, healedHp: h.healHp, healedMana: h.healMana });
+      }
 
-    await db.query('UPDATE players SET gold = gold - $1, updated_at = now() WHERE id = $2', [totalCost, playerId]);
+      await client.query('UPDATE players SET gold = gold - $1, updated_at = now() WHERE id = $2', [totalCost, playerId]);
+    });
     res.json({ totalCost, newGold: Number(player.gold) - totalCost, hero: heroHealed, npcsHealed });
   } catch (error) {
     next(error);

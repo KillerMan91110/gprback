@@ -1980,9 +1980,14 @@ async function finalizeSession(sessionId, status, participants) {
       const sessionRes = await db.query('SELECT had_near_death FROM combat_sessions WHERE id = $1', [sessionId]);
       const hadNearDeath = sessionRes.rows[0]?.had_near_death || false;
 
+      // mazmorras: quien ya venció al jefe hoy cobra la mitad de XP y oro (lib/mazmorra.js rewardMult)
+      const dungeonMult = new Map();
+      for (const hp of heroPs) dungeonMult.set(hp.player_id, (await mazmorras.rewardMult(sessionId, hp.player_id).catch(() => null)) ?? 1);
+      if ((dungeonMult.get(heroP.player_id) ?? 1) < 1) rewards.dungeonRepeat = dungeonMult.get(heroP.player_id);
+
       for (const hp of heroPs) {
         const heroGoldMult = combatBonusMultipliers(heroGuildLevels.get(hp.player_id)).gold;
-        let heroGold = Math.round(goldPerHero * heroGoldMult * (1 + (utilBy.get(hp.player_id)?.gold || 0) / 100));
+        let heroGold = Math.round(goldPerHero * heroGoldMult * (1 + (utilBy.get(hp.player_id)?.gold || 0) / 100) * dungeonMult.get(hp.player_id));
         const victoryInnate = await applyInnateTrigger('ON_VICTORY_REWARD', { actor: hp, target: null, allies: [], enemies: [] });
         if (victoryInnate?.stat_code === 'GOLD') {
           heroGold = Math.round(heroGold * (1 + Number(victoryInnate.percent_amount || 0) / 100));
@@ -2012,7 +2017,7 @@ async function finalizeSession(sessionId, status, participants) {
         // bendición del Pilar de Aethra (ofrenda en Aurelia): +5% / +10% en el festival
         const blessMult = await aurelia.xpBlessingMult(hp.player_id) * eventos.xpMult(); // + Noche de caza (lib/eventos.js)
         const utilXpMult = 1 + (utilBy.get(hp.player_id)?.xp || 0) / 100;
-        const heroXp = Math.round(splitXp * heroXpMult * levelMult * blessMult * utilXpMult);
+        const heroXp = Math.round(splitXp * heroXpMult * levelMult * blessMult * utilXpMult * (dungeonMult.get(hp.player_id) ?? 1));
         const levelResult = await leveling.applyXpGain(hp.player_id, heroXp);
         if (levelResult && levelResult.leveledUp) {
           rewards.levelUps.push({

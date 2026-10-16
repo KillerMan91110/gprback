@@ -7925,6 +7925,14 @@ INSERT INTO items (code, name, item_type, rarity, is_quest_item, description)
 SELECT 'OLLA_DE_HILDA', 'Olla de Hilda', 'MATERIAL', 'POCO_COMUN', TRUE, 'La olla de hierro de Hilda, abollada y todavía tibia. Huele a guiso… y a orco.'
 WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'OLLA_DE_HILDA');
 UPDATE items SET name = 'Olla de Hilda', is_quest_item = TRUE, description = 'La olla de hierro de Hilda, abollada y todavía tibia. Huele a guiso… y a orco.' WHERE code = 'OLLA_DE_HILDA';
+INSERT INTO items (code, name, item_type, rarity, is_quest_item, description)
+SELECT 'CUERNO_DE_ASTRID', 'Cuerno de Astrid', 'MATERIAL', 'POCO_COMUN', TRUE, 'Un cuerno de señales con aros de bronce, gastado de tanto soplarlo. Tiene un nombre tallado: Astrid.'
+WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'CUERNO_DE_ASTRID');
+UPDATE items SET name = 'Cuerno de Astrid', is_quest_item = TRUE, description = 'Un cuerno de señales con aros de bronce, gastado de tanto soplarlo. Tiene un nombre tallado: Astrid.' WHERE code = 'CUERNO_DE_ASTRID';
+INSERT INTO items (code, name, item_type, rarity, is_quest_item, description)
+SELECT 'CARTA_SELLADA_DEL_REY', 'Carta sellada del Rey', 'MATERIAL', 'POCO_COMUN', TRUE, 'Un pergamino con lacre azul y un rayo grabado. Lo escribió el Rey de la Montaña antes de encerrarse en su trono.'
+WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'CARTA_SELLADA_DEL_REY');
+UPDATE items SET name = 'Carta sellada del Rey', is_quest_item = TRUE, description = 'Un pergamino con lacre azul y un rayo grabado. Lo escribió el Rey de la Montaña antes de encerrarse en su trono.' WHERE code = 'CARTA_SELLADA_DEL_REY';
 
 -- La cabra que mandaba (Gorm)
 INSERT INTO quests (code, name, quest_type, zone_id, min_level, max_level, difficulty_stars, npc_name, location_name, is_repeatable, repeat_cooldown_hours, reputation_reward, gold_reward, xp_reward, description, is_personal, is_boss_quest, giver_npc, turn_in_npc, dialog, chain_position, chain_total)
@@ -8108,6 +8116,44 @@ DELETE FROM quest_item_rewards WHERE quest_id = (SELECT id FROM quests WHERE cod
 INSERT INTO quest_item_rewards (quest_id, item_id, quantity)
 SELECT (SELECT id FROM quests WHERE code = 'MONTANAS_SEC_RONDA'), i.id, v.qty FROM (VALUES ('POCION_DE_VIDA_MAYOR', 3), ('POCION_DE_MANA_MAYOR', 3)) AS v(code, qty) JOIN items i ON i.code = v.code;
 UPDATE quests SET requires_quest_id = NULL WHERE code = 'MONTANAS_SEC_RONDA';
+
+-- El eco de Astrid (Halvar)
+INSERT INTO quests (code, name, quest_type, zone_id, min_level, max_level, difficulty_stars, npc_name, location_name, is_repeatable, repeat_cooldown_hours, reputation_reward, gold_reward, xp_reward, description, is_personal, is_boss_quest, giver_npc, turn_in_npc, dialog, chain_position, chain_total)
+SELECT 'MONTANAS_SEC_ASTRID', 'El eco de Astrid', 'SECUNDARIA', 2, 27, 30, 3, 'Halvar', 'Acantilados del Trueno', FALSE, NULL, 80, 1600, 9800, '«Cuando hay tormenta, desde las Peñas Rotas me llama Astrid. Mi mujer. Murió hace veinte años, en esos riscos, avisando a los viajeros con su cuerno. Sé que no puede ser ella. Pero la oigo. Ve tú: yo no tengo valor.»', TRUE, FALSE, 'halvar', 'halvar', '{"entrega":"*sostiene el cuerno con las dos manos* Las arpías… aprendieron su voz. Veinte años repitiéndola. *sopla el cuerno: el sonido rebota por todos los Acantilados* Ella avisaba a los viajeros con esto. Desde hoy lo hago yo. Gracias. Por traérmela de vuelta, aunque sea así."}'::jsonb, NULL, NULL
+WHERE NOT EXISTS (SELECT 1 FROM quests WHERE code = 'MONTANAS_SEC_ASTRID');
+UPDATE quests SET name = 'El eco de Astrid', quest_type = 'SECUNDARIA', zone_id = 2, min_level = 27, max_level = 30, difficulty_stars = 3, npc_name = 'Halvar', location_name = 'Acantilados del Trueno', is_repeatable = FALSE, repeat_cooldown_hours = NULL, reputation_reward = 80, gold_reward = 1600, xp_reward = 9800, description = '«Cuando hay tormenta, desde las Peñas Rotas me llama Astrid. Mi mujer. Murió hace veinte años, en esos riscos, avisando a los viajeros con su cuerno. Sé que no puede ser ella. Pero la oigo. Ve tú: yo no tengo valor.»', is_personal = TRUE, is_boss_quest = FALSE, giver_npc = 'halvar', turn_in_npc = 'halvar', dialog = '{"entrega":"*sostiene el cuerno con las dos manos* Las arpías… aprendieron su voz. Veinte años repitiéndola. *sopla el cuerno: el sonido rebota por todos los Acantilados* Ella avisaba a los viajeros con esto. Desde hoy lo hago yo. Gracias. Por traérmela de vuelta, aunque sea así."}'::jsonb, chain_position = NULL, chain_total = NULL WHERE code = 'MONTANAS_SEC_ASTRID';
+DELETE FROM quest_objectives WHERE quest_id = (SELECT id FROM quests WHERE code = 'MONTANAS_SEC_ASTRID');
+INSERT INTO quest_objectives (quest_id, objective_type, step, target_code, monster_id, item_id, target_count, params, description)
+SELECT (SELECT id FROM quests WHERE code = 'MONTANAS_SEC_ASTRID'), v.t, v.step, v.target, (SELECT id FROM monsters WHERE code = v.monster), (SELECT id FROM items WHERE code = v.item), v.n, v.params::jsonb, v.descr
+FROM (VALUES
+  ('INVESTIGATE', 1, NULL, NULL, NULL, 1, '{"zone":"montanas","x":125,"y":51,"radius":3,"label":"Escuchar","speaker":"Tú","sprite":"piedra_eco","dialog":"«¡Halvar! ¡Halvar, aquí arriba!» La voz es de mujer, clara, y viene de lo alto de las peñas… pero a cada grito le sigue un chillido de arpía."}', 'Escucha la voz en las Peñas Rotas'),
+  ('AMBUSH', 2, NULL, NULL, NULL, 1, '{"zone":"montanas","x":130,"y":49,"radius":3,"label":"Trepar hacia la voz","dialog":"«¡Halvar!», grita una arpía con la voz de Astrid. Otra la imita, y otra más. Un elemental de tormenta las sigue, atraído por el ruido.","monsters":[{"code":"ARPIA_ECO","level":27},{"code":"ARPIA_ECO","level":27},{"code":"ELEMENTAL_TORMENTA","level":27}]}', 'Sube hasta donde nace la voz'),
+  ('INVESTIGATE', 3, NULL, NULL, NULL, 1, '{"zone":"montanas","x":134,"y":48,"radius":3,"label":"Revisar el nido","speaker":"Tú","sprite":"nido_brillos","dialog":"Entre ramas y huesos hay un cuerno de señales con aros de bronce. Tallado en la madera, un nombre: Astrid. Las arpías lo guardaban como un tesoro.","gives":{"item":"CUERNO_DE_ASTRID","qty":1}}', 'Revisa el nido de las arpías'),
+  ('DELIVER', 4, 'halvar', NULL, 'CUERNO_DE_ASTRID', 1, NULL, 'Llévale el cuerno a Halvar')
+) AS v(t, step, target, monster, item, n, params, descr);
+DELETE FROM quest_item_rewards WHERE quest_id = (SELECT id FROM quests WHERE code = 'MONTANAS_SEC_ASTRID');
+INSERT INTO quest_item_rewards (quest_id, item_id, quantity)
+SELECT (SELECT id FROM quests WHERE code = 'MONTANAS_SEC_ASTRID'), i.id, v.qty FROM (VALUES ('POCION_DE_VIDA_MAYOR', 3)) AS v(code, qty) JOIN items i ON i.code = v.code;
+UPDATE quests SET requires_quest_id = NULL WHERE code = 'MONTANAS_SEC_ASTRID';
+
+-- La última orden (Ulfa)
+INSERT INTO quests (code, name, quest_type, zone_id, min_level, max_level, difficulty_stars, npc_name, location_name, is_repeatable, repeat_cooldown_hours, reputation_reward, gold_reward, xp_reward, description, is_personal, is_boss_quest, giver_npc, turn_in_npc, dialog, chain_position, chain_total)
+SELECT 'MONTANAS_SEC_ORDEN', 'La última orden', 'SECUNDARIA', 2, 29, 30, 3, 'Ulfa', 'Cumbre del Rey', FALSE, NULL, 80, 1800, 10500, '«Los gigantes de hielo están rompiendo las tumbas. Buscan algo, y no es oro. Anoche abrieron la tumba del capitán de la primera guardia. Ahuyéntalos y mira qué se llevaron… o qué dejaron.»', TRUE, FALSE, 'ulfa', 'ulfa', '{"entrega":"*lee la carta en voz baja* «Si la tormenta me vence, no me dejen solo. Quédense a mi lado hasta que alguien venga a despertarme.» *se le llenan los ojos* No están malditos. Nunca lo estuvieron. Están cumpliendo. Mañana voy a leerla en voz alta, frente a las tumbas. Que sepan que alguien entendió."}'::jsonb, NULL, NULL
+WHERE NOT EXISTS (SELECT 1 FROM quests WHERE code = 'MONTANAS_SEC_ORDEN');
+UPDATE quests SET name = 'La última orden', quest_type = 'SECUNDARIA', zone_id = 2, min_level = 29, max_level = 30, difficulty_stars = 3, npc_name = 'Ulfa', location_name = 'Cumbre del Rey', is_repeatable = FALSE, repeat_cooldown_hours = NULL, reputation_reward = 80, gold_reward = 1800, xp_reward = 10500, description = '«Los gigantes de hielo están rompiendo las tumbas. Buscan algo, y no es oro. Anoche abrieron la tumba del capitán de la primera guardia. Ahuyéntalos y mira qué se llevaron… o qué dejaron.»', is_personal = TRUE, is_boss_quest = FALSE, giver_npc = 'ulfa', turn_in_npc = 'ulfa', dialog = '{"entrega":"*lee la carta en voz baja* «Si la tormenta me vence, no me dejen solo. Quédense a mi lado hasta que alguien venga a despertarme.» *se le llenan los ojos* No están malditos. Nunca lo estuvieron. Están cumpliendo. Mañana voy a leerla en voz alta, frente a las tumbas. Que sepan que alguien entendió."}'::jsonb, chain_position = NULL, chain_total = NULL WHERE code = 'MONTANAS_SEC_ORDEN';
+DELETE FROM quest_objectives WHERE quest_id = (SELECT id FROM quests WHERE code = 'MONTANAS_SEC_ORDEN');
+INSERT INTO quest_objectives (quest_id, objective_type, step, target_code, monster_id, item_id, target_count, params, description)
+SELECT (SELECT id FROM quests WHERE code = 'MONTANAS_SEC_ORDEN'), v.t, v.step, v.target, (SELECT id FROM monsters WHERE code = v.monster), (SELECT id FROM items WHERE code = v.item), v.n, v.params::jsonb, v.descr
+FROM (VALUES
+  ('KILL_MONSTER', 1, 'GIGANTE_HIELO', 'GIGANTE_HIELO', NULL, 3, NULL, 'Ahuyenta a 3 Gigantes de Hielo que rompen las tumbas'),
+  ('INVESTIGATE', 2, NULL, NULL, NULL, 1, '{"zone":"montanas","x":129,"y":95,"radius":3,"label":"Mirar la tumba abierta","speaker":"Tú","sprite":"tumba_enana","dialog":"La losa está partida. Adentro no hay huesos: solo un cofrecito de hierro, y en él una carta con lacre azul y un rayo grabado. El sello del Rey.","gives":{"item":"CARTA_SELLADA_DEL_REY","qty":1}}', 'Revisa la tumba abierta del capitán'),
+  ('AMBUSH', 3, NULL, NULL, NULL, 1, '{"zone":"montanas","x":133,"y":93,"radius":3,"label":"Volver con la carta","dialog":"Dos guardias de la tormenta te cortan el paso. No atacan: extienden la mano hacia la carta. Cuando no se la das, levantan las lanzas.","monsters":[{"code":"GUARDIA_TORMENTA","level":29},{"code":"GUARDIA_TORMENTA","level":29}]}', 'Sal de las Tumbas con la carta'),
+  ('DELIVER', 4, 'ulfa', NULL, 'CARTA_SELLADA_DEL_REY', 1, NULL, 'Llévale la carta a Ulfa')
+) AS v(t, step, target, monster, item, n, params, descr);
+DELETE FROM quest_item_rewards WHERE quest_id = (SELECT id FROM quests WHERE code = 'MONTANAS_SEC_ORDEN');
+INSERT INTO quest_item_rewards (quest_id, item_id, quantity)
+SELECT (SELECT id FROM quests WHERE code = 'MONTANAS_SEC_ORDEN'), i.id, v.qty FROM (VALUES ('POCION_DE_VIDA_MAYOR', 3), ('POCION_DE_MANA_MAYOR', 3)) AS v(code, qty) JOIN items i ON i.code = v.code;
+UPDATE quests SET requires_quest_id = NULL WHERE code = 'MONTANAS_SEC_ORDEN';
 
 -- Cuernos para las carretas (Gorm)
 INSERT INTO quests (code, name, quest_type, zone_id, min_level, max_level, difficulty_stars, npc_name, location_name, is_repeatable, repeat_cooldown_hours, reputation_reward, gold_reward, xp_reward, description, is_personal, is_boss_quest, giver_npc, turn_in_npc, dialog, chain_position, chain_total)
@@ -8337,3 +8383,63 @@ SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_SACERDOTE_WEAPON_HI
 
 -- los jugadores con estas armas puestas: el servidor recalcula sus stats guardadas una vez
 INSERT INTO balance_versions (version) SELECT 'mina_v1' WHERE NOT EXISTS (SELECT 1 FROM balance_versions WHERE version = 'mina_v1');
+
+-- ============================================================================================
+-- Mazmorras sin huecos de nivel (repetible; sin ON CONFLICT): la Cripta del Vigía va del 7 al 14
+-- (se abre con «La torre que vigilaba») y la Mina Profunda del 19 al 27 (la llave llega en la M5).
+-- Sus monstruos se ajustan a tu nivel dentro de ese rango. Además (lib/mazmorra.js): después de
+-- vencer al jefe, las pasadas de las 20 h siguientes dan la mitad de XP y oro a ese jugador (el
+-- cofre y el botín no cambian). Las filas de nivel se recalculan con la misma fórmula.
+-- ============================================================================================
+
+-- La Cripta del Vigía (nv 7-14)
+DELETE FROM monster_level_scalings WHERE monster_id = (SELECT id FROM monsters WHERE code = 'CRIPTA_CENTINELA');
+INSERT INTO monster_level_scalings (monster_id, level, hp, atk, def, magic_atk, magic_def, spd, evasion, crit_chance, crit_damage, elemental_damage)
+SELECT (SELECT id FROM monsters WHERE code = 'CRIPTA_CENTINELA'), v.* FROM (VALUES
+  (7, 738, 46, 74, 23, 45, 21, 6.8, 7.2, 50, 0),
+  (14, 1800, 79, 132, 40, 81, 34, 8.9, 8.6, 50, 0)
+) AS v(level, hp, atk, def, magic_atk, magic_def, spd, evasion, crit_chance, crit_damage, elemental_damage) WHERE (SELECT id FROM monsters WHERE code = 'CRIPTA_CENTINELA') IS NOT NULL;
+UPDATE monsters SET min_spawn_level = 7, max_spawn_level = 14, base_hp = 1800, base_atk = 79, base_def = 132,
+  base_magic_atk = 40, base_magic_def = 81, base_spd = 34 WHERE code = 'CRIPTA_CENTINELA';
+DELETE FROM monster_level_scalings WHERE monster_id = (SELECT id FROM monsters WHERE code = 'CRIPTA_ESPECTRO');
+INSERT INTO monster_level_scalings (monster_id, level, hp, atk, def, magic_atk, magic_def, spd, evasion, crit_chance, crit_damage, elemental_damage)
+SELECT (SELECT id FROM monsters WHERE code = 'CRIPTA_ESPECTRO'), v.* FROM (VALUES
+  (7, 627, 18, 42, 48, 69, 28, 10.8, 7.2, 50, 6),
+  (14, 1530, 32, 74, 83, 124, 45, 12.9, 8.6, 50, 6)
+) AS v(level, hp, atk, def, magic_atk, magic_def, spd, evasion, crit_chance, crit_damage, elemental_damage) WHERE (SELECT id FROM monsters WHERE code = 'CRIPTA_ESPECTRO') IS NOT NULL;
+UPDATE monsters SET min_spawn_level = 7, max_spawn_level = 14, base_hp = 1530, base_atk = 32, base_def = 74,
+  base_magic_atk = 83, base_magic_def = 124, base_spd = 45 WHERE code = 'CRIPTA_ESPECTRO';
+DELETE FROM monster_level_scalings WHERE monster_id = (SELECT id FROM monsters WHERE code = 'CRIPTA_VIGIA');
+INSERT INTO monster_level_scalings (monster_id, level, hp, atk, def, magic_atk, magic_def, spd, evasion, crit_chance, crit_damage, elemental_damage)
+SELECT (SELECT id FROM monsters WHERE code = 'CRIPTA_VIGIA'), v.* FROM (VALUES
+  (7, 2214, 61, 77, 30, 63, 26, 6.8, 7.2, 50, 6),
+  (14, 5400, 106, 137, 53, 113, 43, 8.9, 8.6, 50, 6)
+) AS v(level, hp, atk, def, magic_atk, magic_def, spd, evasion, crit_chance, crit_damage, elemental_damage) WHERE (SELECT id FROM monsters WHERE code = 'CRIPTA_VIGIA') IS NOT NULL;
+UPDATE monsters SET min_spawn_level = 7, max_spawn_level = 14, base_hp = 5400, base_atk = 106, base_def = 137,
+  base_magic_atk = 53, base_magic_def = 113, base_spd = 43 WHERE code = 'CRIPTA_VIGIA';
+
+-- La Mina Profunda (nv 19-27)
+DELETE FROM monster_level_scalings WHERE monster_id = (SELECT id FROM monsters WHERE code = 'MINA_MINERO');
+INSERT INTO monster_level_scalings (monster_id, level, hp, atk, def, magic_atk, magic_def, spd, evasion, crit_chance, crit_damage, elemental_damage)
+SELECT (SELECT id FROM monsters WHERE code = 'MINA_MINERO'), v.* FROM (VALUES
+  (19, 2520, 114, 141, 57, 109, 48, 10.4, 9.6, 50, 0),
+  (27, 3600, 156, 187, 78, 145, 65, 12.8, 11.2, 50, 0)
+) AS v(level, hp, atk, def, magic_atk, magic_def, spd, evasion, crit_chance, crit_damage, elemental_damage) WHERE (SELECT id FROM monsters WHERE code = 'MINA_MINERO') IS NOT NULL;
+UPDATE monsters SET min_spawn_level = 19, max_spawn_level = 27, base_hp = 3600, base_atk = 156, base_def = 187,
+  base_magic_atk = 78, base_magic_def = 145, base_spd = 65 WHERE code = 'MINA_MINERO';
+DELETE FROM monster_level_scalings WHERE monster_id = (SELECT id FROM monsters WHERE code = 'MINA_GOLEM_VETA');
+INSERT INTO monster_level_scalings (monster_id, level, hp, atk, def, magic_atk, magic_def, spd, evasion, crit_chance, crit_damage, elemental_damage)
+SELECT (SELECT id FROM monsters WHERE code = 'MINA_GOLEM_VETA'), v.* FROM (VALUES
+  (19, 2898, 103, 181, 52, 122, 34, 10.4, 9.6, 50, 0),
+  (27, 4140, 142, 241, 71, 161, 46, 12.8, 11.2, 50, 0)
+) AS v(level, hp, atk, def, magic_atk, magic_def, spd, evasion, crit_chance, crit_damage, elemental_damage) WHERE (SELECT id FROM monsters WHERE code = 'MINA_GOLEM_VETA') IS NOT NULL;
+UPDATE monsters SET min_spawn_level = 19, max_spawn_level = 27, base_hp = 4140, base_atk = 142, base_def = 241,
+  base_magic_atk = 71, base_magic_def = 161, base_spd = 46 WHERE code = 'MINA_GOLEM_VETA';
+DELETE FROM monster_level_scalings WHERE monster_id = (SELECT id FROM monsters WHERE code = 'MINA_GOLEM_NEGRO');
+INSERT INTO monster_level_scalings (monster_id, level, hp, atk, def, magic_atk, magic_def, spd, evasion, crit_chance, crit_damage, elemental_damage)
+SELECT (SELECT id FROM monsters WHERE code = 'MINA_GOLEM_NEGRO'), v.* FROM (VALUES
+  (19, 7182, 138, 182, 69, 144, 55, 10.4, 9.6, 50, 8),
+  (27, 10260, 189, 242, 94, 190, 74, 12.8, 11.2, 50, 8)
+) AS v(level, hp, atk, def, magic_atk, magic_def, spd, evasion, crit_chance, crit_damage, elemental_damage) WHERE (SELECT id FROM monsters WHERE code = 'MINA_GOLEM_NEGRO') IS NOT NULL;
+UPDATE monsters SET min_spawn_level = 19, max_spawn_level = 27, base_hp = 10260, base_atk = 189, base_def = 242,
+  base_magic_atk = 94, base_magic_def = 190, base_spd = 74 WHERE code = 'MINA_GOLEM_NEGRO';

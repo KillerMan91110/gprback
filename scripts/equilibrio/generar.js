@@ -236,7 +236,7 @@ async function simulateMina(classes) {
     return Math.max(raw * DAMAGE_FLOOR, raw - 0.5 * (magic ? h.magic_def : h.def)) * (1 + row.crit_chance / 100 * 0.5);
   };
   const byCode = Object.fromEntries(mina.MONSTERS.map((m) => [m.code, m]));
-  const LEVELS = [18, 20, 22, 24];
+  const LEVELS = [19, 21, 23, 25, 27];
   console.log('\nMina Profunda · guardianes contra un héroe solo: turnos para vencerlos / rondas que aguanta (meta: vence antes de caer)');
   for (const [key, g] of Object.entries(mina.GUARDIANES)) {
     const cells = LEVELS.map((lv) => {
@@ -337,7 +337,7 @@ function simulateCripta(classes, gear) {
   console.log('\nCripta del Vigía · guardianes contra un héroe solo: turnos para vencerlos / rondas que aguanta (meta: vence antes de caer)');
   for (const [key, g] of Object.entries(cripta.GUARDIANES)) {
     const cells = [];
-    for (const lv of [5, 8, 10, 12]) {
+    for (const lv of [7, 10, 12, 14]) {
       const per = classes.map((c) => {
         const h = heroAt(c, lv, gear);
         const rows = g.monsters.map((code) => rowAt(byCode[code], lv));
@@ -355,7 +355,7 @@ function simulateCripta(classes, gear) {
   console.log('Guardianes contra guerrero + mago + sacerdote: rondas para vencerlos / rondas que aguanta el grupo');
   for (const [key, g] of Object.entries(cripta.GUARDIANES)) {
     const cells = [];
-    for (const lv of [5, 8, 10, 12]) {
+    for (const lv of [7, 10, 12, 14]) {
       const rows = g.monsters.map((code) => rowAt(byCode[code], lv));
       const heroes = party.map((c) => ({ c, h: heroAt(c, lv, gear) }));
       const ttk = rows.reduce((sum, r) => sum + r.hp / heroes.reduce((t, x) => t + heroHit(x.c, x.h, lv, r), 0), 0);
@@ -367,7 +367,7 @@ function simulateCripta(classes, gear) {
   }
   console.log('Vigía Caído (nivel del héroe + 1) contra guerrero + mago + sacerdote: rondas para vencerlo / golpes que aguanta el guerrero');
   const cells = [];
-  for (const lv of [5, 8, 10, 12]) {
+  for (const lv of [7, 10, 12, 14]) {
     const row = rowAt(byCode[cripta.BOSS_CODE], lv + 1);
     const dmg = party.reduce((sum, c) => sum + heroHit(c, heroAt(c, lv, gear), lv, row), 0);
     const tank = heroAt(party[0], lv, gear);
