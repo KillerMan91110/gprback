@@ -16,6 +16,7 @@ const coleccion = require('../lib/coleccion');
 const comida = require('../lib/comida');
 const mythic = require('../lib/mythic');
 const mazmorras = require('../lib/mazmorras');
+const piezasSet = require('../lib/piezasSet');
 const huntRewards = require('../lib/huntRewards');
 const eventos = require('../lib/eventos');
 const { handleWorldBossFinalize, handleDailyEventFinalize, WORLD_BOSS_CODE_PREFIX } = require('../lib/eventFinalize');
@@ -1965,7 +1966,8 @@ async function finalizeSession(sessionId, status, participants) {
       const heroLuckRow = await db.query('SELECT luck FROM players WHERE id = $1', [heroP.player_id]);
       const heroLuck = Number(heroLuckRow.rows[0]?.luck || 0);
       const partyClasses = [...new Set(await Promise.all(heroPs.map((h) => baseClassCode(h.class_id))))].filter(Boolean);
-      rewards.itemsDropped = await rollMonsterDrops(participants.enemy, heroPassives.drop_rate_bonus + heroLuck + heroPetBonuses.drop_rate_percent + leaderUtil.drop, partyClasses);
+      const dropBonusPct = heroPassives.drop_rate_bonus + heroLuck + heroPetBonuses.drop_rate_percent + leaderUtil.drop;
+      rewards.itemsDropped = await rollMonsterDrops(participants.enemy, dropBonusPct, partyClasses);
 
       // Co-op: oro dividido en partes iguales entre todos los héroes (1 a 3).
       const goldPerHero = Math.floor(rewards.gold / heroPs.length);
@@ -2045,6 +2047,15 @@ async function finalizeSession(sessionId, status, participants) {
         for (const hp of heroPs) {
           await inventory.addItem(hp.player_id, drop.itemId, drop.quantity);
         }
+      }
+      // piezas de set de los monstruos raros (lib/piezasSet.js): cada héroe tira por su cuenta; la
+      // pieza es de una clase base al azar
+      rewards.setPieces = [];
+      for (const hp of heroPs) {
+        const piece = await piezasSet.rollFor(participants.enemy, dropBonusPct).catch(() => null);
+        if (!piece) continue;
+        await inventory.addItem(hp.player_id, piece.id, 1);
+        rewards.setPieces.push({ playerId: hp.player_id, itemId: piece.id, name: piece.name });
       }
 
       // cartas de monstruo (tirada propia de cada héroe) y resumen del bestiario

@@ -29,6 +29,7 @@ function stationProblem(playerId, station) {
 }
 const npcSell = require('../lib/npcSell');
 const recetas = require('../lib/recetas');
+const desmantelar = require('../lib/desmantelar');
 const comida = require('../lib/comida');
 
 const router = express.Router();
@@ -1821,8 +1822,8 @@ router.get('/:playerId/achievements', async (req, res, next) => {
 // GET /api/player/:playerId/craft/available
 // Solo recetas de zonas desbloqueadas: las básicas que ya DESCUBRIÓ (lib/recetas.js) y las de
 // pergamino que ya aprendió. Incluye para cada ingrediente cuánto tiene vs cuánto necesita.
-// Con ?libro=1 (el Taller del mundo) además vienen las de pergamino de su clase todavía sin
-// aprender (locked, con de dónde sale el pergamino) y una fila "hidden" por cada básica sin
+// Con ?libro=1 (el Taller del mundo) además vienen las de pergamino todavía sin aprender, de
+// todas las clases (locked, con de dónde sale el pergamino) y una fila "hidden" por cada básica sin
 // descubrir (sin nombre: solo su categoría, para contar "4 por descubrir").
 // GET /api/player/:playerId/craft/stations — ¿estás junto a una forja / al Pilar? (null = sí; si no,
 // el aviso). El taller lo pregunta cada pocos segundos mientras está abierto (es barato, a
@@ -1855,12 +1856,8 @@ router.get('/:playerId/craft/available', async (req, res, next) => {
        ORDER BY cr.rarity, i.name`,
       [playerId]
     );
-    // las de pergamino sin aprender solo se muestran (con candado) si son de la clase del jugador
-    const me = (await db.query('SELECT current_class_id, evolution_class_id FROM players WHERE id = $1', [playerId])).rows[0];
-    const myClasses = new Set(me ? await evolution.getClassAncestorChain(me.evolution_class_id || me.current_class_id) : []);
-    const myClassCodes = (await db.query('SELECT code FROM classes WHERE id = ANY($1::int[])', [[...myClasses]])).rows.map((r) => r.code);
-    // ¿la receta es de mi clase? (los accesorios de jefe no tienen clase: la dice su pergamino, …_MAGO)
-    const isMine = (r) => (r.required_class_id ? myClasses.has(r.required_class_id) : myClassCodes.some((c) => String(r.scroll_item_code ?? '').endsWith(`_${c}`)));
+    // las de pergamino sin aprender se muestran con candado, de TODAS las clases (como en los MMO, se
+    // puede fabricar equipo de otra clase para venderlo o regalarlo; cada una en la pestaña de su clase)
     // de dónde sale cada pergamino (los monstruos que lo sueltan y con qué probabilidad)
     const scrollIds = [...new Set(recipesResult.rows.filter((r) => r.scroll_item_id && !r.learned).map((r) => r.scroll_item_id))];
     const scrollSources = new Map();
@@ -1893,8 +1890,8 @@ router.get('/:playerId/craft/available', async (req, res, next) => {
         if (libro) hidden.push({ hidden: true, classCode: recipe.required_class_code, resultType: recipe.result_item_type });
         continue;
       }
-      // con candado: de mi clase y con su pergamino al alcance (lo suelta un jefe de una zona abierta)
-      if (locked && (!libro || !isMine(recipe) || !scrollSources.has(recipe.scroll_item_id))) continue;
+      // con candado: con su pergamino al alcance (lo suelta un jefe de una zona que ya abriste)
+      if (locked && (!libro || !scrollSources.has(recipe.scroll_item_id))) continue;
       const ingredients = await db.query(
         `SELECT ri.item_id, it.name AS item_name, ri.quantity
          FROM crafting_recipe_ingredients ri
@@ -1927,8 +1924,9 @@ router.get('/:playerId/craft/available', async (req, res, next) => {
         artisanName: recipe.artisan_name,
         description: recipe.description,
         classId: recipe.required_class_id,
-        className: recipe.required_class_name,
-        classCode: recipe.required_class_code,
+        // los accesorios de jefe no tienen clase: la dice su pergamino (…_MAGO), así salen en esa pestaña
+        className: recipe.required_class_name ?? SCROLL_CLASS_NAME[scrollClassOf(recipe)] ?? null,
+        classCode: recipe.required_class_code ?? scrollClassOf(recipe),
         canCraft: canCraft && !locked,
         ingredients: ingredientStatus,
         // libro de recetas: "NUEVO" hasta que la abre; candado si es de pergamino y no la aprendió
@@ -1944,6 +1942,10 @@ router.get('/:playerId/craft/available', async (req, res, next) => {
     next(error);
   }
 });
+
+// clase de una receta de pergamino sin clase propia, según el código del pergamino (SCROLL_X_MAGO)
+const SCROLL_CLASS_NAME = { GUERRERO: 'Guerrero', MAGO: 'Mago', ARQUERO: 'Arquero', PICARO: 'Pícaro', SACERDOTE: 'Sacerdote' };
+const scrollClassOf = (r) => String(r.scroll_item_code ?? '').match(/_(GUERRERO|MAGO|ARQUERO|PICARO|SACERDOTE)$/)?.[1] ?? null;
 
 // GET /api/player/:playerId/craft/novedades — crafteos descubiertos que todavía no se avisaron
 // (el mundo lo pregunta cuando cambia la mochila: "¡Descubriste un crafteo nuevo!")
@@ -2318,8 +2320,8 @@ router.post('/:playerId/use-item', async (req, res, next) => {
   } catch (error) { next(error); }
 });
 
-// Primero busca override manual en dismantle_recipes; si no hay entrada, deriva los materiales
-// de crafting_recipe_ingredients con 50% de retorno (mínimo 1 por material).
+// Lo que devuelve lo decide lib/desmantelar.js: la regla manual (dismantle_recipes) si hay, o la
+// mitad en promedio de los materiales de su receta, sin las piezas de jefe. Solo equipo.
 router.post('/:playerId/dismantle', requireNear('taller'), async (req, res, next) => {
   const { playerId } = req.params;
   const { itemId } = req.body;
@@ -2330,41 +2332,11 @@ router.post('/:playerId/dismantle', requireNear('taller'), async (req, res, next
   }
 
   try {
-    let materials = [];
-
-    const dismantleResult = await db.query(
-      `SELECT dr.result_item_id, i.name AS result_name, dr.result_quantity
-       FROM dismantle_recipes dr
-       JOIN items i ON i.id = dr.result_item_id
-       WHERE dr.item_id = $1`,
-      [itemId]
-    );
-
-    if (dismantleResult.rows.length) {
-      materials = dismantleResult.rows.map((row) => ({
-        itemId: row.result_item_id,
-        name: row.result_name,
-        quantity: row.result_quantity * qty,
-      }));
-    } else {
-      const ingredientsResult = await db.query(
-        `SELECT ri.item_id, i.name AS item_name, ri.quantity
-         FROM crafting_recipes cr
-         JOIN crafting_recipe_ingredients ri ON ri.recipe_id = cr.id
-         JOIN items i ON i.id = ri.item_id
-         WHERE cr.result_item_id = $1`,
-        [itemId]
-      );
-      materials = ingredientsResult.rows.map((row) => ({
-        itemId: row.item_id,
-        name: row.item_name,
-        quantity: Math.max(1, Math.floor(row.quantity * qty * 0.5)),
-      }));
-    }
-
-    if (!materials.length) {
-      return res.status(400).json({ error: 'Este ítem no se puede desmantelar' });
-    }
+    // qué devuelve: lib/desmantelar.js (solo equipo, la mitad en promedio, nunca las piezas de jefe)
+    const planned = await desmantelar.plan(itemId, qty);
+    if (planned.error) return res.status(400).json({ error: planned.error });
+    // (con mala suerte en el sorteo de las fracciones puede no salir nada: se desmantela igual)
+    const materials = planned.materials;
 
     const have = await inventory.getQuantity(playerId, itemId);
     if (have < qty) {
