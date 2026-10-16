@@ -9,6 +9,13 @@ Este documento tiene **dos partes**:
   Tundra Eterna, Catacumbas, Ruinas, Sylvaren…) se hacen **igual**.
 - **Parte B — El estado del Volcán Rojo (zona 3).** Qué está hecho, qué falta y cómo seguir.
 
+> **⚠️ Antes de empezar: este documento puede estar atrasado.** El usuario sigue trabajando y no
+> siempre lo actualiza. **Si el código y este documento no coinciden, manda el código.** No
+> "corrijas" algo solo porque el documento dice otra cosa: pregunta al usuario si dudas. Para ver
+> qué cambió después de escribirlo, revisa `git log` en los dos repos desde los commits indicados
+> en "Última actualización" (al final de la parte B). Un pendiente de la lista puede estar ya hecho:
+> búscalo en el código antes de hacerlo.
+
 Documentos que hay que leer junto con este:
 
 | Documento | Qué tiene |
@@ -44,6 +51,7 @@ Documentos que hay que leer junto con este:
 - **Nunca** usar el `DATABASE_URL` de producción. Solo la base local.
 - No escribir las contraseñas de prueba en el chat.
 - No detener los servidores del usuario (front en 3000, back en 5000). Para probar, usa servidores temporales en otros puertos (5098/3002, ver `CLAUDE.md`).
+- **El front lo prueba el usuario.** No levantes el front temporal ni pruebes en el navegador, salvo que lo pida. Tú prueba el back (servidor temporal 5098, API, scripts y SQL en la base local), pasa el lint, y en el reporte dile qué revisar en el juego.
 - Al terminar, restaurar los datos de prueba (Marco = player 8, Brisa = player 11).
 
 ### Mapas
@@ -764,13 +772,14 @@ Hoy (`src/game/questGivers.js` → `questMarks`, colores en `src/game/world/npcs
 
 **Regla que pidió el usuario:** las misiones **principales (historia, `quest_type = 'PRINCIPAL'`) llevan el `!` en ROJO**, y las secundarias, diarias y demás llevan el `!` **amarillo**. Así el jugador distingue de un vistazo qué hace avanzar la historia.
 
-**⚠️ Todavía NO está hecho en el código.** Hoy todas las `!` salen amarillas. Para hacerlo:
+**Ya está hecho.** Así funciona:
 
-1. En `questMarks`, cuando la misión disponible es `q.quest_type === 'PRINCIPAL'`, poner la marca `'!h'` (historia). Debe ganarle a la amarilla y quedar por debajo del `?`: `rank = { gris: 1, '!': 2, '!h': 3, '?': 4 }`.
-2. En `setNpcMarks`, agregar a `COLORS` `'!h': ['#ff5a4a', 0xff5a4a]` y mostrar el texto `'!'`.
-3. Revisar que el punto del minimapa y el rastreador usen el mismo color.
+1. `questMarks` pone la marca `'!!'` cuando la misión disponible es `q.quest_type === 'PRINCIPAL'`. Le gana a la amarilla y queda por debajo del `?`: `rank = { gris: 1, '!': 2, '!!': 3, '?': 4 }`.
+2. `setNpcMarks` (`npcs.js`) la dibuja como un `!` rojo (`#ff5a4a`) y pinta del mismo color el punto del minimapa.
+3. El mapa (M) usa la clase `mp-npc--historia` y el marco del objetivo, `hud-target-mark--historia`.
+4. Los diálogos siguen recibiendo `mark: '!'`: `World.js` normaliza `'!!'` y además pasa `story: true`, por si un saludo quiere distinguirlas.
 
-(`quest_type` ya viene en la lista de misiones disponibles de `routes/players.js`).
+`quest_type` viene en la lista de misiones disponibles de `routes/players.js`.
 
 ### Qué tipos de misión hay y cómo hacerlas entretenidas
 
@@ -908,14 +917,14 @@ Resumen rápido:
 | 7 | Diarias | hay que crear 3 y reasignar las viejas |
 | 8 | Torre | no (es aparte), pero se abre con capítulos de historia |
 | 9 | Exploración y secretos | **sí**: subzonas, premio y 3 secretos |
-| 10 | Música | **sí**: cada zona debería tener su tema (hoy solo Pradera, ciudad y mazmorra) |
+| 10 | Música | **sí**: cada zona tiene su tema (Pradera, ciudad, mazmorra, Montañas y Volcán) |
 | 11 | Carteles de zona | **sí**: `ZONE_TITLES` |
 | 12 | Guía y flechas de rastreo | casi solo |
-| 13 | Mercader y venta a NPC | **sí**: hoy solo hay tienda en Aurelia y la Aldea |
+| 13 | Mercader y venta a NPC | **sí**: un mercader en la ciudad de la zona (Lyra, Mirna, Marga en Ascuaria) |
 | 14 | Dónde despiertas al caer | solo, con las fogatas del mapa |
 | 15 | Fondos de combate | **sí** |
 | 16 | Editor de mapas | **sí**: terrenos y recursos nuevos |
-| 17 | Mapa del mundo (M) | **sí**: `atlas.js` (hoy está desactualizado) |
+| 17 | Mapa del mundo (M) | **sí**: `atlas.js` |
 | 18 | Gremio | solo (los encargos cuentan en cualquier zona) |
 | 19 | Paso entre zonas y desbloqueo | **sí** |
 
@@ -1153,7 +1162,7 @@ Que la suma de la zona lleve al jugador **más o menos un rango arriba**.
 - En combate suena `batalla`, y `jefe` contra jefes o míticos.
 - Hay temas cortos para victoria, derrota, subir de nivel y misión.
 
-**⚠️ Las Montañas y el Volcán no tienen `musica`, así que suena el tema de la Pradera.**
+Hoy hay temas para la Pradera, la ciudad, las mazmorras (`cripta`), las **Montañas** (`montanas`) y el **Volcán** (`volcan`). Una zona sin `musica` usa el de la Pradera.
 
 **En una zona nueva:**
 
@@ -1172,7 +1181,7 @@ Que la suma de la zona lleve al jugador **más o menos un rango arriba**.
 - Encima puede llevar una línea chica (`'La capital'`, `'Mazmorra'`).
 - La subzona se muestra junto a la zona.
 
-**En una zona nueva:** agrega `dir: ['línea chica', 'Nombre']` para la zona y para su mazmorra. **Falta para el Volcán y la Fisura.**
+**En una zona nueva:** agrega `dir: ['línea chica', 'Nombre']` para la zona y para su mazmorra. Ya están el Volcán y la Fisura.
 
 ### 12. Guía del aventurero y flechas de rastreo
 
@@ -1224,7 +1233,7 @@ Que la suma de la zona lleve al jugador **más o menos un rango arriba**.
 - El **mercado de jugadores** y los **puestos** son el otro canal. El "Mercader del Reino" repone pociones en el mercado.
 - `lib/economia.js` registra el oro que entra y sale para vigilar la inflación.
 
-**⚠️ Ascuaria no tiene mercader.** El servicio `artesanos` solo está en Lyra y Mirna, así que en el Volcán no hay dónde vender el botín.
+En el Volcán, **Marga** (`mercader_ascuaria`, en el puesto de la plaza de Ascuaria) es el lugar de comercio: está en `SERVICIOS.artesanos` y su diálogo abre la ventana `artesanos`. La ventana muestra todas las tiendas de `artisan_shop` juntas, así que hoy vende lo mismo que los artesanos de Aurelia.
 
 **En una zona nueva:**
 
@@ -1277,7 +1286,7 @@ Explicado en A4. Hay que dibujar el fondo de la zona y el de su mazmorra (5 capa
 - **Pestaña Zona:** el mapa de la zona entera, con subzonas coloreadas por nivel respecto al tuyo (rojo = 5 o más por encima; gris = muy fácil), NPCs, jefes, salidas, tu posición y la niebla de lo no explorado.
 - **Pestaña Mundo:** un atlas dibujado a mano (SVG) con todas las zonas, los caminos que las unen y un texto de "cómo se llega". Los datos están en `ATLAS_ZONES`, `ATLAS_ROADS` y `ZONE_EXITS`.
 
-**⚠️ Está desactualizado:** en `atlas.js`, la zona 3 (Volcán) está **al noreste** ("atravesando los pasos de las Montañas") y sin `dir`. Según `mapa_etheria.md`, el Volcán está **al sur de las Montañas** (Paso del Humo). Tampoco tiene salida en `ZONE_EXITS`.
+El Volcán ya está corregido: zona 3 con `dir: 'volcan'`, al sur de las Montañas (Paso del Humo). Las Costas ocupan toda la costa sur. Se pasa caminando, así que no lleva `ZONE_EXITS`.
 
 **En una zona nueva:** en `atlas.js`, pon la zona con su `dir`, su posición (`x`, `y`) coherente con `etheria.json`, su color, su ícono y su texto de ruta. Agrega su camino en `ATLAS_ROADS` y las salidas en `ZONE_EXITS`.
 
@@ -1383,24 +1392,35 @@ Las secundarias:
 - El último vuelo (Escamas);
 - ¿Dónde está Trueno? (otra vez).
 
-**Nada está commiteado.**
+**Estado:** el Volcán está **completo en código y datos**. Falta que el usuario lo pruebe en el juego y que corra el SQL en Supabase.
 
 - Front: rama `feat/2d`.
 - Back: rama `fix/compras-atomicas`.
 
 ## B1. Archivos de trabajo
 
-Están en **`D:\vscode\gpr\_respaldo_claude\volcan\`** (sin seguimiento de git). Ahí están los generadores (`gen_*.js`, que escriben SQL por la salida estándar), `aplicar_sql.js`, `revisar_misiones.js` y `mapa_volcan.js`.
+Están en **`D:\vscode\gpr\_respaldo_claude\volcan\`** (sin seguimiento de git). Ahí están:
 
-| Archivo | Qué es | ¿Aplicado en local? |
-|---|---|---|
-| `volcan_monstruos.sql` (`gen_volcan.js`) | 16 monstruos, materiales, skills, recompensas de jefes | sí |
-| `volcan_equipo1.sql` (`gen_equipo_volcan.js`) | tiers Volcán, Obsidiana, Forja Negra, Caldera y Titán F; recetas en la forja de Ignar; accesorios de jefes; drops | sí |
-| `volcan_equipo2.sql` (`gen_escalera_volcan.js`) | escalera v2/v3, 79 piezas | sí |
-| `volcan_comidas.sql` (`gen_comidas_volcan.js`) | Carne de Salamandra y 5 comidas | sí |
-| `volcan_misiones.sql` (`gen_misiones_volcan.js`) | V1-V14, 16 secundarias, 3 diarias nuevas, 11 reasignadas, 14 ítems de misión (checker: 44 misiones, 0 problemas) | sí |
+- los generadores (`gen_*.js`), que escriben SQL por la salida estándar;
+- `aplicar_sql.js`, que aplica un `.sql` dos veces seguidas en la base local para comprobar que es repetible (pásale la ruta absoluta);
+- `revisar_misiones.js` y `mapa_volcan.js`.
 
-## B2. Lo que ya está hecho
+| Archivo | Qué es | ¿En local? | ¿En `schema.sql`? |
+|---|---|---|---|
+| `volcan_monstruos.sql` (`gen_volcan.js`) | 16 monstruos, materiales, skills, recompensas de jefes | sí | sí |
+| `volcan_equipo1.sql` (`gen_equipo_volcan.js`) | tiers Volcán, Obsidiana, Forja Negra, Caldera y Titán F; recetas en la forja de Ignar; accesorios de jefes; drops | sí | sí |
+| `volcan_equipo2.sql` (`gen_escalera_volcan.js`) | escalera v2/v3, 79 piezas | sí | sí |
+| `volcan_comidas.sql` (`gen_comidas_volcan.js`) | Carne de Salamandra y 5 comidas | sí | sí |
+| `volcan_misiones.sql` (`gen_misiones_volcan.js`) | V1-V14, 16 secundarias, 3 diarias nuevas, 11 reasignadas, 14 ítems de misión. Regenerado después de los arcos y el puesto de Marga; checker: 44 misiones, 0 problemas | sí | sí |
+
+**SQL para Supabase:**
+
+- Está en `db/schema.sql`, **líneas 9574 a 13390** (el bloque «VOLCÁN ROJO»), con la fila `balance_versions 'volcan_v1'` al final.
+- Se probó entero, dos veces seguidas, en la base local sin errores.
+- Después de correrlo en Supabase hay que **reiniciar el servidor una vez**. La Fisura se siembra sola al arrancar (`lib/fisura.js`) y así sus monstruos toman las habilidades nuevas.
+- El mismo bloque está al final de `db/pendiente_supabase.sql`, que no se commitea.
+
+## B2. Lo que está hecho
 
 ### Back
 
@@ -1409,105 +1429,88 @@ Están en **`D:\vscode\gpr\_respaldo_claude\volcan\`** (sin seguimiento de git).
 - `lib/piezasSet.js`: OBSIDIANA para el Maestro de la Lava y el Dragón Menor.
 - `lib/worldNodes.js` + `worldNodes.zonas.json["3"]`: 7 tipos de recurso y 24 nodos.
 - `lib/exploracion.js`: `ZONES.volcan` (9 subzonas) y 3 secretos.
-- `lib/cercania.js`: la forja de Ascuaria y los 3 muelles.
+- `lib/cercania.js`: la Gran Forja de Ascuaria, los 3 muelles y **Marga** (`mercader_ascuaria`, en 115,29) como lugar del servicio `artesanos` (comprar y vender).
 - `lib/questSteps.js`: `NPC_HOMES`.
 - `lib/brasas.js` y las rutas `POST /balsa` y `POST /brasa`.
 - Simulador: `PERFILES` del Volcán y `simulateVolcan`.
-- Docs: `zona3_volcan.md` y `mapa_etheria.md`.
+- `db/schema.sql`: el bloque del Volcán (ver B1).
+- Docs:
+  - `zona3_volcan.md`, al día: Fisura 36-42, balseras, brasas, Marga.
+  - `mapa_etheria.md`: el Volcán está hecho y se llega por el Paso del Humo.
 
 ### Front
 
 - **Tileset compartido v6:** 892 tiles; los 668 viejos quedaron idénticos.
 - **Recursos:** `recursos5.png`.
-- **Mapa:** `generar_volcan.js` → `public/assets/mundo/volcan/`, con 17 arcos de basalto que sirven de refugio. Registrado en `etheria.json` en (160, 210).
+- **Mapa del Volcán:** `generar_volcan.js` → `public/assets/mundo/volcan/`. Tiene los 17 arcos de basalto que sirven de refugio, el puesto de Marga en la plaza y `musica: 'volcan'`. Está en `etheria.json` en (160, 210).
 - **Paso del Humo** abierto en los chunks de las Montañas.
 - **Editor:** `rules.js` con los terrenos v6.
-- **NPCs:** raza draco y 9 NPCs nuevos con sprite y retrato.
+- **NPCs:** raza draco y 10 NPCs nuevos con sprite y retrato: Ignar, Ascalia, Tuli, Chispa, Escamas, Kessa, Ceniza, Pumo, Sulfo y **Marga**, la mercader.
+- **Diálogos** de todos los NPCs del Volcán, incluidas las balseras Toba y Lapilli y Marga (con la opción `Comerciar`), y su `NPC_LUGAR`.
 - **Balsas:** `client.js` (`balsa`, `brasa`) y los manejadores en `World.js`.
-- **Lluvia de brasas:** `src/game/world/brasas.js`, con el arte de `crear_brasas.lua` y el sonido `brasa`.
-- **Clima de ceniza** (`WorldScene` y el ícono del HUD).
-- **Diálogos** de todos los NPCs del Volcán, incluidas las balseras Toba y Lapilli. También `NPC_LUGAR`.
-- **20 enemigos de combate:** `crear_enemigos_volcan.lua`, registrados en `enemigos.json`.
-- **Fondos de combate** del Volcán y de la Fisura (`crear_fondo_volcan.lua`), conectados en `BattleScene.js` y `Battle.js`.
-- **Lint:** todo pasó `npx eslint`.
+- **Lluvia de brasas** (`src/game/world/brasas.js`, arte de `crear_brasas.lua`, sonido `brasa`) y **clima de ceniza** (`WorldScene` y el ícono del HUD).
+- **20 enemigos de combate** (`crear_enemigos_volcan.lua`, en `enemigos.json`).
+- **Fondos de combate** del Volcán y de la Fisura (`crear_fondo_volcan.lua`), conectados en `BattleScene.js` y `Battle.js`. La Fisura usa su fondo por `DUNGEON_BACKGROUND`, también en las peleas con los guardianes.
+- **La Fisura Infernal:**
+  - **Arte** (`art/sprites/mundo/crear_fisura.lua`):
+    - tileset propio (`tileset_fisura.png` + json): puente ancho con `puente_n` / `puente_c` / `puente_s`, hornos 2x2, yunque, molde, escoria…;
+    - la **cuba** (`mazmorra/cuba.png`: llena / volcada con vapor);
+    - el **portón** (`mazmorra/porton_forja.png`).
+  - **Mapa** (`art/mapas/generar_fisura.js` → `public/assets/mundo/fisura/`, 1x2 trozos):
+    - usa las mismas casillas que `lib/fisura.js`: cubas en 13,9 y 27,33; las rondas de los 3 guardianes; el portón en 18,47; Morvak en 20,53;
+    - el generador comprueba que las rondas y las cubas caigan en casillas libres;
+    - las salidas vuelven al Volcán en la casilla 33,99, dos más abajo del portal, para no volver a entrar.
+  - **Conexión:** `DUNGEONS.fisura` en `shared.js`. Con `mazmorraArte.accion: 'Volcar'` la cuba dice «Volcar: …»; en `cripta.js`, las demás mazmorras siguen con «Encender» por defecto.
+- **Carteles:** `ZONE_TITLES` del Volcán y de la Fisura.
+- **Música:** temas nuevos en `audio.js`, puestos en el `mundo.json` de cada zona:
+  - `volcan`: mi frigio, con tambores de forja;
+  - `montanas`: mi menor, con gaita y cuerno. Su `mundo.json` se editó a mano, porque las Montañas no se regeneran.
+- **`!` rojo para las misiones de historia:**
+  - `questMarks` marca `'!!'` cuando la misión disponible es `PRINCIPAL`.
+  - Se dibuja como un `!` rojo (`#ff5a4a`) sobre el NPC, en el minimapa, en el mapa (M) y en el marco del objetivo.
+  - Los diálogos siguen viendo `mark === '!'`: `World.js` normaliza `'!!'` y pasa `story: true`.
+- **Atlas del mapa (M):** la zona 3 ahora es `volcan`, al sur de las Montañas (Paso del Humo). Las Costas ocupan toda la costa sur.
 
-## B3. Lo que falta (en orden)
+## B3. Lo que queda (son propuestas: consultarlas con el usuario antes)
 
-### 1. Mapa de la Fisura Infernal ← estaba en esto
-
-**Arte:** `art/sprites/mundo/crear_fisura.lua`, copiando la estructura de `crear_mina.lua`.
-
-- `tileset_fisura` con estos tiles: losas de basalto, grieta de lava, escoria, sombra, techo (con choque), pared, pared con brasero, pared con eclipse, lava (con choque), lava con borde, puente de escoria, escalera, yunque, molde, pila de escoria, caja, horno 2x2, piso de forja (con el eclipse).
-- `mazmorra/cuba.png`: tira de 5x32.
-  - Cuadro 0: cuba llena.
-  - Cuadros 1-4: cuba volcada con vapor.
-- `mazmorra/porton_forja.png`: 3 cuadros de 128x64.
-  - Cuadros 0-1: sellado, con el eclipse latiendo.
-  - Cuadro 2: abierto.
-
-**Mapa:** `art/mapas/generar_fisura.js`, copiando `generar_mina.js`. Va de 1x2 trozos y escribe en `public/assets/mundo/fisura/`. **Las casillas tienen que coincidir con `lib/fisura.js`:**
-
-| Sala | Casillas | Qué va ahí |
-|---|---|---|
-| Entrada | y 3-11 | escalera de salida (18-21, 3); spawn (20,4); cuba 1 en (13,9) |
-| Sala de Fundición | y 15-21, x 4-35 | guardián `fundidor` en la fila 18, de x 6 a 33 |
-| Puente de Escoria | y 24-28 | lava a los lados; guardián `diablillos` en la fila 26, de x 8 a 31 |
-| Sala de la cuba 2 | y 30-36 | cuba 2 en (27,33) |
-| El Foso | y 39-46, x 9-30 | guardián `golem_foso`, ronda en vuelta [[11,40],[28,40],[28,44],[11,44]] |
-| Portón | punto `sello` en (18,47), de 128x64 | |
-| Cámara de Morvak | y 49-58 | punto `vigia` FISURA_MORVAK en (20,53) |
-
-- Las salidas (en la entrada y al fondo, al vencer al jefe) vuelven al portal del Volcán: casilla x 33, y 97.
-- `mundo.json` lleva:
-  - `zona: 3`, `interior: true`, `mazmorra: 'fisura'`, `musica: 'cripta'`, `tileset: 'fisura'`;
-  - `mazmorraArte: { brasero: 'cuba', puerta: 'porton_forja', luzPuerta: 0xff8a24 }`;
-  - subzonas con `levels: '36-42'`.
-
-**Front:**
-
-- `shared.js`: `DUNGEONS.fisura = { min: 36, max: 42, codePrefix: 'FISURA_' }`.
-- Opcional: en `cripta.js`, la etiqueta "Encender:" podría leerse de `mazmorraArte.accion` (por ejemplo "Volcar").
-
-### 2. Títulos de zona y música
-
-- En `World.js` agrega a `ZONE_TITLES`: `volcan: ['', 'Volcán Rojo']` y `fisura: ['Mazmorra', 'La Fisura Infernal']`.
-- Lo ideal es un tema de música "volcan" propio en `audio.js`.
-
-### 3. Misiones
-
-Vuelve a correr `gen_misiones_volcan.js`, porque los puntos pueden chocar con los arcos. Aplica el SQL y corre `revisar_misiones.js 3`.
-
-### 4. Pasar el SQL a Supabase
-
-- Agrega los 5 SQL al final de `schema.sql` (y de `db/pendiente_supabase.sql`, que no se commitea), más la fila `balance_versions 'volcan_v1'`.
-- Revisa si la Fisura necesita SQL además de lo que siembra sola en runtime.
-- Actualiza `zona3_volcan.md`: la Fisura es de nivel 36-42, las balseras son Toba y Lapilli, y la balsa cuesta 20 de oro.
-
-### 5. Huecos que se encontraron al revisar los sistemas (A12)
-
-En orden de importancia. Los que no son del Volcán, consultarlos con el usuario antes.
-
-1. **`!` rojo para las misiones principales** (A9, "Las marcas sobre los NPCs"). Pedido del usuario, todavía no hecho.
-2. **Mercader en Ascuaria**: hoy no hay dónde vender el botín en el Volcán (A12.13).
-3. **Atlas del mapa (M)**: la zona 3 está al noreste y sin `dir`; va al sur de las Montañas (A12.17).
-4. **Música propia del Volcán** (y de las Montañas, que hoy usan la de la Pradera) (A12.10).
-5. **`ZONE_TITLES`** para el Volcán y la Fisura (A12.11).
-6. **Huevos en los drops** de los monstruos del Volcán: revisar que estén en todos los que corresponde (A12.2).
-7. **Jefe mítico del Volcán** (y de las Montañas): hoy solo existe en la Pradera (A12.3). Es más grande; proponerlo al usuario.
-8. **Cofres secretos de las Montañas**: tienen 0 (A12.9).
-9. **Pilar menor y Estatua del Viajero en Ascuaria** (A12.14): propuesta.
-
-### 6. Probar todo en el juego (A13) y avisar al usuario
+1. **Jefe mítico del Volcán** (y de las Montañas): hoy solo existe en la Pradera (A12.3). Idea: «Ignivora, la Madre Salamandra», que aparece en las noches de brasas. Hay que generalizar `lib/mythic.js`, porque algunas constantes suponen una sola zona.
+2. **Cofres secretos de las Montañas**: tienen 0 (A12.9).
+3. **Pilar menor y Estatua del Viajero en Ascuaria** (A12.14).
+4. **Tienda propia de Ascuaria** en `artisan_shop`. Hoy Marga vende lo mismo que los artesanos de Aurelia, porque la ventana de comercio muestra todas las tiendas juntas.
+5. En el Taller, mostrar **de dónde sale un material que te falta** (A6, "Mejora pendiente").
+6. **Objetos del mapa con `requiere` / `oculto_tras`**, como los NPCs (A8, phasing).
 
 ## B4. Qué se probó y qué no
 
 **Probado:**
 
-- el simulador;
-- el checker de misiones (antes de los arcos);
-- que el tileset viejo quedó idéntico;
-- el camino `caminov` del editor;
-- el lint;
-- el arte, revisado con láminas.
+- el simulador de equilibrio;
+- el checker de misiones, después de regenerarlas: 44 misiones, 0 problemas;
+- todo el SQL del Volcán: aplicado dos veces seguidas en local, sin errores;
+- que el tileset viejo quedó idéntico y que el camino `caminov` del editor funciona;
+- el lint de todos los archivos del front que se tocaron, y que el back carga;
+- el back temporal por API:
+  - arranca y recalcula `volcan_v1`;
+  - la Fisura responde: sellada sin la llave, con la palabra «Cuba» y 3 guardianes;
+  - la tienda de artesanos responde;
+  - las misiones traen `quest_type`;
+- el arte (brasas, 20 enemigos, 2 fondos, tileset de la Fisura, cuba, portón y Marga) y el mapa entero de la Fisura, revisados con láminas renderizadas.
 
-**Sin probar en el juego:** las brasas, la ceniza, los diálogos, las balsas, los combates con los sprites y fondos nuevos, y la Fisura (todavía no tiene mapa).
+**El usuario prueba el front él mismo.** No levantes el front temporal ni pruebes en el navegador, salvo que lo pida.
+
+Lo que le queda para probar en el juego:
+
+- entrar al Volcán por el Paso del Humo;
+- la ceniza y la música;
+- las brasas y los arcos;
+- hablar con los NPCs;
+- cruzar en balsa;
+- venderle a Marga;
+- los `!` rojos;
+- un combate (sprites y fondo);
+- recorrer la Fisura. Necesita la Llave de Brasa de la V9 o completar la V10. Para probar rápido, se le puede dar la llave a un personaje de prueba en la base local y quitarla al terminar.
+
+## Última actualización
+
+- Commits de referencia: front `de56449` y back `0642b7b` (la primera parte del Volcán).
+- **Lo de esta tanda está sin commitear al escribir esto:** la Fisura, Marga, la música, el `!` rojo, el atlas, las misiones regeneradas y el SQL en `schema.sql`. Revisa `git status` y `git log` para ver si ya se subió y qué se hizo después.

@@ -53,7 +53,7 @@ Cada zona nueva mide como la Pradera: 4×4 trozos (160×120 casillas). Coordenad
 | Aurelia | capital | 20, 120 | 3×3 trozos | hecha |
 | Pradera Dorada | 1-15 | 0, 210 | 4×4 | hecha |
 | Montañas Grises | 16-30 | 160, 210 | 4×4 | hecha |
-| Volcán Rojo | 31-45 | 160, 330 | 4×4 | por hacer |
+| Volcán Rojo | 31-45 | 160, 330 | 4×4 | hecho (hoy en 160, 210 de `etheria.json`) |
 | Bosque de Sylvaren | ciudad élfica (sin nivel) | 0, 330 | 4×4 | por hacer |
 | Costas Muertas | 46-60 | 0, 450 | 8×4 (toda la costa sur) | por hacer |
 | Tundra Eterna | 61-75 | 320, 90 | 4×4 | por hacer |
@@ -75,7 +75,7 @@ seguro: cada zona guarda sus posiciones en coordenadas propias (`toLocal`/`toGlo
 | Aurelia → Pradera | Puerta Sur | desde el inicio | (ya existe) |
 | Pradera → Montañas | Paso de la Montaña (Praderas del Este) | P14 *Hacia las montañas* | (ya existe) |
 | Pradera → Sylvaren | **Senda Élfica** (sur del Bosque de Robleviejo) | desde el inicio (la ciudad se puede visitar) | los elfos dejan pasar a los viajeros, no a los monstruos |
-| Montañas → Volcán | **Garganta del Eco** al sur, y la Mina Profunda por abajo | M6 *El trono de la cumbre* | "el Encapuchado escapa por los túneles hacia el calor" |
+| Montañas → Volcán | **el Paso del Humo**, que baja desde el sur de las Montañas a la Ladera de Ceniza | M14 *El trono de la cumbre* (la V1 «El Paso del Humo» lo abre) | "el Encapuchado escapa por los túneles hacia el calor" |
 | Volcán → Costas | **los ríos de lava** que bajan al mar | V6 | "la lava baja al mar" |
 | Sylvaren → Costas | escalera élfica en el acantilado | atajo: se abre al terminar C3 | los elfos te muestran el camino corto cuando ya conoces la costa |
 | Costas → Tundra | **el barco de Rhaegar** (Puerto Antiguo → Fiordo Blanco) | C6 | igual que las vagonetas: un viaje, no una frontera caminable |

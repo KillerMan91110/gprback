@@ -9571,3 +9571,3820 @@ DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code =
 INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'ATK', 50, FALSE FROM items WHERE code = 'GRAN_ESPADA_DE_HIERRO';
 INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'CRIT_CHANCE', 3.8, TRUE FROM items WHERE code = 'GRAN_ESPADA_DE_HIERRO';
 INSERT INTO balance_versions (version) SELECT 'equipo_v3' WHERE NOT EXISTS (SELECT 1 FROM balance_versions WHERE version = 'equipo_v3');
+
+-- ============================================================================================
+-- VOLCÁN ROJO (zona 3, nivel 31-45) — repetible, sin ON CONFLICT. En orden:
+--   1. monstruos (12 comunes, 2 raros, el Señor de la Caldera y el Titán de Fuego), sus materiales,
+--      habilidades, resistencias y botín
+--   2. equipo y crafteo: Volcán 31, Obsidiana 36, Forja Negra 37 (armas, con lo de la Fisura),
+--      Caldera 40 y Titán de Fuego 45, para las 5 clases, en la Gran Forja de Ignar
+--   3. la escalera del equipo v2/v3 sobre esas piezas (el arma lleva el daño, +7-9% por escalón)
+--   4. comidas de Ascuaria (Tuli) y la Carne de Salamandra
+--   5. misiones: historia V1-V14, 16 secundarias, 3 diarias nuevas y 11 diarias reasignadas
+-- La Fisura Infernal (sus monstruos, objetos y botín) la siembra el servidor al arrancar
+-- (lib/fisura.js): después de correr esto, reiniciar el servidor una vez para que sus monstruos
+-- tomen las habilidades nuevas.
+-- ============================================================================================
+
+
+-- ============================================================================================
+-- Monstruos del Volcán Rojo (repetible; sin ON CONFLICT). Zona 3, nivel 31-45: 12 comunes
+-- (7 nuevos: Lobo de Ceniza, Escarabajo de Azufre, Serpiente de Magma, Gólem de Obsidiana, Draco
+-- de Brasa, Fanático del Eclipse y Diablillo de la Caldera), 2 raros y los 2 jefes. Stats por
+-- fórmula (lib/equilibrio.js, perfiles en scripts/equilibrio/generar.js). Cada uno suelta su
+-- material propio y tiene su habilidad con su estado (quemadura, veneno, maldición…). Además los
+-- materiales que dan los recursos del mapa. Diseño: docs/zona3_volcan.md.
+-- ============================================================================================
+
+-- materiales de la zona
+INSERT INTO items (code, name, item_type, rarity, obtain_method, description)
+SELECT 'ESCAMA_DE_FUEGO', 'Escama de Salamandra', 'MATERIAL', 'COMUN', 'Drop de monstruo', 'Escama roja que sigue tibia horas después de caer. La sueltan las Salamandras Rojas de la Ladera de Ceniza y los Ríos de Lava.'
+WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'ESCAMA_DE_FUEGO');
+UPDATE items SET name = 'Escama de Salamandra', item_type = 'MATERIAL', rarity = 'COMUN', obtain_method = 'Drop de monstruo', description = 'Escama roja que sigue tibia horas después de caer. La sueltan las Salamandras Rojas de la Ladera de Ceniza y los Ríos de Lava.' WHERE code = 'ESCAMA_DE_FUEGO';
+INSERT INTO items (code, name, item_type, rarity, obtain_method, description)
+SELECT 'PELAJE_CENIZA', 'Pelaje de Ceniza', 'MATERIAL', 'COMUN', 'Drop de monstruo', 'Pelo gris que suelta ceniza al sacudirlo. Lo sueltan los Lobos de Ceniza de la Ladera y el Bosque Calcinado.'
+WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'PELAJE_CENIZA');
+UPDATE items SET name = 'Pelaje de Ceniza', item_type = 'MATERIAL', rarity = 'COMUN', obtain_method = 'Drop de monstruo', description = 'Pelo gris que suelta ceniza al sacudirlo. Lo sueltan los Lobos de Ceniza de la Ladera y el Bosque Calcinado.' WHERE code = 'PELAJE_CENIZA';
+INSERT INTO items (code, name, item_type, rarity, obtain_method, description)
+SELECT 'CAPARAZON_AZUFRE', 'Caparazón de Azufre', 'MATERIAL', 'COMUN', 'Drop de monstruo', 'Placa amarilla y dura que huele a huevo podrido. La sueltan los Escarabajos de Azufre de los Campos de Azufre.'
+WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'CAPARAZON_AZUFRE');
+UPDATE items SET name = 'Caparazón de Azufre', item_type = 'MATERIAL', rarity = 'COMUN', obtain_method = 'Drop de monstruo', description = 'Placa amarilla y dura que huele a huevo podrido. La sueltan los Escarabajos de Azufre de los Campos de Azufre.' WHERE code = 'CAPARAZON_AZUFRE';
+INSERT INTO items (code, name, item_type, rarity, obtain_method, description)
+SELECT 'BRASA_DE_BANDIDO', 'Brasa de Bandido', 'MATERIAL', 'COMUN', 'Drop de monstruo', 'Carbón encendido que los Bandidos de Fuego llevan en una lata para prender sus botellas. No se apaga.'
+WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'BRASA_DE_BANDIDO');
+UPDATE items SET name = 'Brasa de Bandido', item_type = 'MATERIAL', rarity = 'COMUN', obtain_method = 'Drop de monstruo', description = 'Carbón encendido que los Bandidos de Fuego llevan en una lata para prender sus botellas. No se apaga.' WHERE code = 'BRASA_DE_BANDIDO';
+INSERT INTO items (code, name, item_type, rarity, obtain_method, description)
+SELECT 'ESENCIA_DE_FUEGO', 'Esencia de Fuego', 'MATERIAL', 'COMUN', 'Drop de monstruo', 'Una llamita que flota dentro de un frasco. La sueltan los Elementales de Fuego de los Campos y los Ríos de Lava.'
+WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'ESENCIA_DE_FUEGO');
+UPDATE items SET name = 'Esencia de Fuego', item_type = 'MATERIAL', rarity = 'COMUN', obtain_method = 'Drop de monstruo', description = 'Una llamita que flota dentro de un frasco. La sueltan los Elementales de Fuego de los Campos y los Ríos de Lava.' WHERE code = 'ESENCIA_DE_FUEGO';
+INSERT INTO items (code, name, item_type, rarity, obtain_method, description)
+SELECT 'COLMILLO_MAGMA', 'Colmillo de Magma', 'MATERIAL', 'COMUN', 'Drop de monstruo', 'Colmillo naranja que gotea roca fundida. Lo sueltan las Serpientes de Magma de los Ríos de Lava.'
+WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'COLMILLO_MAGMA');
+UPDATE items SET name = 'Colmillo de Magma', item_type = 'MATERIAL', rarity = 'COMUN', obtain_method = 'Drop de monstruo', description = 'Colmillo naranja que gotea roca fundida. Lo sueltan las Serpientes de Magma de los Ríos de Lava.' WHERE code = 'COLMILLO_MAGMA';
+INSERT INTO items (code, name, item_type, rarity, obtain_method, description)
+SELECT 'ESQUIRLA_OBSIDIANA', 'Esquirla de Obsidiana', 'MATERIAL', 'COMUN', 'Drop de monstruo', 'Astilla de vidrio negro, filosa como una navaja. La sueltan los Gólems de Obsidiana de la Cantera.'
+WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'ESQUIRLA_OBSIDIANA');
+UPDATE items SET name = 'Esquirla de Obsidiana', item_type = 'MATERIAL', rarity = 'COMUN', obtain_method = 'Drop de monstruo', description = 'Astilla de vidrio negro, filosa como una navaja. La sueltan los Gólems de Obsidiana de la Cantera.' WHERE code = 'ESQUIRLA_OBSIDIANA';
+INSERT INTO items (code, name, item_type, rarity, obtain_method, description)
+SELECT 'NUCLEO_INFERNAL_MENOR', 'Núcleo Infernal', 'MATERIAL', 'COMUN', 'Drop de monstruo', 'Piedra negra con una llama roja adentro: el corazón de los Centinelas Infernales de la Cantera y la Grieta.'
+WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'NUCLEO_INFERNAL_MENOR');
+UPDATE items SET name = 'Núcleo Infernal', item_type = 'MATERIAL', rarity = 'COMUN', obtain_method = 'Drop de monstruo', description = 'Piedra negra con una llama roja adentro: el corazón de los Centinelas Infernales de la Cantera y la Grieta.' WHERE code = 'NUCLEO_INFERNAL_MENOR';
+INSERT INTO items (code, name, item_type, rarity, obtain_method, description)
+SELECT 'ALA_DRACO', 'Ala de Draco', 'MATERIAL', 'COMUN', 'Drop de monstruo', 'Membrana de ala correosa que no se quema. La sueltan los Dracos de Brasa del Nido del Dragón.'
+WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'ALA_DRACO');
+UPDATE items SET name = 'Ala de Draco', item_type = 'MATERIAL', rarity = 'COMUN', obtain_method = 'Drop de monstruo', description = 'Membrana de ala correosa que no se quema. La sueltan los Dracos de Brasa del Nido del Dragón.' WHERE code = 'ALA_DRACO';
+INSERT INTO items (code, name, item_type, rarity, obtain_method, description)
+SELECT 'SELLO_ECLIPSE', 'Sello de Eclipse', 'MATERIAL', 'COMUN', 'Drop de monstruo', 'Disco de hierro con el eclipse negro de los Ocultos. Lo llevan los Fanáticos del Eclipse de la Grieta Ardiente.'
+WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'SELLO_ECLIPSE');
+UPDATE items SET name = 'Sello de Eclipse', item_type = 'MATERIAL', rarity = 'COMUN', obtain_method = 'Drop de monstruo', description = 'Disco de hierro con el eclipse negro de los Ocultos. Lo llevan los Fanáticos del Eclipse de la Grieta Ardiente.' WHERE code = 'SELLO_ECLIPSE';
+INSERT INTO items (code, name, item_type, rarity, obtain_method, description)
+SELECT 'CUERNO_DEMONIO_LAVA', 'Cuerno de Demonio de Lava', 'MATERIAL', 'COMUN', 'Drop de monstruo', 'Cuerno retorcido, caliente como un atizador. Lo sueltan los Demonios de Lava de la Grieta y la Caldera.'
+WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'CUERNO_DEMONIO_LAVA');
+UPDATE items SET name = 'Cuerno de Demonio de Lava', item_type = 'MATERIAL', rarity = 'COMUN', obtain_method = 'Drop de monstruo', description = 'Cuerno retorcido, caliente como un atizador. Lo sueltan los Demonios de Lava de la Grieta y la Caldera.' WHERE code = 'CUERNO_DEMONIO_LAVA';
+INSERT INTO items (code, name, item_type, rarity, obtain_method, description)
+SELECT 'COLA_DIABLILLO', 'Cola de Diablillo', 'MATERIAL', 'COMUN', 'Drop de monstruo', 'Una colita con punta de flecha que se sigue moviendo un rato. La sueltan los Diablillos de la Caldera.'
+WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'COLA_DIABLILLO');
+UPDATE items SET name = 'Cola de Diablillo', item_type = 'MATERIAL', rarity = 'COMUN', obtain_method = 'Drop de monstruo', description = 'Una colita con punta de flecha que se sigue moviendo un rato. La sueltan los Diablillos de la Caldera.' WHERE code = 'COLA_DIABLILLO';
+INSERT INTO items (code, name, item_type, rarity, obtain_method, description)
+SELECT 'CORAZON_DE_BRASA', 'Corazón de Brasa', 'MATERIAL', 'POCO_COMUN', 'Drop de monstruo, geodas', 'Una brasa del tamaño de un puño que late como un corazón. Lo sueltan los Dracos de Brasa y el Dragón Menor; a veces se encuentra en una geoda ardiente. Sin él no se forja el set de Obsidiana.'
+WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'CORAZON_DE_BRASA');
+UPDATE items SET name = 'Corazón de Brasa', item_type = 'MATERIAL', rarity = 'POCO_COMUN', obtain_method = 'Drop de monstruo, geodas', description = 'Una brasa del tamaño de un puño que late como un corazón. Lo sueltan los Dracos de Brasa y el Dragón Menor; a veces se encuentra en una geoda ardiente. Sin él no se forja el set de Obsidiana.' WHERE code = 'CORAZON_DE_BRASA';
+INSERT INTO items (code, name, item_type, rarity, obtain_method, description)
+SELECT 'CRISTAL_DE_LAVA', 'Cristal de Lava', 'MATERIAL', 'POCO_COMUN', 'Drop de monstruo', 'Cristal anaranjado que crece donde la lava se enfría despacio. Lo suelta el Maestro de la Lava.'
+WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'CRISTAL_DE_LAVA');
+UPDATE items SET name = 'Cristal de Lava', item_type = 'MATERIAL', rarity = 'POCO_COMUN', obtain_method = 'Drop de monstruo', description = 'Cristal anaranjado que crece donde la lava se enfría despacio. Lo suelta el Maestro de la Lava.' WHERE code = 'CRISTAL_DE_LAVA';
+INSERT INTO items (code, name, item_type, rarity, obtain_method, description)
+SELECT 'ESCAMA_DRAGON_CORRUPTO', 'Escama de Dragón Corrupto', 'MATERIAL', 'POCO_COMUN', 'Drop de monstruo', 'Escama roja manchada de negro, todavía caliente. La suelta el Dragón Menor Corrupto del Nido.'
+WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'ESCAMA_DRAGON_CORRUPTO');
+UPDATE items SET name = 'Escama de Dragón Corrupto', item_type = 'MATERIAL', rarity = 'POCO_COMUN', obtain_method = 'Drop de monstruo', description = 'Escama roja manchada de negro, todavía caliente. La suelta el Dragón Menor Corrupto del Nido.' WHERE code = 'ESCAMA_DRAGON_CORRUPTO';
+INSERT INTO items (code, name, item_type, rarity, obtain_method, description)
+SELECT 'AZUFRE', 'Azufre', 'MATERIAL', 'COMUN', 'Recolección (fumarolas)', 'Cristales amarillos que se juntan alrededor de las fumarolas de los Campos de Azufre. Huelen fatal.'
+WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'AZUFRE');
+UPDATE items SET name = 'Azufre', item_type = 'MATERIAL', rarity = 'COMUN', obtain_method = 'Recolección (fumarolas)', description = 'Cristales amarillos que se juntan alrededor de las fumarolas de los Campos de Azufre. Huelen fatal.' WHERE code = 'AZUFRE';
+INSERT INTO items (code, name, item_type, rarity, obtain_method, description)
+SELECT 'OBSIDIANA_BRUTA', 'Obsidiana Bruta', 'MATERIAL', 'COMUN', 'Recolección (vetas de obsidiana)', 'Vidrio volcánico negro, sin pulir. Se saca de las vetas de la Cantera de Obsidiana y los Ríos de Lava.'
+WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'OBSIDIANA_BRUTA');
+UPDATE items SET name = 'Obsidiana Bruta', item_type = 'MATERIAL', rarity = 'COMUN', obtain_method = 'Recolección (vetas de obsidiana)', description = 'Vidrio volcánico negro, sin pulir. Se saca de las vetas de la Cantera de Obsidiana y los Ríos de Lava.' WHERE code = 'OBSIDIANA_BRUTA';
+INSERT INTO items (code, name, item_type, rarity, obtain_method, description)
+SELECT 'FLOR_DE_CENIZA', 'Flor de Ceniza', 'MATERIAL', 'COMUN', 'Recolección (flores de ceniza)', 'Una flor gris de pétalos tibios: solo crece en la ceniza caliente del volcán. Se usa en pociones y comidas.'
+WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'FLOR_DE_CENIZA');
+UPDATE items SET name = 'Flor de Ceniza', item_type = 'MATERIAL', rarity = 'COMUN', obtain_method = 'Recolección (flores de ceniza)', description = 'Una flor gris de pétalos tibios: solo crece en la ceniza caliente del volcán. Se usa en pociones y comidas.' WHERE code = 'FLOR_DE_CENIZA';
+INSERT INTO items (code, name, item_type, rarity, obtain_method, description)
+SELECT 'PIEDRA_POMEZ', 'Piedra Pómez', 'MATERIAL', 'COMUN', 'Recolección (nidos y orillas)', 'Piedra volcánica tan liviana que flota, incluso sobre la lava. Con ella hace Pumo sus balsas.'
+WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'PIEDRA_POMEZ');
+UPDATE items SET name = 'Piedra Pómez', item_type = 'MATERIAL', rarity = 'COMUN', obtain_method = 'Recolección (nidos y orillas)', description = 'Piedra volcánica tan liviana que flota, incluso sobre la lava. Con ella hace Pumo sus balsas.' WHERE code = 'PIEDRA_POMEZ';
+INSERT INTO items (code, name, item_type, rarity, obtain_method, description)
+SELECT 'GEMA_DE_FUEGO', 'Gema de Fuego', 'MATERIAL', 'RARO', 'Recolección (geodas ardientes)', 'Gema roja con una llama que se mueve adentro. Se encuentra muy de vez en cuando partiendo una geoda ardiente.'
+WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'GEMA_DE_FUEGO');
+UPDATE items SET name = 'Gema de Fuego', item_type = 'MATERIAL', rarity = 'RARO', obtain_method = 'Recolección (geodas ardientes)', description = 'Gema roja con una llama que se mueve adentro. Se encuentra muy de vez en cuando partiendo una geoda ardiente.' WHERE code = 'GEMA_DE_FUEGO';
+
+-- habilidades nuevas
+
+-- Escupitajo Ígneo
+INSERT INTO skills (code, name, skill_type, damage_school, element_id, target_type, base_value, scaling_stat, scaling_multiplier, hits, mana_cost, is_passive, learn_method, learn_level, learn_gold_cost, description)
+SELECT 'MONSTRUO_ESCUPITAJO_IGNEO', 'Escupitajo Ígneo', 'ATAQUE', 'MAGICO', (SELECT id FROM elements WHERE code = 'FIRE'), 'ENEMY', 4, 'MAG', 1.25, 1, 10, FALSE, 'LEVEL', 1, 0, 'Escupe una bola de fuego pegajosa. Puede dejar al objetivo ardiendo.'
+WHERE NOT EXISTS (SELECT 1 FROM skills WHERE code = 'MONSTRUO_ESCUPITAJO_IGNEO');
+UPDATE skills SET name = 'Escupitajo Ígneo', skill_type = 'ATAQUE', damage_school = 'MAGICO', element_id = (SELECT id FROM elements WHERE code = 'FIRE'), target_type = 'ENEMY', base_value = 4, scaling_stat = 'MAG', scaling_multiplier = 1.25, hits = 1, mana_cost = 10, is_passive = FALSE, learn_method = 'LEVEL', learn_level = 1, learn_gold_cost = 0, description = 'Escupe una bola de fuego pegajosa. Puede dejar al objetivo ardiendo.' WHERE code = 'MONSTRUO_ESCUPITAJO_IGNEO';
+DELETE FROM skill_effects WHERE skill_id = (SELECT id FROM skills WHERE code = 'MONSTRUO_ESCUPITAJO_IGNEO');
+INSERT INTO skill_effects (skill_id, effect_type, stat_code, percent_amount, duration_turns, chance_percent, status_code, description)
+SELECT (SELECT id FROM skills WHERE code = 'MONSTRUO_ESCUPITAJO_IGNEO'), v.* FROM (VALUES ('DOT', NULL, 5::numeric, 3, 30::numeric, 'BURN', 'Quemadura: 5% del HP máximo por ronda durante 3 rondas.'))
+  AS v(effect_type, stat_code, percent_amount, duration_turns, chance_percent, status_code, description);
+
+-- Mordida Ardiente
+INSERT INTO skills (code, name, skill_type, damage_school, element_id, target_type, base_value, scaling_stat, scaling_multiplier, hits, mana_cost, is_passive, learn_method, learn_level, learn_gold_cost, description)
+SELECT 'MONSTRUO_MORDIDA_ARDIENTE', 'Mordida Ardiente', 'ATAQUE', 'FISICO', (SELECT id FROM elements WHERE code = 'FIRE'), 'ENEMY', 4, 'ATK', 1.3, 1, 10, FALSE, 'LEVEL', 1, 0, 'Muerde con los colmillos al rojo. Puede dejar al objetivo ardiendo.'
+WHERE NOT EXISTS (SELECT 1 FROM skills WHERE code = 'MONSTRUO_MORDIDA_ARDIENTE');
+UPDATE skills SET name = 'Mordida Ardiente', skill_type = 'ATAQUE', damage_school = 'FISICO', element_id = (SELECT id FROM elements WHERE code = 'FIRE'), target_type = 'ENEMY', base_value = 4, scaling_stat = 'ATK', scaling_multiplier = 1.3, hits = 1, mana_cost = 10, is_passive = FALSE, learn_method = 'LEVEL', learn_level = 1, learn_gold_cost = 0, description = 'Muerde con los colmillos al rojo. Puede dejar al objetivo ardiendo.' WHERE code = 'MONSTRUO_MORDIDA_ARDIENTE';
+DELETE FROM skill_effects WHERE skill_id = (SELECT id FROM skills WHERE code = 'MONSTRUO_MORDIDA_ARDIENTE');
+INSERT INTO skill_effects (skill_id, effect_type, stat_code, percent_amount, duration_turns, chance_percent, status_code, description)
+SELECT (SELECT id FROM skills WHERE code = 'MONSTRUO_MORDIDA_ARDIENTE'), v.* FROM (VALUES ('DOT', NULL, 5::numeric, 3, 30::numeric, 'BURN', 'Quemadura: 5% del HP máximo por ronda durante 3 rondas.'))
+  AS v(effect_type, stat_code, percent_amount, duration_turns, chance_percent, status_code, description);
+
+-- Nube Sulfurosa
+INSERT INTO skills (code, name, skill_type, damage_school, element_id, target_type, base_value, scaling_stat, scaling_multiplier, hits, mana_cost, is_passive, learn_method, learn_level, learn_gold_cost, description)
+SELECT 'MONSTRUO_NUBE_SULFUROSA', 'Nube Sulfurosa', 'ATAQUE', 'MAGICO', (SELECT id FROM elements WHERE code = 'EARTH'), 'ALL_ENEMIES', 2, 'MAG', 0.7, 1, 15, FALSE, 'LEVEL', 1, 0, 'Suelta una nube amarilla que pica en los ojos y en la garganta de todos.'
+WHERE NOT EXISTS (SELECT 1 FROM skills WHERE code = 'MONSTRUO_NUBE_SULFUROSA');
+UPDATE skills SET name = 'Nube Sulfurosa', skill_type = 'ATAQUE', damage_school = 'MAGICO', element_id = (SELECT id FROM elements WHERE code = 'EARTH'), target_type = 'ALL_ENEMIES', base_value = 2, scaling_stat = 'MAG', scaling_multiplier = 0.7, hits = 1, mana_cost = 15, is_passive = FALSE, learn_method = 'LEVEL', learn_level = 1, learn_gold_cost = 0, description = 'Suelta una nube amarilla que pica en los ojos y en la garganta de todos.' WHERE code = 'MONSTRUO_NUBE_SULFUROSA';
+DELETE FROM skill_effects WHERE skill_id = (SELECT id FROM skills WHERE code = 'MONSTRUO_NUBE_SULFUROSA');
+INSERT INTO skill_effects (skill_id, effect_type, stat_code, percent_amount, duration_turns, chance_percent, status_code, description)
+SELECT (SELECT id FROM skills WHERE code = 'MONSTRUO_NUBE_SULFUROSA'), v.* FROM (VALUES ('DOT', NULL, 4::numeric, 4, 35::numeric, 'POISON', 'Envenenado por el azufre: 4% del HP máximo por ronda durante 4 rondas.'))
+  AS v(effect_type, stat_code, percent_amount, duration_turns, chance_percent, status_code, description);
+
+-- Botella Incendiaria
+INSERT INTO skills (code, name, skill_type, damage_school, element_id, target_type, base_value, scaling_stat, scaling_multiplier, hits, mana_cost, is_passive, learn_method, learn_level, learn_gold_cost, description)
+SELECT 'MONSTRUO_BOTELLA_INCENDIARIA', 'Botella Incendiaria', 'ATAQUE', 'FISICO', (SELECT id FROM elements WHERE code = 'FIRE'), 'ALL_ENEMIES', 3, 'ATK', 0.75, 1, 15, FALSE, 'LEVEL', 1, 0, 'Rompe una botella con aceite encendido a los pies del grupo.'
+WHERE NOT EXISTS (SELECT 1 FROM skills WHERE code = 'MONSTRUO_BOTELLA_INCENDIARIA');
+UPDATE skills SET name = 'Botella Incendiaria', skill_type = 'ATAQUE', damage_school = 'FISICO', element_id = (SELECT id FROM elements WHERE code = 'FIRE'), target_type = 'ALL_ENEMIES', base_value = 3, scaling_stat = 'ATK', scaling_multiplier = 0.75, hits = 1, mana_cost = 15, is_passive = FALSE, learn_method = 'LEVEL', learn_level = 1, learn_gold_cost = 0, description = 'Rompe una botella con aceite encendido a los pies del grupo.' WHERE code = 'MONSTRUO_BOTELLA_INCENDIARIA';
+DELETE FROM skill_effects WHERE skill_id = (SELECT id FROM skills WHERE code = 'MONSTRUO_BOTELLA_INCENDIARIA');
+INSERT INTO skill_effects (skill_id, effect_type, stat_code, percent_amount, duration_turns, chance_percent, status_code, description)
+SELECT (SELECT id FROM skills WHERE code = 'MONSTRUO_BOTELLA_INCENDIARIA'), v.* FROM (VALUES ('DOT', NULL, 4::numeric, 3, 30::numeric, 'BURN', 'Quemadura: 4% del HP máximo por ronda durante 3 rondas.'))
+  AS v(effect_type, stat_code, percent_amount, duration_turns, chance_percent, status_code, description);
+
+-- Llamarada
+INSERT INTO skills (code, name, skill_type, damage_school, element_id, target_type, base_value, scaling_stat, scaling_multiplier, hits, mana_cost, is_passive, learn_method, learn_level, learn_gold_cost, description)
+SELECT 'MONSTRUO_LLAMARADA', 'Llamarada', 'ATAQUE', 'MAGICO', (SELECT id FROM elements WHERE code = 'FIRE'), 'ENEMY', 5, 'MAG', 1.4, 1, 12, FALSE, 'LEVEL', 1, 0, 'Una columna de fuego que envuelve al objetivo.'
+WHERE NOT EXISTS (SELECT 1 FROM skills WHERE code = 'MONSTRUO_LLAMARADA');
+UPDATE skills SET name = 'Llamarada', skill_type = 'ATAQUE', damage_school = 'MAGICO', element_id = (SELECT id FROM elements WHERE code = 'FIRE'), target_type = 'ENEMY', base_value = 5, scaling_stat = 'MAG', scaling_multiplier = 1.4, hits = 1, mana_cost = 12, is_passive = FALSE, learn_method = 'LEVEL', learn_level = 1, learn_gold_cost = 0, description = 'Una columna de fuego que envuelve al objetivo.' WHERE code = 'MONSTRUO_LLAMARADA';
+DELETE FROM skill_effects WHERE skill_id = (SELECT id FROM skills WHERE code = 'MONSTRUO_LLAMARADA');
+INSERT INTO skill_effects (skill_id, effect_type, stat_code, percent_amount, duration_turns, chance_percent, status_code, description)
+SELECT (SELECT id FROM skills WHERE code = 'MONSTRUO_LLAMARADA'), v.* FROM (VALUES ('DOT', NULL, 6::numeric, 3, 35::numeric, 'BURN', 'Quemadura: 6% del HP máximo por ronda durante 3 rondas.'))
+  AS v(effect_type, stat_code, percent_amount, duration_turns, chance_percent, status_code, description);
+
+-- Ola de Magma
+INSERT INTO skills (code, name, skill_type, damage_school, element_id, target_type, base_value, scaling_stat, scaling_multiplier, hits, mana_cost, is_passive, learn_method, learn_level, learn_gold_cost, description)
+SELECT 'MONSTRUO_OLA_MAGMA', 'Ola de Magma', 'ATAQUE', 'MAGICO', (SELECT id FROM elements WHERE code = 'FIRE'), 'ALL_ENEMIES', 3, 'MAG', 0.8, 1, 20, FALSE, 'LEVEL', 1, 0, 'Sale de la lava de golpe y salpica roca fundida sobre todos.'
+WHERE NOT EXISTS (SELECT 1 FROM skills WHERE code = 'MONSTRUO_OLA_MAGMA');
+UPDATE skills SET name = 'Ola de Magma', skill_type = 'ATAQUE', damage_school = 'MAGICO', element_id = (SELECT id FROM elements WHERE code = 'FIRE'), target_type = 'ALL_ENEMIES', base_value = 3, scaling_stat = 'MAG', scaling_multiplier = 0.8, hits = 1, mana_cost = 20, is_passive = FALSE, learn_method = 'LEVEL', learn_level = 1, learn_gold_cost = 0, description = 'Sale de la lava de golpe y salpica roca fundida sobre todos.' WHERE code = 'MONSTRUO_OLA_MAGMA';
+DELETE FROM skill_effects WHERE skill_id = (SELECT id FROM skills WHERE code = 'MONSTRUO_OLA_MAGMA');
+INSERT INTO skill_effects (skill_id, effect_type, stat_code, percent_amount, duration_turns, chance_percent, status_code, description)
+SELECT (SELECT id FROM skills WHERE code = 'MONSTRUO_OLA_MAGMA'), v.* FROM (VALUES ('STAT_MOD', 'SPD', -25::numeric, 3, 30::numeric, 'SLOW', 'Pies pegados de magma: -25% de velocidad durante 3 rondas.'))
+  AS v(effect_type, stat_code, percent_amount, duration_turns, chance_percent, status_code, description);
+
+-- Piel de Vidrio
+INSERT INTO skills (code, name, skill_type, damage_school, element_id, target_type, base_value, scaling_stat, scaling_multiplier, hits, mana_cost, is_passive, learn_method, learn_level, learn_gold_cost, description)
+SELECT 'MONSTRUO_PIEL_VIDRIO', 'Piel de Vidrio', 'BUFF', NULL, NULL, 'SELF', NULL, NULL, NULL, 1, 10, FALSE, 'LEVEL', 1, 0, 'Pule su cuerpo de obsidiana. +35% de defensa y +20% de defensa mágica durante 2 rondas.'
+WHERE NOT EXISTS (SELECT 1 FROM skills WHERE code = 'MONSTRUO_PIEL_VIDRIO');
+UPDATE skills SET name = 'Piel de Vidrio', skill_type = 'BUFF', damage_school = NULL, element_id = NULL, target_type = 'SELF', base_value = NULL, scaling_stat = NULL, scaling_multiplier = NULL, hits = 1, mana_cost = 10, is_passive = FALSE, learn_method = 'LEVEL', learn_level = 1, learn_gold_cost = 0, description = 'Pule su cuerpo de obsidiana. +35% de defensa y +20% de defensa mágica durante 2 rondas.' WHERE code = 'MONSTRUO_PIEL_VIDRIO';
+DELETE FROM skill_effects WHERE skill_id = (SELECT id FROM skills WHERE code = 'MONSTRUO_PIEL_VIDRIO');
+INSERT INTO skill_effects (skill_id, effect_type, stat_code, percent_amount, duration_turns, chance_percent, status_code, description)
+SELECT (SELECT id FROM skills WHERE code = 'MONSTRUO_PIEL_VIDRIO'), v.* FROM (VALUES ('STAT_MOD', 'DEF', 35::numeric, 2, NULL::numeric, NULL, '+35% de defensa durante 2 rondas.'), ('STAT_MOD', 'MAGIC_DEF', 20::numeric, 2, NULL::numeric, NULL, '+20% de defensa mágica durante 2 rondas.'))
+  AS v(effect_type, stat_code, percent_amount, duration_turns, chance_percent, status_code, description);
+
+-- Lluvia de Astillas
+INSERT INTO skills (code, name, skill_type, damage_school, element_id, target_type, base_value, scaling_stat, scaling_multiplier, hits, mana_cost, is_passive, learn_method, learn_level, learn_gold_cost, description)
+SELECT 'MONSTRUO_ASTILLAS', 'Lluvia de Astillas', 'ATAQUE', 'FISICO', NULL, 'ALL_ENEMIES', 3, 'ATK', 0.75, 1, 15, FALSE, 'LEVEL', 1, 0, 'Se sacude y lanza astillas de vidrio negro a todos. Pueden dejar sangrando.'
+WHERE NOT EXISTS (SELECT 1 FROM skills WHERE code = 'MONSTRUO_ASTILLAS');
+UPDATE skills SET name = 'Lluvia de Astillas', skill_type = 'ATAQUE', damage_school = 'FISICO', element_id = NULL, target_type = 'ALL_ENEMIES', base_value = 3, scaling_stat = 'ATK', scaling_multiplier = 0.75, hits = 1, mana_cost = 15, is_passive = FALSE, learn_method = 'LEVEL', learn_level = 1, learn_gold_cost = 0, description = 'Se sacude y lanza astillas de vidrio negro a todos. Pueden dejar sangrando.' WHERE code = 'MONSTRUO_ASTILLAS';
+DELETE FROM skill_effects WHERE skill_id = (SELECT id FROM skills WHERE code = 'MONSTRUO_ASTILLAS');
+INSERT INTO skill_effects (skill_id, effect_type, stat_code, percent_amount, duration_turns, chance_percent, status_code, description)
+SELECT (SELECT id FROM skills WHERE code = 'MONSTRUO_ASTILLAS'), v.* FROM (VALUES ('DOT', NULL, 4::numeric, 3, 30::numeric, 'BLEED', 'Sangrado: 4% del HP máximo por ronda durante 3 rondas.'))
+  AS v(effect_type, stat_code, percent_amount, duration_turns, chance_percent, status_code, description);
+
+-- Golpe Infernal
+INSERT INTO skills (code, name, skill_type, damage_school, element_id, target_type, base_value, scaling_stat, scaling_multiplier, hits, mana_cost, is_passive, learn_method, learn_level, learn_gold_cost, description)
+SELECT 'MONSTRUO_GOLPE_INFERNAL', 'Golpe Infernal', 'ATAQUE', 'FISICO', (SELECT id FROM elements WHERE code = 'FIRE'), 'ENEMY', 5, 'ATK', 1.35, 1, 12, FALSE, 'LEVEL', 1, 0, 'Un mazazo envuelto en fuego rojo que deja sin fuerzas.'
+WHERE NOT EXISTS (SELECT 1 FROM skills WHERE code = 'MONSTRUO_GOLPE_INFERNAL');
+UPDATE skills SET name = 'Golpe Infernal', skill_type = 'ATAQUE', damage_school = 'FISICO', element_id = (SELECT id FROM elements WHERE code = 'FIRE'), target_type = 'ENEMY', base_value = 5, scaling_stat = 'ATK', scaling_multiplier = 1.35, hits = 1, mana_cost = 12, is_passive = FALSE, learn_method = 'LEVEL', learn_level = 1, learn_gold_cost = 0, description = 'Un mazazo envuelto en fuego rojo que deja sin fuerzas.' WHERE code = 'MONSTRUO_GOLPE_INFERNAL';
+DELETE FROM skill_effects WHERE skill_id = (SELECT id FROM skills WHERE code = 'MONSTRUO_GOLPE_INFERNAL');
+INSERT INTO skill_effects (skill_id, effect_type, stat_code, percent_amount, duration_turns, chance_percent, status_code, description)
+SELECT (SELECT id FROM skills WHERE code = 'MONSTRUO_GOLPE_INFERNAL'), v.* FROM (VALUES ('STAT_MOD', 'ATK', -10::numeric, 3, 35::numeric, 'WEAKEN', 'Debilidad: -10% de ataque durante 3 rondas.'))
+  AS v(effect_type, stat_code, percent_amount, duration_turns, chance_percent, status_code, description);
+
+-- Aliento de Brasa
+INSERT INTO skills (code, name, skill_type, damage_school, element_id, target_type, base_value, scaling_stat, scaling_multiplier, hits, mana_cost, is_passive, learn_method, learn_level, learn_gold_cost, description)
+SELECT 'MONSTRUO_ALIENTO_BRASA', 'Aliento de Brasa', 'ATAQUE', 'MAGICO', (SELECT id FROM elements WHERE code = 'FIRE'), 'ALL_ENEMIES', 3, 'MAG', 0.8, 1, 20, FALSE, 'LEVEL', 1, 0, 'Sopla brasas sobre todos sus enemigos.'
+WHERE NOT EXISTS (SELECT 1 FROM skills WHERE code = 'MONSTRUO_ALIENTO_BRASA');
+UPDATE skills SET name = 'Aliento de Brasa', skill_type = 'ATAQUE', damage_school = 'MAGICO', element_id = (SELECT id FROM elements WHERE code = 'FIRE'), target_type = 'ALL_ENEMIES', base_value = 3, scaling_stat = 'MAG', scaling_multiplier = 0.8, hits = 1, mana_cost = 20, is_passive = FALSE, learn_method = 'LEVEL', learn_level = 1, learn_gold_cost = 0, description = 'Sopla brasas sobre todos sus enemigos.' WHERE code = 'MONSTRUO_ALIENTO_BRASA';
+DELETE FROM skill_effects WHERE skill_id = (SELECT id FROM skills WHERE code = 'MONSTRUO_ALIENTO_BRASA');
+INSERT INTO skill_effects (skill_id, effect_type, stat_code, percent_amount, duration_turns, chance_percent, status_code, description)
+SELECT (SELECT id FROM skills WHERE code = 'MONSTRUO_ALIENTO_BRASA'), v.* FROM (VALUES ('DOT', NULL, 4::numeric, 3, 30::numeric, 'BURN', 'Quemadura: 4% del HP máximo por ronda durante 3 rondas.'))
+  AS v(effect_type, stat_code, percent_amount, duration_turns, chance_percent, status_code, description);
+
+-- Rezo del Eclipse
+INSERT INTO skills (code, name, skill_type, damage_school, element_id, target_type, base_value, scaling_stat, scaling_multiplier, hits, mana_cost, is_passive, learn_method, learn_level, learn_gold_cost, description)
+SELECT 'MONSTRUO_REZO_OSCURO', 'Rezo del Eclipse', 'ATAQUE', 'MAGICO', (SELECT id FROM elements WHERE code = 'DARK'), 'ENEMY', 4, 'MAG', 1.3, 1, 12, FALSE, 'LEVEL', 1, 0, 'Reza al eclipse y una sombra muerde al objetivo. Puede dejarlo maldito.'
+WHERE NOT EXISTS (SELECT 1 FROM skills WHERE code = 'MONSTRUO_REZO_OSCURO');
+UPDATE skills SET name = 'Rezo del Eclipse', skill_type = 'ATAQUE', damage_school = 'MAGICO', element_id = (SELECT id FROM elements WHERE code = 'DARK'), target_type = 'ENEMY', base_value = 4, scaling_stat = 'MAG', scaling_multiplier = 1.3, hits = 1, mana_cost = 12, is_passive = FALSE, learn_method = 'LEVEL', learn_level = 1, learn_gold_cost = 0, description = 'Reza al eclipse y una sombra muerde al objetivo. Puede dejarlo maldito.' WHERE code = 'MONSTRUO_REZO_OSCURO';
+DELETE FROM skill_effects WHERE skill_id = (SELECT id FROM skills WHERE code = 'MONSTRUO_REZO_OSCURO');
+INSERT INTO skill_effects (skill_id, effect_type, stat_code, percent_amount, duration_turns, chance_percent, status_code, description)
+SELECT (SELECT id FROM skills WHERE code = 'MONSTRUO_REZO_OSCURO'), v.* FROM (VALUES ('STAT_MOD', 'ATK', -15::numeric, 3, 35::numeric, 'WEAKEN', 'Maldición del eclipse: -15% de ataque durante 3 rondas.'))
+  AS v(effect_type, stat_code, percent_amount, duration_turns, chance_percent, status_code, description);
+
+-- Puño de Lava
+INSERT INTO skills (code, name, skill_type, damage_school, element_id, target_type, base_value, scaling_stat, scaling_multiplier, hits, mana_cost, is_passive, learn_method, learn_level, learn_gold_cost, description)
+SELECT 'MONSTRUO_PUNO_LAVA', 'Puño de Lava', 'ATAQUE', 'FISICO', (SELECT id FROM elements WHERE code = 'FIRE'), 'ENEMY', 5, 'ATK', 1.4, 1, 12, FALSE, 'LEVEL', 1, 0, 'Un puñetazo de roca fundida. Puede dejar al objetivo ardiendo.'
+WHERE NOT EXISTS (SELECT 1 FROM skills WHERE code = 'MONSTRUO_PUNO_LAVA');
+UPDATE skills SET name = 'Puño de Lava', skill_type = 'ATAQUE', damage_school = 'FISICO', element_id = (SELECT id FROM elements WHERE code = 'FIRE'), target_type = 'ENEMY', base_value = 5, scaling_stat = 'ATK', scaling_multiplier = 1.4, hits = 1, mana_cost = 12, is_passive = FALSE, learn_method = 'LEVEL', learn_level = 1, learn_gold_cost = 0, description = 'Un puñetazo de roca fundida. Puede dejar al objetivo ardiendo.' WHERE code = 'MONSTRUO_PUNO_LAVA';
+DELETE FROM skill_effects WHERE skill_id = (SELECT id FROM skills WHERE code = 'MONSTRUO_PUNO_LAVA');
+INSERT INTO skill_effects (skill_id, effect_type, stat_code, percent_amount, duration_turns, chance_percent, status_code, description)
+SELECT (SELECT id FROM skills WHERE code = 'MONSTRUO_PUNO_LAVA'), v.* FROM (VALUES ('DOT', NULL, 6::numeric, 3, 35::numeric, 'BURN', 'Quemadura: 6% del HP máximo por ronda durante 3 rondas.'))
+  AS v(effect_type, stat_code, percent_amount, duration_turns, chance_percent, status_code, description);
+
+-- Pinchazo al Rojo
+INSERT INTO skills (code, name, skill_type, damage_school, element_id, target_type, base_value, scaling_stat, scaling_multiplier, hits, mana_cost, is_passive, learn_method, learn_level, learn_gold_cost, description)
+SELECT 'MONSTRUO_PINCHAZO', 'Pinchazo al Rojo', 'ATAQUE', 'FISICO', (SELECT id FROM elements WHERE code = 'FIRE'), 'ENEMY', 4, 'ATK', 1.3, 1, 10, FALSE, 'LEVEL', 1, 0, 'Pincha con su tridente al rojo vivo, riéndose.'
+WHERE NOT EXISTS (SELECT 1 FROM skills WHERE code = 'MONSTRUO_PINCHAZO');
+UPDATE skills SET name = 'Pinchazo al Rojo', skill_type = 'ATAQUE', damage_school = 'FISICO', element_id = (SELECT id FROM elements WHERE code = 'FIRE'), target_type = 'ENEMY', base_value = 4, scaling_stat = 'ATK', scaling_multiplier = 1.3, hits = 1, mana_cost = 10, is_passive = FALSE, learn_method = 'LEVEL', learn_level = 1, learn_gold_cost = 0, description = 'Pincha con su tridente al rojo vivo, riéndose.' WHERE code = 'MONSTRUO_PINCHAZO';
+DELETE FROM skill_effects WHERE skill_id = (SELECT id FROM skills WHERE code = 'MONSTRUO_PINCHAZO');
+INSERT INTO skill_effects (skill_id, effect_type, stat_code, percent_amount, duration_turns, chance_percent, status_code, description)
+SELECT (SELECT id FROM skills WHERE code = 'MONSTRUO_PINCHAZO'), v.* FROM (VALUES ('DOT', NULL, 5::numeric, 3, 30::numeric, 'BURN', 'Quemadura: 5% del HP máximo por ronda durante 3 rondas.'))
+  AS v(effect_type, stat_code, percent_amount, duration_turns, chance_percent, status_code, description);
+
+-- Risa Burlona
+INSERT INTO skills (code, name, skill_type, damage_school, element_id, target_type, base_value, scaling_stat, scaling_multiplier, hits, mana_cost, is_passive, learn_method, learn_level, learn_gold_cost, description)
+SELECT 'MONSTRUO_RISA_DIABLILLO', 'Risa Burlona', 'ATAQUE', 'MAGICO', (SELECT id FROM elements WHERE code = 'DARK'), 'ALL_ENEMIES', 2, 'MAG', 0.5, 1, 15, FALSE, 'LEVEL', 1, 0, 'Una risa que pone los pelos de punta: a todos les tiemblan las manos.'
+WHERE NOT EXISTS (SELECT 1 FROM skills WHERE code = 'MONSTRUO_RISA_DIABLILLO');
+UPDATE skills SET name = 'Risa Burlona', skill_type = 'ATAQUE', damage_school = 'MAGICO', element_id = (SELECT id FROM elements WHERE code = 'DARK'), target_type = 'ALL_ENEMIES', base_value = 2, scaling_stat = 'MAG', scaling_multiplier = 0.5, hits = 1, mana_cost = 15, is_passive = FALSE, learn_method = 'LEVEL', learn_level = 1, learn_gold_cost = 0, description = 'Una risa que pone los pelos de punta: a todos les tiemblan las manos.' WHERE code = 'MONSTRUO_RISA_DIABLILLO';
+DELETE FROM skill_effects WHERE skill_id = (SELECT id FROM skills WHERE code = 'MONSTRUO_RISA_DIABLILLO');
+INSERT INTO skill_effects (skill_id, effect_type, stat_code, percent_amount, duration_turns, chance_percent, status_code, description)
+SELECT (SELECT id FROM skills WHERE code = 'MONSTRUO_RISA_DIABLILLO'), v.* FROM (VALUES ('BLIND', NULL, 20::numeric, 3, 35::numeric, 'BLIND', 'Asustado: 20% de fallar sus golpes durante 3 rondas.'))
+  AS v(effect_type, stat_code, percent_amount, duration_turns, chance_percent, status_code, description);
+
+-- Cadena de Fuego
+INSERT INTO skills (code, name, skill_type, damage_school, element_id, target_type, base_value, scaling_stat, scaling_multiplier, hits, mana_cost, is_passive, learn_method, learn_level, learn_gold_cost, description)
+SELECT 'MONSTRUO_CADENA_FUEGO', 'Cadena de Fuego', 'ATAQUE', 'MAGICO', (SELECT id FROM elements WHERE code = 'FIRE'), 'ALL_ENEMIES', 3, 'MAG', 0.85, 1, 20, FALSE, 'LEVEL', 1, 0, 'Lanza una cadena de lava que salta de un enemigo a otro.'
+WHERE NOT EXISTS (SELECT 1 FROM skills WHERE code = 'MONSTRUO_CADENA_FUEGO');
+UPDATE skills SET name = 'Cadena de Fuego', skill_type = 'ATAQUE', damage_school = 'MAGICO', element_id = (SELECT id FROM elements WHERE code = 'FIRE'), target_type = 'ALL_ENEMIES', base_value = 3, scaling_stat = 'MAG', scaling_multiplier = 0.85, hits = 1, mana_cost = 20, is_passive = FALSE, learn_method = 'LEVEL', learn_level = 1, learn_gold_cost = 0, description = 'Lanza una cadena de lava que salta de un enemigo a otro.' WHERE code = 'MONSTRUO_CADENA_FUEGO';
+DELETE FROM skill_effects WHERE skill_id = (SELECT id FROM skills WHERE code = 'MONSTRUO_CADENA_FUEGO');
+INSERT INTO skill_effects (skill_id, effect_type, stat_code, percent_amount, duration_turns, chance_percent, status_code, description)
+SELECT (SELECT id FROM skills WHERE code = 'MONSTRUO_CADENA_FUEGO'), v.* FROM (VALUES ('DOT', NULL, 5::numeric, 3, 35::numeric, 'BURN', 'Quemadura: 5% del HP máximo por ronda durante 3 rondas.'))
+  AS v(effect_type, stat_code, percent_amount, duration_turns, chance_percent, status_code, description);
+
+-- Erupción
+INSERT INTO skills (code, name, skill_type, damage_school, element_id, target_type, base_value, scaling_stat, scaling_multiplier, hits, mana_cost, is_passive, learn_method, learn_level, learn_gold_cost, description)
+SELECT 'MONSTRUO_ERUPCION_CALDERA', 'Erupción', 'ATAQUE', 'MAGICO', (SELECT id FROM elements WHERE code = 'FIRE'), 'ALL_ENEMIES', 4, 'MAG', 0.9, 1, 25, FALSE, 'LEVEL', 1, 0, 'Golpea el suelo y el volcán responde: lava y piedras ardientes sobre todos.'
+WHERE NOT EXISTS (SELECT 1 FROM skills WHERE code = 'MONSTRUO_ERUPCION_CALDERA');
+UPDATE skills SET name = 'Erupción', skill_type = 'ATAQUE', damage_school = 'MAGICO', element_id = (SELECT id FROM elements WHERE code = 'FIRE'), target_type = 'ALL_ENEMIES', base_value = 4, scaling_stat = 'MAG', scaling_multiplier = 0.9, hits = 1, mana_cost = 25, is_passive = FALSE, learn_method = 'LEVEL', learn_level = 1, learn_gold_cost = 0, description = 'Golpea el suelo y el volcán responde: lava y piedras ardientes sobre todos.' WHERE code = 'MONSTRUO_ERUPCION_CALDERA';
+DELETE FROM skill_effects WHERE skill_id = (SELECT id FROM skills WHERE code = 'MONSTRUO_ERUPCION_CALDERA');
+INSERT INTO skill_effects (skill_id, effect_type, stat_code, percent_amount, duration_turns, chance_percent, status_code, description)
+SELECT (SELECT id FROM skills WHERE code = 'MONSTRUO_ERUPCION_CALDERA'), v.* FROM (VALUES ('DOT', NULL, 5::numeric, 3, 35::numeric, 'BURN', 'Quemadura: 5% del HP máximo por ronda durante 3 rondas.'))
+  AS v(effect_type, stat_code, percent_amount, duration_turns, chance_percent, status_code, description);
+
+-- Coraza de Magma
+INSERT INTO skills (code, name, skill_type, damage_school, element_id, target_type, base_value, scaling_stat, scaling_multiplier, hits, mana_cost, is_passive, learn_method, learn_level, learn_gold_cost, description)
+SELECT 'MONSTRUO_CORAZA_MAGMA', 'Coraza de Magma', 'BUFF', NULL, NULL, 'SELF', NULL, NULL, NULL, 1, 15, FALSE, 'LEVEL', 1, 0, 'La lava de su cuerpo se endurece. +30% de defensa y +30% de defensa mágica durante 2 rondas.'
+WHERE NOT EXISTS (SELECT 1 FROM skills WHERE code = 'MONSTRUO_CORAZA_MAGMA');
+UPDATE skills SET name = 'Coraza de Magma', skill_type = 'BUFF', damage_school = NULL, element_id = NULL, target_type = 'SELF', base_value = NULL, scaling_stat = NULL, scaling_multiplier = NULL, hits = 1, mana_cost = 15, is_passive = FALSE, learn_method = 'LEVEL', learn_level = 1, learn_gold_cost = 0, description = 'La lava de su cuerpo se endurece. +30% de defensa y +30% de defensa mágica durante 2 rondas.' WHERE code = 'MONSTRUO_CORAZA_MAGMA';
+DELETE FROM skill_effects WHERE skill_id = (SELECT id FROM skills WHERE code = 'MONSTRUO_CORAZA_MAGMA');
+INSERT INTO skill_effects (skill_id, effect_type, stat_code, percent_amount, duration_turns, chance_percent, status_code, description)
+SELECT (SELECT id FROM skills WHERE code = 'MONSTRUO_CORAZA_MAGMA'), v.* FROM (VALUES ('STAT_MOD', 'DEF', 30::numeric, 2, NULL::numeric, NULL, '+30% de defensa durante 2 rondas.'), ('STAT_MOD', 'MAGIC_DEF', 30::numeric, 2, NULL::numeric, NULL, '+30% de defensa mágica durante 2 rondas.'))
+  AS v(effect_type, stat_code, percent_amount, duration_turns, chance_percent, status_code, description);
+
+-- Salamandra Roja
+INSERT INTO monsters (code, name, zone_id, rarity, base_level, min_spawn_level, max_spawn_level, base_hp, base_atk, base_def, base_magic_atk, base_magic_def, base_spd, base_evasion, base_crit_chance, base_crit_damage, xp_reward, gold_reward, description, category, element_id)
+SELECT 'SALAMANDRA_ROJA', 'Salamandra Roja', 3, 'COMMON', 31, 31, 34, 2070, 54, 164, 141, 181, 81, 14, 12, 50, 875, 235, 'Lagarto rojo del largo de un brazo que nada en la lava como si fuera agua. Escupe fuego cuando se asusta.', 'BESTIA', (SELECT id FROM elements WHERE code = 'FIRE')
+WHERE NOT EXISTS (SELECT 1 FROM monsters WHERE code = 'SALAMANDRA_ROJA');
+UPDATE monsters SET name = 'Salamandra Roja', zone_id = 3, rarity = 'COMMON', base_level = 31, min_spawn_level = 31, max_spawn_level = 34, base_hp = 2070, base_atk = 54, base_def = 164, base_magic_atk = 141, base_magic_def = 181, base_spd = 81, base_evasion = 14, base_crit_chance = 12, base_crit_damage = 50, xp_reward = 875, gold_reward = 235, description = 'Lagarto rojo del largo de un brazo que nada en la lava como si fuera agua. Escupe fuego cuando se asusta.', category = 'BESTIA', element_id = (SELECT id FROM elements WHERE code = 'FIRE') WHERE code = 'SALAMANDRA_ROJA';
+DELETE FROM monster_level_scalings WHERE monster_id = (SELECT id FROM monsters WHERE code = 'SALAMANDRA_ROJA');
+INSERT INTO monster_level_scalings (monster_id, level, hp, atk, def, magic_atk, magic_def, spd, evasion, crit_chance, crit_damage, elemental_damage)
+SELECT (SELECT id FROM monsters WHERE code = 'SALAMANDRA_ROJA'), v.* FROM (VALUES
+  (31, 2070, 54, 164, 141, 181, 81, 14, 12, 50, 0),
+  (34, 2273, 58, 177, 153, 196, 87, 14.9, 12.6, 50, 0),
+  (45, 3015, 76, 227, 200, 250, 113, 18.2, 14.8, 50, 0)
+) AS v(level, hp, atk, def, magic_atk, magic_def, spd, evasion, crit_chance, crit_damage, elemental_damage);
+DELETE FROM monster_element_resistances WHERE monster_id = (SELECT id FROM monsters WHERE code = 'SALAMANDRA_ROJA');
+INSERT INTO monster_element_resistances (monster_id, element_id, resistance_percent)
+SELECT (SELECT id FROM monsters WHERE code = 'SALAMANDRA_ROJA'), e.id, COALESCE(v.pct, 0) FROM elements e LEFT JOIN (VALUES ('FIRE', 50), ('WATER', -40), ('ICE', -30)) AS v(code, pct) ON v.code = e.code;
+DELETE FROM monster_drops WHERE monster_id = (SELECT id FROM monsters WHERE code = 'SALAMANDRA_ROJA');
+INSERT INTO monster_drops (monster_id, item_id, drop_chance_percent, min_quantity, max_quantity)
+SELECT (SELECT id FROM monsters WHERE code = 'SALAMANDRA_ROJA'), i.id, v.pct, v.mn, v.mx FROM (VALUES ('ESCAMA_DE_FUEGO', 30, 1, 2), ('PIEDRA_POMEZ', 8, 1, 2), ('HUEVO_POCO_COMUN', 3, 1, 1)) AS v(code, pct, mn, mx)
+JOIN items i ON i.code = v.code;
+DELETE FROM monster_skills WHERE monster_id = (SELECT id FROM monsters WHERE code = 'SALAMANDRA_ROJA');
+INSERT INTO monster_skills (monster_id, skill_id, use_chance_percent)
+SELECT (SELECT id FROM monsters WHERE code = 'SALAMANDRA_ROJA'), s.id, v.pct FROM (VALUES ('MONSTRUO_ESCUPITAJO_IGNEO', 30)) AS v(code, pct) JOIN skills s ON s.code = v.code;
+
+-- Lobo de Ceniza
+INSERT INTO monsters (code, name, zone_id, rarity, base_level, min_spawn_level, max_spawn_level, base_hp, base_atk, base_def, base_magic_atk, base_magic_def, base_spd, base_evasion, base_crit_chance, base_crit_damage, xp_reward, gold_reward, description, category, element_id)
+SELECT 'LOBO_CENIZA', 'Lobo de Ceniza', 3, 'COMMON', 31, 31, 35, 2300, 134, 182, 67, 148, 88, 14, 15, 50, 875, 235, 'Lobo gris que se revuelca en la ceniza tibia para esconderse. Sus ojos brillan como brasas.', 'BESTIA', (SELECT id FROM elements WHERE code = 'FIRE')
+WHERE NOT EXISTS (SELECT 1 FROM monsters WHERE code = 'LOBO_CENIZA');
+UPDATE monsters SET name = 'Lobo de Ceniza', zone_id = 3, rarity = 'COMMON', base_level = 31, min_spawn_level = 31, max_spawn_level = 35, base_hp = 2300, base_atk = 134, base_def = 182, base_magic_atk = 67, base_magic_def = 148, base_spd = 88, base_evasion = 14, base_crit_chance = 15, base_crit_damage = 50, xp_reward = 875, gold_reward = 235, description = 'Lobo gris que se revuelca en la ceniza tibia para esconderse. Sus ojos brillan como brasas.', category = 'BESTIA', element_id = (SELECT id FROM elements WHERE code = 'FIRE') WHERE code = 'LOBO_CENIZA';
+DELETE FROM monster_level_scalings WHERE monster_id = (SELECT id FROM monsters WHERE code = 'LOBO_CENIZA');
+INSERT INTO monster_level_scalings (monster_id, level, hp, atk, def, magic_atk, magic_def, spd, evasion, crit_chance, crit_damage, elemental_damage)
+SELECT (SELECT id FROM monsters WHERE code = 'LOBO_CENIZA'), v.* FROM (VALUES
+  (31, 2300, 134, 182, 67, 148, 88, 14, 15, 50, 0),
+  (35, 2600, 150, 202, 75, 164, 98, 15.2, 15.8, 50, 0),
+  (45, 3350, 190, 252, 95, 205, 123, 18.2, 17.8, 50, 0)
+) AS v(level, hp, atk, def, magic_atk, magic_def, spd, evasion, crit_chance, crit_damage, elemental_damage);
+DELETE FROM monster_element_resistances WHERE monster_id = (SELECT id FROM monsters WHERE code = 'LOBO_CENIZA');
+INSERT INTO monster_element_resistances (monster_id, element_id, resistance_percent)
+SELECT (SELECT id FROM monsters WHERE code = 'LOBO_CENIZA'), e.id, COALESCE(v.pct, 0) FROM elements e LEFT JOIN (VALUES ('FIRE', 30), ('WATER', -30)) AS v(code, pct) ON v.code = e.code;
+DELETE FROM monster_drops WHERE monster_id = (SELECT id FROM monsters WHERE code = 'LOBO_CENIZA');
+INSERT INTO monster_drops (monster_id, item_id, drop_chance_percent, min_quantity, max_quantity)
+SELECT (SELECT id FROM monsters WHERE code = 'LOBO_CENIZA'), i.id, v.pct, v.mn, v.mx FROM (VALUES ('PELAJE_CENIZA', 30, 1, 2), ('CUERO_CRUDO', 12, 1, 2), ('HUEVO_POCO_COMUN', 3, 1, 1)) AS v(code, pct, mn, mx)
+JOIN items i ON i.code = v.code;
+DELETE FROM monster_skills WHERE monster_id = (SELECT id FROM monsters WHERE code = 'LOBO_CENIZA');
+INSERT INTO monster_skills (monster_id, skill_id, use_chance_percent)
+SELECT (SELECT id FROM monsters WHERE code = 'LOBO_CENIZA'), s.id, v.pct FROM (VALUES ('MONSTRUO_MORDIDA_ARDIENTE', 30), ('MONSTRUO_AULLIDO_MANADA', 15)) AS v(code, pct) JOIN skills s ON s.code = v.code;
+
+-- Escarabajo de Azufre
+INSERT INTO monsters (code, name, zone_id, rarity, base_level, min_spawn_level, max_spawn_level, base_hp, base_atk, base_def, base_magic_atk, base_magic_def, base_spd, base_evasion, base_crit_chance, base_crit_damage, xp_reward, gold_reward, description, category, element_id)
+SELECT 'ESCARABAJO_AZUFRE', 'Escarabajo de Azufre', 3, 'COMMON', 32, 32, 35, 2613, 55, 234, 145, 152, 58, 14.3, 12.2, 50, 900, 240, 'Escarabajo amarillo del tamaño de un perro. Come azufre y lo devuelve en nubes que hacen llorar.', 'BESTIA', (SELECT id FROM elements WHERE code = 'EARTH')
+WHERE NOT EXISTS (SELECT 1 FROM monsters WHERE code = 'ESCARABAJO_AZUFRE');
+UPDATE monsters SET name = 'Escarabajo de Azufre', zone_id = 3, rarity = 'COMMON', base_level = 32, min_spawn_level = 32, max_spawn_level = 35, base_hp = 2613, base_atk = 55, base_def = 234, base_magic_atk = 145, base_magic_def = 152, base_spd = 58, base_evasion = 14.3, base_crit_chance = 12.2, base_crit_damage = 50, xp_reward = 900, gold_reward = 240, description = 'Escarabajo amarillo del tamaño de un perro. Come azufre y lo devuelve en nubes que hacen llorar.', category = 'BESTIA', element_id = (SELECT id FROM elements WHERE code = 'EARTH') WHERE code = 'ESCARABAJO_AZUFRE';
+DELETE FROM monster_level_scalings WHERE monster_id = (SELECT id FROM monsters WHERE code = 'ESCARABAJO_AZUFRE');
+INSERT INTO monster_level_scalings (monster_id, level, hp, atk, def, magic_atk, magic_def, spd, evasion, crit_chance, crit_damage, elemental_damage)
+SELECT (SELECT id FROM monsters WHERE code = 'ESCARABAJO_AZUFRE'), v.* FROM (VALUES
+  (32, 2613, 55, 234, 145, 152, 58, 14.3, 12.2, 50, 0),
+  (35, 2860, 60, 253, 158, 164, 62, 15.2, 12.8, 50, 0),
+  (45, 3685, 76, 315, 200, 205, 78, 18.2, 14.8, 50, 0)
+) AS v(level, hp, atk, def, magic_atk, magic_def, spd, evasion, crit_chance, crit_damage, elemental_damage);
+DELETE FROM monster_element_resistances WHERE monster_id = (SELECT id FROM monsters WHERE code = 'ESCARABAJO_AZUFRE');
+INSERT INTO monster_element_resistances (monster_id, element_id, resistance_percent)
+SELECT (SELECT id FROM monsters WHERE code = 'ESCARABAJO_AZUFRE'), e.id, COALESCE(v.pct, 0) FROM elements e LEFT JOIN (VALUES ('EARTH', 25), ('FIRE', 20), ('WIND', -30)) AS v(code, pct) ON v.code = e.code;
+DELETE FROM monster_drops WHERE monster_id = (SELECT id FROM monsters WHERE code = 'ESCARABAJO_AZUFRE');
+INSERT INTO monster_drops (monster_id, item_id, drop_chance_percent, min_quantity, max_quantity)
+SELECT (SELECT id FROM monsters WHERE code = 'ESCARABAJO_AZUFRE'), i.id, v.pct, v.mn, v.mx FROM (VALUES ('CAPARAZON_AZUFRE', 30, 1, 2), ('AZUFRE', 12, 1, 2), ('HUEVO_POCO_COMUN', 3, 1, 1)) AS v(code, pct, mn, mx)
+JOIN items i ON i.code = v.code;
+DELETE FROM monster_skills WHERE monster_id = (SELECT id FROM monsters WHERE code = 'ESCARABAJO_AZUFRE');
+INSERT INTO monster_skills (monster_id, skill_id, use_chance_percent)
+SELECT (SELECT id FROM monsters WHERE code = 'ESCARABAJO_AZUFRE'), s.id, v.pct FROM (VALUES ('MONSTRUO_NUBE_SULFUROSA', 30)) AS v(code, pct) JOIN skills s ON s.code = v.code;
+
+-- Bandido de Fuego
+INSERT INTO monsters (code, name, zone_id, rarity, base_level, min_spawn_level, max_spawn_level, base_hp, base_atk, base_def, base_magic_atk, base_magic_def, base_spd, base_evasion, base_crit_chance, base_crit_damage, xp_reward, gold_reward, description, category, element_id)
+SELECT 'BANDIDO_FUEGO', 'Bandido de Fuego', 3, 'COMMON', 32, 32, 36, 2375, 152, 178, 76, 152, 76, 14.3, 12.2, 50, 900, 240, 'Bandido con la cara tiznada que asalta las caravanas de Ascuaria. Lanza botellas con aceite encendido.', 'HUMANOIDE', (SELECT id FROM elements WHERE code = 'FIRE')
+WHERE NOT EXISTS (SELECT 1 FROM monsters WHERE code = 'BANDIDO_FUEGO');
+UPDATE monsters SET name = 'Bandido de Fuego', zone_id = 3, rarity = 'COMMON', base_level = 32, min_spawn_level = 32, max_spawn_level = 36, base_hp = 2375, base_atk = 152, base_def = 178, base_magic_atk = 76, base_magic_def = 152, base_spd = 76, base_evasion = 14.3, base_crit_chance = 12.2, base_crit_damage = 50, xp_reward = 900, gold_reward = 240, description = 'Bandido con la cara tiznada que asalta las caravanas de Ascuaria. Lanza botellas con aceite encendido.', category = 'HUMANOIDE', element_id = (SELECT id FROM elements WHERE code = 'FIRE') WHERE code = 'BANDIDO_FUEGO';
+DELETE FROM monster_level_scalings WHERE monster_id = (SELECT id FROM monsters WHERE code = 'BANDIDO_FUEGO');
+INSERT INTO monster_level_scalings (monster_id, level, hp, atk, def, magic_atk, magic_def, spd, evasion, crit_chance, crit_damage, elemental_damage)
+SELECT (SELECT id FROM monsters WHERE code = 'BANDIDO_FUEGO'), v.* FROM (VALUES
+  (32, 2375, 152, 178, 76, 152, 76, 14.3, 12.2, 50, 0),
+  (36, 2675, 169, 197, 85, 168, 84, 15.5, 13, 50, 0),
+  (45, 3350, 209, 239, 105, 205, 103, 18.2, 14.8, 50, 0)
+) AS v(level, hp, atk, def, magic_atk, magic_def, spd, evasion, crit_chance, crit_damage, elemental_damage);
+DELETE FROM monster_element_resistances WHERE monster_id = (SELECT id FROM monsters WHERE code = 'BANDIDO_FUEGO');
+INSERT INTO monster_element_resistances (monster_id, element_id, resistance_percent)
+SELECT (SELECT id FROM monsters WHERE code = 'BANDIDO_FUEGO'), e.id, COALESCE(v.pct, 0) FROM elements e LEFT JOIN (VALUES ('FIRE', 30), ('WATER', -20)) AS v(code, pct) ON v.code = e.code;
+DELETE FROM monster_drops WHERE monster_id = (SELECT id FROM monsters WHERE code = 'BANDIDO_FUEGO');
+INSERT INTO monster_drops (monster_id, item_id, drop_chance_percent, min_quantity, max_quantity)
+SELECT (SELECT id FROM monsters WHERE code = 'BANDIDO_FUEGO'), i.id, v.pct, v.mn, v.mx FROM (VALUES ('BRASA_DE_BANDIDO', 30, 1, 2), ('CARBON', 12, 1, 2), ('ACEITE_DE_COCINA', 8, 1, 1)) AS v(code, pct, mn, mx)
+JOIN items i ON i.code = v.code;
+DELETE FROM monster_skills WHERE monster_id = (SELECT id FROM monsters WHERE code = 'BANDIDO_FUEGO');
+INSERT INTO monster_skills (monster_id, skill_id, use_chance_percent)
+SELECT (SELECT id FROM monsters WHERE code = 'BANDIDO_FUEGO'), s.id, v.pct FROM (VALUES ('MONSTRUO_BOTELLA_INCENDIARIA', 30), ('MONSTRUO_GOLPE_BAJO', 15)) AS v(code, pct) JOIN skills s ON s.code = v.code;
+
+-- Elemental de Fuego
+INSERT INTO monsters (code, name, zone_id, rarity, base_level, min_spawn_level, max_spawn_level, base_hp, base_atk, base_def, base_magic_atk, base_magic_def, base_spd, base_evasion, base_crit_chance, base_crit_damage, xp_reward, gold_reward, description, category, element_id)
+SELECT 'ELEMENTAL_FUEGO', 'Elemental de Fuego', 3, 'COMMON', 34, 34, 38, 2273, 58, 158, 153, 231, 84, 14.9, 12.6, 50, 950, 255, 'Una llama con forma de cuerpo que nace donde la lava toca el aire. Deja el suelo negro a su paso.', 'ELEMENTAL', (SELECT id FROM elements WHERE code = 'FIRE')
+WHERE NOT EXISTS (SELECT 1 FROM monsters WHERE code = 'ELEMENTAL_FUEGO');
+UPDATE monsters SET name = 'Elemental de Fuego', zone_id = 3, rarity = 'COMMON', base_level = 34, min_spawn_level = 34, max_spawn_level = 38, base_hp = 2273, base_atk = 58, base_def = 158, base_magic_atk = 153, base_magic_def = 231, base_spd = 84, base_evasion = 14.9, base_crit_chance = 12.6, base_crit_damage = 50, xp_reward = 950, gold_reward = 255, description = 'Una llama con forma de cuerpo que nace donde la lava toca el aire. Deja el suelo negro a su paso.', category = 'ELEMENTAL', element_id = (SELECT id FROM elements WHERE code = 'FIRE') WHERE code = 'ELEMENTAL_FUEGO';
+DELETE FROM monster_level_scalings WHERE monster_id = (SELECT id FROM monsters WHERE code = 'ELEMENTAL_FUEGO');
+INSERT INTO monster_level_scalings (monster_id, level, hp, atk, def, magic_atk, magic_def, spd, evasion, crit_chance, crit_damage, elemental_damage)
+SELECT (SELECT id FROM monsters WHERE code = 'ELEMENTAL_FUEGO'), v.* FROM (VALUES
+  (34, 2273, 58, 158, 153, 231, 84, 14.9, 12.6, 50, 0),
+  (38, 2543, 65, 174, 170, 255, 92, 16.1, 13.4, 50, 0),
+  (45, 3015, 76, 202, 200, 296, 108, 18.2, 14.8, 50, 0)
+) AS v(level, hp, atk, def, magic_atk, magic_def, spd, evasion, crit_chance, crit_damage, elemental_damage);
+DELETE FROM monster_element_resistances WHERE monster_id = (SELECT id FROM monsters WHERE code = 'ELEMENTAL_FUEGO');
+INSERT INTO monster_element_resistances (monster_id, element_id, resistance_percent)
+SELECT (SELECT id FROM monsters WHERE code = 'ELEMENTAL_FUEGO'), e.id, COALESCE(v.pct, 0) FROM elements e LEFT JOIN (VALUES ('FIRE', 70), ('WATER', -50), ('ICE', -30)) AS v(code, pct) ON v.code = e.code;
+DELETE FROM monster_drops WHERE monster_id = (SELECT id FROM monsters WHERE code = 'ELEMENTAL_FUEGO');
+INSERT INTO monster_drops (monster_id, item_id, drop_chance_percent, min_quantity, max_quantity)
+SELECT (SELECT id FROM monsters WHERE code = 'ELEMENTAL_FUEGO'), i.id, v.pct, v.mn, v.mx FROM (VALUES ('ESENCIA_DE_FUEGO', 30, 1, 2), ('POLVO_ARCANO', 10, 1, 1), ('AZUFRE', 8, 1, 1)) AS v(code, pct, mn, mx)
+JOIN items i ON i.code = v.code;
+DELETE FROM monster_skills WHERE monster_id = (SELECT id FROM monsters WHERE code = 'ELEMENTAL_FUEGO');
+INSERT INTO monster_skills (monster_id, skill_id, use_chance_percent)
+SELECT (SELECT id FROM monsters WHERE code = 'ELEMENTAL_FUEGO'), s.id, v.pct FROM (VALUES ('MONSTRUO_LLAMARADA', 35)) AS v(code, pct) JOIN skills s ON s.code = v.code;
+
+-- Serpiente de Magma
+INSERT INTO monsters (code, name, zone_id, rarity, base_level, min_spawn_level, max_spawn_level, base_hp, base_atk, base_def, base_magic_atk, base_magic_def, base_spd, base_evasion, base_crit_chance, base_crit_damage, xp_reward, gold_reward, description, category, element_id)
+SELECT 'SERPIENTE_MAGMA', 'Serpiente de Magma', 3, 'COMMON', 35, 35, 39, 2860, 60, 202, 158, 210, 74, 15.2, 12.8, 50, 975, 260, 'Serpiente larga como un río que nada bajo la lava. Solo se le ve el lomo brillante antes de atacar.', 'DRACOIDE', (SELECT id FROM elements WHERE code = 'FIRE')
+WHERE NOT EXISTS (SELECT 1 FROM monsters WHERE code = 'SERPIENTE_MAGMA');
+UPDATE monsters SET name = 'Serpiente de Magma', zone_id = 3, rarity = 'COMMON', base_level = 35, min_spawn_level = 35, max_spawn_level = 39, base_hp = 2860, base_atk = 60, base_def = 202, base_magic_atk = 158, base_magic_def = 210, base_spd = 74, base_evasion = 15.2, base_crit_chance = 12.8, base_crit_damage = 50, xp_reward = 975, gold_reward = 260, description = 'Serpiente larga como un río que nada bajo la lava. Solo se le ve el lomo brillante antes de atacar.', category = 'DRACOIDE', element_id = (SELECT id FROM elements WHERE code = 'FIRE') WHERE code = 'SERPIENTE_MAGMA';
+DELETE FROM monster_level_scalings WHERE monster_id = (SELECT id FROM monsters WHERE code = 'SERPIENTE_MAGMA');
+INSERT INTO monster_level_scalings (monster_id, level, hp, atk, def, magic_atk, magic_def, spd, evasion, crit_chance, crit_damage, elemental_damage)
+SELECT (SELECT id FROM monsters WHERE code = 'SERPIENTE_MAGMA'), v.* FROM (VALUES
+  (35, 2860, 60, 202, 158, 210, 74, 15.2, 12.8, 50, 0),
+  (39, 3190, 66, 222, 174, 231, 82, 16.4, 13.6, 50, 0),
+  (45, 3685, 76, 252, 200, 262, 93, 18.2, 14.8, 50, 0)
+) AS v(level, hp, atk, def, magic_atk, magic_def, spd, evasion, crit_chance, crit_damage, elemental_damage);
+DELETE FROM monster_element_resistances WHERE monster_id = (SELECT id FROM monsters WHERE code = 'SERPIENTE_MAGMA');
+INSERT INTO monster_element_resistances (monster_id, element_id, resistance_percent)
+SELECT (SELECT id FROM monsters WHERE code = 'SERPIENTE_MAGMA'), e.id, COALESCE(v.pct, 0) FROM elements e LEFT JOIN (VALUES ('FIRE', 60), ('EARTH', 20), ('WATER', -40), ('ICE', -30)) AS v(code, pct) ON v.code = e.code;
+DELETE FROM monster_drops WHERE monster_id = (SELECT id FROM monsters WHERE code = 'SERPIENTE_MAGMA');
+INSERT INTO monster_drops (monster_id, item_id, drop_chance_percent, min_quantity, max_quantity)
+SELECT (SELECT id FROM monsters WHERE code = 'SERPIENTE_MAGMA'), i.id, v.pct, v.mn, v.mx FROM (VALUES ('COLMILLO_MAGMA', 30, 1, 2), ('OBSIDIANA_BRUTA', 10, 1, 2), ('HUEVO_POCO_COMUN', 3, 1, 1)) AS v(code, pct, mn, mx)
+JOIN items i ON i.code = v.code;
+DELETE FROM monster_skills WHERE monster_id = (SELECT id FROM monsters WHERE code = 'SERPIENTE_MAGMA');
+INSERT INTO monster_skills (monster_id, skill_id, use_chance_percent)
+SELECT (SELECT id FROM monsters WHERE code = 'SERPIENTE_MAGMA'), s.id, v.pct FROM (VALUES ('MONSTRUO_OLA_MAGMA', 30)) AS v(code, pct) JOIN skills s ON s.code = v.code;
+
+-- Gólem de Obsidiana
+INSERT INTO monsters (code, name, zone_id, rarity, base_level, min_spawn_level, max_spawn_level, base_hp, base_atk, base_def, base_magic_atk, base_magic_def, base_spd, base_evasion, base_crit_chance, base_crit_damage, xp_reward, gold_reward, description, category, element_id)
+SELECT 'GOLEM_OBSIDIANA', 'Gólem de Obsidiana', 3, 'COMMON', 36, 36, 40, 3076, 154, 300, 77, 196, 56, 15.5, 13, 50, 1000, 265, 'Gólem de vidrio negro tallado por los dracónidos para cuidar la Cantera. Alguien le cambió las órdenes.', 'ELEMENTAL', (SELECT id FROM elements WHERE code = 'EARTH')
+WHERE NOT EXISTS (SELECT 1 FROM monsters WHERE code = 'GOLEM_OBSIDIANA');
+UPDATE monsters SET name = 'Gólem de Obsidiana', zone_id = 3, rarity = 'COMMON', base_level = 36, min_spawn_level = 36, max_spawn_level = 40, base_hp = 3076, base_atk = 154, base_def = 300, base_magic_atk = 77, base_magic_def = 196, base_spd = 56, base_evasion = 15.5, base_crit_chance = 13, base_crit_damage = 50, xp_reward = 1000, gold_reward = 265, description = 'Gólem de vidrio negro tallado por los dracónidos para cuidar la Cantera. Alguien le cambió las órdenes.', category = 'ELEMENTAL', element_id = (SELECT id FROM elements WHERE code = 'EARTH') WHERE code = 'GOLEM_OBSIDIANA';
+DELETE FROM monster_level_scalings WHERE monster_id = (SELECT id FROM monsters WHERE code = 'GOLEM_OBSIDIANA');
+INSERT INTO monster_level_scalings (monster_id, level, hp, atk, def, magic_atk, magic_def, spd, evasion, crit_chance, crit_damage, elemental_damage)
+SELECT (SELECT id FROM monsters WHERE code = 'GOLEM_OBSIDIANA'), v.* FROM (VALUES
+  (36, 3076, 154, 300, 77, 196, 56, 15.5, 13, 50, 0),
+  (40, 3421, 170, 329, 85, 215, 62, 16.7, 13.8, 50, 0),
+  (45, 3852, 190, 365, 95, 239, 69, 18.2, 14.8, 50, 0)
+) AS v(level, hp, atk, def, magic_atk, magic_def, spd, evasion, crit_chance, crit_damage, elemental_damage);
+DELETE FROM monster_element_resistances WHERE monster_id = (SELECT id FROM monsters WHERE code = 'GOLEM_OBSIDIANA');
+INSERT INTO monster_element_resistances (monster_id, element_id, resistance_percent)
+SELECT (SELECT id FROM monsters WHERE code = 'GOLEM_OBSIDIANA'), e.id, COALESCE(v.pct, 0) FROM elements e LEFT JOIN (VALUES ('EARTH', 35), ('FIRE', 40), ('LIGHTNING', -30), ('WATER', -20)) AS v(code, pct) ON v.code = e.code;
+DELETE FROM monster_drops WHERE monster_id = (SELECT id FROM monsters WHERE code = 'GOLEM_OBSIDIANA');
+INSERT INTO monster_drops (monster_id, item_id, drop_chance_percent, min_quantity, max_quantity)
+SELECT (SELECT id FROM monsters WHERE code = 'GOLEM_OBSIDIANA'), i.id, v.pct, v.mn, v.mx FROM (VALUES ('ESQUIRLA_OBSIDIANA', 30, 1, 2), ('OBSIDIANA_BRUTA', 12, 1, 2), ('GEMA_COMUN', 5, 1, 1)) AS v(code, pct, mn, mx)
+JOIN items i ON i.code = v.code;
+DELETE FROM monster_skills WHERE monster_id = (SELECT id FROM monsters WHERE code = 'GOLEM_OBSIDIANA');
+INSERT INTO monster_skills (monster_id, skill_id, use_chance_percent)
+SELECT (SELECT id FROM monsters WHERE code = 'GOLEM_OBSIDIANA'), s.id, v.pct FROM (VALUES ('MONSTRUO_PIEL_VIDRIO', 25), ('MONSTRUO_ASTILLAS', 25)) AS v(code, pct) JOIN skills s ON s.code = v.code;
+
+-- Centinela Infernal
+INSERT INTO monsters (code, name, zone_id, rarity, base_level, min_spawn_level, max_spawn_level, base_hp, base_atk, base_def, base_magic_atk, base_magic_def, base_spd, base_evasion, base_crit_chance, base_crit_damage, xp_reward, gold_reward, description, category, element_id)
+SELECT 'CENTINELA_INFERNAL', 'Centinela Infernal', 3, 'COMMON', 37, 37, 41, 2888, 174, 265, 87, 172, 70, 15.8, 13.2, 50, 1025, 270, 'Armadura vacía con un fuego rojo adentro. Los Ocultos la ponen de guardia en la Cantera y la Grieta.', 'DEMONIO', (SELECT id FROM elements WHERE code = 'FIRE')
+WHERE NOT EXISTS (SELECT 1 FROM monsters WHERE code = 'CENTINELA_INFERNAL');
+UPDATE monsters SET name = 'Centinela Infernal', zone_id = 3, rarity = 'COMMON', base_level = 37, min_spawn_level = 37, max_spawn_level = 41, base_hp = 2888, base_atk = 174, base_def = 265, base_magic_atk = 87, base_magic_def = 172, base_spd = 70, base_evasion = 15.8, base_crit_chance = 13.2, base_crit_damage = 50, xp_reward = 1025, gold_reward = 270, description = 'Armadura vacía con un fuego rojo adentro. Los Ocultos la ponen de guardia en la Cantera y la Grieta.', category = 'DEMONIO', element_id = (SELECT id FROM elements WHERE code = 'FIRE') WHERE code = 'CENTINELA_INFERNAL';
+DELETE FROM monster_level_scalings WHERE monster_id = (SELECT id FROM monsters WHERE code = 'CENTINELA_INFERNAL');
+INSERT INTO monster_level_scalings (monster_id, level, hp, atk, def, magic_atk, magic_def, spd, evasion, crit_chance, crit_damage, elemental_damage)
+SELECT (SELECT id FROM monsters WHERE code = 'CENTINELA_INFERNAL'), v.* FROM (VALUES
+  (37, 2888, 174, 265, 87, 172, 70, 15.8, 13.2, 50, 0),
+  (41, 3203, 191, 290, 96, 189, 77, 17, 14, 50, 0),
+  (45, 3518, 209, 315, 105, 205, 83, 18.2, 14.8, 50, 0)
+) AS v(level, hp, atk, def, magic_atk, magic_def, spd, evasion, crit_chance, crit_damage, elemental_damage);
+DELETE FROM monster_element_resistances WHERE monster_id = (SELECT id FROM monsters WHERE code = 'CENTINELA_INFERNAL');
+INSERT INTO monster_element_resistances (monster_id, element_id, resistance_percent)
+SELECT (SELECT id FROM monsters WHERE code = 'CENTINELA_INFERNAL'), e.id, COALESCE(v.pct, 0) FROM elements e LEFT JOIN (VALUES ('FIRE', 50), ('DARK', 25), ('LIGHT', -40), ('WATER', -20)) AS v(code, pct) ON v.code = e.code;
+DELETE FROM monster_drops WHERE monster_id = (SELECT id FROM monsters WHERE code = 'CENTINELA_INFERNAL');
+INSERT INTO monster_drops (monster_id, item_id, drop_chance_percent, min_quantity, max_quantity)
+SELECT (SELECT id FROM monsters WHERE code = 'CENTINELA_INFERNAL'), i.id, v.pct, v.mn, v.mx FROM (VALUES ('NUCLEO_INFERNAL_MENOR', 30, 1, 2), ('ACERO_REFINADO', 8, 1, 1), ('CARBON', 10, 1, 2)) AS v(code, pct, mn, mx)
+JOIN items i ON i.code = v.code;
+DELETE FROM monster_skills WHERE monster_id = (SELECT id FROM monsters WHERE code = 'CENTINELA_INFERNAL');
+INSERT INTO monster_skills (monster_id, skill_id, use_chance_percent)
+SELECT (SELECT id FROM monsters WHERE code = 'CENTINELA_INFERNAL'), s.id, v.pct FROM (VALUES ('MONSTRUO_GOLPE_INFERNAL', 30)) AS v(code, pct) JOIN skills s ON s.code = v.code;
+
+-- Draco de Brasa
+INSERT INTO monsters (code, name, zone_id, rarity, base_level, min_spawn_level, max_spawn_level, base_hp, base_atk, base_def, base_magic_atk, base_magic_def, base_spd, base_evasion, base_crit_chance, base_crit_damage, xp_reward, gold_reward, description, category, element_id)
+SELECT 'DRACO_BRASA', 'Draco de Brasa', 3, 'COMMON', 38, 38, 42, 2966, 65, 217, 170, 206, 101, 20.1, 13.4, 50, 1050, 280, 'Pariente pequeño de los dragones, del tamaño de un caballo. Anida entre los huesos del Nido y defiende los huevos.', 'DRACOIDE', (SELECT id FROM elements WHERE code = 'FIRE')
+WHERE NOT EXISTS (SELECT 1 FROM monsters WHERE code = 'DRACO_BRASA');
+UPDATE monsters SET name = 'Draco de Brasa', zone_id = 3, rarity = 'COMMON', base_level = 38, min_spawn_level = 38, max_spawn_level = 42, base_hp = 2966, base_atk = 65, base_def = 217, base_magic_atk = 170, base_magic_def = 206, base_spd = 101, base_evasion = 20.1, base_crit_chance = 13.4, base_crit_damage = 50, xp_reward = 1050, gold_reward = 280, description = 'Pariente pequeño de los dragones, del tamaño de un caballo. Anida entre los huesos del Nido y defiende los huevos.', category = 'DRACOIDE', element_id = (SELECT id FROM elements WHERE code = 'FIRE') WHERE code = 'DRACO_BRASA';
+DELETE FROM monster_level_scalings WHERE monster_id = (SELECT id FROM monsters WHERE code = 'DRACO_BRASA');
+INSERT INTO monster_level_scalings (monster_id, level, hp, atk, def, magic_atk, magic_def, spd, evasion, crit_chance, crit_damage, elemental_damage)
+SELECT (SELECT id FROM monsters WHERE code = 'DRACO_BRASA'), v.* FROM (VALUES
+  (38, 2966, 65, 217, 170, 206, 101, 20.1, 13.4, 50, 0),
+  (42, 3281, 71, 237, 187, 225, 110, 21.3, 14.2, 50, 0),
+  (45, 3518, 76, 252, 200, 239, 118, 22.2, 14.8, 50, 0)
+) AS v(level, hp, atk, def, magic_atk, magic_def, spd, evasion, crit_chance, crit_damage, elemental_damage);
+DELETE FROM monster_element_resistances WHERE monster_id = (SELECT id FROM monsters WHERE code = 'DRACO_BRASA');
+INSERT INTO monster_element_resistances (monster_id, element_id, resistance_percent)
+SELECT (SELECT id FROM monsters WHERE code = 'DRACO_BRASA'), e.id, COALESCE(v.pct, 0) FROM elements e LEFT JOIN (VALUES ('FIRE', 50), ('WIND', 20), ('ICE', -40)) AS v(code, pct) ON v.code = e.code;
+DELETE FROM monster_drops WHERE monster_id = (SELECT id FROM monsters WHERE code = 'DRACO_BRASA');
+INSERT INTO monster_drops (monster_id, item_id, drop_chance_percent, min_quantity, max_quantity)
+SELECT (SELECT id FROM monsters WHERE code = 'DRACO_BRASA'), i.id, v.pct, v.mn, v.mx FROM (VALUES ('ALA_DRACO', 30, 1, 2), ('CORAZON_DE_BRASA', 6, 1, 1), ('HUEVO_POCO_COMUN', 4, 1, 1)) AS v(code, pct, mn, mx)
+JOIN items i ON i.code = v.code;
+DELETE FROM monster_skills WHERE monster_id = (SELECT id FROM monsters WHERE code = 'DRACO_BRASA');
+INSERT INTO monster_skills (monster_id, skill_id, use_chance_percent)
+SELECT (SELECT id FROM monsters WHERE code = 'DRACO_BRASA'), s.id, v.pct FROM (VALUES ('MONSTRUO_ALIENTO_BRASA', 30), ('MONSTRUO_PICADO', 20)) AS v(code, pct) JOIN skills s ON s.code = v.code;
+
+-- Fanático del Eclipse
+INSERT INTO monsters (code, name, zone_id, rarity, base_level, min_spawn_level, max_spawn_level, base_hp, base_atk, base_def, base_magic_atk, base_magic_def, base_spd, base_evasion, base_crit_chance, base_crit_damage, xp_reward, gold_reward, description, category, element_id)
+SELECT 'FANATICO_ECLIPSE', 'Fanático del Eclipse', 3, 'COMMON', 38, 38, 42, 2401, 65, 174, 170, 235, 84, 16.1, 13.4, 50, 1050, 280, 'Seguidor de los Ocultos con la túnica quemada y el eclipse pintado en la frente. Reza mientras pelea.', 'HUMANOIDE', (SELECT id FROM elements WHERE code = 'DARK')
+WHERE NOT EXISTS (SELECT 1 FROM monsters WHERE code = 'FANATICO_ECLIPSE');
+UPDATE monsters SET name = 'Fanático del Eclipse', zone_id = 3, rarity = 'COMMON', base_level = 38, min_spawn_level = 38, max_spawn_level = 42, base_hp = 2401, base_atk = 65, base_def = 174, base_magic_atk = 170, base_magic_def = 235, base_spd = 84, base_evasion = 16.1, base_crit_chance = 13.4, base_crit_damage = 50, xp_reward = 1050, gold_reward = 280, description = 'Seguidor de los Ocultos con la túnica quemada y el eclipse pintado en la frente. Reza mientras pelea.', category = 'HUMANOIDE', element_id = (SELECT id FROM elements WHERE code = 'DARK') WHERE code = 'FANATICO_ECLIPSE';
+DELETE FROM monster_level_scalings WHERE monster_id = (SELECT id FROM monsters WHERE code = 'FANATICO_ECLIPSE');
+INSERT INTO monster_level_scalings (monster_id, level, hp, atk, def, magic_atk, magic_def, spd, evasion, crit_chance, crit_damage, elemental_damage)
+SELECT (SELECT id FROM monsters WHERE code = 'FANATICO_ECLIPSE'), v.* FROM (VALUES
+  (38, 2401, 65, 174, 170, 235, 84, 16.1, 13.4, 50, 0),
+  (42, 2656, 71, 190, 187, 257, 92, 17.3, 14.2, 50, 0),
+  (45, 2848, 76, 202, 200, 273, 98, 18.2, 14.8, 50, 0)
+) AS v(level, hp, atk, def, magic_atk, magic_def, spd, evasion, crit_chance, crit_damage, elemental_damage);
+DELETE FROM monster_element_resistances WHERE monster_id = (SELECT id FROM monsters WHERE code = 'FANATICO_ECLIPSE');
+INSERT INTO monster_element_resistances (monster_id, element_id, resistance_percent)
+SELECT (SELECT id FROM monsters WHERE code = 'FANATICO_ECLIPSE'), e.id, COALESCE(v.pct, 0) FROM elements e LEFT JOIN (VALUES ('DARK', 40), ('FIRE', 20), ('LIGHT', -40)) AS v(code, pct) ON v.code = e.code;
+DELETE FROM monster_drops WHERE monster_id = (SELECT id FROM monsters WHERE code = 'FANATICO_ECLIPSE');
+INSERT INTO monster_drops (monster_id, item_id, drop_chance_percent, min_quantity, max_quantity)
+SELECT (SELECT id FROM monsters WHERE code = 'FANATICO_ECLIPSE'), i.id, v.pct, v.mn, v.mx FROM (VALUES ('SELLO_ECLIPSE', 30, 1, 2), ('POLVO_ARCANO', 12, 1, 1), ('FRAGMENTO_ECLIPSE', 4, 1, 1)) AS v(code, pct, mn, mx)
+JOIN items i ON i.code = v.code;
+DELETE FROM monster_skills WHERE monster_id = (SELECT id FROM monsters WHERE code = 'FANATICO_ECLIPSE');
+INSERT INTO monster_skills (monster_id, skill_id, use_chance_percent)
+SELECT (SELECT id FROM monsters WHERE code = 'FANATICO_ECLIPSE'), s.id, v.pct FROM (VALUES ('MONSTRUO_REZO_OSCURO', 30), ('MONSTRUO_LLAMARADA', 20)) AS v(code, pct) JOIN skills s ON s.code = v.code;
+
+-- Demonio de Lava
+INSERT INTO monsters (code, name, zone_id, rarity, base_level, min_spawn_level, max_spawn_level, base_hp, base_atk, base_def, base_magic_atk, base_magic_def, base_spd, base_evasion, base_crit_chance, base_crit_damage, xp_reward, gold_reward, description, category, element_id)
+SELECT 'DEMONIO_LAVA', 'Demonio de Lava', 3, 'COMMON', 40, 40, 44, 3719, 195, 250, 98, 185, 75, 16.7, 13.8, 50, 1100, 290, 'Demonio de roca agrietada con lava en las venas. Sirve al Señor de la Caldera.', 'DEMONIO', (SELECT id FROM elements WHERE code = 'FIRE')
+WHERE NOT EXISTS (SELECT 1 FROM monsters WHERE code = 'DEMONIO_LAVA');
+UPDATE monsters SET name = 'Demonio de Lava', zone_id = 3, rarity = 'COMMON', base_level = 40, min_spawn_level = 40, max_spawn_level = 44, base_hp = 3719, base_atk = 195, base_def = 250, base_magic_atk = 98, base_magic_def = 185, base_spd = 75, base_evasion = 16.7, base_crit_chance = 13.8, base_crit_damage = 50, xp_reward = 1100, gold_reward = 290, description = 'Demonio de roca agrietada con lava en las venas. Sirve al Señor de la Caldera.', category = 'DEMONIO', element_id = (SELECT id FROM elements WHERE code = 'FIRE') WHERE code = 'DEMONIO_LAVA';
+DELETE FROM monster_level_scalings WHERE monster_id = (SELECT id FROM monsters WHERE code = 'DEMONIO_LAVA');
+INSERT INTO monster_level_scalings (monster_id, level, hp, atk, def, magic_atk, magic_def, spd, evasion, crit_chance, crit_damage, elemental_damage)
+SELECT (SELECT id FROM monsters WHERE code = 'DEMONIO_LAVA'), v.* FROM (VALUES
+  (40, 3719, 195, 250, 98, 185, 75, 16.7, 13.8, 50, 0),
+  (44, 4094, 214, 272, 107, 201, 82, 17.9, 14.6, 50, 0),
+  (45, 4188, 218, 277, 109, 205, 83, 18.2, 14.8, 50, 0)
+) AS v(level, hp, atk, def, magic_atk, magic_def, spd, evasion, crit_chance, crit_damage, elemental_damage);
+DELETE FROM monster_element_resistances WHERE monster_id = (SELECT id FROM monsters WHERE code = 'DEMONIO_LAVA');
+INSERT INTO monster_element_resistances (monster_id, element_id, resistance_percent)
+SELECT (SELECT id FROM monsters WHERE code = 'DEMONIO_LAVA'), e.id, COALESCE(v.pct, 0) FROM elements e LEFT JOIN (VALUES ('FIRE', 60), ('DARK', 20), ('WATER', -40), ('LIGHT', -30)) AS v(code, pct) ON v.code = e.code;
+DELETE FROM monster_drops WHERE monster_id = (SELECT id FROM monsters WHERE code = 'DEMONIO_LAVA');
+INSERT INTO monster_drops (monster_id, item_id, drop_chance_percent, min_quantity, max_quantity)
+SELECT (SELECT id FROM monsters WHERE code = 'DEMONIO_LAVA'), i.id, v.pct, v.mn, v.mx FROM (VALUES ('CUERNO_DEMONIO_LAVA', 30, 1, 2), ('CARBON', 10, 1, 2), ('HUEVO_POCO_COMUN', 3, 1, 1)) AS v(code, pct, mn, mx)
+JOIN items i ON i.code = v.code;
+DELETE FROM monster_skills WHERE monster_id = (SELECT id FROM monsters WHERE code = 'DEMONIO_LAVA');
+INSERT INTO monster_skills (monster_id, skill_id, use_chance_percent)
+SELECT (SELECT id FROM monsters WHERE code = 'DEMONIO_LAVA'), s.id, v.pct FROM (VALUES ('MONSTRUO_PUNO_LAVA', 30), ('MONSTRUO_GOLPE_BRUTAL', 15)) AS v(code, pct) JOIN skills s ON s.code = v.code;
+
+-- Diablillo de la Caldera
+INSERT INTO monsters (code, name, zone_id, rarity, base_level, min_spawn_level, max_spawn_level, base_hp, base_atk, base_def, base_magic_atk, base_magic_def, base_spd, base_evasion, base_crit_chance, base_crit_damage, xp_reward, gold_reward, description, category, element_id)
+SELECT 'DIABLILLO_CALDERA', 'Diablillo de la Caldera', 3, 'COMMON', 41, 41, 45, 2440, 183, 197, 91, 210, 126, 23, 17, 50, 1125, 295, 'Demonio chiquito y malicioso que salta entre las rocas de la Caldera riéndose. Pincha con su tridente al rojo.', 'DEMONIO', (SELECT id FROM elements WHERE code = 'FIRE')
+WHERE NOT EXISTS (SELECT 1 FROM monsters WHERE code = 'DIABLILLO_CALDERA');
+UPDATE monsters SET name = 'Diablillo de la Caldera', zone_id = 3, rarity = 'COMMON', base_level = 41, min_spawn_level = 41, max_spawn_level = 45, base_hp = 2440, base_atk = 183, base_def = 197, base_magic_atk = 91, base_magic_def = 210, base_spd = 126, base_evasion = 23, base_crit_chance = 17, base_crit_damage = 50, xp_reward = 1125, gold_reward = 295, description = 'Demonio chiquito y malicioso que salta entre las rocas de la Caldera riéndose. Pincha con su tridente al rojo.', category = 'DEMONIO', element_id = (SELECT id FROM elements WHERE code = 'FIRE') WHERE code = 'DIABLILLO_CALDERA';
+DELETE FROM monster_level_scalings WHERE monster_id = (SELECT id FROM monsters WHERE code = 'DIABLILLO_CALDERA');
+INSERT INTO monster_level_scalings (monster_id, level, hp, atk, def, magic_atk, magic_def, spd, evasion, crit_chance, crit_damage, elemental_damage)
+SELECT (SELECT id FROM monsters WHERE code = 'DIABLILLO_CALDERA'), v.* FROM (VALUES
+  (41, 2440, 183, 197, 91, 210, 126, 23, 17, 50, 0),
+  (45, 2680, 200, 214, 100, 228, 137, 24.2, 17.8, 50, 0)
+) AS v(level, hp, atk, def, magic_atk, magic_def, spd, evasion, crit_chance, crit_damage, elemental_damage);
+DELETE FROM monster_element_resistances WHERE monster_id = (SELECT id FROM monsters WHERE code = 'DIABLILLO_CALDERA');
+INSERT INTO monster_element_resistances (monster_id, element_id, resistance_percent)
+SELECT (SELECT id FROM monsters WHERE code = 'DIABLILLO_CALDERA'), e.id, COALESCE(v.pct, 0) FROM elements e LEFT JOIN (VALUES ('FIRE', 50), ('DARK', 30), ('LIGHT', -40), ('ICE', -20)) AS v(code, pct) ON v.code = e.code;
+DELETE FROM monster_drops WHERE monster_id = (SELECT id FROM monsters WHERE code = 'DIABLILLO_CALDERA');
+INSERT INTO monster_drops (monster_id, item_id, drop_chance_percent, min_quantity, max_quantity)
+SELECT (SELECT id FROM monsters WHERE code = 'DIABLILLO_CALDERA'), i.id, v.pct, v.mn, v.mx FROM (VALUES ('COLA_DIABLILLO', 30, 1, 2), ('AZUFRE', 10, 1, 1), ('GEMA_DE_PRECISION', 4, 1, 1)) AS v(code, pct, mn, mx)
+JOIN items i ON i.code = v.code;
+DELETE FROM monster_skills WHERE monster_id = (SELECT id FROM monsters WHERE code = 'DIABLILLO_CALDERA');
+INSERT INTO monster_skills (monster_id, skill_id, use_chance_percent)
+SELECT (SELECT id FROM monsters WHERE code = 'DIABLILLO_CALDERA'), s.id, v.pct FROM (VALUES ('MONSTRUO_PINCHAZO', 30), ('MONSTRUO_RISA_DIABLILLO', 20)) AS v(code, pct) JOIN skills s ON s.code = v.code;
+
+-- Maestro de la Lava
+INSERT INTO monsters (code, name, zone_id, rarity, base_level, min_spawn_level, max_spawn_level, base_hp, base_atk, base_def, base_magic_atk, base_magic_def, base_spd, base_evasion, base_crit_chance, base_crit_damage, xp_reward, gold_reward, description, category, element_id)
+SELECT 'MAESTRO_LAVA', 'Maestro de la Lava', 3, 'RARE', 39, 39, 42, 5220, 80, 208, 209, 276, 90, 16.4, 13.6, 50, 2580, 570, 'Agente de los Ocultos que lleva los moldes robados de Ignar a la Fisura. Controla la lava con las manos desnudas.', 'HUMANOIDE', (SELECT id FROM elements WHERE code = 'FIRE')
+WHERE NOT EXISTS (SELECT 1 FROM monsters WHERE code = 'MAESTRO_LAVA');
+UPDATE monsters SET name = 'Maestro de la Lava', zone_id = 3, rarity = 'RARE', base_level = 39, min_spawn_level = 39, max_spawn_level = 42, base_hp = 5220, base_atk = 80, base_def = 208, base_magic_atk = 209, base_magic_def = 276, base_spd = 90, base_evasion = 16.4, base_crit_chance = 13.6, base_crit_damage = 50, xp_reward = 2580, gold_reward = 570, description = 'Agente de los Ocultos que lleva los moldes robados de Ignar a la Fisura. Controla la lava con las manos desnudas.', category = 'HUMANOIDE', element_id = (SELECT id FROM elements WHERE code = 'FIRE') WHERE code = 'MAESTRO_LAVA';
+DELETE FROM monster_level_scalings WHERE monster_id = (SELECT id FROM monsters WHERE code = 'MAESTRO_LAVA');
+INSERT INTO monster_level_scalings (monster_id, level, hp, atk, def, magic_atk, magic_def, spd, evasion, crit_chance, crit_damage, elemental_damage)
+SELECT (SELECT id FROM monsters WHERE code = 'MAESTRO_LAVA'), v.* FROM (VALUES
+  (39, 5220, 80, 208, 209, 276, 90, 16.4, 13.6, 50, 0),
+  (42, 5625, 85, 222, 224, 294, 97, 17.3, 14.2, 50, 0),
+  (45, 6030, 91, 236, 239, 313, 103, 18.2, 14.8, 50, 0)
+) AS v(level, hp, atk, def, magic_atk, magic_def, spd, evasion, crit_chance, crit_damage, elemental_damage);
+DELETE FROM monster_element_resistances WHERE monster_id = (SELECT id FROM monsters WHERE code = 'MAESTRO_LAVA');
+INSERT INTO monster_element_resistances (monster_id, element_id, resistance_percent)
+SELECT (SELECT id FROM monsters WHERE code = 'MAESTRO_LAVA'), e.id, COALESCE(v.pct, 0) FROM elements e LEFT JOIN (VALUES ('FIRE', 60), ('DARK', 30), ('WATER', -30), ('LIGHT', -30)) AS v(code, pct) ON v.code = e.code;
+DELETE FROM monster_drops WHERE monster_id = (SELECT id FROM monsters WHERE code = 'MAESTRO_LAVA');
+INSERT INTO monster_drops (monster_id, item_id, drop_chance_percent, min_quantity, max_quantity)
+SELECT (SELECT id FROM monsters WHERE code = 'MAESTRO_LAVA'), i.id, v.pct, v.mn, v.mx FROM (VALUES ('CRISTAL_DE_LAVA', 30, 1, 1), ('GEMA_DE_FUEGO', 6, 1, 1), ('POLVO_ARCANO', 15, 1, 2), ('HUEVO_RARO', 4, 1, 1)) AS v(code, pct, mn, mx)
+JOIN items i ON i.code = v.code;
+DELETE FROM monster_skills WHERE monster_id = (SELECT id FROM monsters WHERE code = 'MAESTRO_LAVA');
+INSERT INTO monster_skills (monster_id, skill_id, use_chance_percent)
+SELECT (SELECT id FROM monsters WHERE code = 'MAESTRO_LAVA'), s.id, v.pct FROM (VALUES ('MONSTRUO_CADENA_FUEGO', 35), ('MONSTRUO_REZO_OSCURO', 25), ('MONSTRUO_LLAMARADA', 20)) AS v(code, pct) JOIN skills s ON s.code = v.code;
+
+-- Dragón Menor Corrupto
+INSERT INTO monsters (code, name, zone_id, rarity, base_level, min_spawn_level, max_spawn_level, base_hp, base_atk, base_def, base_magic_atk, base_magic_def, base_spd, base_evasion, base_crit_chance, base_crit_damage, xp_reward, gold_reward, description, category, element_id)
+SELECT 'DRAGON_MENOR_CORRUPTO', 'Dragón Menor Corrupto', 3, 'RARE', 38, 38, 41, 5848, 78, 239, 204, 237, 93, 16.1, 13.4, 50, 2520, 555, 'Un dragón joven con un Cristal de Eclipse clavado en el pecho. Antes jugaba con el Viejo Escamas; ahora quema todo lo que se acerca.', 'DRACOIDE', (SELECT id FROM elements WHERE code = 'FIRE')
+WHERE NOT EXISTS (SELECT 1 FROM monsters WHERE code = 'DRAGON_MENOR_CORRUPTO');
+UPDATE monsters SET name = 'Dragón Menor Corrupto', zone_id = 3, rarity = 'RARE', base_level = 38, min_spawn_level = 38, max_spawn_level = 41, base_hp = 5848, base_atk = 78, base_def = 239, base_magic_atk = 204, base_magic_def = 237, base_spd = 93, base_evasion = 16.1, base_crit_chance = 13.4, base_crit_damage = 50, xp_reward = 2520, gold_reward = 555, description = 'Un dragón joven con un Cristal de Eclipse clavado en el pecho. Antes jugaba con el Viejo Escamas; ahora quema todo lo que se acerca.', category = 'DRACOIDE', element_id = (SELECT id FROM elements WHERE code = 'FIRE') WHERE code = 'DRAGON_MENOR_CORRUPTO';
+DELETE FROM monster_level_scalings WHERE monster_id = (SELECT id FROM monsters WHERE code = 'DRAGON_MENOR_CORRUPTO');
+INSERT INTO monster_level_scalings (monster_id, level, hp, atk, def, magic_atk, magic_def, spd, evasion, crit_chance, crit_damage, elemental_damage)
+SELECT (SELECT id FROM monsters WHERE code = 'DRAGON_MENOR_CORRUPTO'), v.* FROM (VALUES
+  (38, 5848, 78, 239, 204, 237, 93, 16.1, 13.4, 50, 0),
+  (41, 6313, 84, 255, 219, 253, 99, 17, 14, 50, 0),
+  (45, 6934, 91, 277, 239, 275, 108, 18.2, 14.8, 50, 0)
+) AS v(level, hp, atk, def, magic_atk, magic_def, spd, evasion, crit_chance, crit_damage, elemental_damage);
+DELETE FROM monster_element_resistances WHERE monster_id = (SELECT id FROM monsters WHERE code = 'DRAGON_MENOR_CORRUPTO');
+INSERT INTO monster_element_resistances (monster_id, element_id, resistance_percent)
+SELECT (SELECT id FROM monsters WHERE code = 'DRAGON_MENOR_CORRUPTO'), e.id, COALESCE(v.pct, 0) FROM elements e LEFT JOIN (VALUES ('FIRE', 60), ('DARK', 20), ('ICE', -40)) AS v(code, pct) ON v.code = e.code;
+DELETE FROM monster_drops WHERE monster_id = (SELECT id FROM monsters WHERE code = 'DRAGON_MENOR_CORRUPTO');
+INSERT INTO monster_drops (monster_id, item_id, drop_chance_percent, min_quantity, max_quantity)
+SELECT (SELECT id FROM monsters WHERE code = 'DRAGON_MENOR_CORRUPTO'), i.id, v.pct, v.mn, v.mx FROM (VALUES ('ESCAMA_DRAGON_CORRUPTO', 30, 1, 2), ('CORAZON_DE_BRASA', 30, 1, 1), ('PIEDRA_ENCANT_MAYOR', 8, 1, 1), ('HUEVO_RARO', 4, 1, 1)) AS v(code, pct, mn, mx)
+JOIN items i ON i.code = v.code;
+DELETE FROM monster_skills WHERE monster_id = (SELECT id FROM monsters WHERE code = 'DRAGON_MENOR_CORRUPTO');
+INSERT INTO monster_skills (monster_id, skill_id, use_chance_percent)
+SELECT (SELECT id FROM monsters WHERE code = 'DRAGON_MENOR_CORRUPTO'), s.id, v.pct FROM (VALUES ('MONSTRUO_ALIENTO_BRASA', 35), ('MONSTRUO_ZARPAZO', 25), ('MONSTRUO_ERUPCION_CALDERA', 20)) AS v(code, pct) JOIN skills s ON s.code = v.code;
+
+-- Señor de la Caldera
+INSERT INTO monsters (code, name, zone_id, rarity, base_level, min_spawn_level, max_spawn_level, base_hp, base_atk, base_def, base_magic_atk, base_magic_def, base_spd, base_evasion, base_crit_chance, base_crit_damage, xp_reward, gold_reward, description, category, element_id)
+SELECT 'SENOR_CALDERA', 'Señor de la Caldera', 3, 'MINIBOSS', 42, 42, 42, 10938, 100, 284, 262, 270, 120, 17.3, 14.2, 50, 4000, 750, 'Demonio con corona de roca fundida que cuida las puertas de la Caldera. Les vendió su ejército a los Ocultos a cambio de un trono.', 'DEMONIO', (SELECT id FROM elements WHERE code = 'FIRE')
+WHERE NOT EXISTS (SELECT 1 FROM monsters WHERE code = 'SENOR_CALDERA');
+UPDATE monsters SET name = 'Señor de la Caldera', zone_id = 3, rarity = 'MINIBOSS', base_level = 42, min_spawn_level = 42, max_spawn_level = 42, base_hp = 10938, base_atk = 100, base_def = 284, base_magic_atk = 262, base_magic_def = 270, base_spd = 120, base_evasion = 17.3, base_crit_chance = 14.2, base_crit_damage = 50, xp_reward = 4000, gold_reward = 750, description = 'Demonio con corona de roca fundida que cuida las puertas de la Caldera. Les vendió su ejército a los Ocultos a cambio de un trono.', category = 'DEMONIO', element_id = (SELECT id FROM elements WHERE code = 'FIRE') WHERE code = 'SENOR_CALDERA';
+DELETE FROM monster_level_scalings WHERE monster_id = (SELECT id FROM monsters WHERE code = 'SENOR_CALDERA');
+INSERT INTO monster_level_scalings (monster_id, level, hp, atk, def, magic_atk, magic_def, spd, evasion, crit_chance, crit_damage, elemental_damage)
+SELECT (SELECT id FROM monsters WHERE code = 'SENOR_CALDERA'), v.* FROM (VALUES
+  (42, 10938, 100, 284, 262, 270, 120, 17.3, 14.2, 50, 0),
+  (45, 11725, 106, 302, 279, 287, 127, 18.2, 14.8, 50, 0)
+) AS v(level, hp, atk, def, magic_atk, magic_def, spd, evasion, crit_chance, crit_damage, elemental_damage);
+DELETE FROM monster_element_resistances WHERE monster_id = (SELECT id FROM monsters WHERE code = 'SENOR_CALDERA');
+INSERT INTO monster_element_resistances (monster_id, element_id, resistance_percent)
+SELECT (SELECT id FROM monsters WHERE code = 'SENOR_CALDERA'), e.id, COALESCE(v.pct, 0) FROM elements e LEFT JOIN (VALUES ('FIRE', 60), ('DARK', 30), ('WATER', -30), ('LIGHT', -25)) AS v(code, pct) ON v.code = e.code;
+DELETE FROM monster_skills WHERE monster_id = (SELECT id FROM monsters WHERE code = 'SENOR_CALDERA');
+INSERT INTO monster_skills (monster_id, skill_id, use_chance_percent)
+SELECT (SELECT id FROM monsters WHERE code = 'SENOR_CALDERA'), s.id, v.pct FROM (VALUES ('MONSTRUO_ERUPCION_CALDERA', 35), ('MONSTRUO_PUNO_LAVA', 30), ('MONSTRUO_AULLIDO_GUERRA', 25)) AS v(code, pct) JOIN skills s ON s.code = v.code;
+
+-- Titán de Fuego
+INSERT INTO monsters (code, name, zone_id, rarity, base_level, min_spawn_level, max_spawn_level, base_hp, base_atk, base_def, base_magic_atk, base_magic_def, base_spd, base_evasion, base_crit_chance, base_crit_damage, xp_reward, gold_reward, description, category, element_id)
+SELECT 'TITAN_FUEGO', 'Titán de Fuego', 3, 'LEGENDARY', 45, 45, 45, 20100, 122, 328, 319, 296, 118, 18.2, 14.8, 50, 13000, 5400, 'El Guardián del Tercer Sello, un gigante de magma que duerme en el lago de la Caldera. Los Cristales de Eclipse lo están enloqueciendo.', 'DEMONIO', (SELECT id FROM elements WHERE code = 'FIRE')
+WHERE NOT EXISTS (SELECT 1 FROM monsters WHERE code = 'TITAN_FUEGO');
+UPDATE monsters SET name = 'Titán de Fuego', zone_id = 3, rarity = 'LEGENDARY', base_level = 45, min_spawn_level = 45, max_spawn_level = 45, base_hp = 20100, base_atk = 122, base_def = 328, base_magic_atk = 319, base_magic_def = 296, base_spd = 118, base_evasion = 18.2, base_crit_chance = 14.8, base_crit_damage = 50, xp_reward = 13000, gold_reward = 5400, description = 'El Guardián del Tercer Sello, un gigante de magma que duerme en el lago de la Caldera. Los Cristales de Eclipse lo están enloqueciendo.', category = 'DEMONIO', element_id = (SELECT id FROM elements WHERE code = 'FIRE') WHERE code = 'TITAN_FUEGO';
+DELETE FROM monster_level_scalings WHERE monster_id = (SELECT id FROM monsters WHERE code = 'TITAN_FUEGO');
+INSERT INTO monster_level_scalings (monster_id, level, hp, atk, def, magic_atk, magic_def, spd, evasion, crit_chance, crit_damage, elemental_damage)
+SELECT (SELECT id FROM monsters WHERE code = 'TITAN_FUEGO'), v.* FROM (VALUES
+  (45, 20100, 122, 328, 319, 296, 118, 18.2, 14.8, 50, 0)
+) AS v(level, hp, atk, def, magic_atk, magic_def, spd, evasion, crit_chance, crit_damage, elemental_damage);
+DELETE FROM monster_element_resistances WHERE monster_id = (SELECT id FROM monsters WHERE code = 'TITAN_FUEGO');
+INSERT INTO monster_element_resistances (monster_id, element_id, resistance_percent)
+SELECT (SELECT id FROM monsters WHERE code = 'TITAN_FUEGO'), e.id, COALESCE(v.pct, 0) FROM elements e LEFT JOIN (VALUES ('FIRE', 70), ('EARTH', 20), ('WATER', -30), ('ICE', -20)) AS v(code, pct) ON v.code = e.code;
+DELETE FROM monster_skills WHERE monster_id = (SELECT id FROM monsters WHERE code = 'TITAN_FUEGO');
+INSERT INTO monster_skills (monster_id, skill_id, use_chance_percent)
+SELECT (SELECT id FROM monsters WHERE code = 'TITAN_FUEGO'), s.id, v.pct FROM (VALUES ('MONSTRUO_ERUPCION_CALDERA', 30), ('MONSTRUO_PUNO_LAVA', 30), ('MONSTRUO_GOLPE_BRUTAL', 25), ('MONSTRUO_CORAZA_MAGMA', 20)) AS v(code, pct) JOIN skills s ON s.code = v.code;
+
+
+-- ============================================================================================
+-- Equipo y crafteo del Volcán Rojo (repetible; sin ON CONFLICT). Cinco escalones para las 5 clases
+-- base, paso 1: stats por fórmula (lib/equilibrio.itemStats) y recetas con materiales de la zona.
+--   Volcán nv 31 raro (Ladera de Ceniza, Campos de Azufre y Bosque Calcinado)
+--   Obsidiana nv 36 épico (NUEVO: Ríos de Lava y Cantera, + Corazón de Brasa)
+--   armas de Forja Negra nv 37 legendarias (NUEVAS: Corazón de la Forja Negra, de la Fisura Infernal)
+--   Caldera nv 40 épico (pergamino y Corazón de la Caldera, del Señor de la Caldera)
+--   Titán de Fuego nv 45 legendario (pergamino y Núcleo del Titán de Fuego)
+-- Antes las recetas pedían Brasas y Escamas que no soltaba nadie. Se fabrica en la Gran Forja de
+-- Ascuaria (lib/cercania.js). El paso 2 (bloque «Equipo del Volcán: escalera») ajusta armas,
+-- guantes, manos izquierdas y pechos con las reglas del equipo v2/v3.
+-- ============================================================================================
+INSERT INTO items (code, name, item_type, rarity, obtain_method, description)
+SELECT v.code, v.name, 'MATERIAL', v.rarity, 'La Fisura Infernal', v.descr FROM (VALUES
+  ('ESCORIA_NEGRA', 'Escoria Negra', 'POCO_COMUN', 'Restos de metal que salen de la forja de los Ocultos. Todavía brillan por dentro. La sueltan los Fundidores de la Fisura Infernal.'),
+  ('CORAZON_FORJA_NEGRA', 'Corazón de la Forja Negra', 'EPICO', 'El núcleo ardiente de la forja de Morvak. Con él se forjan las armas de Forja Negra.')
+) AS v(code, name, rarity, descr) WHERE NOT EXISTS (SELECT 1 FROM items i WHERE i.code = v.code);
+
+-- ---------------------------------------------------------------- volcan (nv 31, RARO)
+-- Espada del Volcán
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'GUERRERO_WEAPON_VOLCAN', 'Espada del Volcán', 'EQUIPMENT', 'WEAPON', FALSE, 'RARO', 1, 31, TRUE, 'CRAFT', 'Forjada en la Gran Forja de Ascuaria con lo que dejan los monstruos de la Ladera de Ceniza, los Campos de Azufre y el Bosque Calcinado.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'GUERRERO_WEAPON_VOLCAN');
+UPDATE items SET name = 'Espada del Volcán', item_type = 'EQUIPMENT', slot = 'WEAPON', is_two_handed = FALSE, rarity = 'RARO', class_id = 1, required_level = 31, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Forjada en la Gran Forja de Ascuaria con lo que dejan los monstruos de la Ladera de Ceniza, los Campos de Azufre y el Bosque Calcinado.' WHERE code = 'GUERRERO_WEAPON_VOLCAN';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'GUERRERO_WEAPON_VOLCAN');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'GUERRERO_WEAPON_VOLCAN'), v.* FROM (VALUES ('ATK', 71, FALSE), ('CRIT_CHANCE', 5.3, TRUE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station, scroll_item_id)
+SELECT 'RECIPE_GUERRERO_WEAPON_VOLCAN', (SELECT id FROM items WHERE code = 'GUERRERO_WEAPON_VOLCAN'), 1, 'RARO', 31, 1, 90, 1, 'Ignar, en la Gran Forja de Ascuaria', 3, 'forja', NULL WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_GUERRERO_WEAPON_VOLCAN');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'GUERRERO_WEAPON_VOLCAN'), result_quantity = 1, rarity = 'RARO', required_level = 31, required_class_id = 1, success_rate_percent = 90, craft_time_minutes = 1, artisan_name = 'Ignar, en la Gran Forja de Ascuaria', zone_id = 3, station = 'forja', scroll_item_id = NULL WHERE code = 'RECIPE_GUERRERO_WEAPON_VOLCAN';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_GUERRERO_WEAPON_VOLCAN');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_GUERRERO_WEAPON_VOLCAN'), i.id, v.n FROM (VALUES ('BRASA_DE_BANDIDO', 3), ('ACERO_REFINADO', 2), ('CAPARAZON_AZUFRE', 2)) AS v(code, n) JOIN items i ON i.code = v.code;
+-- Escudo del Volcán
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'GUERRERO_OFFHAND_VOLCAN', 'Escudo del Volcán', 'EQUIPMENT', 'OFFHAND', FALSE, 'RARO', 1, 31, TRUE, 'CRAFT', 'Forjada en la Gran Forja de Ascuaria con lo que dejan los monstruos de la Ladera de Ceniza, los Campos de Azufre y el Bosque Calcinado.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'GUERRERO_OFFHAND_VOLCAN');
+UPDATE items SET name = 'Escudo del Volcán', item_type = 'EQUIPMENT', slot = 'OFFHAND', is_two_handed = FALSE, rarity = 'RARO', class_id = 1, required_level = 31, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Forjada en la Gran Forja de Ascuaria con lo que dejan los monstruos de la Ladera de Ceniza, los Campos de Azufre y el Bosque Calcinado.' WHERE code = 'GUERRERO_OFFHAND_VOLCAN';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'GUERRERO_OFFHAND_VOLCAN');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'GUERRERO_OFFHAND_VOLCAN'), v.* FROM (VALUES ('DEF', 16, FALSE), ('HP', 21, FALSE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station, scroll_item_id)
+SELECT 'RECIPE_GUERRERO_OFFHAND_VOLCAN', (SELECT id FROM items WHERE code = 'GUERRERO_OFFHAND_VOLCAN'), 1, 'RARO', 31, 1, 90, 1, 'Ignar, en la Gran Forja de Ascuaria', 3, 'forja', NULL WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_GUERRERO_OFFHAND_VOLCAN');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'GUERRERO_OFFHAND_VOLCAN'), result_quantity = 1, rarity = 'RARO', required_level = 31, required_class_id = 1, success_rate_percent = 90, craft_time_minutes = 1, artisan_name = 'Ignar, en la Gran Forja de Ascuaria', zone_id = 3, station = 'forja', scroll_item_id = NULL WHERE code = 'RECIPE_GUERRERO_OFFHAND_VOLCAN';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_GUERRERO_OFFHAND_VOLCAN');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_GUERRERO_OFFHAND_VOLCAN'), i.id, v.n FROM (VALUES ('BRASA_DE_BANDIDO', 2), ('ACERO_REFINADO', 1)) AS v(code, n) JOIN items i ON i.code = v.code;
+-- Yelmo del Volcán
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'GUERRERO_HELMET_VOLCAN', 'Yelmo del Volcán', 'EQUIPMENT', 'HELMET', FALSE, 'RARO', 1, 31, TRUE, 'CRAFT', 'Forjada en la Gran Forja de Ascuaria con lo que dejan los monstruos de la Ladera de Ceniza, los Campos de Azufre y el Bosque Calcinado.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'GUERRERO_HELMET_VOLCAN');
+UPDATE items SET name = 'Yelmo del Volcán', item_type = 'EQUIPMENT', slot = 'HELMET', is_two_handed = FALSE, rarity = 'RARO', class_id = 1, required_level = 31, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Forjada en la Gran Forja de Ascuaria con lo que dejan los monstruos de la Ladera de Ceniza, los Campos de Azufre y el Bosque Calcinado.' WHERE code = 'GUERRERO_HELMET_VOLCAN';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'GUERRERO_HELMET_VOLCAN');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'GUERRERO_HELMET_VOLCAN'), v.* FROM (VALUES ('DEF', 13, FALSE), ('MAGIC_DEF', 4, FALSE), ('HP', 13, FALSE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station, scroll_item_id)
+SELECT 'RECIPE_GUERRERO_HELMET_VOLCAN', (SELECT id FROM items WHERE code = 'GUERRERO_HELMET_VOLCAN'), 1, 'RARO', 31, 1, 90, 1, 'Ignar, en la Gran Forja de Ascuaria', 3, 'forja', NULL WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_GUERRERO_HELMET_VOLCAN');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'GUERRERO_HELMET_VOLCAN'), result_quantity = 1, rarity = 'RARO', required_level = 31, required_class_id = 1, success_rate_percent = 90, craft_time_minutes = 1, artisan_name = 'Ignar, en la Gran Forja de Ascuaria', zone_id = 3, station = 'forja', scroll_item_id = NULL WHERE code = 'RECIPE_GUERRERO_HELMET_VOLCAN';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_GUERRERO_HELMET_VOLCAN');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_GUERRERO_HELMET_VOLCAN'), i.id, v.n FROM (VALUES ('BRASA_DE_BANDIDO', 2), ('ACERO_REFINADO', 1)) AS v(code, n) JOIN items i ON i.code = v.code;
+-- Armadura del Volcán
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'GUERRERO_ARMOR_VOLCAN', 'Armadura del Volcán', 'EQUIPMENT', 'ARMOR', FALSE, 'RARO', 1, 31, TRUE, 'CRAFT', 'Forjada en la Gran Forja de Ascuaria con lo que dejan los monstruos de la Ladera de Ceniza, los Campos de Azufre y el Bosque Calcinado.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'GUERRERO_ARMOR_VOLCAN');
+UPDATE items SET name = 'Armadura del Volcán', item_type = 'EQUIPMENT', slot = 'ARMOR', is_two_handed = FALSE, rarity = 'RARO', class_id = 1, required_level = 31, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Forjada en la Gran Forja de Ascuaria con lo que dejan los monstruos de la Ladera de Ceniza, los Campos de Azufre y el Bosque Calcinado.' WHERE code = 'GUERRERO_ARMOR_VOLCAN';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'GUERRERO_ARMOR_VOLCAN');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'GUERRERO_ARMOR_VOLCAN'), v.* FROM (VALUES ('DEF', 26, FALSE), ('MAGIC_DEF', 8, FALSE), ('HP', 41, FALSE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station, scroll_item_id)
+SELECT 'RECIPE_GUERRERO_ARMOR_VOLCAN', (SELECT id FROM items WHERE code = 'GUERRERO_ARMOR_VOLCAN'), 1, 'RARO', 31, 1, 90, 1, 'Ignar, en la Gran Forja de Ascuaria', 3, 'forja', NULL WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_GUERRERO_ARMOR_VOLCAN');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'GUERRERO_ARMOR_VOLCAN'), result_quantity = 1, rarity = 'RARO', required_level = 31, required_class_id = 1, success_rate_percent = 90, craft_time_minutes = 1, artisan_name = 'Ignar, en la Gran Forja de Ascuaria', zone_id = 3, station = 'forja', scroll_item_id = NULL WHERE code = 'RECIPE_GUERRERO_ARMOR_VOLCAN';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_GUERRERO_ARMOR_VOLCAN');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_GUERRERO_ARMOR_VOLCAN'), i.id, v.n FROM (VALUES ('BRASA_DE_BANDIDO', 3), ('ACERO_REFINADO', 2), ('CAPARAZON_AZUFRE', 2)) AS v(code, n) JOIN items i ON i.code = v.code;
+-- Guanteletes del Volcán
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'GUERRERO_GLOVES_VOLCAN', 'Guanteletes del Volcán', 'EQUIPMENT', 'GLOVES', FALSE, 'RARO', 1, 31, TRUE, 'CRAFT', 'Forjada en la Gran Forja de Ascuaria con lo que dejan los monstruos de la Ladera de Ceniza, los Campos de Azufre y el Bosque Calcinado.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'GUERRERO_GLOVES_VOLCAN');
+UPDATE items SET name = 'Guanteletes del Volcán', item_type = 'EQUIPMENT', slot = 'GLOVES', is_two_handed = FALSE, rarity = 'RARO', class_id = 1, required_level = 31, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Forjada en la Gran Forja de Ascuaria con lo que dejan los monstruos de la Ladera de Ceniza, los Campos de Azufre y el Bosque Calcinado.' WHERE code = 'GUERRERO_GLOVES_VOLCAN';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'GUERRERO_GLOVES_VOLCAN');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'GUERRERO_GLOVES_VOLCAN'), v.* FROM (VALUES ('ATK', 32, FALSE), ('CRIT_CHANCE', 3.5, TRUE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station, scroll_item_id)
+SELECT 'RECIPE_GUERRERO_GLOVES_VOLCAN', (SELECT id FROM items WHERE code = 'GUERRERO_GLOVES_VOLCAN'), 1, 'RARO', 31, 1, 90, 1, 'Ignar, en la Gran Forja de Ascuaria', 3, 'forja', NULL WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_GUERRERO_GLOVES_VOLCAN');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'GUERRERO_GLOVES_VOLCAN'), result_quantity = 1, rarity = 'RARO', required_level = 31, required_class_id = 1, success_rate_percent = 90, craft_time_minutes = 1, artisan_name = 'Ignar, en la Gran Forja de Ascuaria', zone_id = 3, station = 'forja', scroll_item_id = NULL WHERE code = 'RECIPE_GUERRERO_GLOVES_VOLCAN';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_GUERRERO_GLOVES_VOLCAN');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_GUERRERO_GLOVES_VOLCAN'), i.id, v.n FROM (VALUES ('BRASA_DE_BANDIDO', 2), ('ACERO_REFINADO', 1)) AS v(code, n) JOIN items i ON i.code = v.code;
+-- Botas del Volcán
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'GUERRERO_BOOTS_VOLCAN', 'Botas del Volcán', 'EQUIPMENT', 'BOOTS', FALSE, 'RARO', 1, 31, TRUE, 'CRAFT', 'Forjada en la Gran Forja de Ascuaria con lo que dejan los monstruos de la Ladera de Ceniza, los Campos de Azufre y el Bosque Calcinado.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'GUERRERO_BOOTS_VOLCAN');
+UPDATE items SET name = 'Botas del Volcán', item_type = 'EQUIPMENT', slot = 'BOOTS', is_two_handed = FALSE, rarity = 'RARO', class_id = 1, required_level = 31, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Forjada en la Gran Forja de Ascuaria con lo que dejan los monstruos de la Ladera de Ceniza, los Campos de Azufre y el Bosque Calcinado.' WHERE code = 'GUERRERO_BOOTS_VOLCAN';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'GUERRERO_BOOTS_VOLCAN');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'GUERRERO_BOOTS_VOLCAN'), v.* FROM (VALUES ('DEF', 5, FALSE), ('HP', 5, FALSE), ('SPD', 19, FALSE), ('EVASION', 2, TRUE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station, scroll_item_id)
+SELECT 'RECIPE_GUERRERO_BOOTS_VOLCAN', (SELECT id FROM items WHERE code = 'GUERRERO_BOOTS_VOLCAN'), 1, 'RARO', 31, 1, 90, 1, 'Ignar, en la Gran Forja de Ascuaria', 3, 'forja', NULL WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_GUERRERO_BOOTS_VOLCAN');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'GUERRERO_BOOTS_VOLCAN'), result_quantity = 1, rarity = 'RARO', required_level = 31, required_class_id = 1, success_rate_percent = 90, craft_time_minutes = 1, artisan_name = 'Ignar, en la Gran Forja de Ascuaria', zone_id = 3, station = 'forja', scroll_item_id = NULL WHERE code = 'RECIPE_GUERRERO_BOOTS_VOLCAN';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_GUERRERO_BOOTS_VOLCAN');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_GUERRERO_BOOTS_VOLCAN'), i.id, v.n FROM (VALUES ('BRASA_DE_BANDIDO', 2), ('ACERO_REFINADO', 1)) AS v(code, n) JOIN items i ON i.code = v.code;
+-- Amuleto del Volcán
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'GUERRERO_ACCESSORY_VOLCAN', 'Amuleto del Volcán', 'EQUIPMENT', 'ACCESSORY', FALSE, 'RARO', NULL, 31, TRUE, 'CRAFT', 'Forjada en la Gran Forja de Ascuaria con lo que dejan los monstruos de la Ladera de Ceniza, los Campos de Azufre y el Bosque Calcinado.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'GUERRERO_ACCESSORY_VOLCAN');
+UPDATE items SET name = 'Amuleto del Volcán', item_type = 'EQUIPMENT', slot = 'ACCESSORY', is_two_handed = FALSE, rarity = 'RARO', class_id = NULL, required_level = 31, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Forjada en la Gran Forja de Ascuaria con lo que dejan los monstruos de la Ladera de Ceniza, los Campos de Azufre y el Bosque Calcinado.' WHERE code = 'GUERRERO_ACCESSORY_VOLCAN';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'GUERRERO_ACCESSORY_VOLCAN');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'GUERRERO_ACCESSORY_VOLCAN'), v.* FROM (VALUES ('ATK', 29, FALSE), ('CRIT_CHANCE', 3.5, TRUE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station, scroll_item_id)
+SELECT 'RECIPE_GUERRERO_ACCESSORY_VOLCAN', (SELECT id FROM items WHERE code = 'GUERRERO_ACCESSORY_VOLCAN'), 1, 'RARO', 31, NULL, 90, 1, 'Ignar, en la Gran Forja de Ascuaria', 3, 'forja', NULL WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_GUERRERO_ACCESSORY_VOLCAN');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'GUERRERO_ACCESSORY_VOLCAN'), result_quantity = 1, rarity = 'RARO', required_level = 31, required_class_id = NULL, success_rate_percent = 90, craft_time_minutes = 1, artisan_name = 'Ignar, en la Gran Forja de Ascuaria', zone_id = 3, station = 'forja', scroll_item_id = NULL WHERE code = 'RECIPE_GUERRERO_ACCESSORY_VOLCAN';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_GUERRERO_ACCESSORY_VOLCAN');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_GUERRERO_ACCESSORY_VOLCAN'), i.id, v.n FROM (VALUES ('ESENCIA_DE_FUEGO', 2), ('BRASA_DE_BANDIDO', 2), ('GEMA_COMUN', 1)) AS v(code, n) JOIN items i ON i.code = v.code;
+-- Arco del Volcán
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'ARQUERO_WEAPON_VOLCAN', 'Arco del Volcán', 'EQUIPMENT', 'WEAPON', FALSE, 'RARO', 3, 31, TRUE, 'CRAFT', 'Forjada en la Gran Forja de Ascuaria con lo que dejan los monstruos de la Ladera de Ceniza, los Campos de Azufre y el Bosque Calcinado.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'ARQUERO_WEAPON_VOLCAN');
+UPDATE items SET name = 'Arco del Volcán', item_type = 'EQUIPMENT', slot = 'WEAPON', is_two_handed = FALSE, rarity = 'RARO', class_id = 3, required_level = 31, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Forjada en la Gran Forja de Ascuaria con lo que dejan los monstruos de la Ladera de Ceniza, los Campos de Azufre y el Bosque Calcinado.' WHERE code = 'ARQUERO_WEAPON_VOLCAN';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'ARQUERO_WEAPON_VOLCAN');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'ARQUERO_WEAPON_VOLCAN'), v.* FROM (VALUES ('ATK', 71, FALSE), ('CRIT_CHANCE', 5.3, TRUE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station, scroll_item_id)
+SELECT 'RECIPE_ARQUERO_WEAPON_VOLCAN', (SELECT id FROM items WHERE code = 'ARQUERO_WEAPON_VOLCAN'), 1, 'RARO', 31, 3, 90, 1, 'Ignar, en la Gran Forja de Ascuaria', 3, 'forja', NULL WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_ARQUERO_WEAPON_VOLCAN');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'ARQUERO_WEAPON_VOLCAN'), result_quantity = 1, rarity = 'RARO', required_level = 31, required_class_id = 3, success_rate_percent = 90, craft_time_minutes = 1, artisan_name = 'Ignar, en la Gran Forja de Ascuaria', zone_id = 3, station = 'forja', scroll_item_id = NULL WHERE code = 'RECIPE_ARQUERO_WEAPON_VOLCAN';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_ARQUERO_WEAPON_VOLCAN');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_ARQUERO_WEAPON_VOLCAN'), i.id, v.n FROM (VALUES ('PELAJE_CENIZA', 3), ('ESCAMA_DE_FUEGO', 2), ('MADERA_PINO', 2)) AS v(code, n) JOIN items i ON i.code = v.code;
+-- Carcaj del Volcán
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'ARQUERO_OFFHAND_VOLCAN', 'Carcaj del Volcán', 'EQUIPMENT', 'OFFHAND', FALSE, 'RARO', 3, 31, TRUE, 'CRAFT', 'Forjada en la Gran Forja de Ascuaria con lo que dejan los monstruos de la Ladera de Ceniza, los Campos de Azufre y el Bosque Calcinado.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'ARQUERO_OFFHAND_VOLCAN');
+UPDATE items SET name = 'Carcaj del Volcán', item_type = 'EQUIPMENT', slot = 'OFFHAND', is_two_handed = FALSE, rarity = 'RARO', class_id = 3, required_level = 31, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Forjada en la Gran Forja de Ascuaria con lo que dejan los monstruos de la Ladera de Ceniza, los Campos de Azufre y el Bosque Calcinado.' WHERE code = 'ARQUERO_OFFHAND_VOLCAN';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'ARQUERO_OFFHAND_VOLCAN');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'ARQUERO_OFFHAND_VOLCAN'), v.* FROM (VALUES ('ATK', 22, FALSE), ('SPD', 24, FALSE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station, scroll_item_id)
+SELECT 'RECIPE_ARQUERO_OFFHAND_VOLCAN', (SELECT id FROM items WHERE code = 'ARQUERO_OFFHAND_VOLCAN'), 1, 'RARO', 31, 3, 90, 1, 'Ignar, en la Gran Forja de Ascuaria', 3, 'forja', NULL WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_ARQUERO_OFFHAND_VOLCAN');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'ARQUERO_OFFHAND_VOLCAN'), result_quantity = 1, rarity = 'RARO', required_level = 31, required_class_id = 3, success_rate_percent = 90, craft_time_minutes = 1, artisan_name = 'Ignar, en la Gran Forja de Ascuaria', zone_id = 3, station = 'forja', scroll_item_id = NULL WHERE code = 'RECIPE_ARQUERO_OFFHAND_VOLCAN';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_ARQUERO_OFFHAND_VOLCAN');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_ARQUERO_OFFHAND_VOLCAN'), i.id, v.n FROM (VALUES ('PELAJE_CENIZA', 2), ('ESCAMA_DE_FUEGO', 1)) AS v(code, n) JOIN items i ON i.code = v.code;
+-- Capucha del Volcán
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'ARQUERO_HELMET_VOLCAN', 'Capucha del Volcán', 'EQUIPMENT', 'HELMET', FALSE, 'RARO', 3, 31, TRUE, 'CRAFT', 'Forjada en la Gran Forja de Ascuaria con lo que dejan los monstruos de la Ladera de Ceniza, los Campos de Azufre y el Bosque Calcinado.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'ARQUERO_HELMET_VOLCAN');
+UPDATE items SET name = 'Capucha del Volcán', item_type = 'EQUIPMENT', slot = 'HELMET', is_two_handed = FALSE, rarity = 'RARO', class_id = 3, required_level = 31, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Forjada en la Gran Forja de Ascuaria con lo que dejan los monstruos de la Ladera de Ceniza, los Campos de Azufre y el Bosque Calcinado.' WHERE code = 'ARQUERO_HELMET_VOLCAN';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'ARQUERO_HELMET_VOLCAN');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'ARQUERO_HELMET_VOLCAN'), v.* FROM (VALUES ('DEF', 13, FALSE), ('MAGIC_DEF', 4, FALSE), ('HP', 11, FALSE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station, scroll_item_id)
+SELECT 'RECIPE_ARQUERO_HELMET_VOLCAN', (SELECT id FROM items WHERE code = 'ARQUERO_HELMET_VOLCAN'), 1, 'RARO', 31, 3, 90, 1, 'Ignar, en la Gran Forja de Ascuaria', 3, 'forja', NULL WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_ARQUERO_HELMET_VOLCAN');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'ARQUERO_HELMET_VOLCAN'), result_quantity = 1, rarity = 'RARO', required_level = 31, required_class_id = 3, success_rate_percent = 90, craft_time_minutes = 1, artisan_name = 'Ignar, en la Gran Forja de Ascuaria', zone_id = 3, station = 'forja', scroll_item_id = NULL WHERE code = 'RECIPE_ARQUERO_HELMET_VOLCAN';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_ARQUERO_HELMET_VOLCAN');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_ARQUERO_HELMET_VOLCAN'), i.id, v.n FROM (VALUES ('PELAJE_CENIZA', 2), ('ESCAMA_DE_FUEGO', 1)) AS v(code, n) JOIN items i ON i.code = v.code;
+-- Gabán del Volcán
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'ARQUERO_ARMOR_VOLCAN', 'Gabán del Volcán', 'EQUIPMENT', 'ARMOR', FALSE, 'RARO', 3, 31, TRUE, 'CRAFT', 'Forjada en la Gran Forja de Ascuaria con lo que dejan los monstruos de la Ladera de Ceniza, los Campos de Azufre y el Bosque Calcinado.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'ARQUERO_ARMOR_VOLCAN');
+UPDATE items SET name = 'Gabán del Volcán', item_type = 'EQUIPMENT', slot = 'ARMOR', is_two_handed = FALSE, rarity = 'RARO', class_id = 3, required_level = 31, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Forjada en la Gran Forja de Ascuaria con lo que dejan los monstruos de la Ladera de Ceniza, los Campos de Azufre y el Bosque Calcinado.' WHERE code = 'ARQUERO_ARMOR_VOLCAN';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'ARQUERO_ARMOR_VOLCAN');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'ARQUERO_ARMOR_VOLCAN'), v.* FROM (VALUES ('DEF', 26, FALSE), ('MAGIC_DEF', 7, FALSE), ('HP', 46, FALSE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station, scroll_item_id)
+SELECT 'RECIPE_ARQUERO_ARMOR_VOLCAN', (SELECT id FROM items WHERE code = 'ARQUERO_ARMOR_VOLCAN'), 1, 'RARO', 31, 3, 90, 1, 'Ignar, en la Gran Forja de Ascuaria', 3, 'forja', NULL WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_ARQUERO_ARMOR_VOLCAN');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'ARQUERO_ARMOR_VOLCAN'), result_quantity = 1, rarity = 'RARO', required_level = 31, required_class_id = 3, success_rate_percent = 90, craft_time_minutes = 1, artisan_name = 'Ignar, en la Gran Forja de Ascuaria', zone_id = 3, station = 'forja', scroll_item_id = NULL WHERE code = 'RECIPE_ARQUERO_ARMOR_VOLCAN';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_ARQUERO_ARMOR_VOLCAN');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_ARQUERO_ARMOR_VOLCAN'), i.id, v.n FROM (VALUES ('PELAJE_CENIZA', 3), ('ESCAMA_DE_FUEGO', 2), ('MADERA_PINO', 2)) AS v(code, n) JOIN items i ON i.code = v.code;
+-- Guantes del Volcán
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'ARQUERO_GLOVES_VOLCAN', 'Guantes del Volcán', 'EQUIPMENT', 'GLOVES', FALSE, 'RARO', 3, 31, TRUE, 'CRAFT', 'Forjada en la Gran Forja de Ascuaria con lo que dejan los monstruos de la Ladera de Ceniza, los Campos de Azufre y el Bosque Calcinado.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'ARQUERO_GLOVES_VOLCAN');
+UPDATE items SET name = 'Guantes del Volcán', item_type = 'EQUIPMENT', slot = 'GLOVES', is_two_handed = FALSE, rarity = 'RARO', class_id = 3, required_level = 31, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Forjada en la Gran Forja de Ascuaria con lo que dejan los monstruos de la Ladera de Ceniza, los Campos de Azufre y el Bosque Calcinado.' WHERE code = 'ARQUERO_GLOVES_VOLCAN';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'ARQUERO_GLOVES_VOLCAN');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'ARQUERO_GLOVES_VOLCAN'), v.* FROM (VALUES ('ATK', 32, FALSE), ('CRIT_CHANCE', 3.5, TRUE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station, scroll_item_id)
+SELECT 'RECIPE_ARQUERO_GLOVES_VOLCAN', (SELECT id FROM items WHERE code = 'ARQUERO_GLOVES_VOLCAN'), 1, 'RARO', 31, 3, 90, 1, 'Ignar, en la Gran Forja de Ascuaria', 3, 'forja', NULL WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_ARQUERO_GLOVES_VOLCAN');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'ARQUERO_GLOVES_VOLCAN'), result_quantity = 1, rarity = 'RARO', required_level = 31, required_class_id = 3, success_rate_percent = 90, craft_time_minutes = 1, artisan_name = 'Ignar, en la Gran Forja de Ascuaria', zone_id = 3, station = 'forja', scroll_item_id = NULL WHERE code = 'RECIPE_ARQUERO_GLOVES_VOLCAN';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_ARQUERO_GLOVES_VOLCAN');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_ARQUERO_GLOVES_VOLCAN'), i.id, v.n FROM (VALUES ('PELAJE_CENIZA', 2), ('ESCAMA_DE_FUEGO', 1)) AS v(code, n) JOIN items i ON i.code = v.code;
+-- Botas del Volcán
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'ARQUERO_BOOTS_VOLCAN', 'Botas del Volcán', 'EQUIPMENT', 'BOOTS', FALSE, 'RARO', 3, 31, TRUE, 'CRAFT', 'Forjada en la Gran Forja de Ascuaria con lo que dejan los monstruos de la Ladera de Ceniza, los Campos de Azufre y el Bosque Calcinado.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'ARQUERO_BOOTS_VOLCAN');
+UPDATE items SET name = 'Botas del Volcán', item_type = 'EQUIPMENT', slot = 'BOOTS', is_two_handed = FALSE, rarity = 'RARO', class_id = 3, required_level = 31, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Forjada en la Gran Forja de Ascuaria con lo que dejan los monstruos de la Ladera de Ceniza, los Campos de Azufre y el Bosque Calcinado.' WHERE code = 'ARQUERO_BOOTS_VOLCAN';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'ARQUERO_BOOTS_VOLCAN');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'ARQUERO_BOOTS_VOLCAN'), v.* FROM (VALUES ('DEF', 7, FALSE), ('HP', 5, FALSE), ('SPD', 19, FALSE), ('EVASION', 2, TRUE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station, scroll_item_id)
+SELECT 'RECIPE_ARQUERO_BOOTS_VOLCAN', (SELECT id FROM items WHERE code = 'ARQUERO_BOOTS_VOLCAN'), 1, 'RARO', 31, 3, 90, 1, 'Ignar, en la Gran Forja de Ascuaria', 3, 'forja', NULL WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_ARQUERO_BOOTS_VOLCAN');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'ARQUERO_BOOTS_VOLCAN'), result_quantity = 1, rarity = 'RARO', required_level = 31, required_class_id = 3, success_rate_percent = 90, craft_time_minutes = 1, artisan_name = 'Ignar, en la Gran Forja de Ascuaria', zone_id = 3, station = 'forja', scroll_item_id = NULL WHERE code = 'RECIPE_ARQUERO_BOOTS_VOLCAN';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_ARQUERO_BOOTS_VOLCAN');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_ARQUERO_BOOTS_VOLCAN'), i.id, v.n FROM (VALUES ('PELAJE_CENIZA', 2), ('ESCAMA_DE_FUEGO', 1)) AS v(code, n) JOIN items i ON i.code = v.code;
+-- Brazalete del Volcán
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'ARQUERO_ACCESSORY_VOLCAN', 'Brazalete del Volcán', 'EQUIPMENT', 'ACCESSORY', FALSE, 'RARO', NULL, 31, TRUE, 'CRAFT', 'Forjada en la Gran Forja de Ascuaria con lo que dejan los monstruos de la Ladera de Ceniza, los Campos de Azufre y el Bosque Calcinado.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'ARQUERO_ACCESSORY_VOLCAN');
+UPDATE items SET name = 'Brazalete del Volcán', item_type = 'EQUIPMENT', slot = 'ACCESSORY', is_two_handed = FALSE, rarity = 'RARO', class_id = NULL, required_level = 31, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Forjada en la Gran Forja de Ascuaria con lo que dejan los monstruos de la Ladera de Ceniza, los Campos de Azufre y el Bosque Calcinado.' WHERE code = 'ARQUERO_ACCESSORY_VOLCAN';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'ARQUERO_ACCESSORY_VOLCAN');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'ARQUERO_ACCESSORY_VOLCAN'), v.* FROM (VALUES ('ATK', 29, FALSE), ('CRIT_CHANCE', 3.5, TRUE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station, scroll_item_id)
+SELECT 'RECIPE_ARQUERO_ACCESSORY_VOLCAN', (SELECT id FROM items WHERE code = 'ARQUERO_ACCESSORY_VOLCAN'), 1, 'RARO', 31, NULL, 90, 1, 'Ignar, en la Gran Forja de Ascuaria', 3, 'forja', NULL WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_ARQUERO_ACCESSORY_VOLCAN');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'ARQUERO_ACCESSORY_VOLCAN'), result_quantity = 1, rarity = 'RARO', required_level = 31, required_class_id = NULL, success_rate_percent = 90, craft_time_minutes = 1, artisan_name = 'Ignar, en la Gran Forja de Ascuaria', zone_id = 3, station = 'forja', scroll_item_id = NULL WHERE code = 'RECIPE_ARQUERO_ACCESSORY_VOLCAN';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_ARQUERO_ACCESSORY_VOLCAN');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_ARQUERO_ACCESSORY_VOLCAN'), i.id, v.n FROM (VALUES ('ESENCIA_DE_FUEGO', 2), ('PELAJE_CENIZA', 2), ('GEMA_COMUN', 1)) AS v(code, n) JOIN items i ON i.code = v.code;
+-- Daga del Volcán
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'PICARO_WEAPON_VOLCAN', 'Daga del Volcán', 'EQUIPMENT', 'WEAPON', FALSE, 'RARO', 4, 31, TRUE, 'CRAFT', 'Forjada en la Gran Forja de Ascuaria con lo que dejan los monstruos de la Ladera de Ceniza, los Campos de Azufre y el Bosque Calcinado.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'PICARO_WEAPON_VOLCAN');
+UPDATE items SET name = 'Daga del Volcán', item_type = 'EQUIPMENT', slot = 'WEAPON', is_two_handed = FALSE, rarity = 'RARO', class_id = 4, required_level = 31, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Forjada en la Gran Forja de Ascuaria con lo que dejan los monstruos de la Ladera de Ceniza, los Campos de Azufre y el Bosque Calcinado.' WHERE code = 'PICARO_WEAPON_VOLCAN';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'PICARO_WEAPON_VOLCAN');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'PICARO_WEAPON_VOLCAN'), v.* FROM (VALUES ('ATK', 71, FALSE), ('CRIT_CHANCE', 5.3, TRUE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station, scroll_item_id)
+SELECT 'RECIPE_PICARO_WEAPON_VOLCAN', (SELECT id FROM items WHERE code = 'PICARO_WEAPON_VOLCAN'), 1, 'RARO', 31, 4, 90, 1, 'Ignar, en la Gran Forja de Ascuaria', 3, 'forja', NULL WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_PICARO_WEAPON_VOLCAN');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'PICARO_WEAPON_VOLCAN'), result_quantity = 1, rarity = 'RARO', required_level = 31, required_class_id = 4, success_rate_percent = 90, craft_time_minutes = 1, artisan_name = 'Ignar, en la Gran Forja de Ascuaria', zone_id = 3, station = 'forja', scroll_item_id = NULL WHERE code = 'RECIPE_PICARO_WEAPON_VOLCAN';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_PICARO_WEAPON_VOLCAN');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_PICARO_WEAPON_VOLCAN'), i.id, v.n FROM (VALUES ('PELAJE_CENIZA', 3), ('CAPARAZON_AZUFRE', 2), ('ACERO_REFINADO', 1)) AS v(code, n) JOIN items i ON i.code = v.code;
+-- Daga Gemela del Volcán
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'PICARO_OFFHAND_VOLCAN', 'Daga Gemela del Volcán', 'EQUIPMENT', 'OFFHAND', FALSE, 'RARO', 4, 31, TRUE, 'CRAFT', 'Forjada en la Gran Forja de Ascuaria con lo que dejan los monstruos de la Ladera de Ceniza, los Campos de Azufre y el Bosque Calcinado.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'PICARO_OFFHAND_VOLCAN');
+UPDATE items SET name = 'Daga Gemela del Volcán', item_type = 'EQUIPMENT', slot = 'OFFHAND', is_two_handed = FALSE, rarity = 'RARO', class_id = 4, required_level = 31, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Forjada en la Gran Forja de Ascuaria con lo que dejan los monstruos de la Ladera de Ceniza, los Campos de Azufre y el Bosque Calcinado.' WHERE code = 'PICARO_OFFHAND_VOLCAN';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'PICARO_OFFHAND_VOLCAN');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'PICARO_OFFHAND_VOLCAN'), v.* FROM (VALUES ('ATK', 22, FALSE), ('SPD', 24, FALSE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station, scroll_item_id)
+SELECT 'RECIPE_PICARO_OFFHAND_VOLCAN', (SELECT id FROM items WHERE code = 'PICARO_OFFHAND_VOLCAN'), 1, 'RARO', 31, 4, 90, 1, 'Ignar, en la Gran Forja de Ascuaria', 3, 'forja', NULL WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_PICARO_OFFHAND_VOLCAN');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'PICARO_OFFHAND_VOLCAN'), result_quantity = 1, rarity = 'RARO', required_level = 31, required_class_id = 4, success_rate_percent = 90, craft_time_minutes = 1, artisan_name = 'Ignar, en la Gran Forja de Ascuaria', zone_id = 3, station = 'forja', scroll_item_id = NULL WHERE code = 'RECIPE_PICARO_OFFHAND_VOLCAN';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_PICARO_OFFHAND_VOLCAN');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_PICARO_OFFHAND_VOLCAN'), i.id, v.n FROM (VALUES ('CAPARAZON_AZUFRE', 2), ('PELAJE_CENIZA', 1)) AS v(code, n) JOIN items i ON i.code = v.code;
+-- Máscara del Volcán
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'PICARO_HELMET_VOLCAN', 'Máscara del Volcán', 'EQUIPMENT', 'HELMET', FALSE, 'RARO', 4, 31, TRUE, 'CRAFT', 'Forjada en la Gran Forja de Ascuaria con lo que dejan los monstruos de la Ladera de Ceniza, los Campos de Azufre y el Bosque Calcinado.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'PICARO_HELMET_VOLCAN');
+UPDATE items SET name = 'Máscara del Volcán', item_type = 'EQUIPMENT', slot = 'HELMET', is_two_handed = FALSE, rarity = 'RARO', class_id = 4, required_level = 31, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Forjada en la Gran Forja de Ascuaria con lo que dejan los monstruos de la Ladera de Ceniza, los Campos de Azufre y el Bosque Calcinado.' WHERE code = 'PICARO_HELMET_VOLCAN';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'PICARO_HELMET_VOLCAN');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'PICARO_HELMET_VOLCAN'), v.* FROM (VALUES ('DEF', 13, FALSE), ('MAGIC_DEF', 4, FALSE), ('HP', 12, FALSE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station, scroll_item_id)
+SELECT 'RECIPE_PICARO_HELMET_VOLCAN', (SELECT id FROM items WHERE code = 'PICARO_HELMET_VOLCAN'), 1, 'RARO', 31, 4, 90, 1, 'Ignar, en la Gran Forja de Ascuaria', 3, 'forja', NULL WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_PICARO_HELMET_VOLCAN');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'PICARO_HELMET_VOLCAN'), result_quantity = 1, rarity = 'RARO', required_level = 31, required_class_id = 4, success_rate_percent = 90, craft_time_minutes = 1, artisan_name = 'Ignar, en la Gran Forja de Ascuaria', zone_id = 3, station = 'forja', scroll_item_id = NULL WHERE code = 'RECIPE_PICARO_HELMET_VOLCAN';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_PICARO_HELMET_VOLCAN');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_PICARO_HELMET_VOLCAN'), i.id, v.n FROM (VALUES ('CAPARAZON_AZUFRE', 2), ('PELAJE_CENIZA', 1)) AS v(code, n) JOIN items i ON i.code = v.code;
+-- Cuero del Volcán
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'PICARO_ARMOR_VOLCAN', 'Cuero del Volcán', 'EQUIPMENT', 'ARMOR', FALSE, 'RARO', 4, 31, TRUE, 'CRAFT', 'Forjada en la Gran Forja de Ascuaria con lo que dejan los monstruos de la Ladera de Ceniza, los Campos de Azufre y el Bosque Calcinado.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'PICARO_ARMOR_VOLCAN');
+UPDATE items SET name = 'Cuero del Volcán', item_type = 'EQUIPMENT', slot = 'ARMOR', is_two_handed = FALSE, rarity = 'RARO', class_id = 4, required_level = 31, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Forjada en la Gran Forja de Ascuaria con lo que dejan los monstruos de la Ladera de Ceniza, los Campos de Azufre y el Bosque Calcinado.' WHERE code = 'PICARO_ARMOR_VOLCAN';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'PICARO_ARMOR_VOLCAN');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'PICARO_ARMOR_VOLCAN'), v.* FROM (VALUES ('DEF', 26, FALSE), ('MAGIC_DEF', 8, FALSE), ('HP', 50, FALSE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station, scroll_item_id)
+SELECT 'RECIPE_PICARO_ARMOR_VOLCAN', (SELECT id FROM items WHERE code = 'PICARO_ARMOR_VOLCAN'), 1, 'RARO', 31, 4, 90, 1, 'Ignar, en la Gran Forja de Ascuaria', 3, 'forja', NULL WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_PICARO_ARMOR_VOLCAN');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'PICARO_ARMOR_VOLCAN'), result_quantity = 1, rarity = 'RARO', required_level = 31, required_class_id = 4, success_rate_percent = 90, craft_time_minutes = 1, artisan_name = 'Ignar, en la Gran Forja de Ascuaria', zone_id = 3, station = 'forja', scroll_item_id = NULL WHERE code = 'RECIPE_PICARO_ARMOR_VOLCAN';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_PICARO_ARMOR_VOLCAN');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_PICARO_ARMOR_VOLCAN'), i.id, v.n FROM (VALUES ('PELAJE_CENIZA', 3), ('CAPARAZON_AZUFRE', 2), ('ACERO_REFINADO', 1)) AS v(code, n) JOIN items i ON i.code = v.code;
+-- Guantes del Volcán
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'PICARO_GLOVES_VOLCAN', 'Guantes del Volcán', 'EQUIPMENT', 'GLOVES', FALSE, 'RARO', 4, 31, TRUE, 'CRAFT', 'Forjada en la Gran Forja de Ascuaria con lo que dejan los monstruos de la Ladera de Ceniza, los Campos de Azufre y el Bosque Calcinado.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'PICARO_GLOVES_VOLCAN');
+UPDATE items SET name = 'Guantes del Volcán', item_type = 'EQUIPMENT', slot = 'GLOVES', is_two_handed = FALSE, rarity = 'RARO', class_id = 4, required_level = 31, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Forjada en la Gran Forja de Ascuaria con lo que dejan los monstruos de la Ladera de Ceniza, los Campos de Azufre y el Bosque Calcinado.' WHERE code = 'PICARO_GLOVES_VOLCAN';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'PICARO_GLOVES_VOLCAN');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'PICARO_GLOVES_VOLCAN'), v.* FROM (VALUES ('ATK', 32, FALSE), ('CRIT_CHANCE', 3.5, TRUE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station, scroll_item_id)
+SELECT 'RECIPE_PICARO_GLOVES_VOLCAN', (SELECT id FROM items WHERE code = 'PICARO_GLOVES_VOLCAN'), 1, 'RARO', 31, 4, 90, 1, 'Ignar, en la Gran Forja de Ascuaria', 3, 'forja', NULL WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_PICARO_GLOVES_VOLCAN');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'PICARO_GLOVES_VOLCAN'), result_quantity = 1, rarity = 'RARO', required_level = 31, required_class_id = 4, success_rate_percent = 90, craft_time_minutes = 1, artisan_name = 'Ignar, en la Gran Forja de Ascuaria', zone_id = 3, station = 'forja', scroll_item_id = NULL WHERE code = 'RECIPE_PICARO_GLOVES_VOLCAN';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_PICARO_GLOVES_VOLCAN');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_PICARO_GLOVES_VOLCAN'), i.id, v.n FROM (VALUES ('CAPARAZON_AZUFRE', 2), ('PELAJE_CENIZA', 1)) AS v(code, n) JOIN items i ON i.code = v.code;
+-- Botas del Volcán
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'PICARO_BOOTS_VOLCAN', 'Botas del Volcán', 'EQUIPMENT', 'BOOTS', FALSE, 'RARO', 4, 31, TRUE, 'CRAFT', 'Forjada en la Gran Forja de Ascuaria con lo que dejan los monstruos de la Ladera de Ceniza, los Campos de Azufre y el Bosque Calcinado.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'PICARO_BOOTS_VOLCAN');
+UPDATE items SET name = 'Botas del Volcán', item_type = 'EQUIPMENT', slot = 'BOOTS', is_two_handed = FALSE, rarity = 'RARO', class_id = 4, required_level = 31, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Forjada en la Gran Forja de Ascuaria con lo que dejan los monstruos de la Ladera de Ceniza, los Campos de Azufre y el Bosque Calcinado.' WHERE code = 'PICARO_BOOTS_VOLCAN';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'PICARO_BOOTS_VOLCAN');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'PICARO_BOOTS_VOLCAN'), v.* FROM (VALUES ('DEF', 7, FALSE), ('HP', 5, FALSE), ('SPD', 19, FALSE), ('EVASION', 2, TRUE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station, scroll_item_id)
+SELECT 'RECIPE_PICARO_BOOTS_VOLCAN', (SELECT id FROM items WHERE code = 'PICARO_BOOTS_VOLCAN'), 1, 'RARO', 31, 4, 90, 1, 'Ignar, en la Gran Forja de Ascuaria', 3, 'forja', NULL WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_PICARO_BOOTS_VOLCAN');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'PICARO_BOOTS_VOLCAN'), result_quantity = 1, rarity = 'RARO', required_level = 31, required_class_id = 4, success_rate_percent = 90, craft_time_minutes = 1, artisan_name = 'Ignar, en la Gran Forja de Ascuaria', zone_id = 3, station = 'forja', scroll_item_id = NULL WHERE code = 'RECIPE_PICARO_BOOTS_VOLCAN';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_PICARO_BOOTS_VOLCAN');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_PICARO_BOOTS_VOLCAN'), i.id, v.n FROM (VALUES ('CAPARAZON_AZUFRE', 2), ('PELAJE_CENIZA', 1)) AS v(code, n) JOIN items i ON i.code = v.code;
+-- Anillo del Volcán
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'PICARO_ACCESSORY_VOLCAN', 'Anillo del Volcán', 'EQUIPMENT', 'ACCESSORY', FALSE, 'RARO', NULL, 31, TRUE, 'CRAFT', 'Forjada en la Gran Forja de Ascuaria con lo que dejan los monstruos de la Ladera de Ceniza, los Campos de Azufre y el Bosque Calcinado.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'PICARO_ACCESSORY_VOLCAN');
+UPDATE items SET name = 'Anillo del Volcán', item_type = 'EQUIPMENT', slot = 'ACCESSORY', is_two_handed = FALSE, rarity = 'RARO', class_id = NULL, required_level = 31, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Forjada en la Gran Forja de Ascuaria con lo que dejan los monstruos de la Ladera de Ceniza, los Campos de Azufre y el Bosque Calcinado.' WHERE code = 'PICARO_ACCESSORY_VOLCAN';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'PICARO_ACCESSORY_VOLCAN');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'PICARO_ACCESSORY_VOLCAN'), v.* FROM (VALUES ('ATK', 29, FALSE), ('CRIT_CHANCE', 3.5, TRUE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station, scroll_item_id)
+SELECT 'RECIPE_PICARO_ACCESSORY_VOLCAN', (SELECT id FROM items WHERE code = 'PICARO_ACCESSORY_VOLCAN'), 1, 'RARO', 31, NULL, 90, 1, 'Ignar, en la Gran Forja de Ascuaria', 3, 'forja', NULL WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_PICARO_ACCESSORY_VOLCAN');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'PICARO_ACCESSORY_VOLCAN'), result_quantity = 1, rarity = 'RARO', required_level = 31, required_class_id = NULL, success_rate_percent = 90, craft_time_minutes = 1, artisan_name = 'Ignar, en la Gran Forja de Ascuaria', zone_id = 3, station = 'forja', scroll_item_id = NULL WHERE code = 'RECIPE_PICARO_ACCESSORY_VOLCAN';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_PICARO_ACCESSORY_VOLCAN');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_PICARO_ACCESSORY_VOLCAN'), i.id, v.n FROM (VALUES ('ESENCIA_DE_FUEGO', 2), ('CAPARAZON_AZUFRE', 2), ('GEMA_COMUN', 1)) AS v(code, n) JOIN items i ON i.code = v.code;
+-- Báculo Arcano del Volcán
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'MAGO_WEAPON_VOLCAN', 'Báculo Arcano del Volcán', 'EQUIPMENT', 'WEAPON', FALSE, 'RARO', 2, 31, TRUE, 'CRAFT', 'Forjada en la Gran Forja de Ascuaria con lo que dejan los monstruos de la Ladera de Ceniza, los Campos de Azufre y el Bosque Calcinado.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'MAGO_WEAPON_VOLCAN');
+UPDATE items SET name = 'Báculo Arcano del Volcán', item_type = 'EQUIPMENT', slot = 'WEAPON', is_two_handed = FALSE, rarity = 'RARO', class_id = 2, required_level = 31, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Forjada en la Gran Forja de Ascuaria con lo que dejan los monstruos de la Ladera de Ceniza, los Campos de Azufre y el Bosque Calcinado.' WHERE code = 'MAGO_WEAPON_VOLCAN';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'MAGO_WEAPON_VOLCAN');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'MAGO_WEAPON_VOLCAN'), v.* FROM (VALUES ('MAG', 71, FALSE), ('CRIT_CHANCE', 5.3, TRUE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station, scroll_item_id)
+SELECT 'RECIPE_MAGO_WEAPON_VOLCAN', (SELECT id FROM items WHERE code = 'MAGO_WEAPON_VOLCAN'), 1, 'RARO', 31, 2, 90, 1, 'Ignar, en la Gran Forja de Ascuaria', 3, 'forja', NULL WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_MAGO_WEAPON_VOLCAN');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'MAGO_WEAPON_VOLCAN'), result_quantity = 1, rarity = 'RARO', required_level = 31, required_class_id = 2, success_rate_percent = 90, craft_time_minutes = 1, artisan_name = 'Ignar, en la Gran Forja de Ascuaria', zone_id = 3, station = 'forja', scroll_item_id = NULL WHERE code = 'RECIPE_MAGO_WEAPON_VOLCAN';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_MAGO_WEAPON_VOLCAN');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_MAGO_WEAPON_VOLCAN'), i.id, v.n FROM (VALUES ('ESCAMA_DE_FUEGO', 3), ('AZUFRE', 3), ('PIEDRA_POMEZ', 2)) AS v(code, n) JOIN items i ON i.code = v.code;
+-- Orbe del Volcán
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'MAGO_OFFHAND_VOLCAN', 'Orbe del Volcán', 'EQUIPMENT', 'OFFHAND', FALSE, 'RARO', 2, 31, TRUE, 'CRAFT', 'Forjada en la Gran Forja de Ascuaria con lo que dejan los monstruos de la Ladera de Ceniza, los Campos de Azufre y el Bosque Calcinado.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'MAGO_OFFHAND_VOLCAN');
+UPDATE items SET name = 'Orbe del Volcán', item_type = 'EQUIPMENT', slot = 'OFFHAND', is_two_handed = FALSE, rarity = 'RARO', class_id = 2, required_level = 31, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Forjada en la Gran Forja de Ascuaria con lo que dejan los monstruos de la Ladera de Ceniza, los Campos de Azufre y el Bosque Calcinado.' WHERE code = 'MAGO_OFFHAND_VOLCAN';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'MAGO_OFFHAND_VOLCAN');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'MAGO_OFFHAND_VOLCAN'), v.* FROM (VALUES ('MAG', 28, FALSE), ('SPD', 24, FALSE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station, scroll_item_id)
+SELECT 'RECIPE_MAGO_OFFHAND_VOLCAN', (SELECT id FROM items WHERE code = 'MAGO_OFFHAND_VOLCAN'), 1, 'RARO', 31, 2, 90, 1, 'Ignar, en la Gran Forja de Ascuaria', 3, 'forja', NULL WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_MAGO_OFFHAND_VOLCAN');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'MAGO_OFFHAND_VOLCAN'), result_quantity = 1, rarity = 'RARO', required_level = 31, required_class_id = 2, success_rate_percent = 90, craft_time_minutes = 1, artisan_name = 'Ignar, en la Gran Forja de Ascuaria', zone_id = 3, station = 'forja', scroll_item_id = NULL WHERE code = 'RECIPE_MAGO_OFFHAND_VOLCAN';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_MAGO_OFFHAND_VOLCAN');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_MAGO_OFFHAND_VOLCAN'), i.id, v.n FROM (VALUES ('ESCAMA_DE_FUEGO', 2), ('AZUFRE', 2)) AS v(code, n) JOIN items i ON i.code = v.code;
+-- Capirote del Volcán
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'MAGO_HELMET_VOLCAN', 'Capirote del Volcán', 'EQUIPMENT', 'HELMET', FALSE, 'RARO', 2, 31, TRUE, 'CRAFT', 'Forjada en la Gran Forja de Ascuaria con lo que dejan los monstruos de la Ladera de Ceniza, los Campos de Azufre y el Bosque Calcinado.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'MAGO_HELMET_VOLCAN');
+UPDATE items SET name = 'Capirote del Volcán', item_type = 'EQUIPMENT', slot = 'HELMET', is_two_handed = FALSE, rarity = 'RARO', class_id = 2, required_level = 31, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Forjada en la Gran Forja de Ascuaria con lo que dejan los monstruos de la Ladera de Ceniza, los Campos de Azufre y el Bosque Calcinado.' WHERE code = 'MAGO_HELMET_VOLCAN';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'MAGO_HELMET_VOLCAN');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'MAGO_HELMET_VOLCAN'), v.* FROM (VALUES ('MAGIC_DEF', 13, FALSE), ('DEF', 4, FALSE), ('HP', 11, FALSE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station, scroll_item_id)
+SELECT 'RECIPE_MAGO_HELMET_VOLCAN', (SELECT id FROM items WHERE code = 'MAGO_HELMET_VOLCAN'), 1, 'RARO', 31, 2, 90, 1, 'Ignar, en la Gran Forja de Ascuaria', 3, 'forja', NULL WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_MAGO_HELMET_VOLCAN');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'MAGO_HELMET_VOLCAN'), result_quantity = 1, rarity = 'RARO', required_level = 31, required_class_id = 2, success_rate_percent = 90, craft_time_minutes = 1, artisan_name = 'Ignar, en la Gran Forja de Ascuaria', zone_id = 3, station = 'forja', scroll_item_id = NULL WHERE code = 'RECIPE_MAGO_HELMET_VOLCAN';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_MAGO_HELMET_VOLCAN');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_MAGO_HELMET_VOLCAN'), i.id, v.n FROM (VALUES ('ESCAMA_DE_FUEGO', 2), ('AZUFRE', 2)) AS v(code, n) JOIN items i ON i.code = v.code;
+-- Túnica del Volcán
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'MAGO_ARMOR_VOLCAN', 'Túnica del Volcán', 'EQUIPMENT', 'ARMOR', FALSE, 'RARO', 2, 31, TRUE, 'CRAFT', 'Forjada en la Gran Forja de Ascuaria con lo que dejan los monstruos de la Ladera de Ceniza, los Campos de Azufre y el Bosque Calcinado.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'MAGO_ARMOR_VOLCAN');
+UPDATE items SET name = 'Túnica del Volcán', item_type = 'EQUIPMENT', slot = 'ARMOR', is_two_handed = FALSE, rarity = 'RARO', class_id = 2, required_level = 31, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Forjada en la Gran Forja de Ascuaria con lo que dejan los monstruos de la Ladera de Ceniza, los Campos de Azufre y el Bosque Calcinado.' WHERE code = 'MAGO_ARMOR_VOLCAN';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'MAGO_ARMOR_VOLCAN');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'MAGO_ARMOR_VOLCAN'), v.* FROM (VALUES ('MAGIC_DEF', 26, FALSE), ('DEF', 7, FALSE), ('HP', 46, FALSE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station, scroll_item_id)
+SELECT 'RECIPE_MAGO_ARMOR_VOLCAN', (SELECT id FROM items WHERE code = 'MAGO_ARMOR_VOLCAN'), 1, 'RARO', 31, 2, 90, 1, 'Ignar, en la Gran Forja de Ascuaria', 3, 'forja', NULL WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_MAGO_ARMOR_VOLCAN');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'MAGO_ARMOR_VOLCAN'), result_quantity = 1, rarity = 'RARO', required_level = 31, required_class_id = 2, success_rate_percent = 90, craft_time_minutes = 1, artisan_name = 'Ignar, en la Gran Forja de Ascuaria', zone_id = 3, station = 'forja', scroll_item_id = NULL WHERE code = 'RECIPE_MAGO_ARMOR_VOLCAN';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_MAGO_ARMOR_VOLCAN');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_MAGO_ARMOR_VOLCAN'), i.id, v.n FROM (VALUES ('ESCAMA_DE_FUEGO', 3), ('AZUFRE', 3), ('PIEDRA_POMEZ', 2)) AS v(code, n) JOIN items i ON i.code = v.code;
+-- Guantes de Tela del Volcán
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'MAGO_GLOVES_VOLCAN', 'Guantes de Tela del Volcán', 'EQUIPMENT', 'GLOVES', FALSE, 'RARO', 2, 31, TRUE, 'CRAFT', 'Forjada en la Gran Forja de Ascuaria con lo que dejan los monstruos de la Ladera de Ceniza, los Campos de Azufre y el Bosque Calcinado.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'MAGO_GLOVES_VOLCAN');
+UPDATE items SET name = 'Guantes de Tela del Volcán', item_type = 'EQUIPMENT', slot = 'GLOVES', is_two_handed = FALSE, rarity = 'RARO', class_id = 2, required_level = 31, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Forjada en la Gran Forja de Ascuaria con lo que dejan los monstruos de la Ladera de Ceniza, los Campos de Azufre y el Bosque Calcinado.' WHERE code = 'MAGO_GLOVES_VOLCAN';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'MAGO_GLOVES_VOLCAN');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'MAGO_GLOVES_VOLCAN'), v.* FROM (VALUES ('MAG', 32, FALSE), ('CRIT_CHANCE', 3.5, TRUE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station, scroll_item_id)
+SELECT 'RECIPE_MAGO_GLOVES_VOLCAN', (SELECT id FROM items WHERE code = 'MAGO_GLOVES_VOLCAN'), 1, 'RARO', 31, 2, 90, 1, 'Ignar, en la Gran Forja de Ascuaria', 3, 'forja', NULL WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_MAGO_GLOVES_VOLCAN');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'MAGO_GLOVES_VOLCAN'), result_quantity = 1, rarity = 'RARO', required_level = 31, required_class_id = 2, success_rate_percent = 90, craft_time_minutes = 1, artisan_name = 'Ignar, en la Gran Forja de Ascuaria', zone_id = 3, station = 'forja', scroll_item_id = NULL WHERE code = 'RECIPE_MAGO_GLOVES_VOLCAN';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_MAGO_GLOVES_VOLCAN');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_MAGO_GLOVES_VOLCAN'), i.id, v.n FROM (VALUES ('ESCAMA_DE_FUEGO', 2), ('AZUFRE', 2)) AS v(code, n) JOIN items i ON i.code = v.code;
+-- Sandalias del Volcán
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'MAGO_BOOTS_VOLCAN', 'Sandalias del Volcán', 'EQUIPMENT', 'BOOTS', FALSE, 'RARO', 2, 31, TRUE, 'CRAFT', 'Forjada en la Gran Forja de Ascuaria con lo que dejan los monstruos de la Ladera de Ceniza, los Campos de Azufre y el Bosque Calcinado.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'MAGO_BOOTS_VOLCAN');
+UPDATE items SET name = 'Sandalias del Volcán', item_type = 'EQUIPMENT', slot = 'BOOTS', is_two_handed = FALSE, rarity = 'RARO', class_id = 2, required_level = 31, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Forjada en la Gran Forja de Ascuaria con lo que dejan los monstruos de la Ladera de Ceniza, los Campos de Azufre y el Bosque Calcinado.' WHERE code = 'MAGO_BOOTS_VOLCAN';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'MAGO_BOOTS_VOLCAN');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'MAGO_BOOTS_VOLCAN'), v.* FROM (VALUES ('MAGIC_DEF', 7, FALSE), ('HP', 5, FALSE), ('SPD', 19, FALSE), ('EVASION', 2, TRUE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station, scroll_item_id)
+SELECT 'RECIPE_MAGO_BOOTS_VOLCAN', (SELECT id FROM items WHERE code = 'MAGO_BOOTS_VOLCAN'), 1, 'RARO', 31, 2, 90, 1, 'Ignar, en la Gran Forja de Ascuaria', 3, 'forja', NULL WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_MAGO_BOOTS_VOLCAN');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'MAGO_BOOTS_VOLCAN'), result_quantity = 1, rarity = 'RARO', required_level = 31, required_class_id = 2, success_rate_percent = 90, craft_time_minutes = 1, artisan_name = 'Ignar, en la Gran Forja de Ascuaria', zone_id = 3, station = 'forja', scroll_item_id = NULL WHERE code = 'RECIPE_MAGO_BOOTS_VOLCAN';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_MAGO_BOOTS_VOLCAN');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_MAGO_BOOTS_VOLCAN'), i.id, v.n FROM (VALUES ('ESCAMA_DE_FUEGO', 2), ('AZUFRE', 2)) AS v(code, n) JOIN items i ON i.code = v.code;
+-- Cristal del Volcán
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'MAGO_ACCESSORY_VOLCAN', 'Cristal del Volcán', 'EQUIPMENT', 'OFFHAND', FALSE, 'RARO', 2, 31, TRUE, 'CRAFT', 'Forjada en la Gran Forja de Ascuaria con lo que dejan los monstruos de la Ladera de Ceniza, los Campos de Azufre y el Bosque Calcinado.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'MAGO_ACCESSORY_VOLCAN');
+UPDATE items SET name = 'Cristal del Volcán', item_type = 'EQUIPMENT', slot = 'OFFHAND', is_two_handed = FALSE, rarity = 'RARO', class_id = 2, required_level = 31, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Forjada en la Gran Forja de Ascuaria con lo que dejan los monstruos de la Ladera de Ceniza, los Campos de Azufre y el Bosque Calcinado.' WHERE code = 'MAGO_ACCESSORY_VOLCAN';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'MAGO_ACCESSORY_VOLCAN');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'MAGO_ACCESSORY_VOLCAN'), v.* FROM (VALUES ('MAG', 39, FALSE), ('CRIT_CHANCE', 3.5, TRUE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station, scroll_item_id)
+SELECT 'RECIPE_MAGO_ACCESSORY_VOLCAN', (SELECT id FROM items WHERE code = 'MAGO_ACCESSORY_VOLCAN'), 1, 'RARO', 31, 2, 90, 1, 'Ignar, en la Gran Forja de Ascuaria', 3, 'forja', NULL WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_MAGO_ACCESSORY_VOLCAN');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'MAGO_ACCESSORY_VOLCAN'), result_quantity = 1, rarity = 'RARO', required_level = 31, required_class_id = 2, success_rate_percent = 90, craft_time_minutes = 1, artisan_name = 'Ignar, en la Gran Forja de Ascuaria', zone_id = 3, station = 'forja', scroll_item_id = NULL WHERE code = 'RECIPE_MAGO_ACCESSORY_VOLCAN';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_MAGO_ACCESSORY_VOLCAN');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_MAGO_ACCESSORY_VOLCAN'), i.id, v.n FROM (VALUES ('ESCAMA_DE_FUEGO', 2), ('AZUFRE', 2)) AS v(code, n) JOIN items i ON i.code = v.code;
+-- Báculo Sagrado del Volcán
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'SACERDOTE_WEAPON_VOLCAN', 'Báculo Sagrado del Volcán', 'EQUIPMENT', 'WEAPON', FALSE, 'RARO', 5, 31, TRUE, 'CRAFT', 'Forjada en la Gran Forja de Ascuaria con lo que dejan los monstruos de la Ladera de Ceniza, los Campos de Azufre y el Bosque Calcinado.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'SACERDOTE_WEAPON_VOLCAN');
+UPDATE items SET name = 'Báculo Sagrado del Volcán', item_type = 'EQUIPMENT', slot = 'WEAPON', is_two_handed = FALSE, rarity = 'RARO', class_id = 5, required_level = 31, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Forjada en la Gran Forja de Ascuaria con lo que dejan los monstruos de la Ladera de Ceniza, los Campos de Azufre y el Bosque Calcinado.' WHERE code = 'SACERDOTE_WEAPON_VOLCAN';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'SACERDOTE_WEAPON_VOLCAN');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'SACERDOTE_WEAPON_VOLCAN'), v.* FROM (VALUES ('MAG', 71, FALSE), ('CRIT_CHANCE', 5.3, TRUE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station, scroll_item_id)
+SELECT 'RECIPE_SACERDOTE_WEAPON_VOLCAN', (SELECT id FROM items WHERE code = 'SACERDOTE_WEAPON_VOLCAN'), 1, 'RARO', 31, 5, 90, 1, 'Ignar, en la Gran Forja de Ascuaria', 3, 'forja', NULL WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_SACERDOTE_WEAPON_VOLCAN');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'SACERDOTE_WEAPON_VOLCAN'), result_quantity = 1, rarity = 'RARO', required_level = 31, required_class_id = 5, success_rate_percent = 90, craft_time_minutes = 1, artisan_name = 'Ignar, en la Gran Forja de Ascuaria', zone_id = 3, station = 'forja', scroll_item_id = NULL WHERE code = 'RECIPE_SACERDOTE_WEAPON_VOLCAN';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_SACERDOTE_WEAPON_VOLCAN');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_SACERDOTE_WEAPON_VOLCAN'), i.id, v.n FROM (VALUES ('FLOR_DE_CENIZA', 3), ('ESCAMA_DE_FUEGO', 2), ('PIEDRA_POMEZ', 1)) AS v(code, n) JOIN items i ON i.code = v.code;
+-- Símbolo Sagrado del Volcán
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'SACERDOTE_OFFHAND_VOLCAN', 'Símbolo Sagrado del Volcán', 'EQUIPMENT', 'OFFHAND', FALSE, 'RARO', 5, 31, TRUE, 'CRAFT', 'Forjada en la Gran Forja de Ascuaria con lo que dejan los monstruos de la Ladera de Ceniza, los Campos de Azufre y el Bosque Calcinado.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'SACERDOTE_OFFHAND_VOLCAN');
+UPDATE items SET name = 'Símbolo Sagrado del Volcán', item_type = 'EQUIPMENT', slot = 'OFFHAND', is_two_handed = FALSE, rarity = 'RARO', class_id = 5, required_level = 31, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Forjada en la Gran Forja de Ascuaria con lo que dejan los monstruos de la Ladera de Ceniza, los Campos de Azufre y el Bosque Calcinado.' WHERE code = 'SACERDOTE_OFFHAND_VOLCAN';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'SACERDOTE_OFFHAND_VOLCAN');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'SACERDOTE_OFFHAND_VOLCAN'), v.* FROM (VALUES ('MAGIC_DEF', 16, FALSE), ('HP', 21, FALSE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station, scroll_item_id)
+SELECT 'RECIPE_SACERDOTE_OFFHAND_VOLCAN', (SELECT id FROM items WHERE code = 'SACERDOTE_OFFHAND_VOLCAN'), 1, 'RARO', 31, 5, 90, 1, 'Ignar, en la Gran Forja de Ascuaria', 3, 'forja', NULL WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_SACERDOTE_OFFHAND_VOLCAN');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'SACERDOTE_OFFHAND_VOLCAN'), result_quantity = 1, rarity = 'RARO', required_level = 31, required_class_id = 5, success_rate_percent = 90, craft_time_minutes = 1, artisan_name = 'Ignar, en la Gran Forja de Ascuaria', zone_id = 3, station = 'forja', scroll_item_id = NULL WHERE code = 'RECIPE_SACERDOTE_OFFHAND_VOLCAN';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_SACERDOTE_OFFHAND_VOLCAN');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_SACERDOTE_OFFHAND_VOLCAN'), i.id, v.n FROM (VALUES ('FLOR_DE_CENIZA', 2), ('ESCAMA_DE_FUEGO', 1)) AS v(code, n) JOIN items i ON i.code = v.code;
+-- Diadema del Volcán
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'SACERDOTE_HELMET_VOLCAN', 'Diadema del Volcán', 'EQUIPMENT', 'HELMET', FALSE, 'RARO', 5, 31, TRUE, 'CRAFT', 'Forjada en la Gran Forja de Ascuaria con lo que dejan los monstruos de la Ladera de Ceniza, los Campos de Azufre y el Bosque Calcinado.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'SACERDOTE_HELMET_VOLCAN');
+UPDATE items SET name = 'Diadema del Volcán', item_type = 'EQUIPMENT', slot = 'HELMET', is_two_handed = FALSE, rarity = 'RARO', class_id = 5, required_level = 31, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Forjada en la Gran Forja de Ascuaria con lo que dejan los monstruos de la Ladera de Ceniza, los Campos de Azufre y el Bosque Calcinado.' WHERE code = 'SACERDOTE_HELMET_VOLCAN';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'SACERDOTE_HELMET_VOLCAN');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'SACERDOTE_HELMET_VOLCAN'), v.* FROM (VALUES ('MAGIC_DEF', 13, FALSE), ('DEF', 4, FALSE), ('HP', 13, FALSE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station, scroll_item_id)
+SELECT 'RECIPE_SACERDOTE_HELMET_VOLCAN', (SELECT id FROM items WHERE code = 'SACERDOTE_HELMET_VOLCAN'), 1, 'RARO', 31, 5, 90, 1, 'Ignar, en la Gran Forja de Ascuaria', 3, 'forja', NULL WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_SACERDOTE_HELMET_VOLCAN');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'SACERDOTE_HELMET_VOLCAN'), result_quantity = 1, rarity = 'RARO', required_level = 31, required_class_id = 5, success_rate_percent = 90, craft_time_minutes = 1, artisan_name = 'Ignar, en la Gran Forja de Ascuaria', zone_id = 3, station = 'forja', scroll_item_id = NULL WHERE code = 'RECIPE_SACERDOTE_HELMET_VOLCAN';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_SACERDOTE_HELMET_VOLCAN');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_SACERDOTE_HELMET_VOLCAN'), i.id, v.n FROM (VALUES ('FLOR_DE_CENIZA', 2), ('ESCAMA_DE_FUEGO', 1)) AS v(code, n) JOIN items i ON i.code = v.code;
+-- Vestidura del Volcán
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'SACERDOTE_ARMOR_VOLCAN', 'Vestidura del Volcán', 'EQUIPMENT', 'ARMOR', FALSE, 'RARO', 5, 31, TRUE, 'CRAFT', 'Forjada en la Gran Forja de Ascuaria con lo que dejan los monstruos de la Ladera de Ceniza, los Campos de Azufre y el Bosque Calcinado.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'SACERDOTE_ARMOR_VOLCAN');
+UPDATE items SET name = 'Vestidura del Volcán', item_type = 'EQUIPMENT', slot = 'ARMOR', is_two_handed = FALSE, rarity = 'RARO', class_id = 5, required_level = 31, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Forjada en la Gran Forja de Ascuaria con lo que dejan los monstruos de la Ladera de Ceniza, los Campos de Azufre y el Bosque Calcinado.' WHERE code = 'SACERDOTE_ARMOR_VOLCAN';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'SACERDOTE_ARMOR_VOLCAN');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'SACERDOTE_ARMOR_VOLCAN'), v.* FROM (VALUES ('MAGIC_DEF', 26, FALSE), ('DEF', 8, FALSE), ('HP', 41, FALSE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station, scroll_item_id)
+SELECT 'RECIPE_SACERDOTE_ARMOR_VOLCAN', (SELECT id FROM items WHERE code = 'SACERDOTE_ARMOR_VOLCAN'), 1, 'RARO', 31, 5, 90, 1, 'Ignar, en la Gran Forja de Ascuaria', 3, 'forja', NULL WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_SACERDOTE_ARMOR_VOLCAN');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'SACERDOTE_ARMOR_VOLCAN'), result_quantity = 1, rarity = 'RARO', required_level = 31, required_class_id = 5, success_rate_percent = 90, craft_time_minutes = 1, artisan_name = 'Ignar, en la Gran Forja de Ascuaria', zone_id = 3, station = 'forja', scroll_item_id = NULL WHERE code = 'RECIPE_SACERDOTE_ARMOR_VOLCAN';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_SACERDOTE_ARMOR_VOLCAN');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_SACERDOTE_ARMOR_VOLCAN'), i.id, v.n FROM (VALUES ('FLOR_DE_CENIZA', 3), ('ESCAMA_DE_FUEGO', 2), ('PIEDRA_POMEZ', 1)) AS v(code, n) JOIN items i ON i.code = v.code;
+-- Guantes Bendecidos del Volcán
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'SACERDOTE_GLOVES_VOLCAN', 'Guantes Bendecidos del Volcán', 'EQUIPMENT', 'GLOVES', FALSE, 'RARO', 5, 31, TRUE, 'CRAFT', 'Forjada en la Gran Forja de Ascuaria con lo que dejan los monstruos de la Ladera de Ceniza, los Campos de Azufre y el Bosque Calcinado.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'SACERDOTE_GLOVES_VOLCAN');
+UPDATE items SET name = 'Guantes Bendecidos del Volcán', item_type = 'EQUIPMENT', slot = 'GLOVES', is_two_handed = FALSE, rarity = 'RARO', class_id = 5, required_level = 31, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Forjada en la Gran Forja de Ascuaria con lo que dejan los monstruos de la Ladera de Ceniza, los Campos de Azufre y el Bosque Calcinado.' WHERE code = 'SACERDOTE_GLOVES_VOLCAN';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'SACERDOTE_GLOVES_VOLCAN');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'SACERDOTE_GLOVES_VOLCAN'), v.* FROM (VALUES ('MAG', 32, FALSE), ('CRIT_CHANCE', 3.5, TRUE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station, scroll_item_id)
+SELECT 'RECIPE_SACERDOTE_GLOVES_VOLCAN', (SELECT id FROM items WHERE code = 'SACERDOTE_GLOVES_VOLCAN'), 1, 'RARO', 31, 5, 90, 1, 'Ignar, en la Gran Forja de Ascuaria', 3, 'forja', NULL WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_SACERDOTE_GLOVES_VOLCAN');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'SACERDOTE_GLOVES_VOLCAN'), result_quantity = 1, rarity = 'RARO', required_level = 31, required_class_id = 5, success_rate_percent = 90, craft_time_minutes = 1, artisan_name = 'Ignar, en la Gran Forja de Ascuaria', zone_id = 3, station = 'forja', scroll_item_id = NULL WHERE code = 'RECIPE_SACERDOTE_GLOVES_VOLCAN';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_SACERDOTE_GLOVES_VOLCAN');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_SACERDOTE_GLOVES_VOLCAN'), i.id, v.n FROM (VALUES ('FLOR_DE_CENIZA', 2), ('ESCAMA_DE_FUEGO', 1)) AS v(code, n) JOIN items i ON i.code = v.code;
+-- Sandalias del Volcán
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'SACERDOTE_BOOTS_VOLCAN', 'Sandalias del Volcán', 'EQUIPMENT', 'BOOTS', FALSE, 'RARO', 5, 31, TRUE, 'CRAFT', 'Forjada en la Gran Forja de Ascuaria con lo que dejan los monstruos de la Ladera de Ceniza, los Campos de Azufre y el Bosque Calcinado.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'SACERDOTE_BOOTS_VOLCAN');
+UPDATE items SET name = 'Sandalias del Volcán', item_type = 'EQUIPMENT', slot = 'BOOTS', is_two_handed = FALSE, rarity = 'RARO', class_id = 5, required_level = 31, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Forjada en la Gran Forja de Ascuaria con lo que dejan los monstruos de la Ladera de Ceniza, los Campos de Azufre y el Bosque Calcinado.' WHERE code = 'SACERDOTE_BOOTS_VOLCAN';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'SACERDOTE_BOOTS_VOLCAN');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'SACERDOTE_BOOTS_VOLCAN'), v.* FROM (VALUES ('MAGIC_DEF', 5, FALSE), ('HP', 5, FALSE), ('SPD', 19, FALSE), ('EVASION', 2, TRUE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station, scroll_item_id)
+SELECT 'RECIPE_SACERDOTE_BOOTS_VOLCAN', (SELECT id FROM items WHERE code = 'SACERDOTE_BOOTS_VOLCAN'), 1, 'RARO', 31, 5, 90, 1, 'Ignar, en la Gran Forja de Ascuaria', 3, 'forja', NULL WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_SACERDOTE_BOOTS_VOLCAN');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'SACERDOTE_BOOTS_VOLCAN'), result_quantity = 1, rarity = 'RARO', required_level = 31, required_class_id = 5, success_rate_percent = 90, craft_time_minutes = 1, artisan_name = 'Ignar, en la Gran Forja de Ascuaria', zone_id = 3, station = 'forja', scroll_item_id = NULL WHERE code = 'RECIPE_SACERDOTE_BOOTS_VOLCAN';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_SACERDOTE_BOOTS_VOLCAN');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_SACERDOTE_BOOTS_VOLCAN'), i.id, v.n FROM (VALUES ('FLOR_DE_CENIZA', 2), ('ESCAMA_DE_FUEGO', 1)) AS v(code, n) JOIN items i ON i.code = v.code;
+-- Collar del Volcán
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'SACERDOTE_ACCESSORY_VOLCAN', 'Collar del Volcán', 'EQUIPMENT', 'ACCESSORY', FALSE, 'RARO', NULL, 31, TRUE, 'CRAFT', 'Forjada en la Gran Forja de Ascuaria con lo que dejan los monstruos de la Ladera de Ceniza, los Campos de Azufre y el Bosque Calcinado.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'SACERDOTE_ACCESSORY_VOLCAN');
+UPDATE items SET name = 'Collar del Volcán', item_type = 'EQUIPMENT', slot = 'ACCESSORY', is_two_handed = FALSE, rarity = 'RARO', class_id = NULL, required_level = 31, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Forjada en la Gran Forja de Ascuaria con lo que dejan los monstruos de la Ladera de Ceniza, los Campos de Azufre y el Bosque Calcinado.' WHERE code = 'SACERDOTE_ACCESSORY_VOLCAN';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'SACERDOTE_ACCESSORY_VOLCAN');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'SACERDOTE_ACCESSORY_VOLCAN'), v.* FROM (VALUES ('MAG', 29, FALSE), ('CRIT_CHANCE', 3.5, TRUE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station, scroll_item_id)
+SELECT 'RECIPE_SACERDOTE_ACCESSORY_VOLCAN', (SELECT id FROM items WHERE code = 'SACERDOTE_ACCESSORY_VOLCAN'), 1, 'RARO', 31, NULL, 90, 1, 'Ignar, en la Gran Forja de Ascuaria', 3, 'forja', NULL WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_SACERDOTE_ACCESSORY_VOLCAN');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'SACERDOTE_ACCESSORY_VOLCAN'), result_quantity = 1, rarity = 'RARO', required_level = 31, required_class_id = NULL, success_rate_percent = 90, craft_time_minutes = 1, artisan_name = 'Ignar, en la Gran Forja de Ascuaria', zone_id = 3, station = 'forja', scroll_item_id = NULL WHERE code = 'RECIPE_SACERDOTE_ACCESSORY_VOLCAN';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_SACERDOTE_ACCESSORY_VOLCAN');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_SACERDOTE_ACCESSORY_VOLCAN'), i.id, v.n FROM (VALUES ('ESENCIA_DE_FUEGO', 2), ('FLOR_DE_CENIZA', 2), ('GEMA_COMUN', 1)) AS v(code, n) JOIN items i ON i.code = v.code;
+-- Gran Espada del Volcán
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'GUERRERO_WEAPON2H_VOLCAN', 'Gran Espada del Volcán', 'EQUIPMENT', 'WEAPON', TRUE, 'RARO', 1, 31, TRUE, 'CRAFT', 'Forjada en la Gran Forja de Ascuaria con lo que dejan los monstruos de la Ladera de Ceniza, los Campos de Azufre y el Bosque Calcinado.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'GUERRERO_WEAPON2H_VOLCAN');
+UPDATE items SET name = 'Gran Espada del Volcán', item_type = 'EQUIPMENT', slot = 'WEAPON', is_two_handed = TRUE, rarity = 'RARO', class_id = 1, required_level = 31, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Forjada en la Gran Forja de Ascuaria con lo que dejan los monstruos de la Ladera de Ceniza, los Campos de Azufre y el Bosque Calcinado.' WHERE code = 'GUERRERO_WEAPON2H_VOLCAN';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'GUERRERO_WEAPON2H_VOLCAN');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'GUERRERO_WEAPON2H_VOLCAN'), v.* FROM (VALUES ('ATK', 107, FALSE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station, scroll_item_id)
+SELECT 'RECIPE_GUERRERO_WEAPON2H_VOLCAN', (SELECT id FROM items WHERE code = 'GUERRERO_WEAPON2H_VOLCAN'), 1, 'RARO', 31, 1, 90, 1, 'Ignar, en la Gran Forja de Ascuaria', 3, 'forja', NULL WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_GUERRERO_WEAPON2H_VOLCAN');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'GUERRERO_WEAPON2H_VOLCAN'), result_quantity = 1, rarity = 'RARO', required_level = 31, required_class_id = 1, success_rate_percent = 90, craft_time_minutes = 1, artisan_name = 'Ignar, en la Gran Forja de Ascuaria', zone_id = 3, station = 'forja', scroll_item_id = NULL WHERE code = 'RECIPE_GUERRERO_WEAPON2H_VOLCAN';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_GUERRERO_WEAPON2H_VOLCAN');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_GUERRERO_WEAPON2H_VOLCAN'), i.id, v.n FROM (VALUES ('BRASA_DE_BANDIDO', 3), ('ACERO_REFINADO', 2), ('CAPARAZON_AZUFRE', 2)) AS v(code, n) JOIN items i ON i.code = v.code;
+
+-- ---------------------------------------------------------------- obsidiana (nv 36, EPICO)
+-- Espada de Obsidiana
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'GUERRERO_WEAPON_OBSIDIANA', 'Espada de Obsidiana', 'EQUIPMENT', 'WEAPON', FALSE, 'EPICO', 1, 36, TRUE, 'CRAFT', 'Vidrio negro de la Cantera y colmillos de los Ríos de Lava, templados en la Gran Forja con un Corazón de Brasa.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'GUERRERO_WEAPON_OBSIDIANA');
+UPDATE items SET name = 'Espada de Obsidiana', item_type = 'EQUIPMENT', slot = 'WEAPON', is_two_handed = FALSE, rarity = 'EPICO', class_id = 1, required_level = 36, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Vidrio negro de la Cantera y colmillos de los Ríos de Lava, templados en la Gran Forja con un Corazón de Brasa.' WHERE code = 'GUERRERO_WEAPON_OBSIDIANA';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'GUERRERO_WEAPON_OBSIDIANA');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'GUERRERO_WEAPON_OBSIDIANA'), v.* FROM (VALUES ('ATK', 87, FALSE), ('CRIT_CHANCE', 6.8, TRUE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station, scroll_item_id)
+SELECT 'RECIPE_GUERRERO_WEAPON_OBSIDIANA', (SELECT id FROM items WHERE code = 'GUERRERO_WEAPON_OBSIDIANA'), 1, 'EPICO', 36, 1, 80, 1, 'Ignar, en la Gran Forja de Ascuaria', 3, 'forja', NULL WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_GUERRERO_WEAPON_OBSIDIANA');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'GUERRERO_WEAPON_OBSIDIANA'), result_quantity = 1, rarity = 'EPICO', required_level = 36, required_class_id = 1, success_rate_percent = 80, craft_time_minutes = 1, artisan_name = 'Ignar, en la Gran Forja de Ascuaria', zone_id = 3, station = 'forja', scroll_item_id = NULL WHERE code = 'RECIPE_GUERRERO_WEAPON_OBSIDIANA';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_GUERRERO_WEAPON_OBSIDIANA');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_GUERRERO_WEAPON_OBSIDIANA'), i.id, v.n FROM (VALUES ('ESQUIRLA_OBSIDIANA', 3), ('NUCLEO_INFERNAL_MENOR', 2), ('ACERO_REFINADO', 2), ('CORAZON_DE_BRASA', 1)) AS v(code, n) JOIN items i ON i.code = v.code;
+-- Gran Espada de Obsidiana
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'GUERRERO_WEAPON2H_OBSIDIANA', 'Gran Espada de Obsidiana', 'EQUIPMENT', 'WEAPON', TRUE, 'EPICO', 1, 36, TRUE, 'CRAFT', 'Vidrio negro de la Cantera y colmillos de los Ríos de Lava, templados en la Gran Forja con un Corazón de Brasa.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'GUERRERO_WEAPON2H_OBSIDIANA');
+UPDATE items SET name = 'Gran Espada de Obsidiana', item_type = 'EQUIPMENT', slot = 'WEAPON', is_two_handed = TRUE, rarity = 'EPICO', class_id = 1, required_level = 36, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Vidrio negro de la Cantera y colmillos de los Ríos de Lava, templados en la Gran Forja con un Corazón de Brasa.' WHERE code = 'GUERRERO_WEAPON2H_OBSIDIANA';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'GUERRERO_WEAPON2H_OBSIDIANA');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'GUERRERO_WEAPON2H_OBSIDIANA'), v.* FROM (VALUES ('ATK', 131, FALSE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station, scroll_item_id)
+SELECT 'RECIPE_GUERRERO_WEAPON2H_OBSIDIANA', (SELECT id FROM items WHERE code = 'GUERRERO_WEAPON2H_OBSIDIANA'), 1, 'EPICO', 36, 1, 80, 1, 'Ignar, en la Gran Forja de Ascuaria', 3, 'forja', NULL WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_GUERRERO_WEAPON2H_OBSIDIANA');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'GUERRERO_WEAPON2H_OBSIDIANA'), result_quantity = 1, rarity = 'EPICO', required_level = 36, required_class_id = 1, success_rate_percent = 80, craft_time_minutes = 1, artisan_name = 'Ignar, en la Gran Forja de Ascuaria', zone_id = 3, station = 'forja', scroll_item_id = NULL WHERE code = 'RECIPE_GUERRERO_WEAPON2H_OBSIDIANA';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_GUERRERO_WEAPON2H_OBSIDIANA');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_GUERRERO_WEAPON2H_OBSIDIANA'), i.id, v.n FROM (VALUES ('ESQUIRLA_OBSIDIANA', 3), ('NUCLEO_INFERNAL_MENOR', 2), ('ACERO_REFINADO', 2), ('CORAZON_DE_BRASA', 1)) AS v(code, n) JOIN items i ON i.code = v.code;
+-- Escudo de Obsidiana
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'GUERRERO_OFFHAND_OBSIDIANA', 'Escudo de Obsidiana', 'EQUIPMENT', 'OFFHAND', FALSE, 'EPICO', 1, 36, TRUE, 'CRAFT', 'Vidrio negro de la Cantera y colmillos de los Ríos de Lava, templados en la Gran Forja con un Corazón de Brasa.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'GUERRERO_OFFHAND_OBSIDIANA');
+UPDATE items SET name = 'Escudo de Obsidiana', item_type = 'EQUIPMENT', slot = 'OFFHAND', is_two_handed = FALSE, rarity = 'EPICO', class_id = 1, required_level = 36, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Vidrio negro de la Cantera y colmillos de los Ríos de Lava, templados en la Gran Forja con un Corazón de Brasa.' WHERE code = 'GUERRERO_OFFHAND_OBSIDIANA';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'GUERRERO_OFFHAND_OBSIDIANA');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'GUERRERO_OFFHAND_OBSIDIANA'), v.* FROM (VALUES ('DEF', 19, FALSE), ('HP', 25, FALSE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station, scroll_item_id)
+SELECT 'RECIPE_GUERRERO_OFFHAND_OBSIDIANA', (SELECT id FROM items WHERE code = 'GUERRERO_OFFHAND_OBSIDIANA'), 1, 'EPICO', 36, 1, 80, 1, 'Ignar, en la Gran Forja de Ascuaria', 3, 'forja', NULL WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_GUERRERO_OFFHAND_OBSIDIANA');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'GUERRERO_OFFHAND_OBSIDIANA'), result_quantity = 1, rarity = 'EPICO', required_level = 36, required_class_id = 1, success_rate_percent = 80, craft_time_minutes = 1, artisan_name = 'Ignar, en la Gran Forja de Ascuaria', zone_id = 3, station = 'forja', scroll_item_id = NULL WHERE code = 'RECIPE_GUERRERO_OFFHAND_OBSIDIANA';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_GUERRERO_OFFHAND_OBSIDIANA');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_GUERRERO_OFFHAND_OBSIDIANA'), i.id, v.n FROM (VALUES ('ESQUIRLA_OBSIDIANA', 2), ('NUCLEO_INFERNAL_MENOR', 1)) AS v(code, n) JOIN items i ON i.code = v.code;
+-- Yelmo de Obsidiana
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'GUERRERO_HELMET_OBSIDIANA', 'Yelmo de Obsidiana', 'EQUIPMENT', 'HELMET', FALSE, 'EPICO', 1, 36, TRUE, 'CRAFT', 'Vidrio negro de la Cantera y colmillos de los Ríos de Lava, templados en la Gran Forja con un Corazón de Brasa.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'GUERRERO_HELMET_OBSIDIANA');
+UPDATE items SET name = 'Yelmo de Obsidiana', item_type = 'EQUIPMENT', slot = 'HELMET', is_two_handed = FALSE, rarity = 'EPICO', class_id = 1, required_level = 36, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Vidrio negro de la Cantera y colmillos de los Ríos de Lava, templados en la Gran Forja con un Corazón de Brasa.' WHERE code = 'GUERRERO_HELMET_OBSIDIANA';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'GUERRERO_HELMET_OBSIDIANA');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'GUERRERO_HELMET_OBSIDIANA'), v.* FROM (VALUES ('DEF', 16, FALSE), ('HP', 15, FALSE), ('MAGIC_DEF', 5, FALSE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station, scroll_item_id)
+SELECT 'RECIPE_GUERRERO_HELMET_OBSIDIANA', (SELECT id FROM items WHERE code = 'GUERRERO_HELMET_OBSIDIANA'), 1, 'EPICO', 36, 1, 80, 1, 'Ignar, en la Gran Forja de Ascuaria', 3, 'forja', NULL WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_GUERRERO_HELMET_OBSIDIANA');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'GUERRERO_HELMET_OBSIDIANA'), result_quantity = 1, rarity = 'EPICO', required_level = 36, required_class_id = 1, success_rate_percent = 80, craft_time_minutes = 1, artisan_name = 'Ignar, en la Gran Forja de Ascuaria', zone_id = 3, station = 'forja', scroll_item_id = NULL WHERE code = 'RECIPE_GUERRERO_HELMET_OBSIDIANA';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_GUERRERO_HELMET_OBSIDIANA');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_GUERRERO_HELMET_OBSIDIANA'), i.id, v.n FROM (VALUES ('ESQUIRLA_OBSIDIANA', 2), ('NUCLEO_INFERNAL_MENOR', 1)) AS v(code, n) JOIN items i ON i.code = v.code;
+-- Armadura de Obsidiana
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'GUERRERO_ARMOR_OBSIDIANA', 'Armadura de Obsidiana', 'EQUIPMENT', 'ARMOR', FALSE, 'EPICO', 1, 36, TRUE, 'CRAFT', 'Vidrio negro de la Cantera y colmillos de los Ríos de Lava, templados en la Gran Forja con un Corazón de Brasa.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'GUERRERO_ARMOR_OBSIDIANA');
+UPDATE items SET name = 'Armadura de Obsidiana', item_type = 'EQUIPMENT', slot = 'ARMOR', is_two_handed = FALSE, rarity = 'EPICO', class_id = 1, required_level = 36, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Vidrio negro de la Cantera y colmillos de los Ríos de Lava, templados en la Gran Forja con un Corazón de Brasa.' WHERE code = 'GUERRERO_ARMOR_OBSIDIANA';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'GUERRERO_ARMOR_OBSIDIANA');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'GUERRERO_ARMOR_OBSIDIANA'), v.* FROM (VALUES ('DEF', 31, FALSE), ('HP', 49, FALSE), ('MAGIC_DEF', 9, FALSE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station, scroll_item_id)
+SELECT 'RECIPE_GUERRERO_ARMOR_OBSIDIANA', (SELECT id FROM items WHERE code = 'GUERRERO_ARMOR_OBSIDIANA'), 1, 'EPICO', 36, 1, 80, 1, 'Ignar, en la Gran Forja de Ascuaria', 3, 'forja', NULL WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_GUERRERO_ARMOR_OBSIDIANA');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'GUERRERO_ARMOR_OBSIDIANA'), result_quantity = 1, rarity = 'EPICO', required_level = 36, required_class_id = 1, success_rate_percent = 80, craft_time_minutes = 1, artisan_name = 'Ignar, en la Gran Forja de Ascuaria', zone_id = 3, station = 'forja', scroll_item_id = NULL WHERE code = 'RECIPE_GUERRERO_ARMOR_OBSIDIANA';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_GUERRERO_ARMOR_OBSIDIANA');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_GUERRERO_ARMOR_OBSIDIANA'), i.id, v.n FROM (VALUES ('ESQUIRLA_OBSIDIANA', 3), ('NUCLEO_INFERNAL_MENOR', 2), ('ACERO_REFINADO', 2), ('CORAZON_DE_BRASA', 1)) AS v(code, n) JOIN items i ON i.code = v.code;
+-- Guanteletes de Obsidiana
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'GUERRERO_GLOVES_OBSIDIANA', 'Guanteletes de Obsidiana', 'EQUIPMENT', 'GLOVES', FALSE, 'EPICO', 1, 36, TRUE, 'CRAFT', 'Vidrio negro de la Cantera y colmillos de los Ríos de Lava, templados en la Gran Forja con un Corazón de Brasa.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'GUERRERO_GLOVES_OBSIDIANA');
+UPDATE items SET name = 'Guanteletes de Obsidiana', item_type = 'EQUIPMENT', slot = 'GLOVES', is_two_handed = FALSE, rarity = 'EPICO', class_id = 1, required_level = 36, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Vidrio negro de la Cantera y colmillos de los Ríos de Lava, templados en la Gran Forja con un Corazón de Brasa.' WHERE code = 'GUERRERO_GLOVES_OBSIDIANA';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'GUERRERO_GLOVES_OBSIDIANA');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'GUERRERO_GLOVES_OBSIDIANA'), v.* FROM (VALUES ('ATK', 39, FALSE), ('CRIT_CHANCE', 4.5, TRUE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station, scroll_item_id)
+SELECT 'RECIPE_GUERRERO_GLOVES_OBSIDIANA', (SELECT id FROM items WHERE code = 'GUERRERO_GLOVES_OBSIDIANA'), 1, 'EPICO', 36, 1, 80, 1, 'Ignar, en la Gran Forja de Ascuaria', 3, 'forja', NULL WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_GUERRERO_GLOVES_OBSIDIANA');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'GUERRERO_GLOVES_OBSIDIANA'), result_quantity = 1, rarity = 'EPICO', required_level = 36, required_class_id = 1, success_rate_percent = 80, craft_time_minutes = 1, artisan_name = 'Ignar, en la Gran Forja de Ascuaria', zone_id = 3, station = 'forja', scroll_item_id = NULL WHERE code = 'RECIPE_GUERRERO_GLOVES_OBSIDIANA';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_GUERRERO_GLOVES_OBSIDIANA');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_GUERRERO_GLOVES_OBSIDIANA'), i.id, v.n FROM (VALUES ('ESQUIRLA_OBSIDIANA', 2), ('NUCLEO_INFERNAL_MENOR', 1)) AS v(code, n) JOIN items i ON i.code = v.code;
+-- Botas de Obsidiana
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'GUERRERO_BOOTS_OBSIDIANA', 'Botas de Obsidiana', 'EQUIPMENT', 'BOOTS', FALSE, 'EPICO', 1, 36, TRUE, 'CRAFT', 'Vidrio negro de la Cantera y colmillos de los Ríos de Lava, templados en la Gran Forja con un Corazón de Brasa.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'GUERRERO_BOOTS_OBSIDIANA');
+UPDATE items SET name = 'Botas de Obsidiana', item_type = 'EQUIPMENT', slot = 'BOOTS', is_two_handed = FALSE, rarity = 'EPICO', class_id = 1, required_level = 36, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Vidrio negro de la Cantera y colmillos de los Ríos de Lava, templados en la Gran Forja con un Corazón de Brasa.' WHERE code = 'GUERRERO_BOOTS_OBSIDIANA';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'GUERRERO_BOOTS_OBSIDIANA');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'GUERRERO_BOOTS_OBSIDIANA'), v.* FROM (VALUES ('SPD', 24, FALSE), ('HP', 6, FALSE), ('DEF', 7, FALSE), ('EVASION', 2.5, TRUE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station, scroll_item_id)
+SELECT 'RECIPE_GUERRERO_BOOTS_OBSIDIANA', (SELECT id FROM items WHERE code = 'GUERRERO_BOOTS_OBSIDIANA'), 1, 'EPICO', 36, 1, 80, 1, 'Ignar, en la Gran Forja de Ascuaria', 3, 'forja', NULL WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_GUERRERO_BOOTS_OBSIDIANA');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'GUERRERO_BOOTS_OBSIDIANA'), result_quantity = 1, rarity = 'EPICO', required_level = 36, required_class_id = 1, success_rate_percent = 80, craft_time_minutes = 1, artisan_name = 'Ignar, en la Gran Forja de Ascuaria', zone_id = 3, station = 'forja', scroll_item_id = NULL WHERE code = 'RECIPE_GUERRERO_BOOTS_OBSIDIANA';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_GUERRERO_BOOTS_OBSIDIANA');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_GUERRERO_BOOTS_OBSIDIANA'), i.id, v.n FROM (VALUES ('ESQUIRLA_OBSIDIANA', 2), ('NUCLEO_INFERNAL_MENOR', 1)) AS v(code, n) JOIN items i ON i.code = v.code;
+-- Varita de Obsidiana
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'MAGO_WEAPON_OBSIDIANA', 'Varita de Obsidiana', 'EQUIPMENT', 'WEAPON', FALSE, 'EPICO', 2, 36, TRUE, 'CRAFT', 'Vidrio negro de la Cantera y colmillos de los Ríos de Lava, templados en la Gran Forja con un Corazón de Brasa.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'MAGO_WEAPON_OBSIDIANA');
+UPDATE items SET name = 'Varita de Obsidiana', item_type = 'EQUIPMENT', slot = 'WEAPON', is_two_handed = FALSE, rarity = 'EPICO', class_id = 2, required_level = 36, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Vidrio negro de la Cantera y colmillos de los Ríos de Lava, templados en la Gran Forja con un Corazón de Brasa.' WHERE code = 'MAGO_WEAPON_OBSIDIANA';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'MAGO_WEAPON_OBSIDIANA');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'MAGO_WEAPON_OBSIDIANA'), v.* FROM (VALUES ('MAG', 87, FALSE), ('CRIT_CHANCE', 6.8, TRUE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station, scroll_item_id)
+SELECT 'RECIPE_MAGO_WEAPON_OBSIDIANA', (SELECT id FROM items WHERE code = 'MAGO_WEAPON_OBSIDIANA'), 1, 'EPICO', 36, 2, 80, 1, 'Ignar, en la Gran Forja de Ascuaria', 3, 'forja', NULL WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_MAGO_WEAPON_OBSIDIANA');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'MAGO_WEAPON_OBSIDIANA'), result_quantity = 1, rarity = 'EPICO', required_level = 36, required_class_id = 2, success_rate_percent = 80, craft_time_minutes = 1, artisan_name = 'Ignar, en la Gran Forja de Ascuaria', zone_id = 3, station = 'forja', scroll_item_id = NULL WHERE code = 'RECIPE_MAGO_WEAPON_OBSIDIANA';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_MAGO_WEAPON_OBSIDIANA');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_MAGO_WEAPON_OBSIDIANA'), i.id, v.n FROM (VALUES ('ESENCIA_DE_FUEGO', 3), ('OBSIDIANA_BRUTA', 2), ('COLMILLO_MAGMA', 2), ('CORAZON_DE_BRASA', 1)) AS v(code, n) JOIN items i ON i.code = v.code;
+-- Orbe de Obsidiana
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'MAGO_OFFHAND_ORB_OBSIDIANA', 'Orbe de Obsidiana', 'EQUIPMENT', 'OFFHAND', FALSE, 'EPICO', 2, 36, TRUE, 'CRAFT', 'Vidrio negro de la Cantera y colmillos de los Ríos de Lava, templados en la Gran Forja con un Corazón de Brasa.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'MAGO_OFFHAND_ORB_OBSIDIANA');
+UPDATE items SET name = 'Orbe de Obsidiana', item_type = 'EQUIPMENT', slot = 'OFFHAND', is_two_handed = FALSE, rarity = 'EPICO', class_id = 2, required_level = 36, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Vidrio negro de la Cantera y colmillos de los Ríos de Lava, templados en la Gran Forja con un Corazón de Brasa.' WHERE code = 'MAGO_OFFHAND_ORB_OBSIDIANA';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'MAGO_OFFHAND_ORB_OBSIDIANA');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'MAGO_OFFHAND_ORB_OBSIDIANA'), v.* FROM (VALUES ('MAG', 36, FALSE), ('SPD', 29, FALSE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station, scroll_item_id)
+SELECT 'RECIPE_MAGO_OFFHAND_ORB_OBSIDIANA', (SELECT id FROM items WHERE code = 'MAGO_OFFHAND_ORB_OBSIDIANA'), 1, 'EPICO', 36, 2, 80, 1, 'Ignar, en la Gran Forja de Ascuaria', 3, 'forja', NULL WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_MAGO_OFFHAND_ORB_OBSIDIANA');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'MAGO_OFFHAND_ORB_OBSIDIANA'), result_quantity = 1, rarity = 'EPICO', required_level = 36, required_class_id = 2, success_rate_percent = 80, craft_time_minutes = 1, artisan_name = 'Ignar, en la Gran Forja de Ascuaria', zone_id = 3, station = 'forja', scroll_item_id = NULL WHERE code = 'RECIPE_MAGO_OFFHAND_ORB_OBSIDIANA';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_MAGO_OFFHAND_ORB_OBSIDIANA');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_MAGO_OFFHAND_ORB_OBSIDIANA'), i.id, v.n FROM (VALUES ('ESENCIA_DE_FUEGO', 2), ('OBSIDIANA_BRUTA', 1)) AS v(code, n) JOIN items i ON i.code = v.code;
+-- Cristal de Obsidiana
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'MAGO_OFFHAND_CRYSTAL_OBSIDIANA', 'Cristal de Obsidiana', 'EQUIPMENT', 'OFFHAND', FALSE, 'EPICO', 2, 36, TRUE, 'CRAFT', 'Vidrio negro de la Cantera y colmillos de los Ríos de Lava, templados en la Gran Forja con un Corazón de Brasa.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'MAGO_OFFHAND_CRYSTAL_OBSIDIANA');
+UPDATE items SET name = 'Cristal de Obsidiana', item_type = 'EQUIPMENT', slot = 'OFFHAND', is_two_handed = FALSE, rarity = 'EPICO', class_id = 2, required_level = 36, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Vidrio negro de la Cantera y colmillos de los Ríos de Lava, templados en la Gran Forja con un Corazón de Brasa.' WHERE code = 'MAGO_OFFHAND_CRYSTAL_OBSIDIANA';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'MAGO_OFFHAND_CRYSTAL_OBSIDIANA');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'MAGO_OFFHAND_CRYSTAL_OBSIDIANA'), v.* FROM (VALUES ('MAG', 48, FALSE), ('CRIT_CHANCE', 4.5, TRUE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station, scroll_item_id)
+SELECT 'RECIPE_MAGO_OFFHAND_CRYSTAL_OBSIDIANA', (SELECT id FROM items WHERE code = 'MAGO_OFFHAND_CRYSTAL_OBSIDIANA'), 1, 'EPICO', 36, 2, 80, 1, 'Ignar, en la Gran Forja de Ascuaria', 3, 'forja', NULL WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_MAGO_OFFHAND_CRYSTAL_OBSIDIANA');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'MAGO_OFFHAND_CRYSTAL_OBSIDIANA'), result_quantity = 1, rarity = 'EPICO', required_level = 36, required_class_id = 2, success_rate_percent = 80, craft_time_minutes = 1, artisan_name = 'Ignar, en la Gran Forja de Ascuaria', zone_id = 3, station = 'forja', scroll_item_id = NULL WHERE code = 'RECIPE_MAGO_OFFHAND_CRYSTAL_OBSIDIANA';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_MAGO_OFFHAND_CRYSTAL_OBSIDIANA');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_MAGO_OFFHAND_CRYSTAL_OBSIDIANA'), i.id, v.n FROM (VALUES ('ESENCIA_DE_FUEGO', 2), ('OBSIDIANA_BRUTA', 1)) AS v(code, n) JOIN items i ON i.code = v.code;
+-- Capirote de Obsidiana
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'MAGO_HELMET_OBSIDIANA', 'Capirote de Obsidiana', 'EQUIPMENT', 'HELMET', FALSE, 'EPICO', 2, 36, TRUE, 'CRAFT', 'Vidrio negro de la Cantera y colmillos de los Ríos de Lava, templados en la Gran Forja con un Corazón de Brasa.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'MAGO_HELMET_OBSIDIANA');
+UPDATE items SET name = 'Capirote de Obsidiana', item_type = 'EQUIPMENT', slot = 'HELMET', is_two_handed = FALSE, rarity = 'EPICO', class_id = 2, required_level = 36, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Vidrio negro de la Cantera y colmillos de los Ríos de Lava, templados en la Gran Forja con un Corazón de Brasa.' WHERE code = 'MAGO_HELMET_OBSIDIANA';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'MAGO_HELMET_OBSIDIANA');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'MAGO_HELMET_OBSIDIANA'), v.* FROM (VALUES ('DEF', 4, FALSE), ('HP', 11, FALSE), ('MAGIC_DEF', 16, FALSE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station, scroll_item_id)
+SELECT 'RECIPE_MAGO_HELMET_OBSIDIANA', (SELECT id FROM items WHERE code = 'MAGO_HELMET_OBSIDIANA'), 1, 'EPICO', 36, 2, 80, 1, 'Ignar, en la Gran Forja de Ascuaria', 3, 'forja', NULL WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_MAGO_HELMET_OBSIDIANA');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'MAGO_HELMET_OBSIDIANA'), result_quantity = 1, rarity = 'EPICO', required_level = 36, required_class_id = 2, success_rate_percent = 80, craft_time_minutes = 1, artisan_name = 'Ignar, en la Gran Forja de Ascuaria', zone_id = 3, station = 'forja', scroll_item_id = NULL WHERE code = 'RECIPE_MAGO_HELMET_OBSIDIANA';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_MAGO_HELMET_OBSIDIANA');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_MAGO_HELMET_OBSIDIANA'), i.id, v.n FROM (VALUES ('ESENCIA_DE_FUEGO', 2), ('OBSIDIANA_BRUTA', 1)) AS v(code, n) JOIN items i ON i.code = v.code;
+-- Túnica de Obsidiana
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'MAGO_ARMOR_OBSIDIANA', 'Túnica de Obsidiana', 'EQUIPMENT', 'ARMOR', FALSE, 'EPICO', 2, 36, TRUE, 'CRAFT', 'Vidrio negro de la Cantera y colmillos de los Ríos de Lava, templados en la Gran Forja con un Corazón de Brasa.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'MAGO_ARMOR_OBSIDIANA');
+UPDATE items SET name = 'Túnica de Obsidiana', item_type = 'EQUIPMENT', slot = 'ARMOR', is_two_handed = FALSE, rarity = 'EPICO', class_id = 2, required_level = 36, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Vidrio negro de la Cantera y colmillos de los Ríos de Lava, templados en la Gran Forja con un Corazón de Brasa.' WHERE code = 'MAGO_ARMOR_OBSIDIANA';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'MAGO_ARMOR_OBSIDIANA');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'MAGO_ARMOR_OBSIDIANA'), v.* FROM (VALUES ('DEF', 10, FALSE), ('HP', 57, FALSE), ('MAGIC_DEF', 31, FALSE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station, scroll_item_id)
+SELECT 'RECIPE_MAGO_ARMOR_OBSIDIANA', (SELECT id FROM items WHERE code = 'MAGO_ARMOR_OBSIDIANA'), 1, 'EPICO', 36, 2, 80, 1, 'Ignar, en la Gran Forja de Ascuaria', 3, 'forja', NULL WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_MAGO_ARMOR_OBSIDIANA');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'MAGO_ARMOR_OBSIDIANA'), result_quantity = 1, rarity = 'EPICO', required_level = 36, required_class_id = 2, success_rate_percent = 80, craft_time_minutes = 1, artisan_name = 'Ignar, en la Gran Forja de Ascuaria', zone_id = 3, station = 'forja', scroll_item_id = NULL WHERE code = 'RECIPE_MAGO_ARMOR_OBSIDIANA';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_MAGO_ARMOR_OBSIDIANA');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_MAGO_ARMOR_OBSIDIANA'), i.id, v.n FROM (VALUES ('ESENCIA_DE_FUEGO', 3), ('OBSIDIANA_BRUTA', 2), ('COLMILLO_MAGMA', 2), ('CORAZON_DE_BRASA', 1)) AS v(code, n) JOIN items i ON i.code = v.code;
+-- Guantes de Obsidiana
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'MAGO_GLOVES_OBSIDIANA', 'Guantes de Obsidiana', 'EQUIPMENT', 'GLOVES', FALSE, 'EPICO', 2, 36, TRUE, 'CRAFT', 'Vidrio negro de la Cantera y colmillos de los Ríos de Lava, templados en la Gran Forja con un Corazón de Brasa.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'MAGO_GLOVES_OBSIDIANA');
+UPDATE items SET name = 'Guantes de Obsidiana', item_type = 'EQUIPMENT', slot = 'GLOVES', is_two_handed = FALSE, rarity = 'EPICO', class_id = 2, required_level = 36, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Vidrio negro de la Cantera y colmillos de los Ríos de Lava, templados en la Gran Forja con un Corazón de Brasa.' WHERE code = 'MAGO_GLOVES_OBSIDIANA';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'MAGO_GLOVES_OBSIDIANA');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'MAGO_GLOVES_OBSIDIANA'), v.* FROM (VALUES ('MAG', 39, FALSE), ('CRIT_CHANCE', 4.5, TRUE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station, scroll_item_id)
+SELECT 'RECIPE_MAGO_GLOVES_OBSIDIANA', (SELECT id FROM items WHERE code = 'MAGO_GLOVES_OBSIDIANA'), 1, 'EPICO', 36, 2, 80, 1, 'Ignar, en la Gran Forja de Ascuaria', 3, 'forja', NULL WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_MAGO_GLOVES_OBSIDIANA');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'MAGO_GLOVES_OBSIDIANA'), result_quantity = 1, rarity = 'EPICO', required_level = 36, required_class_id = 2, success_rate_percent = 80, craft_time_minutes = 1, artisan_name = 'Ignar, en la Gran Forja de Ascuaria', zone_id = 3, station = 'forja', scroll_item_id = NULL WHERE code = 'RECIPE_MAGO_GLOVES_OBSIDIANA';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_MAGO_GLOVES_OBSIDIANA');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_MAGO_GLOVES_OBSIDIANA'), i.id, v.n FROM (VALUES ('ESENCIA_DE_FUEGO', 2), ('OBSIDIANA_BRUTA', 1)) AS v(code, n) JOIN items i ON i.code = v.code;
+-- Sandalias de Obsidiana
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'MAGO_BOOTS_OBSIDIANA', 'Sandalias de Obsidiana', 'EQUIPMENT', 'BOOTS', FALSE, 'EPICO', 2, 36, TRUE, 'CRAFT', 'Vidrio negro de la Cantera y colmillos de los Ríos de Lava, templados en la Gran Forja con un Corazón de Brasa.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'MAGO_BOOTS_OBSIDIANA');
+UPDATE items SET name = 'Sandalias de Obsidiana', item_type = 'EQUIPMENT', slot = 'BOOTS', is_two_handed = FALSE, rarity = 'EPICO', class_id = 2, required_level = 36, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Vidrio negro de la Cantera y colmillos de los Ríos de Lava, templados en la Gran Forja con un Corazón de Brasa.' WHERE code = 'MAGO_BOOTS_OBSIDIANA';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'MAGO_BOOTS_OBSIDIANA');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'MAGO_BOOTS_OBSIDIANA'), v.* FROM (VALUES ('SPD', 24, FALSE), ('HP', 6, FALSE), ('MAGIC_DEF', 10, FALSE), ('EVASION', 2.5, TRUE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station, scroll_item_id)
+SELECT 'RECIPE_MAGO_BOOTS_OBSIDIANA', (SELECT id FROM items WHERE code = 'MAGO_BOOTS_OBSIDIANA'), 1, 'EPICO', 36, 2, 80, 1, 'Ignar, en la Gran Forja de Ascuaria', 3, 'forja', NULL WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_MAGO_BOOTS_OBSIDIANA');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'MAGO_BOOTS_OBSIDIANA'), result_quantity = 1, rarity = 'EPICO', required_level = 36, required_class_id = 2, success_rate_percent = 80, craft_time_minutes = 1, artisan_name = 'Ignar, en la Gran Forja de Ascuaria', zone_id = 3, station = 'forja', scroll_item_id = NULL WHERE code = 'RECIPE_MAGO_BOOTS_OBSIDIANA';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_MAGO_BOOTS_OBSIDIANA');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_MAGO_BOOTS_OBSIDIANA'), i.id, v.n FROM (VALUES ('ESENCIA_DE_FUEGO', 2), ('OBSIDIANA_BRUTA', 1)) AS v(code, n) JOIN items i ON i.code = v.code;
+-- Arco de Obsidiana
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'ARQUERO_WEAPON_OBSIDIANA', 'Arco de Obsidiana', 'EQUIPMENT', 'WEAPON', FALSE, 'EPICO', 3, 36, TRUE, 'CRAFT', 'Vidrio negro de la Cantera y colmillos de los Ríos de Lava, templados en la Gran Forja con un Corazón de Brasa.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'ARQUERO_WEAPON_OBSIDIANA');
+UPDATE items SET name = 'Arco de Obsidiana', item_type = 'EQUIPMENT', slot = 'WEAPON', is_two_handed = FALSE, rarity = 'EPICO', class_id = 3, required_level = 36, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Vidrio negro de la Cantera y colmillos de los Ríos de Lava, templados en la Gran Forja con un Corazón de Brasa.' WHERE code = 'ARQUERO_WEAPON_OBSIDIANA';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'ARQUERO_WEAPON_OBSIDIANA');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'ARQUERO_WEAPON_OBSIDIANA'), v.* FROM (VALUES ('ATK', 87, FALSE), ('CRIT_CHANCE', 6.8, TRUE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station, scroll_item_id)
+SELECT 'RECIPE_ARQUERO_WEAPON_OBSIDIANA', (SELECT id FROM items WHERE code = 'ARQUERO_WEAPON_OBSIDIANA'), 1, 'EPICO', 36, 3, 80, 1, 'Ignar, en la Gran Forja de Ascuaria', 3, 'forja', NULL WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_ARQUERO_WEAPON_OBSIDIANA');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'ARQUERO_WEAPON_OBSIDIANA'), result_quantity = 1, rarity = 'EPICO', required_level = 36, required_class_id = 3, success_rate_percent = 80, craft_time_minutes = 1, artisan_name = 'Ignar, en la Gran Forja de Ascuaria', zone_id = 3, station = 'forja', scroll_item_id = NULL WHERE code = 'RECIPE_ARQUERO_WEAPON_OBSIDIANA';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_ARQUERO_WEAPON_OBSIDIANA');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_ARQUERO_WEAPON_OBSIDIANA'), i.id, v.n FROM (VALUES ('COLMILLO_MAGMA', 3), ('OBSIDIANA_BRUTA', 2), ('PELAJE_CENIZA', 2), ('CORAZON_DE_BRASA', 1)) AS v(code, n) JOIN items i ON i.code = v.code;
+-- Carcaj de Obsidiana
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'ARQUERO_OFFHAND_OBSIDIANA', 'Carcaj de Obsidiana', 'EQUIPMENT', 'OFFHAND', FALSE, 'EPICO', 3, 36, TRUE, 'CRAFT', 'Vidrio negro de la Cantera y colmillos de los Ríos de Lava, templados en la Gran Forja con un Corazón de Brasa.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'ARQUERO_OFFHAND_OBSIDIANA');
+UPDATE items SET name = 'Carcaj de Obsidiana', item_type = 'EQUIPMENT', slot = 'OFFHAND', is_two_handed = FALSE, rarity = 'EPICO', class_id = 3, required_level = 36, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Vidrio negro de la Cantera y colmillos de los Ríos de Lava, templados en la Gran Forja con un Corazón de Brasa.' WHERE code = 'ARQUERO_OFFHAND_OBSIDIANA';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'ARQUERO_OFFHAND_OBSIDIANA');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'ARQUERO_OFFHAND_OBSIDIANA'), v.* FROM (VALUES ('ATK', 29, FALSE), ('SPD', 29, FALSE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station, scroll_item_id)
+SELECT 'RECIPE_ARQUERO_OFFHAND_OBSIDIANA', (SELECT id FROM items WHERE code = 'ARQUERO_OFFHAND_OBSIDIANA'), 1, 'EPICO', 36, 3, 80, 1, 'Ignar, en la Gran Forja de Ascuaria', 3, 'forja', NULL WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_ARQUERO_OFFHAND_OBSIDIANA');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'ARQUERO_OFFHAND_OBSIDIANA'), result_quantity = 1, rarity = 'EPICO', required_level = 36, required_class_id = 3, success_rate_percent = 80, craft_time_minutes = 1, artisan_name = 'Ignar, en la Gran Forja de Ascuaria', zone_id = 3, station = 'forja', scroll_item_id = NULL WHERE code = 'RECIPE_ARQUERO_OFFHAND_OBSIDIANA';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_ARQUERO_OFFHAND_OBSIDIANA');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_ARQUERO_OFFHAND_OBSIDIANA'), i.id, v.n FROM (VALUES ('COLMILLO_MAGMA', 2), ('OBSIDIANA_BRUTA', 1)) AS v(code, n) JOIN items i ON i.code = v.code;
+-- Capucha de Obsidiana
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'ARQUERO_HELMET_OBSIDIANA', 'Capucha de Obsidiana', 'EQUIPMENT', 'HELMET', FALSE, 'EPICO', 3, 36, TRUE, 'CRAFT', 'Vidrio negro de la Cantera y colmillos de los Ríos de Lava, templados en la Gran Forja con un Corazón de Brasa.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'ARQUERO_HELMET_OBSIDIANA');
+UPDATE items SET name = 'Capucha de Obsidiana', item_type = 'EQUIPMENT', slot = 'HELMET', is_two_handed = FALSE, rarity = 'EPICO', class_id = 3, required_level = 36, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Vidrio negro de la Cantera y colmillos de los Ríos de Lava, templados en la Gran Forja con un Corazón de Brasa.' WHERE code = 'ARQUERO_HELMET_OBSIDIANA';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'ARQUERO_HELMET_OBSIDIANA');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'ARQUERO_HELMET_OBSIDIANA'), v.* FROM (VALUES ('DEF', 16, FALSE), ('HP', 12, FALSE), ('MAGIC_DEF', 6, FALSE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station, scroll_item_id)
+SELECT 'RECIPE_ARQUERO_HELMET_OBSIDIANA', (SELECT id FROM items WHERE code = 'ARQUERO_HELMET_OBSIDIANA'), 1, 'EPICO', 36, 3, 80, 1, 'Ignar, en la Gran Forja de Ascuaria', 3, 'forja', NULL WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_ARQUERO_HELMET_OBSIDIANA');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'ARQUERO_HELMET_OBSIDIANA'), result_quantity = 1, rarity = 'EPICO', required_level = 36, required_class_id = 3, success_rate_percent = 80, craft_time_minutes = 1, artisan_name = 'Ignar, en la Gran Forja de Ascuaria', zone_id = 3, station = 'forja', scroll_item_id = NULL WHERE code = 'RECIPE_ARQUERO_HELMET_OBSIDIANA';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_ARQUERO_HELMET_OBSIDIANA');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_ARQUERO_HELMET_OBSIDIANA'), i.id, v.n FROM (VALUES ('COLMILLO_MAGMA', 2), ('OBSIDIANA_BRUTA', 1)) AS v(code, n) JOIN items i ON i.code = v.code;
+-- Gabán de Obsidiana
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'ARQUERO_ARMOR_OBSIDIANA', 'Gabán de Obsidiana', 'EQUIPMENT', 'ARMOR', FALSE, 'EPICO', 3, 36, TRUE, 'CRAFT', 'Vidrio negro de la Cantera y colmillos de los Ríos de Lava, templados en la Gran Forja con un Corazón de Brasa.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'ARQUERO_ARMOR_OBSIDIANA');
+UPDATE items SET name = 'Gabán de Obsidiana', item_type = 'EQUIPMENT', slot = 'ARMOR', is_two_handed = FALSE, rarity = 'EPICO', class_id = 3, required_level = 36, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Vidrio negro de la Cantera y colmillos de los Ríos de Lava, templados en la Gran Forja con un Corazón de Brasa.' WHERE code = 'ARQUERO_ARMOR_OBSIDIANA';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'ARQUERO_ARMOR_OBSIDIANA');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'ARQUERO_ARMOR_OBSIDIANA'), v.* FROM (VALUES ('DEF', 31, FALSE), ('HP', 55, FALSE), ('MAGIC_DEF', 9, FALSE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station, scroll_item_id)
+SELECT 'RECIPE_ARQUERO_ARMOR_OBSIDIANA', (SELECT id FROM items WHERE code = 'ARQUERO_ARMOR_OBSIDIANA'), 1, 'EPICO', 36, 3, 80, 1, 'Ignar, en la Gran Forja de Ascuaria', 3, 'forja', NULL WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_ARQUERO_ARMOR_OBSIDIANA');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'ARQUERO_ARMOR_OBSIDIANA'), result_quantity = 1, rarity = 'EPICO', required_level = 36, required_class_id = 3, success_rate_percent = 80, craft_time_minutes = 1, artisan_name = 'Ignar, en la Gran Forja de Ascuaria', zone_id = 3, station = 'forja', scroll_item_id = NULL WHERE code = 'RECIPE_ARQUERO_ARMOR_OBSIDIANA';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_ARQUERO_ARMOR_OBSIDIANA');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_ARQUERO_ARMOR_OBSIDIANA'), i.id, v.n FROM (VALUES ('COLMILLO_MAGMA', 3), ('OBSIDIANA_BRUTA', 2), ('PELAJE_CENIZA', 2), ('CORAZON_DE_BRASA', 1)) AS v(code, n) JOIN items i ON i.code = v.code;
+-- Guantes de Obsidiana
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'ARQUERO_GLOVES_OBSIDIANA', 'Guantes de Obsidiana', 'EQUIPMENT', 'GLOVES', FALSE, 'EPICO', 3, 36, TRUE, 'CRAFT', 'Vidrio negro de la Cantera y colmillos de los Ríos de Lava, templados en la Gran Forja con un Corazón de Brasa.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'ARQUERO_GLOVES_OBSIDIANA');
+UPDATE items SET name = 'Guantes de Obsidiana', item_type = 'EQUIPMENT', slot = 'GLOVES', is_two_handed = FALSE, rarity = 'EPICO', class_id = 3, required_level = 36, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Vidrio negro de la Cantera y colmillos de los Ríos de Lava, templados en la Gran Forja con un Corazón de Brasa.' WHERE code = 'ARQUERO_GLOVES_OBSIDIANA';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'ARQUERO_GLOVES_OBSIDIANA');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'ARQUERO_GLOVES_OBSIDIANA'), v.* FROM (VALUES ('ATK', 39, FALSE), ('CRIT_CHANCE', 4.5, TRUE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station, scroll_item_id)
+SELECT 'RECIPE_ARQUERO_GLOVES_OBSIDIANA', (SELECT id FROM items WHERE code = 'ARQUERO_GLOVES_OBSIDIANA'), 1, 'EPICO', 36, 3, 80, 1, 'Ignar, en la Gran Forja de Ascuaria', 3, 'forja', NULL WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_ARQUERO_GLOVES_OBSIDIANA');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'ARQUERO_GLOVES_OBSIDIANA'), result_quantity = 1, rarity = 'EPICO', required_level = 36, required_class_id = 3, success_rate_percent = 80, craft_time_minutes = 1, artisan_name = 'Ignar, en la Gran Forja de Ascuaria', zone_id = 3, station = 'forja', scroll_item_id = NULL WHERE code = 'RECIPE_ARQUERO_GLOVES_OBSIDIANA';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_ARQUERO_GLOVES_OBSIDIANA');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_ARQUERO_GLOVES_OBSIDIANA'), i.id, v.n FROM (VALUES ('COLMILLO_MAGMA', 2), ('OBSIDIANA_BRUTA', 1)) AS v(code, n) JOIN items i ON i.code = v.code;
+-- Botas de Obsidiana
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'ARQUERO_BOOTS_OBSIDIANA', 'Botas de Obsidiana', 'EQUIPMENT', 'BOOTS', FALSE, 'EPICO', 3, 36, TRUE, 'CRAFT', 'Vidrio negro de la Cantera y colmillos de los Ríos de Lava, templados en la Gran Forja con un Corazón de Brasa.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'ARQUERO_BOOTS_OBSIDIANA');
+UPDATE items SET name = 'Botas de Obsidiana', item_type = 'EQUIPMENT', slot = 'BOOTS', is_two_handed = FALSE, rarity = 'EPICO', class_id = 3, required_level = 36, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Vidrio negro de la Cantera y colmillos de los Ríos de Lava, templados en la Gran Forja con un Corazón de Brasa.' WHERE code = 'ARQUERO_BOOTS_OBSIDIANA';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'ARQUERO_BOOTS_OBSIDIANA');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'ARQUERO_BOOTS_OBSIDIANA'), v.* FROM (VALUES ('SPD', 24, FALSE), ('HP', 6, FALSE), ('DEF', 9, FALSE), ('EVASION', 2.5, TRUE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station, scroll_item_id)
+SELECT 'RECIPE_ARQUERO_BOOTS_OBSIDIANA', (SELECT id FROM items WHERE code = 'ARQUERO_BOOTS_OBSIDIANA'), 1, 'EPICO', 36, 3, 80, 1, 'Ignar, en la Gran Forja de Ascuaria', 3, 'forja', NULL WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_ARQUERO_BOOTS_OBSIDIANA');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'ARQUERO_BOOTS_OBSIDIANA'), result_quantity = 1, rarity = 'EPICO', required_level = 36, required_class_id = 3, success_rate_percent = 80, craft_time_minutes = 1, artisan_name = 'Ignar, en la Gran Forja de Ascuaria', zone_id = 3, station = 'forja', scroll_item_id = NULL WHERE code = 'RECIPE_ARQUERO_BOOTS_OBSIDIANA';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_ARQUERO_BOOTS_OBSIDIANA');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_ARQUERO_BOOTS_OBSIDIANA'), i.id, v.n FROM (VALUES ('COLMILLO_MAGMA', 2), ('OBSIDIANA_BRUTA', 1)) AS v(code, n) JOIN items i ON i.code = v.code;
+-- Daga de Obsidiana
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'PICARO_WEAPON_OBSIDIANA', 'Daga de Obsidiana', 'EQUIPMENT', 'WEAPON', FALSE, 'EPICO', 4, 36, TRUE, 'CRAFT', 'Vidrio negro de la Cantera y colmillos de los Ríos de Lava, templados en la Gran Forja con un Corazón de Brasa.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'PICARO_WEAPON_OBSIDIANA');
+UPDATE items SET name = 'Daga de Obsidiana', item_type = 'EQUIPMENT', slot = 'WEAPON', is_two_handed = FALSE, rarity = 'EPICO', class_id = 4, required_level = 36, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Vidrio negro de la Cantera y colmillos de los Ríos de Lava, templados en la Gran Forja con un Corazón de Brasa.' WHERE code = 'PICARO_WEAPON_OBSIDIANA';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'PICARO_WEAPON_OBSIDIANA');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'PICARO_WEAPON_OBSIDIANA'), v.* FROM (VALUES ('ATK', 87, FALSE), ('CRIT_CHANCE', 6.8, TRUE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station, scroll_item_id)
+SELECT 'RECIPE_PICARO_WEAPON_OBSIDIANA', (SELECT id FROM items WHERE code = 'PICARO_WEAPON_OBSIDIANA'), 1, 'EPICO', 36, 4, 80, 1, 'Ignar, en la Gran Forja de Ascuaria', 3, 'forja', NULL WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_PICARO_WEAPON_OBSIDIANA');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'PICARO_WEAPON_OBSIDIANA'), result_quantity = 1, rarity = 'EPICO', required_level = 36, required_class_id = 4, success_rate_percent = 80, craft_time_minutes = 1, artisan_name = 'Ignar, en la Gran Forja de Ascuaria', zone_id = 3, station = 'forja', scroll_item_id = NULL WHERE code = 'RECIPE_PICARO_WEAPON_OBSIDIANA';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_PICARO_WEAPON_OBSIDIANA');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_PICARO_WEAPON_OBSIDIANA'), i.id, v.n FROM (VALUES ('ESQUIRLA_OBSIDIANA', 3), ('COLMILLO_MAGMA', 2), ('OBSIDIANA_BRUTA', 2), ('CORAZON_DE_BRASA', 1)) AS v(code, n) JOIN items i ON i.code = v.code;
+-- Daga Gemela de Obsidiana
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'PICARO_OFFHAND_OBSIDIANA', 'Daga Gemela de Obsidiana', 'EQUIPMENT', 'OFFHAND', FALSE, 'EPICO', 4, 36, TRUE, 'CRAFT', 'Vidrio negro de la Cantera y colmillos de los Ríos de Lava, templados en la Gran Forja con un Corazón de Brasa.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'PICARO_OFFHAND_OBSIDIANA');
+UPDATE items SET name = 'Daga Gemela de Obsidiana', item_type = 'EQUIPMENT', slot = 'OFFHAND', is_two_handed = FALSE, rarity = 'EPICO', class_id = 4, required_level = 36, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Vidrio negro de la Cantera y colmillos de los Ríos de Lava, templados en la Gran Forja con un Corazón de Brasa.' WHERE code = 'PICARO_OFFHAND_OBSIDIANA';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'PICARO_OFFHAND_OBSIDIANA');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'PICARO_OFFHAND_OBSIDIANA'), v.* FROM (VALUES ('ATK', 29, FALSE), ('SPD', 29, FALSE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station, scroll_item_id)
+SELECT 'RECIPE_PICARO_OFFHAND_OBSIDIANA', (SELECT id FROM items WHERE code = 'PICARO_OFFHAND_OBSIDIANA'), 1, 'EPICO', 36, 4, 80, 1, 'Ignar, en la Gran Forja de Ascuaria', 3, 'forja', NULL WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_PICARO_OFFHAND_OBSIDIANA');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'PICARO_OFFHAND_OBSIDIANA'), result_quantity = 1, rarity = 'EPICO', required_level = 36, required_class_id = 4, success_rate_percent = 80, craft_time_minutes = 1, artisan_name = 'Ignar, en la Gran Forja de Ascuaria', zone_id = 3, station = 'forja', scroll_item_id = NULL WHERE code = 'RECIPE_PICARO_OFFHAND_OBSIDIANA';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_PICARO_OFFHAND_OBSIDIANA');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_PICARO_OFFHAND_OBSIDIANA'), i.id, v.n FROM (VALUES ('COLMILLO_MAGMA', 2), ('ESQUIRLA_OBSIDIANA', 1)) AS v(code, n) JOIN items i ON i.code = v.code;
+-- Máscara de Obsidiana
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'PICARO_HELMET_OBSIDIANA', 'Máscara de Obsidiana', 'EQUIPMENT', 'HELMET', FALSE, 'EPICO', 4, 36, TRUE, 'CRAFT', 'Vidrio negro de la Cantera y colmillos de los Ríos de Lava, templados en la Gran Forja con un Corazón de Brasa.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'PICARO_HELMET_OBSIDIANA');
+UPDATE items SET name = 'Máscara de Obsidiana', item_type = 'EQUIPMENT', slot = 'HELMET', is_two_handed = FALSE, rarity = 'EPICO', class_id = 4, required_level = 36, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Vidrio negro de la Cantera y colmillos de los Ríos de Lava, templados en la Gran Forja con un Corazón de Brasa.' WHERE code = 'PICARO_HELMET_OBSIDIANA';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'PICARO_HELMET_OBSIDIANA');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'PICARO_HELMET_OBSIDIANA'), v.* FROM (VALUES ('DEF', 16, FALSE), ('HP', 13, FALSE), ('MAGIC_DEF', 5, FALSE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station, scroll_item_id)
+SELECT 'RECIPE_PICARO_HELMET_OBSIDIANA', (SELECT id FROM items WHERE code = 'PICARO_HELMET_OBSIDIANA'), 1, 'EPICO', 36, 4, 80, 1, 'Ignar, en la Gran Forja de Ascuaria', 3, 'forja', NULL WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_PICARO_HELMET_OBSIDIANA');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'PICARO_HELMET_OBSIDIANA'), result_quantity = 1, rarity = 'EPICO', required_level = 36, required_class_id = 4, success_rate_percent = 80, craft_time_minutes = 1, artisan_name = 'Ignar, en la Gran Forja de Ascuaria', zone_id = 3, station = 'forja', scroll_item_id = NULL WHERE code = 'RECIPE_PICARO_HELMET_OBSIDIANA';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_PICARO_HELMET_OBSIDIANA');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_PICARO_HELMET_OBSIDIANA'), i.id, v.n FROM (VALUES ('COLMILLO_MAGMA', 2), ('ESQUIRLA_OBSIDIANA', 1)) AS v(code, n) JOIN items i ON i.code = v.code;
+-- Cuero de Obsidiana
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'PICARO_ARMOR_OBSIDIANA', 'Cuero de Obsidiana', 'EQUIPMENT', 'ARMOR', FALSE, 'EPICO', 4, 36, TRUE, 'CRAFT', 'Vidrio negro de la Cantera y colmillos de los Ríos de Lava, templados en la Gran Forja con un Corazón de Brasa.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'PICARO_ARMOR_OBSIDIANA');
+UPDATE items SET name = 'Cuero de Obsidiana', item_type = 'EQUIPMENT', slot = 'ARMOR', is_two_handed = FALSE, rarity = 'EPICO', class_id = 4, required_level = 36, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Vidrio negro de la Cantera y colmillos de los Ríos de Lava, templados en la Gran Forja con un Corazón de Brasa.' WHERE code = 'PICARO_ARMOR_OBSIDIANA';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'PICARO_ARMOR_OBSIDIANA');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'PICARO_ARMOR_OBSIDIANA'), v.* FROM (VALUES ('DEF', 31, FALSE), ('HP', 60, FALSE), ('MAGIC_DEF', 9, FALSE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station, scroll_item_id)
+SELECT 'RECIPE_PICARO_ARMOR_OBSIDIANA', (SELECT id FROM items WHERE code = 'PICARO_ARMOR_OBSIDIANA'), 1, 'EPICO', 36, 4, 80, 1, 'Ignar, en la Gran Forja de Ascuaria', 3, 'forja', NULL WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_PICARO_ARMOR_OBSIDIANA');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'PICARO_ARMOR_OBSIDIANA'), result_quantity = 1, rarity = 'EPICO', required_level = 36, required_class_id = 4, success_rate_percent = 80, craft_time_minutes = 1, artisan_name = 'Ignar, en la Gran Forja de Ascuaria', zone_id = 3, station = 'forja', scroll_item_id = NULL WHERE code = 'RECIPE_PICARO_ARMOR_OBSIDIANA';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_PICARO_ARMOR_OBSIDIANA');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_PICARO_ARMOR_OBSIDIANA'), i.id, v.n FROM (VALUES ('ESQUIRLA_OBSIDIANA', 3), ('COLMILLO_MAGMA', 2), ('OBSIDIANA_BRUTA', 2), ('CORAZON_DE_BRASA', 1)) AS v(code, n) JOIN items i ON i.code = v.code;
+-- Guantes de Obsidiana
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'PICARO_GLOVES_OBSIDIANA', 'Guantes de Obsidiana', 'EQUIPMENT', 'GLOVES', FALSE, 'EPICO', 4, 36, TRUE, 'CRAFT', 'Vidrio negro de la Cantera y colmillos de los Ríos de Lava, templados en la Gran Forja con un Corazón de Brasa.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'PICARO_GLOVES_OBSIDIANA');
+UPDATE items SET name = 'Guantes de Obsidiana', item_type = 'EQUIPMENT', slot = 'GLOVES', is_two_handed = FALSE, rarity = 'EPICO', class_id = 4, required_level = 36, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Vidrio negro de la Cantera y colmillos de los Ríos de Lava, templados en la Gran Forja con un Corazón de Brasa.' WHERE code = 'PICARO_GLOVES_OBSIDIANA';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'PICARO_GLOVES_OBSIDIANA');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'PICARO_GLOVES_OBSIDIANA'), v.* FROM (VALUES ('ATK', 39, FALSE), ('CRIT_CHANCE', 4.5, TRUE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station, scroll_item_id)
+SELECT 'RECIPE_PICARO_GLOVES_OBSIDIANA', (SELECT id FROM items WHERE code = 'PICARO_GLOVES_OBSIDIANA'), 1, 'EPICO', 36, 4, 80, 1, 'Ignar, en la Gran Forja de Ascuaria', 3, 'forja', NULL WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_PICARO_GLOVES_OBSIDIANA');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'PICARO_GLOVES_OBSIDIANA'), result_quantity = 1, rarity = 'EPICO', required_level = 36, required_class_id = 4, success_rate_percent = 80, craft_time_minutes = 1, artisan_name = 'Ignar, en la Gran Forja de Ascuaria', zone_id = 3, station = 'forja', scroll_item_id = NULL WHERE code = 'RECIPE_PICARO_GLOVES_OBSIDIANA';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_PICARO_GLOVES_OBSIDIANA');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_PICARO_GLOVES_OBSIDIANA'), i.id, v.n FROM (VALUES ('COLMILLO_MAGMA', 2), ('ESQUIRLA_OBSIDIANA', 1)) AS v(code, n) JOIN items i ON i.code = v.code;
+-- Botas de Obsidiana
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'PICARO_BOOTS_OBSIDIANA', 'Botas de Obsidiana', 'EQUIPMENT', 'BOOTS', FALSE, 'EPICO', 4, 36, TRUE, 'CRAFT', 'Vidrio negro de la Cantera y colmillos de los Ríos de Lava, templados en la Gran Forja con un Corazón de Brasa.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'PICARO_BOOTS_OBSIDIANA');
+UPDATE items SET name = 'Botas de Obsidiana', item_type = 'EQUIPMENT', slot = 'BOOTS', is_two_handed = FALSE, rarity = 'EPICO', class_id = 4, required_level = 36, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Vidrio negro de la Cantera y colmillos de los Ríos de Lava, templados en la Gran Forja con un Corazón de Brasa.' WHERE code = 'PICARO_BOOTS_OBSIDIANA';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'PICARO_BOOTS_OBSIDIANA');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'PICARO_BOOTS_OBSIDIANA'), v.* FROM (VALUES ('SPD', 24, FALSE), ('HP', 6, FALSE), ('DEF', 9, FALSE), ('EVASION', 2.5, TRUE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station, scroll_item_id)
+SELECT 'RECIPE_PICARO_BOOTS_OBSIDIANA', (SELECT id FROM items WHERE code = 'PICARO_BOOTS_OBSIDIANA'), 1, 'EPICO', 36, 4, 80, 1, 'Ignar, en la Gran Forja de Ascuaria', 3, 'forja', NULL WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_PICARO_BOOTS_OBSIDIANA');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'PICARO_BOOTS_OBSIDIANA'), result_quantity = 1, rarity = 'EPICO', required_level = 36, required_class_id = 4, success_rate_percent = 80, craft_time_minutes = 1, artisan_name = 'Ignar, en la Gran Forja de Ascuaria', zone_id = 3, station = 'forja', scroll_item_id = NULL WHERE code = 'RECIPE_PICARO_BOOTS_OBSIDIANA';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_PICARO_BOOTS_OBSIDIANA');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_PICARO_BOOTS_OBSIDIANA'), i.id, v.n FROM (VALUES ('COLMILLO_MAGMA', 2), ('ESQUIRLA_OBSIDIANA', 1)) AS v(code, n) JOIN items i ON i.code = v.code;
+-- Báculo de Obsidiana
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'SACERDOTE_WEAPON_OBSIDIANA', 'Báculo de Obsidiana', 'EQUIPMENT', 'WEAPON', FALSE, 'EPICO', 5, 36, TRUE, 'CRAFT', 'Vidrio negro de la Cantera y colmillos de los Ríos de Lava, templados en la Gran Forja con un Corazón de Brasa.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'SACERDOTE_WEAPON_OBSIDIANA');
+UPDATE items SET name = 'Báculo de Obsidiana', item_type = 'EQUIPMENT', slot = 'WEAPON', is_two_handed = FALSE, rarity = 'EPICO', class_id = 5, required_level = 36, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Vidrio negro de la Cantera y colmillos de los Ríos de Lava, templados en la Gran Forja con un Corazón de Brasa.' WHERE code = 'SACERDOTE_WEAPON_OBSIDIANA';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'SACERDOTE_WEAPON_OBSIDIANA');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'SACERDOTE_WEAPON_OBSIDIANA'), v.* FROM (VALUES ('MAG', 87, FALSE), ('CRIT_CHANCE', 6.8, TRUE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station, scroll_item_id)
+SELECT 'RECIPE_SACERDOTE_WEAPON_OBSIDIANA', (SELECT id FROM items WHERE code = 'SACERDOTE_WEAPON_OBSIDIANA'), 1, 'EPICO', 36, 5, 80, 1, 'Ignar, en la Gran Forja de Ascuaria', 3, 'forja', NULL WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_SACERDOTE_WEAPON_OBSIDIANA');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'SACERDOTE_WEAPON_OBSIDIANA'), result_quantity = 1, rarity = 'EPICO', required_level = 36, required_class_id = 5, success_rate_percent = 80, craft_time_minutes = 1, artisan_name = 'Ignar, en la Gran Forja de Ascuaria', zone_id = 3, station = 'forja', scroll_item_id = NULL WHERE code = 'RECIPE_SACERDOTE_WEAPON_OBSIDIANA';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_SACERDOTE_WEAPON_OBSIDIANA');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_SACERDOTE_WEAPON_OBSIDIANA'), i.id, v.n FROM (VALUES ('FLOR_DE_CENIZA', 3), ('ESENCIA_DE_FUEGO', 2), ('OBSIDIANA_BRUTA', 2), ('CORAZON_DE_BRASA', 1)) AS v(code, n) JOIN items i ON i.code = v.code;
+-- Símbolo de Obsidiana
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'SACERDOTE_OFFHAND_OBSIDIANA', 'Símbolo de Obsidiana', 'EQUIPMENT', 'OFFHAND', FALSE, 'EPICO', 5, 36, TRUE, 'CRAFT', 'Vidrio negro de la Cantera y colmillos de los Ríos de Lava, templados en la Gran Forja con un Corazón de Brasa.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'SACERDOTE_OFFHAND_OBSIDIANA');
+UPDATE items SET name = 'Símbolo de Obsidiana', item_type = 'EQUIPMENT', slot = 'OFFHAND', is_two_handed = FALSE, rarity = 'EPICO', class_id = 5, required_level = 36, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Vidrio negro de la Cantera y colmillos de los Ríos de Lava, templados en la Gran Forja con un Corazón de Brasa.' WHERE code = 'SACERDOTE_OFFHAND_OBSIDIANA';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'SACERDOTE_OFFHAND_OBSIDIANA');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'SACERDOTE_OFFHAND_OBSIDIANA'), v.* FROM (VALUES ('HP', 25, FALSE), ('MAGIC_DEF', 19, FALSE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station, scroll_item_id)
+SELECT 'RECIPE_SACERDOTE_OFFHAND_OBSIDIANA', (SELECT id FROM items WHERE code = 'SACERDOTE_OFFHAND_OBSIDIANA'), 1, 'EPICO', 36, 5, 80, 1, 'Ignar, en la Gran Forja de Ascuaria', 3, 'forja', NULL WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_SACERDOTE_OFFHAND_OBSIDIANA');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'SACERDOTE_OFFHAND_OBSIDIANA'), result_quantity = 1, rarity = 'EPICO', required_level = 36, required_class_id = 5, success_rate_percent = 80, craft_time_minutes = 1, artisan_name = 'Ignar, en la Gran Forja de Ascuaria', zone_id = 3, station = 'forja', scroll_item_id = NULL WHERE code = 'RECIPE_SACERDOTE_OFFHAND_OBSIDIANA';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_SACERDOTE_OFFHAND_OBSIDIANA');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_SACERDOTE_OFFHAND_OBSIDIANA'), i.id, v.n FROM (VALUES ('FLOR_DE_CENIZA', 2), ('ESENCIA_DE_FUEGO', 1)) AS v(code, n) JOIN items i ON i.code = v.code;
+-- Diadema de Obsidiana
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'SACERDOTE_HELMET_OBSIDIANA', 'Diadema de Obsidiana', 'EQUIPMENT', 'HELMET', FALSE, 'EPICO', 5, 36, TRUE, 'CRAFT', 'Vidrio negro de la Cantera y colmillos de los Ríos de Lava, templados en la Gran Forja con un Corazón de Brasa.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'SACERDOTE_HELMET_OBSIDIANA');
+UPDATE items SET name = 'Diadema de Obsidiana', item_type = 'EQUIPMENT', slot = 'HELMET', is_two_handed = FALSE, rarity = 'EPICO', class_id = 5, required_level = 36, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Vidrio negro de la Cantera y colmillos de los Ríos de Lava, templados en la Gran Forja con un Corazón de Brasa.' WHERE code = 'SACERDOTE_HELMET_OBSIDIANA';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'SACERDOTE_HELMET_OBSIDIANA');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'SACERDOTE_HELMET_OBSIDIANA'), v.* FROM (VALUES ('DEF', 4, FALSE), ('HP', 13, FALSE), ('MAGIC_DEF', 16, FALSE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station, scroll_item_id)
+SELECT 'RECIPE_SACERDOTE_HELMET_OBSIDIANA', (SELECT id FROM items WHERE code = 'SACERDOTE_HELMET_OBSIDIANA'), 1, 'EPICO', 36, 5, 80, 1, 'Ignar, en la Gran Forja de Ascuaria', 3, 'forja', NULL WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_SACERDOTE_HELMET_OBSIDIANA');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'SACERDOTE_HELMET_OBSIDIANA'), result_quantity = 1, rarity = 'EPICO', required_level = 36, required_class_id = 5, success_rate_percent = 80, craft_time_minutes = 1, artisan_name = 'Ignar, en la Gran Forja de Ascuaria', zone_id = 3, station = 'forja', scroll_item_id = NULL WHERE code = 'RECIPE_SACERDOTE_HELMET_OBSIDIANA';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_SACERDOTE_HELMET_OBSIDIANA');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_SACERDOTE_HELMET_OBSIDIANA'), i.id, v.n FROM (VALUES ('FLOR_DE_CENIZA', 2), ('ESENCIA_DE_FUEGO', 1)) AS v(code, n) JOIN items i ON i.code = v.code;
+-- Vestidura de Obsidiana
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'SACERDOTE_ARMOR_OBSIDIANA', 'Vestidura de Obsidiana', 'EQUIPMENT', 'ARMOR', FALSE, 'EPICO', 5, 36, TRUE, 'CRAFT', 'Vidrio negro de la Cantera y colmillos de los Ríos de Lava, templados en la Gran Forja con un Corazón de Brasa.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'SACERDOTE_ARMOR_OBSIDIANA');
+UPDATE items SET name = 'Vestidura de Obsidiana', item_type = 'EQUIPMENT', slot = 'ARMOR', is_two_handed = FALSE, rarity = 'EPICO', class_id = 5, required_level = 36, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Vidrio negro de la Cantera y colmillos de los Ríos de Lava, templados en la Gran Forja con un Corazón de Brasa.' WHERE code = 'SACERDOTE_ARMOR_OBSIDIANA';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'SACERDOTE_ARMOR_OBSIDIANA');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'SACERDOTE_ARMOR_OBSIDIANA'), v.* FROM (VALUES ('DEF', 10, FALSE), ('HP', 51, FALSE), ('MAGIC_DEF', 31, FALSE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station, scroll_item_id)
+SELECT 'RECIPE_SACERDOTE_ARMOR_OBSIDIANA', (SELECT id FROM items WHERE code = 'SACERDOTE_ARMOR_OBSIDIANA'), 1, 'EPICO', 36, 5, 80, 1, 'Ignar, en la Gran Forja de Ascuaria', 3, 'forja', NULL WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_SACERDOTE_ARMOR_OBSIDIANA');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'SACERDOTE_ARMOR_OBSIDIANA'), result_quantity = 1, rarity = 'EPICO', required_level = 36, required_class_id = 5, success_rate_percent = 80, craft_time_minutes = 1, artisan_name = 'Ignar, en la Gran Forja de Ascuaria', zone_id = 3, station = 'forja', scroll_item_id = NULL WHERE code = 'RECIPE_SACERDOTE_ARMOR_OBSIDIANA';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_SACERDOTE_ARMOR_OBSIDIANA');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_SACERDOTE_ARMOR_OBSIDIANA'), i.id, v.n FROM (VALUES ('FLOR_DE_CENIZA', 3), ('ESENCIA_DE_FUEGO', 2), ('OBSIDIANA_BRUTA', 2), ('CORAZON_DE_BRASA', 1)) AS v(code, n) JOIN items i ON i.code = v.code;
+-- Guantes de Obsidiana
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'SACERDOTE_GLOVES_OBSIDIANA', 'Guantes de Obsidiana', 'EQUIPMENT', 'GLOVES', FALSE, 'EPICO', 5, 36, TRUE, 'CRAFT', 'Vidrio negro de la Cantera y colmillos de los Ríos de Lava, templados en la Gran Forja con un Corazón de Brasa.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'SACERDOTE_GLOVES_OBSIDIANA');
+UPDATE items SET name = 'Guantes de Obsidiana', item_type = 'EQUIPMENT', slot = 'GLOVES', is_two_handed = FALSE, rarity = 'EPICO', class_id = 5, required_level = 36, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Vidrio negro de la Cantera y colmillos de los Ríos de Lava, templados en la Gran Forja con un Corazón de Brasa.' WHERE code = 'SACERDOTE_GLOVES_OBSIDIANA';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'SACERDOTE_GLOVES_OBSIDIANA');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'SACERDOTE_GLOVES_OBSIDIANA'), v.* FROM (VALUES ('MAG', 39, FALSE), ('CRIT_CHANCE', 4.5, TRUE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station, scroll_item_id)
+SELECT 'RECIPE_SACERDOTE_GLOVES_OBSIDIANA', (SELECT id FROM items WHERE code = 'SACERDOTE_GLOVES_OBSIDIANA'), 1, 'EPICO', 36, 5, 80, 1, 'Ignar, en la Gran Forja de Ascuaria', 3, 'forja', NULL WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_SACERDOTE_GLOVES_OBSIDIANA');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'SACERDOTE_GLOVES_OBSIDIANA'), result_quantity = 1, rarity = 'EPICO', required_level = 36, required_class_id = 5, success_rate_percent = 80, craft_time_minutes = 1, artisan_name = 'Ignar, en la Gran Forja de Ascuaria', zone_id = 3, station = 'forja', scroll_item_id = NULL WHERE code = 'RECIPE_SACERDOTE_GLOVES_OBSIDIANA';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_SACERDOTE_GLOVES_OBSIDIANA');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_SACERDOTE_GLOVES_OBSIDIANA'), i.id, v.n FROM (VALUES ('FLOR_DE_CENIZA', 2), ('ESENCIA_DE_FUEGO', 1)) AS v(code, n) JOIN items i ON i.code = v.code;
+-- Sandalias de Obsidiana
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'SACERDOTE_BOOTS_OBSIDIANA', 'Sandalias de Obsidiana', 'EQUIPMENT', 'BOOTS', FALSE, 'EPICO', 5, 36, TRUE, 'CRAFT', 'Vidrio negro de la Cantera y colmillos de los Ríos de Lava, templados en la Gran Forja con un Corazón de Brasa.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'SACERDOTE_BOOTS_OBSIDIANA');
+UPDATE items SET name = 'Sandalias de Obsidiana', item_type = 'EQUIPMENT', slot = 'BOOTS', is_two_handed = FALSE, rarity = 'EPICO', class_id = 5, required_level = 36, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Vidrio negro de la Cantera y colmillos de los Ríos de Lava, templados en la Gran Forja con un Corazón de Brasa.' WHERE code = 'SACERDOTE_BOOTS_OBSIDIANA';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'SACERDOTE_BOOTS_OBSIDIANA');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'SACERDOTE_BOOTS_OBSIDIANA'), v.* FROM (VALUES ('SPD', 24, FALSE), ('HP', 6, FALSE), ('MAGIC_DEF', 7, FALSE), ('EVASION', 2.5, TRUE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station, scroll_item_id)
+SELECT 'RECIPE_SACERDOTE_BOOTS_OBSIDIANA', (SELECT id FROM items WHERE code = 'SACERDOTE_BOOTS_OBSIDIANA'), 1, 'EPICO', 36, 5, 80, 1, 'Ignar, en la Gran Forja de Ascuaria', 3, 'forja', NULL WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_SACERDOTE_BOOTS_OBSIDIANA');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'SACERDOTE_BOOTS_OBSIDIANA'), result_quantity = 1, rarity = 'EPICO', required_level = 36, required_class_id = 5, success_rate_percent = 80, craft_time_minutes = 1, artisan_name = 'Ignar, en la Gran Forja de Ascuaria', zone_id = 3, station = 'forja', scroll_item_id = NULL WHERE code = 'RECIPE_SACERDOTE_BOOTS_OBSIDIANA';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_SACERDOTE_BOOTS_OBSIDIANA');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_SACERDOTE_BOOTS_OBSIDIANA'), i.id, v.n FROM (VALUES ('FLOR_DE_CENIZA', 2), ('ESENCIA_DE_FUEGO', 1)) AS v(code, n) JOIN items i ON i.code = v.code;
+
+-- ---------------------------------------------------------------- caldera (nv 40, EPICO)
+-- Espada de la Caldera
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'GUERRERO_WEAPON_CALDERA', 'Espada de la Caldera', 'EQUIPMENT', 'WEAPON', FALSE, 'EPICO', 1, 40, TRUE, 'CRAFT', 'Pieza del set de la Caldera: cuernos de demonio y sellos de los Ocultos, fundidos con el corazón de su señor.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'GUERRERO_WEAPON_CALDERA');
+UPDATE items SET name = 'Espada de la Caldera', item_type = 'EQUIPMENT', slot = 'WEAPON', is_two_handed = FALSE, rarity = 'EPICO', class_id = 1, required_level = 40, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Pieza del set de la Caldera: cuernos de demonio y sellos de los Ocultos, fundidos con el corazón de su señor.' WHERE code = 'GUERRERO_WEAPON_CALDERA';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'GUERRERO_WEAPON_CALDERA');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'GUERRERO_WEAPON_CALDERA'), v.* FROM (VALUES ('ATK', 95, FALSE), ('CRIT_CHANCE', 6.8, TRUE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station, scroll_item_id)
+SELECT 'RECIPE_GUERRERO_WEAPON_CALDERA', (SELECT id FROM items WHERE code = 'GUERRERO_WEAPON_CALDERA'), 1, 'EPICO', 40, 1, 70, 1, 'Ignar, en la Gran Forja de Ascuaria', 3, 'forja', (SELECT id FROM items WHERE code = 'SCROLL_CALDERA_GUERRERO') WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_GUERRERO_WEAPON_CALDERA');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'GUERRERO_WEAPON_CALDERA'), result_quantity = 1, rarity = 'EPICO', required_level = 40, required_class_id = 1, success_rate_percent = 70, craft_time_minutes = 1, artisan_name = 'Ignar, en la Gran Forja de Ascuaria', zone_id = 3, station = 'forja', scroll_item_id = (SELECT id FROM items WHERE code = 'SCROLL_CALDERA_GUERRERO') WHERE code = 'RECIPE_GUERRERO_WEAPON_CALDERA';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_GUERRERO_WEAPON_CALDERA');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_GUERRERO_WEAPON_CALDERA'), i.id, v.n FROM (VALUES ('CORAZON_DE_LA_CALDERA', 1), ('CUERNO_DEMONIO_LAVA', 3), ('SELLO_ECLIPSE', 2), ('ESQUIRLA_OBSIDIANA', 3)) AS v(code, n) JOIN items i ON i.code = v.code;
+-- Gran Espada de la Caldera
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'GUERRERO_WEAPON2H_CALDERA', 'Gran Espada de la Caldera', 'EQUIPMENT', 'WEAPON', TRUE, 'EPICO', 1, 40, TRUE, 'CRAFT', 'Pieza del set de la Caldera: cuernos de demonio y sellos de los Ocultos, fundidos con el corazón de su señor.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'GUERRERO_WEAPON2H_CALDERA');
+UPDATE items SET name = 'Gran Espada de la Caldera', item_type = 'EQUIPMENT', slot = 'WEAPON', is_two_handed = TRUE, rarity = 'EPICO', class_id = 1, required_level = 40, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Pieza del set de la Caldera: cuernos de demonio y sellos de los Ocultos, fundidos con el corazón de su señor.' WHERE code = 'GUERRERO_WEAPON2H_CALDERA';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'GUERRERO_WEAPON2H_CALDERA');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'GUERRERO_WEAPON2H_CALDERA'), v.* FROM (VALUES ('ATK', 142, FALSE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station, scroll_item_id)
+SELECT 'RECIPE_GUERRERO_WEAPON2H_CALDERA', (SELECT id FROM items WHERE code = 'GUERRERO_WEAPON2H_CALDERA'), 1, 'EPICO', 40, 1, 70, 1, 'Ignar, en la Gran Forja de Ascuaria', 3, 'forja', (SELECT id FROM items WHERE code = 'SCROLL_CALDERA_GUERRERO') WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_GUERRERO_WEAPON2H_CALDERA');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'GUERRERO_WEAPON2H_CALDERA'), result_quantity = 1, rarity = 'EPICO', required_level = 40, required_class_id = 1, success_rate_percent = 70, craft_time_minutes = 1, artisan_name = 'Ignar, en la Gran Forja de Ascuaria', zone_id = 3, station = 'forja', scroll_item_id = (SELECT id FROM items WHERE code = 'SCROLL_CALDERA_GUERRERO') WHERE code = 'RECIPE_GUERRERO_WEAPON2H_CALDERA';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_GUERRERO_WEAPON2H_CALDERA');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_GUERRERO_WEAPON2H_CALDERA'), i.id, v.n FROM (VALUES ('CORAZON_DE_LA_CALDERA', 1), ('CUERNO_DEMONIO_LAVA', 3), ('SELLO_ECLIPSE', 2), ('ESQUIRLA_OBSIDIANA', 3)) AS v(code, n) JOIN items i ON i.code = v.code;
+-- Escudo de la Caldera
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'GUERRERO_OFFHAND_CALDERA', 'Escudo de la Caldera', 'EQUIPMENT', 'OFFHAND', FALSE, 'EPICO', 1, 40, TRUE, 'CRAFT', 'Pieza del set de la Caldera: cuernos de demonio y sellos de los Ocultos, fundidos con el corazón de su señor.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'GUERRERO_OFFHAND_CALDERA');
+UPDATE items SET name = 'Escudo de la Caldera', item_type = 'EQUIPMENT', slot = 'OFFHAND', is_two_handed = FALSE, rarity = 'EPICO', class_id = 1, required_level = 40, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Pieza del set de la Caldera: cuernos de demonio y sellos de los Ocultos, fundidos con el corazón de su señor.' WHERE code = 'GUERRERO_OFFHAND_CALDERA';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'GUERRERO_OFFHAND_CALDERA');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'GUERRERO_OFFHAND_CALDERA'), v.* FROM (VALUES ('DEF', 21, FALSE), ('HP', 27, FALSE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station, scroll_item_id)
+SELECT 'RECIPE_GUERRERO_OFFHAND_CALDERA', (SELECT id FROM items WHERE code = 'GUERRERO_OFFHAND_CALDERA'), 1, 'EPICO', 40, 1, 70, 1, 'Ignar, en la Gran Forja de Ascuaria', 3, 'forja', (SELECT id FROM items WHERE code = 'SCROLL_CALDERA_GUERRERO') WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_GUERRERO_OFFHAND_CALDERA');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'GUERRERO_OFFHAND_CALDERA'), result_quantity = 1, rarity = 'EPICO', required_level = 40, required_class_id = 1, success_rate_percent = 70, craft_time_minutes = 1, artisan_name = 'Ignar, en la Gran Forja de Ascuaria', zone_id = 3, station = 'forja', scroll_item_id = (SELECT id FROM items WHERE code = 'SCROLL_CALDERA_GUERRERO') WHERE code = 'RECIPE_GUERRERO_OFFHAND_CALDERA';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_GUERRERO_OFFHAND_CALDERA');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_GUERRERO_OFFHAND_CALDERA'), i.id, v.n FROM (VALUES ('CUERNO_DEMONIO_LAVA', 2), ('SELLO_ECLIPSE', 1), ('ESQUIRLA_OBSIDIANA', 2)) AS v(code, n) JOIN items i ON i.code = v.code;
+-- Yelmo de la Caldera
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'GUERRERO_HELMET_CALDERA', 'Yelmo de la Caldera', 'EQUIPMENT', 'HELMET', FALSE, 'EPICO', 1, 40, TRUE, 'CRAFT', 'Pieza del set de la Caldera: cuernos de demonio y sellos de los Ocultos, fundidos con el corazón de su señor.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'GUERRERO_HELMET_CALDERA');
+UPDATE items SET name = 'Yelmo de la Caldera', item_type = 'EQUIPMENT', slot = 'HELMET', is_two_handed = FALSE, rarity = 'EPICO', class_id = 1, required_level = 40, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Pieza del set de la Caldera: cuernos de demonio y sellos de los Ocultos, fundidos con el corazón de su señor.' WHERE code = 'GUERRERO_HELMET_CALDERA';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'GUERRERO_HELMET_CALDERA');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'GUERRERO_HELMET_CALDERA'), v.* FROM (VALUES ('DEF', 17, FALSE), ('HP', 16, FALSE), ('MAGIC_DEF', 5, FALSE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station, scroll_item_id)
+SELECT 'RECIPE_GUERRERO_HELMET_CALDERA', (SELECT id FROM items WHERE code = 'GUERRERO_HELMET_CALDERA'), 1, 'EPICO', 40, 1, 70, 1, 'Ignar, en la Gran Forja de Ascuaria', 3, 'forja', (SELECT id FROM items WHERE code = 'SCROLL_CALDERA_GUERRERO') WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_GUERRERO_HELMET_CALDERA');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'GUERRERO_HELMET_CALDERA'), result_quantity = 1, rarity = 'EPICO', required_level = 40, required_class_id = 1, success_rate_percent = 70, craft_time_minutes = 1, artisan_name = 'Ignar, en la Gran Forja de Ascuaria', zone_id = 3, station = 'forja', scroll_item_id = (SELECT id FROM items WHERE code = 'SCROLL_CALDERA_GUERRERO') WHERE code = 'RECIPE_GUERRERO_HELMET_CALDERA';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_GUERRERO_HELMET_CALDERA');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_GUERRERO_HELMET_CALDERA'), i.id, v.n FROM (VALUES ('CUERNO_DEMONIO_LAVA', 2), ('SELLO_ECLIPSE', 1), ('ESQUIRLA_OBSIDIANA', 2)) AS v(code, n) JOIN items i ON i.code = v.code;
+-- Armadura de la Caldera
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'GUERRERO_ARMOR_CALDERA', 'Armadura de la Caldera', 'EQUIPMENT', 'ARMOR', FALSE, 'EPICO', 1, 40, TRUE, 'CRAFT', 'Pieza del set de la Caldera: cuernos de demonio y sellos de los Ocultos, fundidos con el corazón de su señor.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'GUERRERO_ARMOR_CALDERA');
+UPDATE items SET name = 'Armadura de la Caldera', item_type = 'EQUIPMENT', slot = 'ARMOR', is_two_handed = FALSE, rarity = 'EPICO', class_id = 1, required_level = 40, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Pieza del set de la Caldera: cuernos de demonio y sellos de los Ocultos, fundidos con el corazón de su señor.' WHERE code = 'GUERRERO_ARMOR_CALDERA';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'GUERRERO_ARMOR_CALDERA');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'GUERRERO_ARMOR_CALDERA'), v.* FROM (VALUES ('DEF', 34, FALSE), ('HP', 53, FALSE), ('MAGIC_DEF', 10, FALSE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station, scroll_item_id)
+SELECT 'RECIPE_GUERRERO_ARMOR_CALDERA', (SELECT id FROM items WHERE code = 'GUERRERO_ARMOR_CALDERA'), 1, 'EPICO', 40, 1, 70, 1, 'Ignar, en la Gran Forja de Ascuaria', 3, 'forja', (SELECT id FROM items WHERE code = 'SCROLL_CALDERA_GUERRERO') WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_GUERRERO_ARMOR_CALDERA');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'GUERRERO_ARMOR_CALDERA'), result_quantity = 1, rarity = 'EPICO', required_level = 40, required_class_id = 1, success_rate_percent = 70, craft_time_minutes = 1, artisan_name = 'Ignar, en la Gran Forja de Ascuaria', zone_id = 3, station = 'forja', scroll_item_id = (SELECT id FROM items WHERE code = 'SCROLL_CALDERA_GUERRERO') WHERE code = 'RECIPE_GUERRERO_ARMOR_CALDERA';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_GUERRERO_ARMOR_CALDERA');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_GUERRERO_ARMOR_CALDERA'), i.id, v.n FROM (VALUES ('CORAZON_DE_LA_CALDERA', 1), ('CUERNO_DEMONIO_LAVA', 3), ('SELLO_ECLIPSE', 2), ('ESQUIRLA_OBSIDIANA', 3)) AS v(code, n) JOIN items i ON i.code = v.code;
+-- Guanteletes de la Caldera
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'GUERRERO_GLOVES_CALDERA', 'Guanteletes de la Caldera', 'EQUIPMENT', 'GLOVES', FALSE, 'EPICO', 1, 40, TRUE, 'CRAFT', 'Pieza del set de la Caldera: cuernos de demonio y sellos de los Ocultos, fundidos con el corazón de su señor.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'GUERRERO_GLOVES_CALDERA');
+UPDATE items SET name = 'Guanteletes de la Caldera', item_type = 'EQUIPMENT', slot = 'GLOVES', is_two_handed = FALSE, rarity = 'EPICO', class_id = 1, required_level = 40, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Pieza del set de la Caldera: cuernos de demonio y sellos de los Ocultos, fundidos con el corazón de su señor.' WHERE code = 'GUERRERO_GLOVES_CALDERA';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'GUERRERO_GLOVES_CALDERA');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'GUERRERO_GLOVES_CALDERA'), v.* FROM (VALUES ('ATK', 43, FALSE), ('CRIT_CHANCE', 4.5, TRUE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station, scroll_item_id)
+SELECT 'RECIPE_GUERRERO_GLOVES_CALDERA', (SELECT id FROM items WHERE code = 'GUERRERO_GLOVES_CALDERA'), 1, 'EPICO', 40, 1, 70, 1, 'Ignar, en la Gran Forja de Ascuaria', 3, 'forja', (SELECT id FROM items WHERE code = 'SCROLL_CALDERA_GUERRERO') WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_GUERRERO_GLOVES_CALDERA');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'GUERRERO_GLOVES_CALDERA'), result_quantity = 1, rarity = 'EPICO', required_level = 40, required_class_id = 1, success_rate_percent = 70, craft_time_minutes = 1, artisan_name = 'Ignar, en la Gran Forja de Ascuaria', zone_id = 3, station = 'forja', scroll_item_id = (SELECT id FROM items WHERE code = 'SCROLL_CALDERA_GUERRERO') WHERE code = 'RECIPE_GUERRERO_GLOVES_CALDERA';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_GUERRERO_GLOVES_CALDERA');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_GUERRERO_GLOVES_CALDERA'), i.id, v.n FROM (VALUES ('CUERNO_DEMONIO_LAVA', 2), ('SELLO_ECLIPSE', 1), ('ESQUIRLA_OBSIDIANA', 2)) AS v(code, n) JOIN items i ON i.code = v.code;
+-- Botas de la Caldera
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'GUERRERO_BOOTS_CALDERA', 'Botas de la Caldera', 'EQUIPMENT', 'BOOTS', FALSE, 'EPICO', 1, 40, TRUE, 'CRAFT', 'Pieza del set de la Caldera: cuernos de demonio y sellos de los Ocultos, fundidos con el corazón de su señor.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'GUERRERO_BOOTS_CALDERA');
+UPDATE items SET name = 'Botas de la Caldera', item_type = 'EQUIPMENT', slot = 'BOOTS', is_two_handed = FALSE, rarity = 'EPICO', class_id = 1, required_level = 40, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Pieza del set de la Caldera: cuernos de demonio y sellos de los Ocultos, fundidos con el corazón de su señor.' WHERE code = 'GUERRERO_BOOTS_CALDERA';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'GUERRERO_BOOTS_CALDERA');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'GUERRERO_BOOTS_CALDERA'), v.* FROM (VALUES ('SPD', 26, FALSE), ('HP', 7, FALSE), ('DEF', 8, FALSE), ('EVASION', 2.5, TRUE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station, scroll_item_id)
+SELECT 'RECIPE_GUERRERO_BOOTS_CALDERA', (SELECT id FROM items WHERE code = 'GUERRERO_BOOTS_CALDERA'), 1, 'EPICO', 40, 1, 70, 1, 'Ignar, en la Gran Forja de Ascuaria', 3, 'forja', (SELECT id FROM items WHERE code = 'SCROLL_CALDERA_GUERRERO') WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_GUERRERO_BOOTS_CALDERA');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'GUERRERO_BOOTS_CALDERA'), result_quantity = 1, rarity = 'EPICO', required_level = 40, required_class_id = 1, success_rate_percent = 70, craft_time_minutes = 1, artisan_name = 'Ignar, en la Gran Forja de Ascuaria', zone_id = 3, station = 'forja', scroll_item_id = (SELECT id FROM items WHERE code = 'SCROLL_CALDERA_GUERRERO') WHERE code = 'RECIPE_GUERRERO_BOOTS_CALDERA';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_GUERRERO_BOOTS_CALDERA');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_GUERRERO_BOOTS_CALDERA'), i.id, v.n FROM (VALUES ('CUERNO_DEMONIO_LAVA', 2), ('SELLO_ECLIPSE', 1), ('ESQUIRLA_OBSIDIANA', 2)) AS v(code, n) JOIN items i ON i.code = v.code;
+-- Varita de la Caldera
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'MAGO_WEAPON_CALDERA', 'Varita de la Caldera', 'EQUIPMENT', 'WEAPON', FALSE, 'EPICO', 2, 40, TRUE, 'CRAFT', 'Pieza del set de la Caldera: cuernos de demonio y sellos de los Ocultos, fundidos con el corazón de su señor.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'MAGO_WEAPON_CALDERA');
+UPDATE items SET name = 'Varita de la Caldera', item_type = 'EQUIPMENT', slot = 'WEAPON', is_two_handed = FALSE, rarity = 'EPICO', class_id = 2, required_level = 40, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Pieza del set de la Caldera: cuernos de demonio y sellos de los Ocultos, fundidos con el corazón de su señor.' WHERE code = 'MAGO_WEAPON_CALDERA';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'MAGO_WEAPON_CALDERA');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'MAGO_WEAPON_CALDERA'), v.* FROM (VALUES ('MAG', 95, FALSE), ('CRIT_CHANCE', 6.8, TRUE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station, scroll_item_id)
+SELECT 'RECIPE_MAGO_WEAPON_CALDERA', (SELECT id FROM items WHERE code = 'MAGO_WEAPON_CALDERA'), 1, 'EPICO', 40, 2, 70, 1, 'Ignar, en la Gran Forja de Ascuaria', 3, 'forja', (SELECT id FROM items WHERE code = 'SCROLL_CALDERA_MAGO') WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_MAGO_WEAPON_CALDERA');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'MAGO_WEAPON_CALDERA'), result_quantity = 1, rarity = 'EPICO', required_level = 40, required_class_id = 2, success_rate_percent = 70, craft_time_minutes = 1, artisan_name = 'Ignar, en la Gran Forja de Ascuaria', zone_id = 3, station = 'forja', scroll_item_id = (SELECT id FROM items WHERE code = 'SCROLL_CALDERA_MAGO') WHERE code = 'RECIPE_MAGO_WEAPON_CALDERA';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_MAGO_WEAPON_CALDERA');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_MAGO_WEAPON_CALDERA'), i.id, v.n FROM (VALUES ('CORAZON_DE_LA_CALDERA', 1), ('CUERNO_DEMONIO_LAVA', 3), ('SELLO_ECLIPSE', 2), ('ESENCIA_DE_FUEGO', 3)) AS v(code, n) JOIN items i ON i.code = v.code;
+-- Orbe de la Caldera
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'MAGO_OFFHAND_ORB_CALDERA', 'Orbe de la Caldera', 'EQUIPMENT', 'OFFHAND', FALSE, 'EPICO', 2, 40, TRUE, 'CRAFT', 'Pieza del set de la Caldera: cuernos de demonio y sellos de los Ocultos, fundidos con el corazón de su señor.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'MAGO_OFFHAND_ORB_CALDERA');
+UPDATE items SET name = 'Orbe de la Caldera', item_type = 'EQUIPMENT', slot = 'OFFHAND', is_two_handed = FALSE, rarity = 'EPICO', class_id = 2, required_level = 40, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Pieza del set de la Caldera: cuernos de demonio y sellos de los Ocultos, fundidos con el corazón de su señor.' WHERE code = 'MAGO_OFFHAND_ORB_CALDERA';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'MAGO_OFFHAND_ORB_CALDERA');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'MAGO_OFFHAND_ORB_CALDERA'), v.* FROM (VALUES ('MAG', 39, FALSE), ('SPD', 31, FALSE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station, scroll_item_id)
+SELECT 'RECIPE_MAGO_OFFHAND_ORB_CALDERA', (SELECT id FROM items WHERE code = 'MAGO_OFFHAND_ORB_CALDERA'), 1, 'EPICO', 40, 2, 70, 1, 'Ignar, en la Gran Forja de Ascuaria', 3, 'forja', (SELECT id FROM items WHERE code = 'SCROLL_CALDERA_MAGO') WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_MAGO_OFFHAND_ORB_CALDERA');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'MAGO_OFFHAND_ORB_CALDERA'), result_quantity = 1, rarity = 'EPICO', required_level = 40, required_class_id = 2, success_rate_percent = 70, craft_time_minutes = 1, artisan_name = 'Ignar, en la Gran Forja de Ascuaria', zone_id = 3, station = 'forja', scroll_item_id = (SELECT id FROM items WHERE code = 'SCROLL_CALDERA_MAGO') WHERE code = 'RECIPE_MAGO_OFFHAND_ORB_CALDERA';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_MAGO_OFFHAND_ORB_CALDERA');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_MAGO_OFFHAND_ORB_CALDERA'), i.id, v.n FROM (VALUES ('CUERNO_DEMONIO_LAVA', 2), ('SELLO_ECLIPSE', 1), ('ESENCIA_DE_FUEGO', 2)) AS v(code, n) JOIN items i ON i.code = v.code;
+-- Cristal de la Caldera
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'MAGO_OFFHAND_CRYSTAL_CALDERA', 'Cristal de la Caldera', 'EQUIPMENT', 'OFFHAND', FALSE, 'EPICO', 2, 40, TRUE, 'CRAFT', 'Pieza del set de la Caldera: cuernos de demonio y sellos de los Ocultos, fundidos con el corazón de su señor.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'MAGO_OFFHAND_CRYSTAL_CALDERA');
+UPDATE items SET name = 'Cristal de la Caldera', item_type = 'EQUIPMENT', slot = 'OFFHAND', is_two_handed = FALSE, rarity = 'EPICO', class_id = 2, required_level = 40, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Pieza del set de la Caldera: cuernos de demonio y sellos de los Ocultos, fundidos con el corazón de su señor.' WHERE code = 'MAGO_OFFHAND_CRYSTAL_CALDERA';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'MAGO_OFFHAND_CRYSTAL_CALDERA');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'MAGO_OFFHAND_CRYSTAL_CALDERA'), v.* FROM (VALUES ('MAG', 52, FALSE), ('CRIT_CHANCE', 4.5, TRUE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station, scroll_item_id)
+SELECT 'RECIPE_MAGO_OFFHAND_CRYSTAL_CALDERA', (SELECT id FROM items WHERE code = 'MAGO_OFFHAND_CRYSTAL_CALDERA'), 1, 'EPICO', 40, 2, 70, 1, 'Ignar, en la Gran Forja de Ascuaria', 3, 'forja', (SELECT id FROM items WHERE code = 'SCROLL_CALDERA_MAGO') WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_MAGO_OFFHAND_CRYSTAL_CALDERA');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'MAGO_OFFHAND_CRYSTAL_CALDERA'), result_quantity = 1, rarity = 'EPICO', required_level = 40, required_class_id = 2, success_rate_percent = 70, craft_time_minutes = 1, artisan_name = 'Ignar, en la Gran Forja de Ascuaria', zone_id = 3, station = 'forja', scroll_item_id = (SELECT id FROM items WHERE code = 'SCROLL_CALDERA_MAGO') WHERE code = 'RECIPE_MAGO_OFFHAND_CRYSTAL_CALDERA';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_MAGO_OFFHAND_CRYSTAL_CALDERA');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_MAGO_OFFHAND_CRYSTAL_CALDERA'), i.id, v.n FROM (VALUES ('CUERNO_DEMONIO_LAVA', 2), ('SELLO_ECLIPSE', 1), ('ESENCIA_DE_FUEGO', 2)) AS v(code, n) JOIN items i ON i.code = v.code;
+-- Capirote de la Caldera
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'MAGO_HELMET_CALDERA', 'Capirote de la Caldera', 'EQUIPMENT', 'HELMET', FALSE, 'EPICO', 2, 40, TRUE, 'CRAFT', 'Pieza del set de la Caldera: cuernos de demonio y sellos de los Ocultos, fundidos con el corazón de su señor.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'MAGO_HELMET_CALDERA');
+UPDATE items SET name = 'Capirote de la Caldera', item_type = 'EQUIPMENT', slot = 'HELMET', is_two_handed = FALSE, rarity = 'EPICO', class_id = 2, required_level = 40, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Pieza del set de la Caldera: cuernos de demonio y sellos de los Ocultos, fundidos con el corazón de su señor.' WHERE code = 'MAGO_HELMET_CALDERA';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'MAGO_HELMET_CALDERA');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'MAGO_HELMET_CALDERA'), v.* FROM (VALUES ('DEF', 5, FALSE), ('HP', 12, FALSE), ('MAGIC_DEF', 17, FALSE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station, scroll_item_id)
+SELECT 'RECIPE_MAGO_HELMET_CALDERA', (SELECT id FROM items WHERE code = 'MAGO_HELMET_CALDERA'), 1, 'EPICO', 40, 2, 70, 1, 'Ignar, en la Gran Forja de Ascuaria', 3, 'forja', (SELECT id FROM items WHERE code = 'SCROLL_CALDERA_MAGO') WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_MAGO_HELMET_CALDERA');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'MAGO_HELMET_CALDERA'), result_quantity = 1, rarity = 'EPICO', required_level = 40, required_class_id = 2, success_rate_percent = 70, craft_time_minutes = 1, artisan_name = 'Ignar, en la Gran Forja de Ascuaria', zone_id = 3, station = 'forja', scroll_item_id = (SELECT id FROM items WHERE code = 'SCROLL_CALDERA_MAGO') WHERE code = 'RECIPE_MAGO_HELMET_CALDERA';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_MAGO_HELMET_CALDERA');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_MAGO_HELMET_CALDERA'), i.id, v.n FROM (VALUES ('CUERNO_DEMONIO_LAVA', 2), ('SELLO_ECLIPSE', 1), ('ESENCIA_DE_FUEGO', 2)) AS v(code, n) JOIN items i ON i.code = v.code;
+-- Túnica de la Caldera
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'MAGO_ARMOR_CALDERA', 'Túnica de la Caldera', 'EQUIPMENT', 'ARMOR', FALSE, 'EPICO', 2, 40, TRUE, 'CRAFT', 'Pieza del set de la Caldera: cuernos de demonio y sellos de los Ocultos, fundidos con el corazón de su señor.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'MAGO_ARMOR_CALDERA');
+UPDATE items SET name = 'Túnica de la Caldera', item_type = 'EQUIPMENT', slot = 'ARMOR', is_two_handed = FALSE, rarity = 'EPICO', class_id = 2, required_level = 40, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Pieza del set de la Caldera: cuernos de demonio y sellos de los Ocultos, fundidos con el corazón de su señor.' WHERE code = 'MAGO_ARMOR_CALDERA';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'MAGO_ARMOR_CALDERA');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'MAGO_ARMOR_CALDERA'), v.* FROM (VALUES ('DEF', 10, FALSE), ('HP', 62, FALSE), ('MAGIC_DEF', 34, FALSE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station, scroll_item_id)
+SELECT 'RECIPE_MAGO_ARMOR_CALDERA', (SELECT id FROM items WHERE code = 'MAGO_ARMOR_CALDERA'), 1, 'EPICO', 40, 2, 70, 1, 'Ignar, en la Gran Forja de Ascuaria', 3, 'forja', (SELECT id FROM items WHERE code = 'SCROLL_CALDERA_MAGO') WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_MAGO_ARMOR_CALDERA');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'MAGO_ARMOR_CALDERA'), result_quantity = 1, rarity = 'EPICO', required_level = 40, required_class_id = 2, success_rate_percent = 70, craft_time_minutes = 1, artisan_name = 'Ignar, en la Gran Forja de Ascuaria', zone_id = 3, station = 'forja', scroll_item_id = (SELECT id FROM items WHERE code = 'SCROLL_CALDERA_MAGO') WHERE code = 'RECIPE_MAGO_ARMOR_CALDERA';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_MAGO_ARMOR_CALDERA');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_MAGO_ARMOR_CALDERA'), i.id, v.n FROM (VALUES ('CORAZON_DE_LA_CALDERA', 1), ('CUERNO_DEMONIO_LAVA', 3), ('SELLO_ECLIPSE', 2), ('ESENCIA_DE_FUEGO', 3)) AS v(code, n) JOIN items i ON i.code = v.code;
+-- Guantes de la Caldera
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'MAGO_GLOVES_CALDERA', 'Guantes de la Caldera', 'EQUIPMENT', 'GLOVES', FALSE, 'EPICO', 2, 40, TRUE, 'CRAFT', 'Pieza del set de la Caldera: cuernos de demonio y sellos de los Ocultos, fundidos con el corazón de su señor.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'MAGO_GLOVES_CALDERA');
+UPDATE items SET name = 'Guantes de la Caldera', item_type = 'EQUIPMENT', slot = 'GLOVES', is_two_handed = FALSE, rarity = 'EPICO', class_id = 2, required_level = 40, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Pieza del set de la Caldera: cuernos de demonio y sellos de los Ocultos, fundidos con el corazón de su señor.' WHERE code = 'MAGO_GLOVES_CALDERA';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'MAGO_GLOVES_CALDERA');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'MAGO_GLOVES_CALDERA'), v.* FROM (VALUES ('MAG', 43, FALSE), ('CRIT_CHANCE', 4.5, TRUE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station, scroll_item_id)
+SELECT 'RECIPE_MAGO_GLOVES_CALDERA', (SELECT id FROM items WHERE code = 'MAGO_GLOVES_CALDERA'), 1, 'EPICO', 40, 2, 70, 1, 'Ignar, en la Gran Forja de Ascuaria', 3, 'forja', (SELECT id FROM items WHERE code = 'SCROLL_CALDERA_MAGO') WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_MAGO_GLOVES_CALDERA');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'MAGO_GLOVES_CALDERA'), result_quantity = 1, rarity = 'EPICO', required_level = 40, required_class_id = 2, success_rate_percent = 70, craft_time_minutes = 1, artisan_name = 'Ignar, en la Gran Forja de Ascuaria', zone_id = 3, station = 'forja', scroll_item_id = (SELECT id FROM items WHERE code = 'SCROLL_CALDERA_MAGO') WHERE code = 'RECIPE_MAGO_GLOVES_CALDERA';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_MAGO_GLOVES_CALDERA');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_MAGO_GLOVES_CALDERA'), i.id, v.n FROM (VALUES ('CUERNO_DEMONIO_LAVA', 2), ('SELLO_ECLIPSE', 1), ('ESENCIA_DE_FUEGO', 2)) AS v(code, n) JOIN items i ON i.code = v.code;
+-- Sandalias de la Caldera
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'MAGO_BOOTS_CALDERA', 'Sandalias de la Caldera', 'EQUIPMENT', 'BOOTS', FALSE, 'EPICO', 2, 40, TRUE, 'CRAFT', 'Pieza del set de la Caldera: cuernos de demonio y sellos de los Ocultos, fundidos con el corazón de su señor.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'MAGO_BOOTS_CALDERA');
+UPDATE items SET name = 'Sandalias de la Caldera', item_type = 'EQUIPMENT', slot = 'BOOTS', is_two_handed = FALSE, rarity = 'EPICO', class_id = 2, required_level = 40, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Pieza del set de la Caldera: cuernos de demonio y sellos de los Ocultos, fundidos con el corazón de su señor.' WHERE code = 'MAGO_BOOTS_CALDERA';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'MAGO_BOOTS_CALDERA');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'MAGO_BOOTS_CALDERA'), v.* FROM (VALUES ('SPD', 26, FALSE), ('HP', 7, FALSE), ('MAGIC_DEF', 11, FALSE), ('EVASION', 2.5, TRUE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station, scroll_item_id)
+SELECT 'RECIPE_MAGO_BOOTS_CALDERA', (SELECT id FROM items WHERE code = 'MAGO_BOOTS_CALDERA'), 1, 'EPICO', 40, 2, 70, 1, 'Ignar, en la Gran Forja de Ascuaria', 3, 'forja', (SELECT id FROM items WHERE code = 'SCROLL_CALDERA_MAGO') WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_MAGO_BOOTS_CALDERA');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'MAGO_BOOTS_CALDERA'), result_quantity = 1, rarity = 'EPICO', required_level = 40, required_class_id = 2, success_rate_percent = 70, craft_time_minutes = 1, artisan_name = 'Ignar, en la Gran Forja de Ascuaria', zone_id = 3, station = 'forja', scroll_item_id = (SELECT id FROM items WHERE code = 'SCROLL_CALDERA_MAGO') WHERE code = 'RECIPE_MAGO_BOOTS_CALDERA';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_MAGO_BOOTS_CALDERA');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_MAGO_BOOTS_CALDERA'), i.id, v.n FROM (VALUES ('CUERNO_DEMONIO_LAVA', 2), ('SELLO_ECLIPSE', 1), ('ESENCIA_DE_FUEGO', 2)) AS v(code, n) JOIN items i ON i.code = v.code;
+-- Arco de la Caldera
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'ARQUERO_WEAPON_CALDERA', 'Arco de la Caldera', 'EQUIPMENT', 'WEAPON', FALSE, 'EPICO', 3, 40, TRUE, 'CRAFT', 'Pieza del set de la Caldera: cuernos de demonio y sellos de los Ocultos, fundidos con el corazón de su señor.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'ARQUERO_WEAPON_CALDERA');
+UPDATE items SET name = 'Arco de la Caldera', item_type = 'EQUIPMENT', slot = 'WEAPON', is_two_handed = FALSE, rarity = 'EPICO', class_id = 3, required_level = 40, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Pieza del set de la Caldera: cuernos de demonio y sellos de los Ocultos, fundidos con el corazón de su señor.' WHERE code = 'ARQUERO_WEAPON_CALDERA';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'ARQUERO_WEAPON_CALDERA');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'ARQUERO_WEAPON_CALDERA'), v.* FROM (VALUES ('ATK', 95, FALSE), ('CRIT_CHANCE', 6.8, TRUE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station, scroll_item_id)
+SELECT 'RECIPE_ARQUERO_WEAPON_CALDERA', (SELECT id FROM items WHERE code = 'ARQUERO_WEAPON_CALDERA'), 1, 'EPICO', 40, 3, 70, 1, 'Ignar, en la Gran Forja de Ascuaria', 3, 'forja', (SELECT id FROM items WHERE code = 'SCROLL_CALDERA_ARQUERO') WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_ARQUERO_WEAPON_CALDERA');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'ARQUERO_WEAPON_CALDERA'), result_quantity = 1, rarity = 'EPICO', required_level = 40, required_class_id = 3, success_rate_percent = 70, craft_time_minutes = 1, artisan_name = 'Ignar, en la Gran Forja de Ascuaria', zone_id = 3, station = 'forja', scroll_item_id = (SELECT id FROM items WHERE code = 'SCROLL_CALDERA_ARQUERO') WHERE code = 'RECIPE_ARQUERO_WEAPON_CALDERA';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_ARQUERO_WEAPON_CALDERA');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_ARQUERO_WEAPON_CALDERA'), i.id, v.n FROM (VALUES ('CORAZON_DE_LA_CALDERA', 1), ('CUERNO_DEMONIO_LAVA', 3), ('SELLO_ECLIPSE', 2), ('ALA_DRACO', 3)) AS v(code, n) JOIN items i ON i.code = v.code;
+-- Carcaj de la Caldera
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'ARQUERO_OFFHAND_CALDERA', 'Carcaj de la Caldera', 'EQUIPMENT', 'OFFHAND', FALSE, 'EPICO', 3, 40, TRUE, 'CRAFT', 'Pieza del set de la Caldera: cuernos de demonio y sellos de los Ocultos, fundidos con el corazón de su señor.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'ARQUERO_OFFHAND_CALDERA');
+UPDATE items SET name = 'Carcaj de la Caldera', item_type = 'EQUIPMENT', slot = 'OFFHAND', is_two_handed = FALSE, rarity = 'EPICO', class_id = 3, required_level = 40, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Pieza del set de la Caldera: cuernos de demonio y sellos de los Ocultos, fundidos con el corazón de su señor.' WHERE code = 'ARQUERO_OFFHAND_CALDERA';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'ARQUERO_OFFHAND_CALDERA');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'ARQUERO_OFFHAND_CALDERA'), v.* FROM (VALUES ('ATK', 31, FALSE), ('SPD', 31, FALSE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station, scroll_item_id)
+SELECT 'RECIPE_ARQUERO_OFFHAND_CALDERA', (SELECT id FROM items WHERE code = 'ARQUERO_OFFHAND_CALDERA'), 1, 'EPICO', 40, 3, 70, 1, 'Ignar, en la Gran Forja de Ascuaria', 3, 'forja', (SELECT id FROM items WHERE code = 'SCROLL_CALDERA_ARQUERO') WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_ARQUERO_OFFHAND_CALDERA');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'ARQUERO_OFFHAND_CALDERA'), result_quantity = 1, rarity = 'EPICO', required_level = 40, required_class_id = 3, success_rate_percent = 70, craft_time_minutes = 1, artisan_name = 'Ignar, en la Gran Forja de Ascuaria', zone_id = 3, station = 'forja', scroll_item_id = (SELECT id FROM items WHERE code = 'SCROLL_CALDERA_ARQUERO') WHERE code = 'RECIPE_ARQUERO_OFFHAND_CALDERA';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_ARQUERO_OFFHAND_CALDERA');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_ARQUERO_OFFHAND_CALDERA'), i.id, v.n FROM (VALUES ('CUERNO_DEMONIO_LAVA', 2), ('SELLO_ECLIPSE', 1), ('ALA_DRACO', 2)) AS v(code, n) JOIN items i ON i.code = v.code;
+-- Capucha de la Caldera
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'ARQUERO_HELMET_CALDERA', 'Capucha de la Caldera', 'EQUIPMENT', 'HELMET', FALSE, 'EPICO', 3, 40, TRUE, 'CRAFT', 'Pieza del set de la Caldera: cuernos de demonio y sellos de los Ocultos, fundidos con el corazón de su señor.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'ARQUERO_HELMET_CALDERA');
+UPDATE items SET name = 'Capucha de la Caldera', item_type = 'EQUIPMENT', slot = 'HELMET', is_two_handed = FALSE, rarity = 'EPICO', class_id = 3, required_level = 40, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Pieza del set de la Caldera: cuernos de demonio y sellos de los Ocultos, fundidos con el corazón de su señor.' WHERE code = 'ARQUERO_HELMET_CALDERA';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'ARQUERO_HELMET_CALDERA');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'ARQUERO_HELMET_CALDERA'), v.* FROM (VALUES ('DEF', 17, FALSE), ('HP', 13, FALSE), ('MAGIC_DEF', 6, FALSE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station, scroll_item_id)
+SELECT 'RECIPE_ARQUERO_HELMET_CALDERA', (SELECT id FROM items WHERE code = 'ARQUERO_HELMET_CALDERA'), 1, 'EPICO', 40, 3, 70, 1, 'Ignar, en la Gran Forja de Ascuaria', 3, 'forja', (SELECT id FROM items WHERE code = 'SCROLL_CALDERA_ARQUERO') WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_ARQUERO_HELMET_CALDERA');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'ARQUERO_HELMET_CALDERA'), result_quantity = 1, rarity = 'EPICO', required_level = 40, required_class_id = 3, success_rate_percent = 70, craft_time_minutes = 1, artisan_name = 'Ignar, en la Gran Forja de Ascuaria', zone_id = 3, station = 'forja', scroll_item_id = (SELECT id FROM items WHERE code = 'SCROLL_CALDERA_ARQUERO') WHERE code = 'RECIPE_ARQUERO_HELMET_CALDERA';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_ARQUERO_HELMET_CALDERA');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_ARQUERO_HELMET_CALDERA'), i.id, v.n FROM (VALUES ('CUERNO_DEMONIO_LAVA', 2), ('SELLO_ECLIPSE', 1), ('ALA_DRACO', 2)) AS v(code, n) JOIN items i ON i.code = v.code;
+-- Gabán de la Caldera
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'ARQUERO_ARMOR_CALDERA', 'Gabán de la Caldera', 'EQUIPMENT', 'ARMOR', FALSE, 'EPICO', 3, 40, TRUE, 'CRAFT', 'Pieza del set de la Caldera: cuernos de demonio y sellos de los Ocultos, fundidos con el corazón de su señor.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'ARQUERO_ARMOR_CALDERA');
+UPDATE items SET name = 'Gabán de la Caldera', item_type = 'EQUIPMENT', slot = 'ARMOR', is_two_handed = FALSE, rarity = 'EPICO', class_id = 3, required_level = 40, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Pieza del set de la Caldera: cuernos de demonio y sellos de los Ocultos, fundidos con el corazón de su señor.' WHERE code = 'ARQUERO_ARMOR_CALDERA';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'ARQUERO_ARMOR_CALDERA');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'ARQUERO_ARMOR_CALDERA'), v.* FROM (VALUES ('DEF', 34, FALSE), ('HP', 60, FALSE), ('MAGIC_DEF', 10, FALSE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station, scroll_item_id)
+SELECT 'RECIPE_ARQUERO_ARMOR_CALDERA', (SELECT id FROM items WHERE code = 'ARQUERO_ARMOR_CALDERA'), 1, 'EPICO', 40, 3, 70, 1, 'Ignar, en la Gran Forja de Ascuaria', 3, 'forja', (SELECT id FROM items WHERE code = 'SCROLL_CALDERA_ARQUERO') WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_ARQUERO_ARMOR_CALDERA');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'ARQUERO_ARMOR_CALDERA'), result_quantity = 1, rarity = 'EPICO', required_level = 40, required_class_id = 3, success_rate_percent = 70, craft_time_minutes = 1, artisan_name = 'Ignar, en la Gran Forja de Ascuaria', zone_id = 3, station = 'forja', scroll_item_id = (SELECT id FROM items WHERE code = 'SCROLL_CALDERA_ARQUERO') WHERE code = 'RECIPE_ARQUERO_ARMOR_CALDERA';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_ARQUERO_ARMOR_CALDERA');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_ARQUERO_ARMOR_CALDERA'), i.id, v.n FROM (VALUES ('CORAZON_DE_LA_CALDERA', 1), ('CUERNO_DEMONIO_LAVA', 3), ('SELLO_ECLIPSE', 2), ('ALA_DRACO', 3)) AS v(code, n) JOIN items i ON i.code = v.code;
+-- Guantes de la Caldera
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'ARQUERO_GLOVES_CALDERA', 'Guantes de la Caldera', 'EQUIPMENT', 'GLOVES', FALSE, 'EPICO', 3, 40, TRUE, 'CRAFT', 'Pieza del set de la Caldera: cuernos de demonio y sellos de los Ocultos, fundidos con el corazón de su señor.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'ARQUERO_GLOVES_CALDERA');
+UPDATE items SET name = 'Guantes de la Caldera', item_type = 'EQUIPMENT', slot = 'GLOVES', is_two_handed = FALSE, rarity = 'EPICO', class_id = 3, required_level = 40, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Pieza del set de la Caldera: cuernos de demonio y sellos de los Ocultos, fundidos con el corazón de su señor.' WHERE code = 'ARQUERO_GLOVES_CALDERA';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'ARQUERO_GLOVES_CALDERA');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'ARQUERO_GLOVES_CALDERA'), v.* FROM (VALUES ('ATK', 43, FALSE), ('CRIT_CHANCE', 4.5, TRUE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station, scroll_item_id)
+SELECT 'RECIPE_ARQUERO_GLOVES_CALDERA', (SELECT id FROM items WHERE code = 'ARQUERO_GLOVES_CALDERA'), 1, 'EPICO', 40, 3, 70, 1, 'Ignar, en la Gran Forja de Ascuaria', 3, 'forja', (SELECT id FROM items WHERE code = 'SCROLL_CALDERA_ARQUERO') WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_ARQUERO_GLOVES_CALDERA');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'ARQUERO_GLOVES_CALDERA'), result_quantity = 1, rarity = 'EPICO', required_level = 40, required_class_id = 3, success_rate_percent = 70, craft_time_minutes = 1, artisan_name = 'Ignar, en la Gran Forja de Ascuaria', zone_id = 3, station = 'forja', scroll_item_id = (SELECT id FROM items WHERE code = 'SCROLL_CALDERA_ARQUERO') WHERE code = 'RECIPE_ARQUERO_GLOVES_CALDERA';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_ARQUERO_GLOVES_CALDERA');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_ARQUERO_GLOVES_CALDERA'), i.id, v.n FROM (VALUES ('CUERNO_DEMONIO_LAVA', 2), ('SELLO_ECLIPSE', 1), ('ALA_DRACO', 2)) AS v(code, n) JOIN items i ON i.code = v.code;
+-- Botas de la Caldera
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'ARQUERO_BOOTS_CALDERA', 'Botas de la Caldera', 'EQUIPMENT', 'BOOTS', FALSE, 'EPICO', 3, 40, TRUE, 'CRAFT', 'Pieza del set de la Caldera: cuernos de demonio y sellos de los Ocultos, fundidos con el corazón de su señor.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'ARQUERO_BOOTS_CALDERA');
+UPDATE items SET name = 'Botas de la Caldera', item_type = 'EQUIPMENT', slot = 'BOOTS', is_two_handed = FALSE, rarity = 'EPICO', class_id = 3, required_level = 40, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Pieza del set de la Caldera: cuernos de demonio y sellos de los Ocultos, fundidos con el corazón de su señor.' WHERE code = 'ARQUERO_BOOTS_CALDERA';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'ARQUERO_BOOTS_CALDERA');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'ARQUERO_BOOTS_CALDERA'), v.* FROM (VALUES ('SPD', 26, FALSE), ('HP', 7, FALSE), ('DEF', 10, FALSE), ('EVASION', 2.5, TRUE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station, scroll_item_id)
+SELECT 'RECIPE_ARQUERO_BOOTS_CALDERA', (SELECT id FROM items WHERE code = 'ARQUERO_BOOTS_CALDERA'), 1, 'EPICO', 40, 3, 70, 1, 'Ignar, en la Gran Forja de Ascuaria', 3, 'forja', (SELECT id FROM items WHERE code = 'SCROLL_CALDERA_ARQUERO') WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_ARQUERO_BOOTS_CALDERA');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'ARQUERO_BOOTS_CALDERA'), result_quantity = 1, rarity = 'EPICO', required_level = 40, required_class_id = 3, success_rate_percent = 70, craft_time_minutes = 1, artisan_name = 'Ignar, en la Gran Forja de Ascuaria', zone_id = 3, station = 'forja', scroll_item_id = (SELECT id FROM items WHERE code = 'SCROLL_CALDERA_ARQUERO') WHERE code = 'RECIPE_ARQUERO_BOOTS_CALDERA';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_ARQUERO_BOOTS_CALDERA');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_ARQUERO_BOOTS_CALDERA'), i.id, v.n FROM (VALUES ('CUERNO_DEMONIO_LAVA', 2), ('SELLO_ECLIPSE', 1), ('ALA_DRACO', 2)) AS v(code, n) JOIN items i ON i.code = v.code;
+-- Daga de la Caldera
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'PICARO_WEAPON_CALDERA', 'Daga de la Caldera', 'EQUIPMENT', 'WEAPON', FALSE, 'EPICO', 4, 40, TRUE, 'CRAFT', 'Pieza del set de la Caldera: cuernos de demonio y sellos de los Ocultos, fundidos con el corazón de su señor.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'PICARO_WEAPON_CALDERA');
+UPDATE items SET name = 'Daga de la Caldera', item_type = 'EQUIPMENT', slot = 'WEAPON', is_two_handed = FALSE, rarity = 'EPICO', class_id = 4, required_level = 40, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Pieza del set de la Caldera: cuernos de demonio y sellos de los Ocultos, fundidos con el corazón de su señor.' WHERE code = 'PICARO_WEAPON_CALDERA';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'PICARO_WEAPON_CALDERA');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'PICARO_WEAPON_CALDERA'), v.* FROM (VALUES ('ATK', 95, FALSE), ('CRIT_CHANCE', 6.8, TRUE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station, scroll_item_id)
+SELECT 'RECIPE_PICARO_WEAPON_CALDERA', (SELECT id FROM items WHERE code = 'PICARO_WEAPON_CALDERA'), 1, 'EPICO', 40, 4, 70, 1, 'Ignar, en la Gran Forja de Ascuaria', 3, 'forja', (SELECT id FROM items WHERE code = 'SCROLL_CALDERA_PICARO') WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_PICARO_WEAPON_CALDERA');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'PICARO_WEAPON_CALDERA'), result_quantity = 1, rarity = 'EPICO', required_level = 40, required_class_id = 4, success_rate_percent = 70, craft_time_minutes = 1, artisan_name = 'Ignar, en la Gran Forja de Ascuaria', zone_id = 3, station = 'forja', scroll_item_id = (SELECT id FROM items WHERE code = 'SCROLL_CALDERA_PICARO') WHERE code = 'RECIPE_PICARO_WEAPON_CALDERA';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_PICARO_WEAPON_CALDERA');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_PICARO_WEAPON_CALDERA'), i.id, v.n FROM (VALUES ('CORAZON_DE_LA_CALDERA', 1), ('CUERNO_DEMONIO_LAVA', 3), ('SELLO_ECLIPSE', 2), ('COLMILLO_MAGMA', 3)) AS v(code, n) JOIN items i ON i.code = v.code;
+-- Daga Gemela de la Caldera
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'PICARO_OFFHAND_CALDERA', 'Daga Gemela de la Caldera', 'EQUIPMENT', 'OFFHAND', FALSE, 'EPICO', 4, 40, TRUE, 'CRAFT', 'Pieza del set de la Caldera: cuernos de demonio y sellos de los Ocultos, fundidos con el corazón de su señor.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'PICARO_OFFHAND_CALDERA');
+UPDATE items SET name = 'Daga Gemela de la Caldera', item_type = 'EQUIPMENT', slot = 'OFFHAND', is_two_handed = FALSE, rarity = 'EPICO', class_id = 4, required_level = 40, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Pieza del set de la Caldera: cuernos de demonio y sellos de los Ocultos, fundidos con el corazón de su señor.' WHERE code = 'PICARO_OFFHAND_CALDERA';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'PICARO_OFFHAND_CALDERA');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'PICARO_OFFHAND_CALDERA'), v.* FROM (VALUES ('ATK', 31, FALSE), ('SPD', 31, FALSE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station, scroll_item_id)
+SELECT 'RECIPE_PICARO_OFFHAND_CALDERA', (SELECT id FROM items WHERE code = 'PICARO_OFFHAND_CALDERA'), 1, 'EPICO', 40, 4, 70, 1, 'Ignar, en la Gran Forja de Ascuaria', 3, 'forja', (SELECT id FROM items WHERE code = 'SCROLL_CALDERA_PICARO') WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_PICARO_OFFHAND_CALDERA');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'PICARO_OFFHAND_CALDERA'), result_quantity = 1, rarity = 'EPICO', required_level = 40, required_class_id = 4, success_rate_percent = 70, craft_time_minutes = 1, artisan_name = 'Ignar, en la Gran Forja de Ascuaria', zone_id = 3, station = 'forja', scroll_item_id = (SELECT id FROM items WHERE code = 'SCROLL_CALDERA_PICARO') WHERE code = 'RECIPE_PICARO_OFFHAND_CALDERA';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_PICARO_OFFHAND_CALDERA');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_PICARO_OFFHAND_CALDERA'), i.id, v.n FROM (VALUES ('CUERNO_DEMONIO_LAVA', 2), ('SELLO_ECLIPSE', 1), ('COLMILLO_MAGMA', 2)) AS v(code, n) JOIN items i ON i.code = v.code;
+-- Máscara de la Caldera
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'PICARO_HELMET_CALDERA', 'Máscara de la Caldera', 'EQUIPMENT', 'HELMET', FALSE, 'EPICO', 4, 40, TRUE, 'CRAFT', 'Pieza del set de la Caldera: cuernos de demonio y sellos de los Ocultos, fundidos con el corazón de su señor.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'PICARO_HELMET_CALDERA');
+UPDATE items SET name = 'Máscara de la Caldera', item_type = 'EQUIPMENT', slot = 'HELMET', is_two_handed = FALSE, rarity = 'EPICO', class_id = 4, required_level = 40, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Pieza del set de la Caldera: cuernos de demonio y sellos de los Ocultos, fundidos con el corazón de su señor.' WHERE code = 'PICARO_HELMET_CALDERA';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'PICARO_HELMET_CALDERA');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'PICARO_HELMET_CALDERA'), v.* FROM (VALUES ('DEF', 17, FALSE), ('HP', 14, FALSE), ('MAGIC_DEF', 6, FALSE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station, scroll_item_id)
+SELECT 'RECIPE_PICARO_HELMET_CALDERA', (SELECT id FROM items WHERE code = 'PICARO_HELMET_CALDERA'), 1, 'EPICO', 40, 4, 70, 1, 'Ignar, en la Gran Forja de Ascuaria', 3, 'forja', (SELECT id FROM items WHERE code = 'SCROLL_CALDERA_PICARO') WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_PICARO_HELMET_CALDERA');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'PICARO_HELMET_CALDERA'), result_quantity = 1, rarity = 'EPICO', required_level = 40, required_class_id = 4, success_rate_percent = 70, craft_time_minutes = 1, artisan_name = 'Ignar, en la Gran Forja de Ascuaria', zone_id = 3, station = 'forja', scroll_item_id = (SELECT id FROM items WHERE code = 'SCROLL_CALDERA_PICARO') WHERE code = 'RECIPE_PICARO_HELMET_CALDERA';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_PICARO_HELMET_CALDERA');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_PICARO_HELMET_CALDERA'), i.id, v.n FROM (VALUES ('CUERNO_DEMONIO_LAVA', 2), ('SELLO_ECLIPSE', 1), ('COLMILLO_MAGMA', 2)) AS v(code, n) JOIN items i ON i.code = v.code;
+-- Cuero de la Caldera
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'PICARO_ARMOR_CALDERA', 'Cuero de la Caldera', 'EQUIPMENT', 'ARMOR', FALSE, 'EPICO', 4, 40, TRUE, 'CRAFT', 'Pieza del set de la Caldera: cuernos de demonio y sellos de los Ocultos, fundidos con el corazón de su señor.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'PICARO_ARMOR_CALDERA');
+UPDATE items SET name = 'Cuero de la Caldera', item_type = 'EQUIPMENT', slot = 'ARMOR', is_two_handed = FALSE, rarity = 'EPICO', class_id = 4, required_level = 40, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Pieza del set de la Caldera: cuernos de demonio y sellos de los Ocultos, fundidos con el corazón de su señor.' WHERE code = 'PICARO_ARMOR_CALDERA';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'PICARO_ARMOR_CALDERA');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'PICARO_ARMOR_CALDERA'), v.* FROM (VALUES ('DEF', 34, FALSE), ('HP', 66, FALSE), ('MAGIC_DEF', 10, FALSE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station, scroll_item_id)
+SELECT 'RECIPE_PICARO_ARMOR_CALDERA', (SELECT id FROM items WHERE code = 'PICARO_ARMOR_CALDERA'), 1, 'EPICO', 40, 4, 70, 1, 'Ignar, en la Gran Forja de Ascuaria', 3, 'forja', (SELECT id FROM items WHERE code = 'SCROLL_CALDERA_PICARO') WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_PICARO_ARMOR_CALDERA');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'PICARO_ARMOR_CALDERA'), result_quantity = 1, rarity = 'EPICO', required_level = 40, required_class_id = 4, success_rate_percent = 70, craft_time_minutes = 1, artisan_name = 'Ignar, en la Gran Forja de Ascuaria', zone_id = 3, station = 'forja', scroll_item_id = (SELECT id FROM items WHERE code = 'SCROLL_CALDERA_PICARO') WHERE code = 'RECIPE_PICARO_ARMOR_CALDERA';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_PICARO_ARMOR_CALDERA');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_PICARO_ARMOR_CALDERA'), i.id, v.n FROM (VALUES ('CORAZON_DE_LA_CALDERA', 1), ('CUERNO_DEMONIO_LAVA', 3), ('SELLO_ECLIPSE', 2), ('COLMILLO_MAGMA', 3)) AS v(code, n) JOIN items i ON i.code = v.code;
+-- Guantes de la Caldera
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'PICARO_GLOVES_CALDERA', 'Guantes de la Caldera', 'EQUIPMENT', 'GLOVES', FALSE, 'EPICO', 4, 40, TRUE, 'CRAFT', 'Pieza del set de la Caldera: cuernos de demonio y sellos de los Ocultos, fundidos con el corazón de su señor.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'PICARO_GLOVES_CALDERA');
+UPDATE items SET name = 'Guantes de la Caldera', item_type = 'EQUIPMENT', slot = 'GLOVES', is_two_handed = FALSE, rarity = 'EPICO', class_id = 4, required_level = 40, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Pieza del set de la Caldera: cuernos de demonio y sellos de los Ocultos, fundidos con el corazón de su señor.' WHERE code = 'PICARO_GLOVES_CALDERA';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'PICARO_GLOVES_CALDERA');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'PICARO_GLOVES_CALDERA'), v.* FROM (VALUES ('ATK', 43, FALSE), ('CRIT_CHANCE', 4.5, TRUE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station, scroll_item_id)
+SELECT 'RECIPE_PICARO_GLOVES_CALDERA', (SELECT id FROM items WHERE code = 'PICARO_GLOVES_CALDERA'), 1, 'EPICO', 40, 4, 70, 1, 'Ignar, en la Gran Forja de Ascuaria', 3, 'forja', (SELECT id FROM items WHERE code = 'SCROLL_CALDERA_PICARO') WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_PICARO_GLOVES_CALDERA');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'PICARO_GLOVES_CALDERA'), result_quantity = 1, rarity = 'EPICO', required_level = 40, required_class_id = 4, success_rate_percent = 70, craft_time_minutes = 1, artisan_name = 'Ignar, en la Gran Forja de Ascuaria', zone_id = 3, station = 'forja', scroll_item_id = (SELECT id FROM items WHERE code = 'SCROLL_CALDERA_PICARO') WHERE code = 'RECIPE_PICARO_GLOVES_CALDERA';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_PICARO_GLOVES_CALDERA');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_PICARO_GLOVES_CALDERA'), i.id, v.n FROM (VALUES ('CUERNO_DEMONIO_LAVA', 2), ('SELLO_ECLIPSE', 1), ('COLMILLO_MAGMA', 2)) AS v(code, n) JOIN items i ON i.code = v.code;
+-- Botas de la Caldera
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'PICARO_BOOTS_CALDERA', 'Botas de la Caldera', 'EQUIPMENT', 'BOOTS', FALSE, 'EPICO', 4, 40, TRUE, 'CRAFT', 'Pieza del set de la Caldera: cuernos de demonio y sellos de los Ocultos, fundidos con el corazón de su señor.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'PICARO_BOOTS_CALDERA');
+UPDATE items SET name = 'Botas de la Caldera', item_type = 'EQUIPMENT', slot = 'BOOTS', is_two_handed = FALSE, rarity = 'EPICO', class_id = 4, required_level = 40, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Pieza del set de la Caldera: cuernos de demonio y sellos de los Ocultos, fundidos con el corazón de su señor.' WHERE code = 'PICARO_BOOTS_CALDERA';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'PICARO_BOOTS_CALDERA');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'PICARO_BOOTS_CALDERA'), v.* FROM (VALUES ('SPD', 26, FALSE), ('HP', 7, FALSE), ('DEF', 10, FALSE), ('EVASION', 2.5, TRUE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station, scroll_item_id)
+SELECT 'RECIPE_PICARO_BOOTS_CALDERA', (SELECT id FROM items WHERE code = 'PICARO_BOOTS_CALDERA'), 1, 'EPICO', 40, 4, 70, 1, 'Ignar, en la Gran Forja de Ascuaria', 3, 'forja', (SELECT id FROM items WHERE code = 'SCROLL_CALDERA_PICARO') WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_PICARO_BOOTS_CALDERA');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'PICARO_BOOTS_CALDERA'), result_quantity = 1, rarity = 'EPICO', required_level = 40, required_class_id = 4, success_rate_percent = 70, craft_time_minutes = 1, artisan_name = 'Ignar, en la Gran Forja de Ascuaria', zone_id = 3, station = 'forja', scroll_item_id = (SELECT id FROM items WHERE code = 'SCROLL_CALDERA_PICARO') WHERE code = 'RECIPE_PICARO_BOOTS_CALDERA';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_PICARO_BOOTS_CALDERA');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_PICARO_BOOTS_CALDERA'), i.id, v.n FROM (VALUES ('CUERNO_DEMONIO_LAVA', 2), ('SELLO_ECLIPSE', 1), ('COLMILLO_MAGMA', 2)) AS v(code, n) JOIN items i ON i.code = v.code;
+-- Báculo de la Caldera
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'SACERDOTE_WEAPON_CALDERA', 'Báculo de la Caldera', 'EQUIPMENT', 'WEAPON', FALSE, 'EPICO', 5, 40, TRUE, 'CRAFT', 'Pieza del set de la Caldera: cuernos de demonio y sellos de los Ocultos, fundidos con el corazón de su señor.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'SACERDOTE_WEAPON_CALDERA');
+UPDATE items SET name = 'Báculo de la Caldera', item_type = 'EQUIPMENT', slot = 'WEAPON', is_two_handed = FALSE, rarity = 'EPICO', class_id = 5, required_level = 40, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Pieza del set de la Caldera: cuernos de demonio y sellos de los Ocultos, fundidos con el corazón de su señor.' WHERE code = 'SACERDOTE_WEAPON_CALDERA';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'SACERDOTE_WEAPON_CALDERA');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'SACERDOTE_WEAPON_CALDERA'), v.* FROM (VALUES ('MAG', 95, FALSE), ('CRIT_CHANCE', 6.8, TRUE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station, scroll_item_id)
+SELECT 'RECIPE_SACERDOTE_WEAPON_CALDERA', (SELECT id FROM items WHERE code = 'SACERDOTE_WEAPON_CALDERA'), 1, 'EPICO', 40, 5, 70, 1, 'Ignar, en la Gran Forja de Ascuaria', 3, 'forja', (SELECT id FROM items WHERE code = 'SCROLL_CALDERA_SACERDOTE') WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_SACERDOTE_WEAPON_CALDERA');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'SACERDOTE_WEAPON_CALDERA'), result_quantity = 1, rarity = 'EPICO', required_level = 40, required_class_id = 5, success_rate_percent = 70, craft_time_minutes = 1, artisan_name = 'Ignar, en la Gran Forja de Ascuaria', zone_id = 3, station = 'forja', scroll_item_id = (SELECT id FROM items WHERE code = 'SCROLL_CALDERA_SACERDOTE') WHERE code = 'RECIPE_SACERDOTE_WEAPON_CALDERA';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_SACERDOTE_WEAPON_CALDERA');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_SACERDOTE_WEAPON_CALDERA'), i.id, v.n FROM (VALUES ('CORAZON_DE_LA_CALDERA', 1), ('CUERNO_DEMONIO_LAVA', 3), ('SELLO_ECLIPSE', 2), ('FLOR_DE_CENIZA', 3)) AS v(code, n) JOIN items i ON i.code = v.code;
+-- Símbolo de la Caldera
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'SACERDOTE_OFFHAND_CALDERA', 'Símbolo de la Caldera', 'EQUIPMENT', 'OFFHAND', FALSE, 'EPICO', 5, 40, TRUE, 'CRAFT', 'Pieza del set de la Caldera: cuernos de demonio y sellos de los Ocultos, fundidos con el corazón de su señor.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'SACERDOTE_OFFHAND_CALDERA');
+UPDATE items SET name = 'Símbolo de la Caldera', item_type = 'EQUIPMENT', slot = 'OFFHAND', is_two_handed = FALSE, rarity = 'EPICO', class_id = 5, required_level = 40, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Pieza del set de la Caldera: cuernos de demonio y sellos de los Ocultos, fundidos con el corazón de su señor.' WHERE code = 'SACERDOTE_OFFHAND_CALDERA';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'SACERDOTE_OFFHAND_CALDERA');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'SACERDOTE_OFFHAND_CALDERA'), v.* FROM (VALUES ('HP', 28, FALSE), ('MAGIC_DEF', 21, FALSE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station, scroll_item_id)
+SELECT 'RECIPE_SACERDOTE_OFFHAND_CALDERA', (SELECT id FROM items WHERE code = 'SACERDOTE_OFFHAND_CALDERA'), 1, 'EPICO', 40, 5, 70, 1, 'Ignar, en la Gran Forja de Ascuaria', 3, 'forja', (SELECT id FROM items WHERE code = 'SCROLL_CALDERA_SACERDOTE') WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_SACERDOTE_OFFHAND_CALDERA');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'SACERDOTE_OFFHAND_CALDERA'), result_quantity = 1, rarity = 'EPICO', required_level = 40, required_class_id = 5, success_rate_percent = 70, craft_time_minutes = 1, artisan_name = 'Ignar, en la Gran Forja de Ascuaria', zone_id = 3, station = 'forja', scroll_item_id = (SELECT id FROM items WHERE code = 'SCROLL_CALDERA_SACERDOTE') WHERE code = 'RECIPE_SACERDOTE_OFFHAND_CALDERA';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_SACERDOTE_OFFHAND_CALDERA');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_SACERDOTE_OFFHAND_CALDERA'), i.id, v.n FROM (VALUES ('CUERNO_DEMONIO_LAVA', 2), ('SELLO_ECLIPSE', 1), ('FLOR_DE_CENIZA', 2)) AS v(code, n) JOIN items i ON i.code = v.code;
+-- Diadema de la Caldera
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'SACERDOTE_HELMET_CALDERA', 'Diadema de la Caldera', 'EQUIPMENT', 'HELMET', FALSE, 'EPICO', 5, 40, TRUE, 'CRAFT', 'Pieza del set de la Caldera: cuernos de demonio y sellos de los Ocultos, fundidos con el corazón de su señor.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'SACERDOTE_HELMET_CALDERA');
+UPDATE items SET name = 'Diadema de la Caldera', item_type = 'EQUIPMENT', slot = 'HELMET', is_two_handed = FALSE, rarity = 'EPICO', class_id = 5, required_level = 40, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Pieza del set de la Caldera: cuernos de demonio y sellos de los Ocultos, fundidos con el corazón de su señor.' WHERE code = 'SACERDOTE_HELMET_CALDERA';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'SACERDOTE_HELMET_CALDERA');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'SACERDOTE_HELMET_CALDERA'), v.* FROM (VALUES ('DEF', 5, FALSE), ('HP', 14, FALSE), ('MAGIC_DEF', 17, FALSE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station, scroll_item_id)
+SELECT 'RECIPE_SACERDOTE_HELMET_CALDERA', (SELECT id FROM items WHERE code = 'SACERDOTE_HELMET_CALDERA'), 1, 'EPICO', 40, 5, 70, 1, 'Ignar, en la Gran Forja de Ascuaria', 3, 'forja', (SELECT id FROM items WHERE code = 'SCROLL_CALDERA_SACERDOTE') WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_SACERDOTE_HELMET_CALDERA');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'SACERDOTE_HELMET_CALDERA'), result_quantity = 1, rarity = 'EPICO', required_level = 40, required_class_id = 5, success_rate_percent = 70, craft_time_minutes = 1, artisan_name = 'Ignar, en la Gran Forja de Ascuaria', zone_id = 3, station = 'forja', scroll_item_id = (SELECT id FROM items WHERE code = 'SCROLL_CALDERA_SACERDOTE') WHERE code = 'RECIPE_SACERDOTE_HELMET_CALDERA';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_SACERDOTE_HELMET_CALDERA');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_SACERDOTE_HELMET_CALDERA'), i.id, v.n FROM (VALUES ('CUERNO_DEMONIO_LAVA', 2), ('SELLO_ECLIPSE', 1), ('FLOR_DE_CENIZA', 2)) AS v(code, n) JOIN items i ON i.code = v.code;
+-- Vestidura de la Caldera
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'SACERDOTE_ARMOR_CALDERA', 'Vestidura de la Caldera', 'EQUIPMENT', 'ARMOR', FALSE, 'EPICO', 5, 40, TRUE, 'CRAFT', 'Pieza del set de la Caldera: cuernos de demonio y sellos de los Ocultos, fundidos con el corazón de su señor.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'SACERDOTE_ARMOR_CALDERA');
+UPDATE items SET name = 'Vestidura de la Caldera', item_type = 'EQUIPMENT', slot = 'ARMOR', is_two_handed = FALSE, rarity = 'EPICO', class_id = 5, required_level = 40, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Pieza del set de la Caldera: cuernos de demonio y sellos de los Ocultos, fundidos con el corazón de su señor.' WHERE code = 'SACERDOTE_ARMOR_CALDERA';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'SACERDOTE_ARMOR_CALDERA');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'SACERDOTE_ARMOR_CALDERA'), v.* FROM (VALUES ('DEF', 11, FALSE), ('HP', 55, FALSE), ('MAGIC_DEF', 34, FALSE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station, scroll_item_id)
+SELECT 'RECIPE_SACERDOTE_ARMOR_CALDERA', (SELECT id FROM items WHERE code = 'SACERDOTE_ARMOR_CALDERA'), 1, 'EPICO', 40, 5, 70, 1, 'Ignar, en la Gran Forja de Ascuaria', 3, 'forja', (SELECT id FROM items WHERE code = 'SCROLL_CALDERA_SACERDOTE') WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_SACERDOTE_ARMOR_CALDERA');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'SACERDOTE_ARMOR_CALDERA'), result_quantity = 1, rarity = 'EPICO', required_level = 40, required_class_id = 5, success_rate_percent = 70, craft_time_minutes = 1, artisan_name = 'Ignar, en la Gran Forja de Ascuaria', zone_id = 3, station = 'forja', scroll_item_id = (SELECT id FROM items WHERE code = 'SCROLL_CALDERA_SACERDOTE') WHERE code = 'RECIPE_SACERDOTE_ARMOR_CALDERA';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_SACERDOTE_ARMOR_CALDERA');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_SACERDOTE_ARMOR_CALDERA'), i.id, v.n FROM (VALUES ('CORAZON_DE_LA_CALDERA', 1), ('CUERNO_DEMONIO_LAVA', 3), ('SELLO_ECLIPSE', 2), ('FLOR_DE_CENIZA', 3)) AS v(code, n) JOIN items i ON i.code = v.code;
+-- Guantes de la Caldera
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'SACERDOTE_GLOVES_CALDERA', 'Guantes de la Caldera', 'EQUIPMENT', 'GLOVES', FALSE, 'EPICO', 5, 40, TRUE, 'CRAFT', 'Pieza del set de la Caldera: cuernos de demonio y sellos de los Ocultos, fundidos con el corazón de su señor.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'SACERDOTE_GLOVES_CALDERA');
+UPDATE items SET name = 'Guantes de la Caldera', item_type = 'EQUIPMENT', slot = 'GLOVES', is_two_handed = FALSE, rarity = 'EPICO', class_id = 5, required_level = 40, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Pieza del set de la Caldera: cuernos de demonio y sellos de los Ocultos, fundidos con el corazón de su señor.' WHERE code = 'SACERDOTE_GLOVES_CALDERA';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'SACERDOTE_GLOVES_CALDERA');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'SACERDOTE_GLOVES_CALDERA'), v.* FROM (VALUES ('MAG', 43, FALSE), ('CRIT_CHANCE', 4.5, TRUE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station, scroll_item_id)
+SELECT 'RECIPE_SACERDOTE_GLOVES_CALDERA', (SELECT id FROM items WHERE code = 'SACERDOTE_GLOVES_CALDERA'), 1, 'EPICO', 40, 5, 70, 1, 'Ignar, en la Gran Forja de Ascuaria', 3, 'forja', (SELECT id FROM items WHERE code = 'SCROLL_CALDERA_SACERDOTE') WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_SACERDOTE_GLOVES_CALDERA');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'SACERDOTE_GLOVES_CALDERA'), result_quantity = 1, rarity = 'EPICO', required_level = 40, required_class_id = 5, success_rate_percent = 70, craft_time_minutes = 1, artisan_name = 'Ignar, en la Gran Forja de Ascuaria', zone_id = 3, station = 'forja', scroll_item_id = (SELECT id FROM items WHERE code = 'SCROLL_CALDERA_SACERDOTE') WHERE code = 'RECIPE_SACERDOTE_GLOVES_CALDERA';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_SACERDOTE_GLOVES_CALDERA');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_SACERDOTE_GLOVES_CALDERA'), i.id, v.n FROM (VALUES ('CUERNO_DEMONIO_LAVA', 2), ('SELLO_ECLIPSE', 1), ('FLOR_DE_CENIZA', 2)) AS v(code, n) JOIN items i ON i.code = v.code;
+-- Sandalias de la Caldera
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'SACERDOTE_BOOTS_CALDERA', 'Sandalias de la Caldera', 'EQUIPMENT', 'BOOTS', FALSE, 'EPICO', 5, 40, TRUE, 'CRAFT', 'Pieza del set de la Caldera: cuernos de demonio y sellos de los Ocultos, fundidos con el corazón de su señor.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'SACERDOTE_BOOTS_CALDERA');
+UPDATE items SET name = 'Sandalias de la Caldera', item_type = 'EQUIPMENT', slot = 'BOOTS', is_two_handed = FALSE, rarity = 'EPICO', class_id = 5, required_level = 40, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Pieza del set de la Caldera: cuernos de demonio y sellos de los Ocultos, fundidos con el corazón de su señor.' WHERE code = 'SACERDOTE_BOOTS_CALDERA';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'SACERDOTE_BOOTS_CALDERA');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'SACERDOTE_BOOTS_CALDERA'), v.* FROM (VALUES ('SPD', 26, FALSE), ('HP', 7, FALSE), ('MAGIC_DEF', 8, FALSE), ('EVASION', 2.5, TRUE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station, scroll_item_id)
+SELECT 'RECIPE_SACERDOTE_BOOTS_CALDERA', (SELECT id FROM items WHERE code = 'SACERDOTE_BOOTS_CALDERA'), 1, 'EPICO', 40, 5, 70, 1, 'Ignar, en la Gran Forja de Ascuaria', 3, 'forja', (SELECT id FROM items WHERE code = 'SCROLL_CALDERA_SACERDOTE') WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_SACERDOTE_BOOTS_CALDERA');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'SACERDOTE_BOOTS_CALDERA'), result_quantity = 1, rarity = 'EPICO', required_level = 40, required_class_id = 5, success_rate_percent = 70, craft_time_minutes = 1, artisan_name = 'Ignar, en la Gran Forja de Ascuaria', zone_id = 3, station = 'forja', scroll_item_id = (SELECT id FROM items WHERE code = 'SCROLL_CALDERA_SACERDOTE') WHERE code = 'RECIPE_SACERDOTE_BOOTS_CALDERA';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_SACERDOTE_BOOTS_CALDERA');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_SACERDOTE_BOOTS_CALDERA'), i.id, v.n FROM (VALUES ('CUERNO_DEMONIO_LAVA', 2), ('SELLO_ECLIPSE', 1), ('FLOR_DE_CENIZA', 2)) AS v(code, n) JOIN items i ON i.code = v.code;
+
+-- ---------------------------------------------------------------- titan (nv 45, LEGENDARIO)
+-- Espada del Titán de Fuego
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'GUERRERO_WEAPON_TITAN_F', 'Espada del Titán de Fuego', 'EQUIPMENT', 'WEAPON', FALSE, 'LEGENDARIO', 1, 45, TRUE, 'CRAFT', 'Pieza del set del Titán de Fuego, forjada con el núcleo del Guardián. Nunca se enfría del todo.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'GUERRERO_WEAPON_TITAN_F');
+UPDATE items SET name = 'Espada del Titán de Fuego', item_type = 'EQUIPMENT', slot = 'WEAPON', is_two_handed = FALSE, rarity = 'LEGENDARIO', class_id = 1, required_level = 45, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Pieza del set del Titán de Fuego, forjada con el núcleo del Guardián. Nunca se enfría del todo.' WHERE code = 'GUERRERO_WEAPON_TITAN_F';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'GUERRERO_WEAPON_TITAN_F');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'GUERRERO_WEAPON_TITAN_F'), v.* FROM (VALUES ('ATK', 117, FALSE), ('CRIT_CHANCE', 8.3, TRUE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station, scroll_item_id)
+SELECT 'RECIPE_GUERRERO_WEAPON_TITAN_F', (SELECT id FROM items WHERE code = 'GUERRERO_WEAPON_TITAN_F'), 1, 'LEGENDARIO', 45, 1, 55, 1, 'Ignar, en la Gran Forja de Ascuaria', 3, 'forja', (SELECT id FROM items WHERE code = 'SCROLL_TITAN_FUEGO_GUERRERO') WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_GUERRERO_WEAPON_TITAN_F');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'GUERRERO_WEAPON_TITAN_F'), result_quantity = 1, rarity = 'LEGENDARIO', required_level = 45, required_class_id = 1, success_rate_percent = 55, craft_time_minutes = 1, artisan_name = 'Ignar, en la Gran Forja de Ascuaria', zone_id = 3, station = 'forja', scroll_item_id = (SELECT id FROM items WHERE code = 'SCROLL_TITAN_FUEGO_GUERRERO') WHERE code = 'RECIPE_GUERRERO_WEAPON_TITAN_F';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_GUERRERO_WEAPON_TITAN_F');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_GUERRERO_WEAPON_TITAN_F'), i.id, v.n FROM (VALUES ('NUCLEO_TITAN_FUEGO', 1), ('CORAZON_DE_LA_CALDERA', 1), ('COLA_DIABLILLO', 3), ('CORAZON_DE_BRASA', 1), ('ESQUIRLA_OBSIDIANA', 4)) AS v(code, n) JOIN items i ON i.code = v.code;
+-- Gran Espada del Titán de Fuego
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'GUERRERO_WEAPON2H_TITAN_F', 'Gran Espada del Titán de Fuego', 'EQUIPMENT', 'WEAPON', TRUE, 'LEGENDARIO', 1, 45, TRUE, 'CRAFT', 'Pieza del set del Titán de Fuego, forjada con el núcleo del Guardián. Nunca se enfría del todo.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'GUERRERO_WEAPON2H_TITAN_F');
+UPDATE items SET name = 'Gran Espada del Titán de Fuego', item_type = 'EQUIPMENT', slot = 'WEAPON', is_two_handed = TRUE, rarity = 'LEGENDARIO', class_id = 1, required_level = 45, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Pieza del set del Titán de Fuego, forjada con el núcleo del Guardián. Nunca se enfría del todo.' WHERE code = 'GUERRERO_WEAPON2H_TITAN_F';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'GUERRERO_WEAPON2H_TITAN_F');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'GUERRERO_WEAPON2H_TITAN_F'), v.* FROM (VALUES ('ATK', 175, FALSE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station, scroll_item_id)
+SELECT 'RECIPE_GUERRERO_WEAPON2H_TITAN_F', (SELECT id FROM items WHERE code = 'GUERRERO_WEAPON2H_TITAN_F'), 1, 'LEGENDARIO', 45, 1, 55, 1, 'Ignar, en la Gran Forja de Ascuaria', 3, 'forja', (SELECT id FROM items WHERE code = 'SCROLL_TITAN_FUEGO_GUERRERO') WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_GUERRERO_WEAPON2H_TITAN_F');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'GUERRERO_WEAPON2H_TITAN_F'), result_quantity = 1, rarity = 'LEGENDARIO', required_level = 45, required_class_id = 1, success_rate_percent = 55, craft_time_minutes = 1, artisan_name = 'Ignar, en la Gran Forja de Ascuaria', zone_id = 3, station = 'forja', scroll_item_id = (SELECT id FROM items WHERE code = 'SCROLL_TITAN_FUEGO_GUERRERO') WHERE code = 'RECIPE_GUERRERO_WEAPON2H_TITAN_F';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_GUERRERO_WEAPON2H_TITAN_F');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_GUERRERO_WEAPON2H_TITAN_F'), i.id, v.n FROM (VALUES ('NUCLEO_TITAN_FUEGO', 1), ('CORAZON_DE_LA_CALDERA', 1), ('COLA_DIABLILLO', 3), ('CORAZON_DE_BRASA', 1), ('ESQUIRLA_OBSIDIANA', 4)) AS v(code, n) JOIN items i ON i.code = v.code;
+-- Escudo del Titán de Fuego
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'GUERRERO_OFFHAND_TITAN_F', 'Escudo del Titán de Fuego', 'EQUIPMENT', 'OFFHAND', FALSE, 'LEGENDARIO', 1, 45, TRUE, 'CRAFT', 'Pieza del set del Titán de Fuego, forjada con el núcleo del Guardián. Nunca se enfría del todo.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'GUERRERO_OFFHAND_TITAN_F');
+UPDATE items SET name = 'Escudo del Titán de Fuego', item_type = 'EQUIPMENT', slot = 'OFFHAND', is_two_handed = FALSE, rarity = 'LEGENDARIO', class_id = 1, required_level = 45, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Pieza del set del Titán de Fuego, forjada con el núcleo del Guardián. Nunca se enfría del todo.' WHERE code = 'GUERRERO_OFFHAND_TITAN_F';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'GUERRERO_OFFHAND_TITAN_F');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'GUERRERO_OFFHAND_TITAN_F'), v.* FROM (VALUES ('DEF', 26, FALSE), ('HP', 32, FALSE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station, scroll_item_id)
+SELECT 'RECIPE_GUERRERO_OFFHAND_TITAN_F', (SELECT id FROM items WHERE code = 'GUERRERO_OFFHAND_TITAN_F'), 1, 'LEGENDARIO', 45, 1, 55, 1, 'Ignar, en la Gran Forja de Ascuaria', 3, 'forja', (SELECT id FROM items WHERE code = 'SCROLL_TITAN_FUEGO_GUERRERO') WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_GUERRERO_OFFHAND_TITAN_F');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'GUERRERO_OFFHAND_TITAN_F'), result_quantity = 1, rarity = 'LEGENDARIO', required_level = 45, required_class_id = 1, success_rate_percent = 55, craft_time_minutes = 1, artisan_name = 'Ignar, en la Gran Forja de Ascuaria', zone_id = 3, station = 'forja', scroll_item_id = (SELECT id FROM items WHERE code = 'SCROLL_TITAN_FUEGO_GUERRERO') WHERE code = 'RECIPE_GUERRERO_OFFHAND_TITAN_F';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_GUERRERO_OFFHAND_TITAN_F');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_GUERRERO_OFFHAND_TITAN_F'), i.id, v.n FROM (VALUES ('NUCLEO_TITAN_FUEGO', 1), ('COLA_DIABLILLO', 2), ('CORAZON_DE_BRASA', 1), ('ESQUIRLA_OBSIDIANA', 2)) AS v(code, n) JOIN items i ON i.code = v.code;
+-- Yelmo del Titán de Fuego
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'GUERRERO_HELMET_TITAN_F', 'Yelmo del Titán de Fuego', 'EQUIPMENT', 'HELMET', FALSE, 'LEGENDARIO', 1, 45, TRUE, 'CRAFT', 'Pieza del set del Titán de Fuego, forjada con el núcleo del Guardián. Nunca se enfría del todo.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'GUERRERO_HELMET_TITAN_F');
+UPDATE items SET name = 'Yelmo del Titán de Fuego', item_type = 'EQUIPMENT', slot = 'HELMET', is_two_handed = FALSE, rarity = 'LEGENDARIO', class_id = 1, required_level = 45, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Pieza del set del Titán de Fuego, forjada con el núcleo del Guardián. Nunca se enfría del todo.' WHERE code = 'GUERRERO_HELMET_TITAN_F';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'GUERRERO_HELMET_TITAN_F');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'GUERRERO_HELMET_TITAN_F'), v.* FROM (VALUES ('DEF', 21, FALSE), ('HP', 20, FALSE), ('MAGIC_DEF', 7, FALSE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station, scroll_item_id)
+SELECT 'RECIPE_GUERRERO_HELMET_TITAN_F', (SELECT id FROM items WHERE code = 'GUERRERO_HELMET_TITAN_F'), 1, 'LEGENDARIO', 45, 1, 55, 1, 'Ignar, en la Gran Forja de Ascuaria', 3, 'forja', (SELECT id FROM items WHERE code = 'SCROLL_TITAN_FUEGO_GUERRERO') WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_GUERRERO_HELMET_TITAN_F');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'GUERRERO_HELMET_TITAN_F'), result_quantity = 1, rarity = 'LEGENDARIO', required_level = 45, required_class_id = 1, success_rate_percent = 55, craft_time_minutes = 1, artisan_name = 'Ignar, en la Gran Forja de Ascuaria', zone_id = 3, station = 'forja', scroll_item_id = (SELECT id FROM items WHERE code = 'SCROLL_TITAN_FUEGO_GUERRERO') WHERE code = 'RECIPE_GUERRERO_HELMET_TITAN_F';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_GUERRERO_HELMET_TITAN_F');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_GUERRERO_HELMET_TITAN_F'), i.id, v.n FROM (VALUES ('NUCLEO_TITAN_FUEGO', 1), ('COLA_DIABLILLO', 2), ('CORAZON_DE_BRASA', 1), ('ESQUIRLA_OBSIDIANA', 2)) AS v(code, n) JOIN items i ON i.code = v.code;
+-- Armadura del Titán de Fuego
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'GUERRERO_ARMOR_TITAN_F', 'Armadura del Titán de Fuego', 'EQUIPMENT', 'ARMOR', FALSE, 'LEGENDARIO', 1, 45, TRUE, 'CRAFT', 'Pieza del set del Titán de Fuego, forjada con el núcleo del Guardián. Nunca se enfría del todo.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'GUERRERO_ARMOR_TITAN_F');
+UPDATE items SET name = 'Armadura del Titán de Fuego', item_type = 'EQUIPMENT', slot = 'ARMOR', is_two_handed = FALSE, rarity = 'LEGENDARIO', class_id = 1, required_level = 45, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Pieza del set del Titán de Fuego, forjada con el núcleo del Guardián. Nunca se enfría del todo.' WHERE code = 'GUERRERO_ARMOR_TITAN_F';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'GUERRERO_ARMOR_TITAN_F');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'GUERRERO_ARMOR_TITAN_F'), v.* FROM (VALUES ('DEF', 42, FALSE), ('HP', 65, FALSE), ('MAGIC_DEF', 12, FALSE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station, scroll_item_id)
+SELECT 'RECIPE_GUERRERO_ARMOR_TITAN_F', (SELECT id FROM items WHERE code = 'GUERRERO_ARMOR_TITAN_F'), 1, 'LEGENDARIO', 45, 1, 55, 1, 'Ignar, en la Gran Forja de Ascuaria', 3, 'forja', (SELECT id FROM items WHERE code = 'SCROLL_TITAN_FUEGO_GUERRERO') WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_GUERRERO_ARMOR_TITAN_F');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'GUERRERO_ARMOR_TITAN_F'), result_quantity = 1, rarity = 'LEGENDARIO', required_level = 45, required_class_id = 1, success_rate_percent = 55, craft_time_minutes = 1, artisan_name = 'Ignar, en la Gran Forja de Ascuaria', zone_id = 3, station = 'forja', scroll_item_id = (SELECT id FROM items WHERE code = 'SCROLL_TITAN_FUEGO_GUERRERO') WHERE code = 'RECIPE_GUERRERO_ARMOR_TITAN_F';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_GUERRERO_ARMOR_TITAN_F');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_GUERRERO_ARMOR_TITAN_F'), i.id, v.n FROM (VALUES ('NUCLEO_TITAN_FUEGO', 1), ('CORAZON_DE_LA_CALDERA', 1), ('COLA_DIABLILLO', 3), ('CORAZON_DE_BRASA', 1), ('ESQUIRLA_OBSIDIANA', 4)) AS v(code, n) JOIN items i ON i.code = v.code;
+-- Guanteletes del Titán de Fuego
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'GUERRERO_GLOVES_TITAN_F', 'Guanteletes del Titán de Fuego', 'EQUIPMENT', 'GLOVES', FALSE, 'LEGENDARIO', 1, 45, TRUE, 'CRAFT', 'Pieza del set del Titán de Fuego, forjada con el núcleo del Guardián. Nunca se enfría del todo.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'GUERRERO_GLOVES_TITAN_F');
+UPDATE items SET name = 'Guanteletes del Titán de Fuego', item_type = 'EQUIPMENT', slot = 'GLOVES', is_two_handed = FALSE, rarity = 'LEGENDARIO', class_id = 1, required_level = 45, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Pieza del set del Titán de Fuego, forjada con el núcleo del Guardián. Nunca se enfría del todo.' WHERE code = 'GUERRERO_GLOVES_TITAN_F';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'GUERRERO_GLOVES_TITAN_F');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'GUERRERO_GLOVES_TITAN_F'), v.* FROM (VALUES ('ATK', 53, FALSE), ('CRIT_CHANCE', 5.5, TRUE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station, scroll_item_id)
+SELECT 'RECIPE_GUERRERO_GLOVES_TITAN_F', (SELECT id FROM items WHERE code = 'GUERRERO_GLOVES_TITAN_F'), 1, 'LEGENDARIO', 45, 1, 55, 1, 'Ignar, en la Gran Forja de Ascuaria', 3, 'forja', (SELECT id FROM items WHERE code = 'SCROLL_TITAN_FUEGO_GUERRERO') WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_GUERRERO_GLOVES_TITAN_F');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'GUERRERO_GLOVES_TITAN_F'), result_quantity = 1, rarity = 'LEGENDARIO', required_level = 45, required_class_id = 1, success_rate_percent = 55, craft_time_minutes = 1, artisan_name = 'Ignar, en la Gran Forja de Ascuaria', zone_id = 3, station = 'forja', scroll_item_id = (SELECT id FROM items WHERE code = 'SCROLL_TITAN_FUEGO_GUERRERO') WHERE code = 'RECIPE_GUERRERO_GLOVES_TITAN_F';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_GUERRERO_GLOVES_TITAN_F');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_GUERRERO_GLOVES_TITAN_F'), i.id, v.n FROM (VALUES ('NUCLEO_TITAN_FUEGO', 1), ('COLA_DIABLILLO', 2), ('CORAZON_DE_BRASA', 1), ('ESQUIRLA_OBSIDIANA', 2)) AS v(code, n) JOIN items i ON i.code = v.code;
+-- Botas del Titán de Fuego
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'GUERRERO_BOOTS_TITAN_F', 'Botas del Titán de Fuego', 'EQUIPMENT', 'BOOTS', FALSE, 'LEGENDARIO', 1, 45, TRUE, 'CRAFT', 'Pieza del set del Titán de Fuego, forjada con el núcleo del Guardián. Nunca se enfría del todo.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'GUERRERO_BOOTS_TITAN_F');
+UPDATE items SET name = 'Botas del Titán de Fuego', item_type = 'EQUIPMENT', slot = 'BOOTS', is_two_handed = FALSE, rarity = 'LEGENDARIO', class_id = 1, required_level = 45, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Pieza del set del Titán de Fuego, forjada con el núcleo del Guardián. Nunca se enfría del todo.' WHERE code = 'GUERRERO_BOOTS_TITAN_F';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'GUERRERO_BOOTS_TITAN_F');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'GUERRERO_BOOTS_TITAN_F'), v.* FROM (VALUES ('SPD', 32, FALSE), ('HP', 8, FALSE), ('DEF', 10, FALSE), ('EVASION', 3, TRUE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station, scroll_item_id)
+SELECT 'RECIPE_GUERRERO_BOOTS_TITAN_F', (SELECT id FROM items WHERE code = 'GUERRERO_BOOTS_TITAN_F'), 1, 'LEGENDARIO', 45, 1, 55, 1, 'Ignar, en la Gran Forja de Ascuaria', 3, 'forja', (SELECT id FROM items WHERE code = 'SCROLL_TITAN_FUEGO_GUERRERO') WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_GUERRERO_BOOTS_TITAN_F');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'GUERRERO_BOOTS_TITAN_F'), result_quantity = 1, rarity = 'LEGENDARIO', required_level = 45, required_class_id = 1, success_rate_percent = 55, craft_time_minutes = 1, artisan_name = 'Ignar, en la Gran Forja de Ascuaria', zone_id = 3, station = 'forja', scroll_item_id = (SELECT id FROM items WHERE code = 'SCROLL_TITAN_FUEGO_GUERRERO') WHERE code = 'RECIPE_GUERRERO_BOOTS_TITAN_F';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_GUERRERO_BOOTS_TITAN_F');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_GUERRERO_BOOTS_TITAN_F'), i.id, v.n FROM (VALUES ('NUCLEO_TITAN_FUEGO', 1), ('COLA_DIABLILLO', 2), ('CORAZON_DE_BRASA', 1), ('ESQUIRLA_OBSIDIANA', 2)) AS v(code, n) JOIN items i ON i.code = v.code;
+-- Varita del Titán de Fuego
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'MAGO_WEAPON_TITAN_F', 'Varita del Titán de Fuego', 'EQUIPMENT', 'WEAPON', FALSE, 'LEGENDARIO', 2, 45, TRUE, 'CRAFT', 'Pieza del set del Titán de Fuego, forjada con el núcleo del Guardián. Nunca se enfría del todo.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'MAGO_WEAPON_TITAN_F');
+UPDATE items SET name = 'Varita del Titán de Fuego', item_type = 'EQUIPMENT', slot = 'WEAPON', is_two_handed = FALSE, rarity = 'LEGENDARIO', class_id = 2, required_level = 45, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Pieza del set del Titán de Fuego, forjada con el núcleo del Guardián. Nunca se enfría del todo.' WHERE code = 'MAGO_WEAPON_TITAN_F';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'MAGO_WEAPON_TITAN_F');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'MAGO_WEAPON_TITAN_F'), v.* FROM (VALUES ('MAG', 117, FALSE), ('CRIT_CHANCE', 8.3, TRUE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station, scroll_item_id)
+SELECT 'RECIPE_MAGO_WEAPON_TITAN_F', (SELECT id FROM items WHERE code = 'MAGO_WEAPON_TITAN_F'), 1, 'LEGENDARIO', 45, 2, 55, 1, 'Ignar, en la Gran Forja de Ascuaria', 3, 'forja', (SELECT id FROM items WHERE code = 'SCROLL_TITAN_FUEGO_MAGO') WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_MAGO_WEAPON_TITAN_F');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'MAGO_WEAPON_TITAN_F'), result_quantity = 1, rarity = 'LEGENDARIO', required_level = 45, required_class_id = 2, success_rate_percent = 55, craft_time_minutes = 1, artisan_name = 'Ignar, en la Gran Forja de Ascuaria', zone_id = 3, station = 'forja', scroll_item_id = (SELECT id FROM items WHERE code = 'SCROLL_TITAN_FUEGO_MAGO') WHERE code = 'RECIPE_MAGO_WEAPON_TITAN_F';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_MAGO_WEAPON_TITAN_F');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_MAGO_WEAPON_TITAN_F'), i.id, v.n FROM (VALUES ('NUCLEO_TITAN_FUEGO', 1), ('CORAZON_DE_LA_CALDERA', 1), ('COLA_DIABLILLO', 3), ('CORAZON_DE_BRASA', 1), ('ESENCIA_DE_FUEGO', 4)) AS v(code, n) JOIN items i ON i.code = v.code;
+-- Orbe del Titán de Fuego
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'MAGO_OFFHAND_ORB_TITAN_F', 'Orbe del Titán de Fuego', 'EQUIPMENT', 'OFFHAND', FALSE, 'LEGENDARIO', 2, 45, TRUE, 'CRAFT', 'Pieza del set del Titán de Fuego, forjada con el núcleo del Guardián. Nunca se enfría del todo.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'MAGO_OFFHAND_ORB_TITAN_F');
+UPDATE items SET name = 'Orbe del Titán de Fuego', item_type = 'EQUIPMENT', slot = 'OFFHAND', is_two_handed = FALSE, rarity = 'LEGENDARIO', class_id = 2, required_level = 45, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Pieza del set del Titán de Fuego, forjada con el núcleo del Guardián. Nunca se enfría del todo.' WHERE code = 'MAGO_OFFHAND_ORB_TITAN_F';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'MAGO_OFFHAND_ORB_TITAN_F');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'MAGO_OFFHAND_ORB_TITAN_F'), v.* FROM (VALUES ('MAG', 48, FALSE), ('SPD', 39, FALSE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station, scroll_item_id)
+SELECT 'RECIPE_MAGO_OFFHAND_ORB_TITAN_F', (SELECT id FROM items WHERE code = 'MAGO_OFFHAND_ORB_TITAN_F'), 1, 'LEGENDARIO', 45, 2, 55, 1, 'Ignar, en la Gran Forja de Ascuaria', 3, 'forja', (SELECT id FROM items WHERE code = 'SCROLL_TITAN_FUEGO_MAGO') WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_MAGO_OFFHAND_ORB_TITAN_F');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'MAGO_OFFHAND_ORB_TITAN_F'), result_quantity = 1, rarity = 'LEGENDARIO', required_level = 45, required_class_id = 2, success_rate_percent = 55, craft_time_minutes = 1, artisan_name = 'Ignar, en la Gran Forja de Ascuaria', zone_id = 3, station = 'forja', scroll_item_id = (SELECT id FROM items WHERE code = 'SCROLL_TITAN_FUEGO_MAGO') WHERE code = 'RECIPE_MAGO_OFFHAND_ORB_TITAN_F';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_MAGO_OFFHAND_ORB_TITAN_F');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_MAGO_OFFHAND_ORB_TITAN_F'), i.id, v.n FROM (VALUES ('NUCLEO_TITAN_FUEGO', 1), ('COLA_DIABLILLO', 2), ('CORAZON_DE_BRASA', 1), ('ESENCIA_DE_FUEGO', 2)) AS v(code, n) JOIN items i ON i.code = v.code;
+-- Cristal del Titán de Fuego
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'MAGO_OFFHAND_CRYSTAL_TITAN_F', 'Cristal del Titán de Fuego', 'EQUIPMENT', 'OFFHAND', FALSE, 'LEGENDARIO', 2, 45, TRUE, 'CRAFT', 'Pieza del set del Titán de Fuego, forjada con el núcleo del Guardián. Nunca se enfría del todo.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'MAGO_OFFHAND_CRYSTAL_TITAN_F');
+UPDATE items SET name = 'Cristal del Titán de Fuego', item_type = 'EQUIPMENT', slot = 'OFFHAND', is_two_handed = FALSE, rarity = 'LEGENDARIO', class_id = 2, required_level = 45, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Pieza del set del Titán de Fuego, forjada con el núcleo del Guardián. Nunca se enfría del todo.' WHERE code = 'MAGO_OFFHAND_CRYSTAL_TITAN_F';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'MAGO_OFFHAND_CRYSTAL_TITAN_F');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'MAGO_OFFHAND_CRYSTAL_TITAN_F'), v.* FROM (VALUES ('MAG', 64, FALSE), ('CRIT_CHANCE', 5.5, TRUE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station, scroll_item_id)
+SELECT 'RECIPE_MAGO_OFFHAND_CRYSTAL_TITAN_F', (SELECT id FROM items WHERE code = 'MAGO_OFFHAND_CRYSTAL_TITAN_F'), 1, 'LEGENDARIO', 45, 2, 55, 1, 'Ignar, en la Gran Forja de Ascuaria', 3, 'forja', (SELECT id FROM items WHERE code = 'SCROLL_TITAN_FUEGO_MAGO') WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_MAGO_OFFHAND_CRYSTAL_TITAN_F');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'MAGO_OFFHAND_CRYSTAL_TITAN_F'), result_quantity = 1, rarity = 'LEGENDARIO', required_level = 45, required_class_id = 2, success_rate_percent = 55, craft_time_minutes = 1, artisan_name = 'Ignar, en la Gran Forja de Ascuaria', zone_id = 3, station = 'forja', scroll_item_id = (SELECT id FROM items WHERE code = 'SCROLL_TITAN_FUEGO_MAGO') WHERE code = 'RECIPE_MAGO_OFFHAND_CRYSTAL_TITAN_F';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_MAGO_OFFHAND_CRYSTAL_TITAN_F');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_MAGO_OFFHAND_CRYSTAL_TITAN_F'), i.id, v.n FROM (VALUES ('NUCLEO_TITAN_FUEGO', 1), ('COLA_DIABLILLO', 2), ('CORAZON_DE_BRASA', 1), ('ESENCIA_DE_FUEGO', 2)) AS v(code, n) JOIN items i ON i.code = v.code;
+-- Capirote del Titán de Fuego
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'MAGO_HELMET_TITAN_F', 'Capirote del Titán de Fuego', 'EQUIPMENT', 'HELMET', FALSE, 'LEGENDARIO', 2, 45, TRUE, 'CRAFT', 'Pieza del set del Titán de Fuego, forjada con el núcleo del Guardián. Nunca se enfría del todo.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'MAGO_HELMET_TITAN_F');
+UPDATE items SET name = 'Capirote del Titán de Fuego', item_type = 'EQUIPMENT', slot = 'HELMET', is_two_handed = FALSE, rarity = 'LEGENDARIO', class_id = 2, required_level = 45, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Pieza del set del Titán de Fuego, forjada con el núcleo del Guardián. Nunca se enfría del todo.' WHERE code = 'MAGO_HELMET_TITAN_F';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'MAGO_HELMET_TITAN_F');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'MAGO_HELMET_TITAN_F'), v.* FROM (VALUES ('DEF', 6, FALSE), ('HP', 15, FALSE), ('MAGIC_DEF', 21, FALSE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station, scroll_item_id)
+SELECT 'RECIPE_MAGO_HELMET_TITAN_F', (SELECT id FROM items WHERE code = 'MAGO_HELMET_TITAN_F'), 1, 'LEGENDARIO', 45, 2, 55, 1, 'Ignar, en la Gran Forja de Ascuaria', 3, 'forja', (SELECT id FROM items WHERE code = 'SCROLL_TITAN_FUEGO_MAGO') WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_MAGO_HELMET_TITAN_F');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'MAGO_HELMET_TITAN_F'), result_quantity = 1, rarity = 'LEGENDARIO', required_level = 45, required_class_id = 2, success_rate_percent = 55, craft_time_minutes = 1, artisan_name = 'Ignar, en la Gran Forja de Ascuaria', zone_id = 3, station = 'forja', scroll_item_id = (SELECT id FROM items WHERE code = 'SCROLL_TITAN_FUEGO_MAGO') WHERE code = 'RECIPE_MAGO_HELMET_TITAN_F';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_MAGO_HELMET_TITAN_F');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_MAGO_HELMET_TITAN_F'), i.id, v.n FROM (VALUES ('NUCLEO_TITAN_FUEGO', 1), ('COLA_DIABLILLO', 2), ('CORAZON_DE_BRASA', 1), ('ESENCIA_DE_FUEGO', 2)) AS v(code, n) JOIN items i ON i.code = v.code;
+-- Túnica del Titán de Fuego
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'MAGO_ARMOR_TITAN_F', 'Túnica del Titán de Fuego', 'EQUIPMENT', 'ARMOR', FALSE, 'LEGENDARIO', 2, 45, TRUE, 'CRAFT', 'Pieza del set del Titán de Fuego, forjada con el núcleo del Guardián. Nunca se enfría del todo.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'MAGO_ARMOR_TITAN_F');
+UPDATE items SET name = 'Túnica del Titán de Fuego', item_type = 'EQUIPMENT', slot = 'ARMOR', is_two_handed = FALSE, rarity = 'LEGENDARIO', class_id = 2, required_level = 45, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Pieza del set del Titán de Fuego, forjada con el núcleo del Guardián. Nunca se enfría del todo.' WHERE code = 'MAGO_ARMOR_TITAN_F';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'MAGO_ARMOR_TITAN_F');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'MAGO_ARMOR_TITAN_F'), v.* FROM (VALUES ('DEF', 13, FALSE), ('HP', 76, FALSE), ('MAGIC_DEF', 42, FALSE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station, scroll_item_id)
+SELECT 'RECIPE_MAGO_ARMOR_TITAN_F', (SELECT id FROM items WHERE code = 'MAGO_ARMOR_TITAN_F'), 1, 'LEGENDARIO', 45, 2, 55, 1, 'Ignar, en la Gran Forja de Ascuaria', 3, 'forja', (SELECT id FROM items WHERE code = 'SCROLL_TITAN_FUEGO_MAGO') WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_MAGO_ARMOR_TITAN_F');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'MAGO_ARMOR_TITAN_F'), result_quantity = 1, rarity = 'LEGENDARIO', required_level = 45, required_class_id = 2, success_rate_percent = 55, craft_time_minutes = 1, artisan_name = 'Ignar, en la Gran Forja de Ascuaria', zone_id = 3, station = 'forja', scroll_item_id = (SELECT id FROM items WHERE code = 'SCROLL_TITAN_FUEGO_MAGO') WHERE code = 'RECIPE_MAGO_ARMOR_TITAN_F';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_MAGO_ARMOR_TITAN_F');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_MAGO_ARMOR_TITAN_F'), i.id, v.n FROM (VALUES ('NUCLEO_TITAN_FUEGO', 1), ('CORAZON_DE_LA_CALDERA', 1), ('COLA_DIABLILLO', 3), ('CORAZON_DE_BRASA', 1), ('ESENCIA_DE_FUEGO', 4)) AS v(code, n) JOIN items i ON i.code = v.code;
+-- Guantes del Titán de Fuego
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'MAGO_GLOVES_TITAN_F', 'Guantes del Titán de Fuego', 'EQUIPMENT', 'GLOVES', FALSE, 'LEGENDARIO', 2, 45, TRUE, 'CRAFT', 'Pieza del set del Titán de Fuego, forjada con el núcleo del Guardián. Nunca se enfría del todo.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'MAGO_GLOVES_TITAN_F');
+UPDATE items SET name = 'Guantes del Titán de Fuego', item_type = 'EQUIPMENT', slot = 'GLOVES', is_two_handed = FALSE, rarity = 'LEGENDARIO', class_id = 2, required_level = 45, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Pieza del set del Titán de Fuego, forjada con el núcleo del Guardián. Nunca se enfría del todo.' WHERE code = 'MAGO_GLOVES_TITAN_F';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'MAGO_GLOVES_TITAN_F');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'MAGO_GLOVES_TITAN_F'), v.* FROM (VALUES ('MAG', 53, FALSE), ('CRIT_CHANCE', 5.5, TRUE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station, scroll_item_id)
+SELECT 'RECIPE_MAGO_GLOVES_TITAN_F', (SELECT id FROM items WHERE code = 'MAGO_GLOVES_TITAN_F'), 1, 'LEGENDARIO', 45, 2, 55, 1, 'Ignar, en la Gran Forja de Ascuaria', 3, 'forja', (SELECT id FROM items WHERE code = 'SCROLL_TITAN_FUEGO_MAGO') WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_MAGO_GLOVES_TITAN_F');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'MAGO_GLOVES_TITAN_F'), result_quantity = 1, rarity = 'LEGENDARIO', required_level = 45, required_class_id = 2, success_rate_percent = 55, craft_time_minutes = 1, artisan_name = 'Ignar, en la Gran Forja de Ascuaria', zone_id = 3, station = 'forja', scroll_item_id = (SELECT id FROM items WHERE code = 'SCROLL_TITAN_FUEGO_MAGO') WHERE code = 'RECIPE_MAGO_GLOVES_TITAN_F';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_MAGO_GLOVES_TITAN_F');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_MAGO_GLOVES_TITAN_F'), i.id, v.n FROM (VALUES ('NUCLEO_TITAN_FUEGO', 1), ('COLA_DIABLILLO', 2), ('CORAZON_DE_BRASA', 1), ('ESENCIA_DE_FUEGO', 2)) AS v(code, n) JOIN items i ON i.code = v.code;
+-- Sandalias del Titán de Fuego
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'MAGO_BOOTS_TITAN_F', 'Sandalias del Titán de Fuego', 'EQUIPMENT', 'BOOTS', FALSE, 'LEGENDARIO', 2, 45, TRUE, 'CRAFT', 'Pieza del set del Titán de Fuego, forjada con el núcleo del Guardián. Nunca se enfría del todo.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'MAGO_BOOTS_TITAN_F');
+UPDATE items SET name = 'Sandalias del Titán de Fuego', item_type = 'EQUIPMENT', slot = 'BOOTS', is_two_handed = FALSE, rarity = 'LEGENDARIO', class_id = 2, required_level = 45, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Pieza del set del Titán de Fuego, forjada con el núcleo del Guardián. Nunca se enfría del todo.' WHERE code = 'MAGO_BOOTS_TITAN_F';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'MAGO_BOOTS_TITAN_F');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'MAGO_BOOTS_TITAN_F'), v.* FROM (VALUES ('SPD', 32, FALSE), ('HP', 8, FALSE), ('MAGIC_DEF', 14, FALSE), ('EVASION', 3, TRUE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station, scroll_item_id)
+SELECT 'RECIPE_MAGO_BOOTS_TITAN_F', (SELECT id FROM items WHERE code = 'MAGO_BOOTS_TITAN_F'), 1, 'LEGENDARIO', 45, 2, 55, 1, 'Ignar, en la Gran Forja de Ascuaria', 3, 'forja', (SELECT id FROM items WHERE code = 'SCROLL_TITAN_FUEGO_MAGO') WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_MAGO_BOOTS_TITAN_F');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'MAGO_BOOTS_TITAN_F'), result_quantity = 1, rarity = 'LEGENDARIO', required_level = 45, required_class_id = 2, success_rate_percent = 55, craft_time_minutes = 1, artisan_name = 'Ignar, en la Gran Forja de Ascuaria', zone_id = 3, station = 'forja', scroll_item_id = (SELECT id FROM items WHERE code = 'SCROLL_TITAN_FUEGO_MAGO') WHERE code = 'RECIPE_MAGO_BOOTS_TITAN_F';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_MAGO_BOOTS_TITAN_F');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_MAGO_BOOTS_TITAN_F'), i.id, v.n FROM (VALUES ('NUCLEO_TITAN_FUEGO', 1), ('COLA_DIABLILLO', 2), ('CORAZON_DE_BRASA', 1), ('ESENCIA_DE_FUEGO', 2)) AS v(code, n) JOIN items i ON i.code = v.code;
+-- Arco del Titán de Fuego
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'ARQUERO_WEAPON_TITAN_F', 'Arco del Titán de Fuego', 'EQUIPMENT', 'WEAPON', FALSE, 'LEGENDARIO', 3, 45, TRUE, 'CRAFT', 'Pieza del set del Titán de Fuego, forjada con el núcleo del Guardián. Nunca se enfría del todo.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'ARQUERO_WEAPON_TITAN_F');
+UPDATE items SET name = 'Arco del Titán de Fuego', item_type = 'EQUIPMENT', slot = 'WEAPON', is_two_handed = FALSE, rarity = 'LEGENDARIO', class_id = 3, required_level = 45, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Pieza del set del Titán de Fuego, forjada con el núcleo del Guardián. Nunca se enfría del todo.' WHERE code = 'ARQUERO_WEAPON_TITAN_F';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'ARQUERO_WEAPON_TITAN_F');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'ARQUERO_WEAPON_TITAN_F'), v.* FROM (VALUES ('ATK', 117, FALSE), ('CRIT_CHANCE', 8.3, TRUE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station, scroll_item_id)
+SELECT 'RECIPE_ARQUERO_WEAPON_TITAN_F', (SELECT id FROM items WHERE code = 'ARQUERO_WEAPON_TITAN_F'), 1, 'LEGENDARIO', 45, 3, 55, 1, 'Ignar, en la Gran Forja de Ascuaria', 3, 'forja', (SELECT id FROM items WHERE code = 'SCROLL_TITAN_FUEGO_ARQUERO') WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_ARQUERO_WEAPON_TITAN_F');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'ARQUERO_WEAPON_TITAN_F'), result_quantity = 1, rarity = 'LEGENDARIO', required_level = 45, required_class_id = 3, success_rate_percent = 55, craft_time_minutes = 1, artisan_name = 'Ignar, en la Gran Forja de Ascuaria', zone_id = 3, station = 'forja', scroll_item_id = (SELECT id FROM items WHERE code = 'SCROLL_TITAN_FUEGO_ARQUERO') WHERE code = 'RECIPE_ARQUERO_WEAPON_TITAN_F';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_ARQUERO_WEAPON_TITAN_F');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_ARQUERO_WEAPON_TITAN_F'), i.id, v.n FROM (VALUES ('NUCLEO_TITAN_FUEGO', 1), ('CORAZON_DE_LA_CALDERA', 1), ('COLA_DIABLILLO', 3), ('CORAZON_DE_BRASA', 1), ('ALA_DRACO', 4)) AS v(code, n) JOIN items i ON i.code = v.code;
+-- Carcaj del Titán de Fuego
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'ARQUERO_OFFHAND_TITAN_F', 'Carcaj del Titán de Fuego', 'EQUIPMENT', 'OFFHAND', FALSE, 'LEGENDARIO', 3, 45, TRUE, 'CRAFT', 'Pieza del set del Titán de Fuego, forjada con el núcleo del Guardián. Nunca se enfría del todo.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'ARQUERO_OFFHAND_TITAN_F');
+UPDATE items SET name = 'Carcaj del Titán de Fuego', item_type = 'EQUIPMENT', slot = 'OFFHAND', is_two_handed = FALSE, rarity = 'LEGENDARIO', class_id = 3, required_level = 45, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Pieza del set del Titán de Fuego, forjada con el núcleo del Guardián. Nunca se enfría del todo.' WHERE code = 'ARQUERO_OFFHAND_TITAN_F';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'ARQUERO_OFFHAND_TITAN_F');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'ARQUERO_OFFHAND_TITAN_F'), v.* FROM (VALUES ('ATK', 39, FALSE), ('SPD', 39, FALSE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station, scroll_item_id)
+SELECT 'RECIPE_ARQUERO_OFFHAND_TITAN_F', (SELECT id FROM items WHERE code = 'ARQUERO_OFFHAND_TITAN_F'), 1, 'LEGENDARIO', 45, 3, 55, 1, 'Ignar, en la Gran Forja de Ascuaria', 3, 'forja', (SELECT id FROM items WHERE code = 'SCROLL_TITAN_FUEGO_ARQUERO') WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_ARQUERO_OFFHAND_TITAN_F');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'ARQUERO_OFFHAND_TITAN_F'), result_quantity = 1, rarity = 'LEGENDARIO', required_level = 45, required_class_id = 3, success_rate_percent = 55, craft_time_minutes = 1, artisan_name = 'Ignar, en la Gran Forja de Ascuaria', zone_id = 3, station = 'forja', scroll_item_id = (SELECT id FROM items WHERE code = 'SCROLL_TITAN_FUEGO_ARQUERO') WHERE code = 'RECIPE_ARQUERO_OFFHAND_TITAN_F';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_ARQUERO_OFFHAND_TITAN_F');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_ARQUERO_OFFHAND_TITAN_F'), i.id, v.n FROM (VALUES ('NUCLEO_TITAN_FUEGO', 1), ('COLA_DIABLILLO', 2), ('CORAZON_DE_BRASA', 1), ('ALA_DRACO', 2)) AS v(code, n) JOIN items i ON i.code = v.code;
+-- Capucha del Titán de Fuego
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'ARQUERO_HELMET_TITAN_F', 'Capucha del Titán de Fuego', 'EQUIPMENT', 'HELMET', FALSE, 'LEGENDARIO', 3, 45, TRUE, 'CRAFT', 'Pieza del set del Titán de Fuego, forjada con el núcleo del Guardián. Nunca se enfría del todo.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'ARQUERO_HELMET_TITAN_F');
+UPDATE items SET name = 'Capucha del Titán de Fuego', item_type = 'EQUIPMENT', slot = 'HELMET', is_two_handed = FALSE, rarity = 'LEGENDARIO', class_id = 3, required_level = 45, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Pieza del set del Titán de Fuego, forjada con el núcleo del Guardián. Nunca se enfría del todo.' WHERE code = 'ARQUERO_HELMET_TITAN_F';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'ARQUERO_HELMET_TITAN_F');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'ARQUERO_HELMET_TITAN_F'), v.* FROM (VALUES ('DEF', 21, FALSE), ('HP', 16, FALSE), ('MAGIC_DEF', 7, FALSE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station, scroll_item_id)
+SELECT 'RECIPE_ARQUERO_HELMET_TITAN_F', (SELECT id FROM items WHERE code = 'ARQUERO_HELMET_TITAN_F'), 1, 'LEGENDARIO', 45, 3, 55, 1, 'Ignar, en la Gran Forja de Ascuaria', 3, 'forja', (SELECT id FROM items WHERE code = 'SCROLL_TITAN_FUEGO_ARQUERO') WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_ARQUERO_HELMET_TITAN_F');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'ARQUERO_HELMET_TITAN_F'), result_quantity = 1, rarity = 'LEGENDARIO', required_level = 45, required_class_id = 3, success_rate_percent = 55, craft_time_minutes = 1, artisan_name = 'Ignar, en la Gran Forja de Ascuaria', zone_id = 3, station = 'forja', scroll_item_id = (SELECT id FROM items WHERE code = 'SCROLL_TITAN_FUEGO_ARQUERO') WHERE code = 'RECIPE_ARQUERO_HELMET_TITAN_F';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_ARQUERO_HELMET_TITAN_F');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_ARQUERO_HELMET_TITAN_F'), i.id, v.n FROM (VALUES ('NUCLEO_TITAN_FUEGO', 1), ('COLA_DIABLILLO', 2), ('CORAZON_DE_BRASA', 1), ('ALA_DRACO', 2)) AS v(code, n) JOIN items i ON i.code = v.code;
+-- Gabán del Titán de Fuego
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'ARQUERO_ARMOR_TITAN_F', 'Gabán del Titán de Fuego', 'EQUIPMENT', 'ARMOR', FALSE, 'LEGENDARIO', 3, 45, TRUE, 'CRAFT', 'Pieza del set del Titán de Fuego, forjada con el núcleo del Guardián. Nunca se enfría del todo.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'ARQUERO_ARMOR_TITAN_F');
+UPDATE items SET name = 'Gabán del Titán de Fuego', item_type = 'EQUIPMENT', slot = 'ARMOR', is_two_handed = FALSE, rarity = 'LEGENDARIO', class_id = 3, required_level = 45, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Pieza del set del Titán de Fuego, forjada con el núcleo del Guardián. Nunca se enfría del todo.' WHERE code = 'ARQUERO_ARMOR_TITAN_F';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'ARQUERO_ARMOR_TITAN_F');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'ARQUERO_ARMOR_TITAN_F'), v.* FROM (VALUES ('DEF', 42, FALSE), ('HP', 74, FALSE), ('MAGIC_DEF', 13, FALSE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station, scroll_item_id)
+SELECT 'RECIPE_ARQUERO_ARMOR_TITAN_F', (SELECT id FROM items WHERE code = 'ARQUERO_ARMOR_TITAN_F'), 1, 'LEGENDARIO', 45, 3, 55, 1, 'Ignar, en la Gran Forja de Ascuaria', 3, 'forja', (SELECT id FROM items WHERE code = 'SCROLL_TITAN_FUEGO_ARQUERO') WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_ARQUERO_ARMOR_TITAN_F');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'ARQUERO_ARMOR_TITAN_F'), result_quantity = 1, rarity = 'LEGENDARIO', required_level = 45, required_class_id = 3, success_rate_percent = 55, craft_time_minutes = 1, artisan_name = 'Ignar, en la Gran Forja de Ascuaria', zone_id = 3, station = 'forja', scroll_item_id = (SELECT id FROM items WHERE code = 'SCROLL_TITAN_FUEGO_ARQUERO') WHERE code = 'RECIPE_ARQUERO_ARMOR_TITAN_F';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_ARQUERO_ARMOR_TITAN_F');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_ARQUERO_ARMOR_TITAN_F'), i.id, v.n FROM (VALUES ('NUCLEO_TITAN_FUEGO', 1), ('CORAZON_DE_LA_CALDERA', 1), ('COLA_DIABLILLO', 3), ('CORAZON_DE_BRASA', 1), ('ALA_DRACO', 4)) AS v(code, n) JOIN items i ON i.code = v.code;
+-- Guantes del Titán de Fuego
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'ARQUERO_GLOVES_TITAN_F', 'Guantes del Titán de Fuego', 'EQUIPMENT', 'GLOVES', FALSE, 'LEGENDARIO', 3, 45, TRUE, 'CRAFT', 'Pieza del set del Titán de Fuego, forjada con el núcleo del Guardián. Nunca se enfría del todo.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'ARQUERO_GLOVES_TITAN_F');
+UPDATE items SET name = 'Guantes del Titán de Fuego', item_type = 'EQUIPMENT', slot = 'GLOVES', is_two_handed = FALSE, rarity = 'LEGENDARIO', class_id = 3, required_level = 45, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Pieza del set del Titán de Fuego, forjada con el núcleo del Guardián. Nunca se enfría del todo.' WHERE code = 'ARQUERO_GLOVES_TITAN_F';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'ARQUERO_GLOVES_TITAN_F');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'ARQUERO_GLOVES_TITAN_F'), v.* FROM (VALUES ('ATK', 53, FALSE), ('CRIT_CHANCE', 5.5, TRUE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station, scroll_item_id)
+SELECT 'RECIPE_ARQUERO_GLOVES_TITAN_F', (SELECT id FROM items WHERE code = 'ARQUERO_GLOVES_TITAN_F'), 1, 'LEGENDARIO', 45, 3, 55, 1, 'Ignar, en la Gran Forja de Ascuaria', 3, 'forja', (SELECT id FROM items WHERE code = 'SCROLL_TITAN_FUEGO_ARQUERO') WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_ARQUERO_GLOVES_TITAN_F');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'ARQUERO_GLOVES_TITAN_F'), result_quantity = 1, rarity = 'LEGENDARIO', required_level = 45, required_class_id = 3, success_rate_percent = 55, craft_time_minutes = 1, artisan_name = 'Ignar, en la Gran Forja de Ascuaria', zone_id = 3, station = 'forja', scroll_item_id = (SELECT id FROM items WHERE code = 'SCROLL_TITAN_FUEGO_ARQUERO') WHERE code = 'RECIPE_ARQUERO_GLOVES_TITAN_F';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_ARQUERO_GLOVES_TITAN_F');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_ARQUERO_GLOVES_TITAN_F'), i.id, v.n FROM (VALUES ('NUCLEO_TITAN_FUEGO', 1), ('COLA_DIABLILLO', 2), ('CORAZON_DE_BRASA', 1), ('ALA_DRACO', 2)) AS v(code, n) JOIN items i ON i.code = v.code;
+-- Botas del Titán de Fuego
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'ARQUERO_BOOTS_TITAN_F', 'Botas del Titán de Fuego', 'EQUIPMENT', 'BOOTS', FALSE, 'LEGENDARIO', 3, 45, TRUE, 'CRAFT', 'Pieza del set del Titán de Fuego, forjada con el núcleo del Guardián. Nunca se enfría del todo.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'ARQUERO_BOOTS_TITAN_F');
+UPDATE items SET name = 'Botas del Titán de Fuego', item_type = 'EQUIPMENT', slot = 'BOOTS', is_two_handed = FALSE, rarity = 'LEGENDARIO', class_id = 3, required_level = 45, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Pieza del set del Titán de Fuego, forjada con el núcleo del Guardián. Nunca se enfría del todo.' WHERE code = 'ARQUERO_BOOTS_TITAN_F';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'ARQUERO_BOOTS_TITAN_F');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'ARQUERO_BOOTS_TITAN_F'), v.* FROM (VALUES ('SPD', 32, FALSE), ('HP', 8, FALSE), ('DEF', 13, FALSE), ('EVASION', 3, TRUE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station, scroll_item_id)
+SELECT 'RECIPE_ARQUERO_BOOTS_TITAN_F', (SELECT id FROM items WHERE code = 'ARQUERO_BOOTS_TITAN_F'), 1, 'LEGENDARIO', 45, 3, 55, 1, 'Ignar, en la Gran Forja de Ascuaria', 3, 'forja', (SELECT id FROM items WHERE code = 'SCROLL_TITAN_FUEGO_ARQUERO') WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_ARQUERO_BOOTS_TITAN_F');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'ARQUERO_BOOTS_TITAN_F'), result_quantity = 1, rarity = 'LEGENDARIO', required_level = 45, required_class_id = 3, success_rate_percent = 55, craft_time_minutes = 1, artisan_name = 'Ignar, en la Gran Forja de Ascuaria', zone_id = 3, station = 'forja', scroll_item_id = (SELECT id FROM items WHERE code = 'SCROLL_TITAN_FUEGO_ARQUERO') WHERE code = 'RECIPE_ARQUERO_BOOTS_TITAN_F';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_ARQUERO_BOOTS_TITAN_F');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_ARQUERO_BOOTS_TITAN_F'), i.id, v.n FROM (VALUES ('NUCLEO_TITAN_FUEGO', 1), ('COLA_DIABLILLO', 2), ('CORAZON_DE_BRASA', 1), ('ALA_DRACO', 2)) AS v(code, n) JOIN items i ON i.code = v.code;
+-- Daga del Titán de Fuego
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'PICARO_WEAPON_TITAN_F', 'Daga del Titán de Fuego', 'EQUIPMENT', 'WEAPON', FALSE, 'LEGENDARIO', 4, 45, TRUE, 'CRAFT', 'Pieza del set del Titán de Fuego, forjada con el núcleo del Guardián. Nunca se enfría del todo.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'PICARO_WEAPON_TITAN_F');
+UPDATE items SET name = 'Daga del Titán de Fuego', item_type = 'EQUIPMENT', slot = 'WEAPON', is_two_handed = FALSE, rarity = 'LEGENDARIO', class_id = 4, required_level = 45, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Pieza del set del Titán de Fuego, forjada con el núcleo del Guardián. Nunca se enfría del todo.' WHERE code = 'PICARO_WEAPON_TITAN_F';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'PICARO_WEAPON_TITAN_F');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'PICARO_WEAPON_TITAN_F'), v.* FROM (VALUES ('ATK', 117, FALSE), ('CRIT_CHANCE', 8.3, TRUE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station, scroll_item_id)
+SELECT 'RECIPE_PICARO_WEAPON_TITAN_F', (SELECT id FROM items WHERE code = 'PICARO_WEAPON_TITAN_F'), 1, 'LEGENDARIO', 45, 4, 55, 1, 'Ignar, en la Gran Forja de Ascuaria', 3, 'forja', (SELECT id FROM items WHERE code = 'SCROLL_TITAN_FUEGO_PICARO') WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_PICARO_WEAPON_TITAN_F');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'PICARO_WEAPON_TITAN_F'), result_quantity = 1, rarity = 'LEGENDARIO', required_level = 45, required_class_id = 4, success_rate_percent = 55, craft_time_minutes = 1, artisan_name = 'Ignar, en la Gran Forja de Ascuaria', zone_id = 3, station = 'forja', scroll_item_id = (SELECT id FROM items WHERE code = 'SCROLL_TITAN_FUEGO_PICARO') WHERE code = 'RECIPE_PICARO_WEAPON_TITAN_F';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_PICARO_WEAPON_TITAN_F');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_PICARO_WEAPON_TITAN_F'), i.id, v.n FROM (VALUES ('NUCLEO_TITAN_FUEGO', 1), ('CORAZON_DE_LA_CALDERA', 1), ('COLA_DIABLILLO', 3), ('CORAZON_DE_BRASA', 1), ('COLMILLO_MAGMA', 4)) AS v(code, n) JOIN items i ON i.code = v.code;
+-- Daga Gemela del Titán de Fuego
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'PICARO_OFFHAND_TITAN_F', 'Daga Gemela del Titán de Fuego', 'EQUIPMENT', 'OFFHAND', FALSE, 'LEGENDARIO', 4, 45, TRUE, 'CRAFT', 'Pieza del set del Titán de Fuego, forjada con el núcleo del Guardián. Nunca se enfría del todo.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'PICARO_OFFHAND_TITAN_F');
+UPDATE items SET name = 'Daga Gemela del Titán de Fuego', item_type = 'EQUIPMENT', slot = 'OFFHAND', is_two_handed = FALSE, rarity = 'LEGENDARIO', class_id = 4, required_level = 45, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Pieza del set del Titán de Fuego, forjada con el núcleo del Guardián. Nunca se enfría del todo.' WHERE code = 'PICARO_OFFHAND_TITAN_F';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'PICARO_OFFHAND_TITAN_F');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'PICARO_OFFHAND_TITAN_F'), v.* FROM (VALUES ('ATK', 39, FALSE), ('SPD', 39, FALSE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station, scroll_item_id)
+SELECT 'RECIPE_PICARO_OFFHAND_TITAN_F', (SELECT id FROM items WHERE code = 'PICARO_OFFHAND_TITAN_F'), 1, 'LEGENDARIO', 45, 4, 55, 1, 'Ignar, en la Gran Forja de Ascuaria', 3, 'forja', (SELECT id FROM items WHERE code = 'SCROLL_TITAN_FUEGO_PICARO') WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_PICARO_OFFHAND_TITAN_F');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'PICARO_OFFHAND_TITAN_F'), result_quantity = 1, rarity = 'LEGENDARIO', required_level = 45, required_class_id = 4, success_rate_percent = 55, craft_time_minutes = 1, artisan_name = 'Ignar, en la Gran Forja de Ascuaria', zone_id = 3, station = 'forja', scroll_item_id = (SELECT id FROM items WHERE code = 'SCROLL_TITAN_FUEGO_PICARO') WHERE code = 'RECIPE_PICARO_OFFHAND_TITAN_F';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_PICARO_OFFHAND_TITAN_F');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_PICARO_OFFHAND_TITAN_F'), i.id, v.n FROM (VALUES ('NUCLEO_TITAN_FUEGO', 1), ('COLA_DIABLILLO', 2), ('CORAZON_DE_BRASA', 1), ('COLMILLO_MAGMA', 2)) AS v(code, n) JOIN items i ON i.code = v.code;
+-- Máscara del Titán de Fuego
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'PICARO_HELMET_TITAN_F', 'Máscara del Titán de Fuego', 'EQUIPMENT', 'HELMET', FALSE, 'LEGENDARIO', 4, 45, TRUE, 'CRAFT', 'Pieza del set del Titán de Fuego, forjada con el núcleo del Guardián. Nunca se enfría del todo.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'PICARO_HELMET_TITAN_F');
+UPDATE items SET name = 'Máscara del Titán de Fuego', item_type = 'EQUIPMENT', slot = 'HELMET', is_two_handed = FALSE, rarity = 'LEGENDARIO', class_id = 4, required_level = 45, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Pieza del set del Titán de Fuego, forjada con el núcleo del Guardián. Nunca se enfría del todo.' WHERE code = 'PICARO_HELMET_TITAN_F';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'PICARO_HELMET_TITAN_F');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'PICARO_HELMET_TITAN_F'), v.* FROM (VALUES ('DEF', 21, FALSE), ('HP', 18, FALSE), ('MAGIC_DEF', 7, FALSE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station, scroll_item_id)
+SELECT 'RECIPE_PICARO_HELMET_TITAN_F', (SELECT id FROM items WHERE code = 'PICARO_HELMET_TITAN_F'), 1, 'LEGENDARIO', 45, 4, 55, 1, 'Ignar, en la Gran Forja de Ascuaria', 3, 'forja', (SELECT id FROM items WHERE code = 'SCROLL_TITAN_FUEGO_PICARO') WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_PICARO_HELMET_TITAN_F');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'PICARO_HELMET_TITAN_F'), result_quantity = 1, rarity = 'LEGENDARIO', required_level = 45, required_class_id = 4, success_rate_percent = 55, craft_time_minutes = 1, artisan_name = 'Ignar, en la Gran Forja de Ascuaria', zone_id = 3, station = 'forja', scroll_item_id = (SELECT id FROM items WHERE code = 'SCROLL_TITAN_FUEGO_PICARO') WHERE code = 'RECIPE_PICARO_HELMET_TITAN_F';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_PICARO_HELMET_TITAN_F');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_PICARO_HELMET_TITAN_F'), i.id, v.n FROM (VALUES ('NUCLEO_TITAN_FUEGO', 1), ('COLA_DIABLILLO', 2), ('CORAZON_DE_BRASA', 1), ('COLMILLO_MAGMA', 2)) AS v(code, n) JOIN items i ON i.code = v.code;
+-- Cuero del Titán de Fuego
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'PICARO_ARMOR_TITAN_F', 'Cuero del Titán de Fuego', 'EQUIPMENT', 'ARMOR', FALSE, 'LEGENDARIO', 4, 45, TRUE, 'CRAFT', 'Pieza del set del Titán de Fuego, forjada con el núcleo del Guardián. Nunca se enfría del todo.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'PICARO_ARMOR_TITAN_F');
+UPDATE items SET name = 'Cuero del Titán de Fuego', item_type = 'EQUIPMENT', slot = 'ARMOR', is_two_handed = FALSE, rarity = 'LEGENDARIO', class_id = 4, required_level = 45, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Pieza del set del Titán de Fuego, forjada con el núcleo del Guardián. Nunca se enfría del todo.' WHERE code = 'PICARO_ARMOR_TITAN_F';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'PICARO_ARMOR_TITAN_F');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'PICARO_ARMOR_TITAN_F'), v.* FROM (VALUES ('DEF', 42, FALSE), ('HP', 81, FALSE), ('MAGIC_DEF', 12, FALSE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station, scroll_item_id)
+SELECT 'RECIPE_PICARO_ARMOR_TITAN_F', (SELECT id FROM items WHERE code = 'PICARO_ARMOR_TITAN_F'), 1, 'LEGENDARIO', 45, 4, 55, 1, 'Ignar, en la Gran Forja de Ascuaria', 3, 'forja', (SELECT id FROM items WHERE code = 'SCROLL_TITAN_FUEGO_PICARO') WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_PICARO_ARMOR_TITAN_F');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'PICARO_ARMOR_TITAN_F'), result_quantity = 1, rarity = 'LEGENDARIO', required_level = 45, required_class_id = 4, success_rate_percent = 55, craft_time_minutes = 1, artisan_name = 'Ignar, en la Gran Forja de Ascuaria', zone_id = 3, station = 'forja', scroll_item_id = (SELECT id FROM items WHERE code = 'SCROLL_TITAN_FUEGO_PICARO') WHERE code = 'RECIPE_PICARO_ARMOR_TITAN_F';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_PICARO_ARMOR_TITAN_F');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_PICARO_ARMOR_TITAN_F'), i.id, v.n FROM (VALUES ('NUCLEO_TITAN_FUEGO', 1), ('CORAZON_DE_LA_CALDERA', 1), ('COLA_DIABLILLO', 3), ('CORAZON_DE_BRASA', 1), ('COLMILLO_MAGMA', 4)) AS v(code, n) JOIN items i ON i.code = v.code;
+-- Guantes del Titán de Fuego
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'PICARO_GLOVES_TITAN_F', 'Guantes del Titán de Fuego', 'EQUIPMENT', 'GLOVES', FALSE, 'LEGENDARIO', 4, 45, TRUE, 'CRAFT', 'Pieza del set del Titán de Fuego, forjada con el núcleo del Guardián. Nunca se enfría del todo.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'PICARO_GLOVES_TITAN_F');
+UPDATE items SET name = 'Guantes del Titán de Fuego', item_type = 'EQUIPMENT', slot = 'GLOVES', is_two_handed = FALSE, rarity = 'LEGENDARIO', class_id = 4, required_level = 45, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Pieza del set del Titán de Fuego, forjada con el núcleo del Guardián. Nunca se enfría del todo.' WHERE code = 'PICARO_GLOVES_TITAN_F';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'PICARO_GLOVES_TITAN_F');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'PICARO_GLOVES_TITAN_F'), v.* FROM (VALUES ('ATK', 53, FALSE), ('CRIT_CHANCE', 5.5, TRUE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station, scroll_item_id)
+SELECT 'RECIPE_PICARO_GLOVES_TITAN_F', (SELECT id FROM items WHERE code = 'PICARO_GLOVES_TITAN_F'), 1, 'LEGENDARIO', 45, 4, 55, 1, 'Ignar, en la Gran Forja de Ascuaria', 3, 'forja', (SELECT id FROM items WHERE code = 'SCROLL_TITAN_FUEGO_PICARO') WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_PICARO_GLOVES_TITAN_F');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'PICARO_GLOVES_TITAN_F'), result_quantity = 1, rarity = 'LEGENDARIO', required_level = 45, required_class_id = 4, success_rate_percent = 55, craft_time_minutes = 1, artisan_name = 'Ignar, en la Gran Forja de Ascuaria', zone_id = 3, station = 'forja', scroll_item_id = (SELECT id FROM items WHERE code = 'SCROLL_TITAN_FUEGO_PICARO') WHERE code = 'RECIPE_PICARO_GLOVES_TITAN_F';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_PICARO_GLOVES_TITAN_F');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_PICARO_GLOVES_TITAN_F'), i.id, v.n FROM (VALUES ('NUCLEO_TITAN_FUEGO', 1), ('COLA_DIABLILLO', 2), ('CORAZON_DE_BRASA', 1), ('COLMILLO_MAGMA', 2)) AS v(code, n) JOIN items i ON i.code = v.code;
+-- Botas del Titán de Fuego
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'PICARO_BOOTS_TITAN_F', 'Botas del Titán de Fuego', 'EQUIPMENT', 'BOOTS', FALSE, 'LEGENDARIO', 4, 45, TRUE, 'CRAFT', 'Pieza del set del Titán de Fuego, forjada con el núcleo del Guardián. Nunca se enfría del todo.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'PICARO_BOOTS_TITAN_F');
+UPDATE items SET name = 'Botas del Titán de Fuego', item_type = 'EQUIPMENT', slot = 'BOOTS', is_two_handed = FALSE, rarity = 'LEGENDARIO', class_id = 4, required_level = 45, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Pieza del set del Titán de Fuego, forjada con el núcleo del Guardián. Nunca se enfría del todo.' WHERE code = 'PICARO_BOOTS_TITAN_F';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'PICARO_BOOTS_TITAN_F');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'PICARO_BOOTS_TITAN_F'), v.* FROM (VALUES ('SPD', 32, FALSE), ('HP', 8, FALSE), ('DEF', 13, FALSE), ('EVASION', 3, TRUE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station, scroll_item_id)
+SELECT 'RECIPE_PICARO_BOOTS_TITAN_F', (SELECT id FROM items WHERE code = 'PICARO_BOOTS_TITAN_F'), 1, 'LEGENDARIO', 45, 4, 55, 1, 'Ignar, en la Gran Forja de Ascuaria', 3, 'forja', (SELECT id FROM items WHERE code = 'SCROLL_TITAN_FUEGO_PICARO') WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_PICARO_BOOTS_TITAN_F');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'PICARO_BOOTS_TITAN_F'), result_quantity = 1, rarity = 'LEGENDARIO', required_level = 45, required_class_id = 4, success_rate_percent = 55, craft_time_minutes = 1, artisan_name = 'Ignar, en la Gran Forja de Ascuaria', zone_id = 3, station = 'forja', scroll_item_id = (SELECT id FROM items WHERE code = 'SCROLL_TITAN_FUEGO_PICARO') WHERE code = 'RECIPE_PICARO_BOOTS_TITAN_F';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_PICARO_BOOTS_TITAN_F');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_PICARO_BOOTS_TITAN_F'), i.id, v.n FROM (VALUES ('NUCLEO_TITAN_FUEGO', 1), ('COLA_DIABLILLO', 2), ('CORAZON_DE_BRASA', 1), ('COLMILLO_MAGMA', 2)) AS v(code, n) JOIN items i ON i.code = v.code;
+-- Báculo del Titán de Fuego
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'SACERDOTE_WEAPON_TITAN_F', 'Báculo del Titán de Fuego', 'EQUIPMENT', 'WEAPON', FALSE, 'LEGENDARIO', 5, 45, TRUE, 'CRAFT', 'Pieza del set del Titán de Fuego, forjada con el núcleo del Guardián. Nunca se enfría del todo.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'SACERDOTE_WEAPON_TITAN_F');
+UPDATE items SET name = 'Báculo del Titán de Fuego', item_type = 'EQUIPMENT', slot = 'WEAPON', is_two_handed = FALSE, rarity = 'LEGENDARIO', class_id = 5, required_level = 45, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Pieza del set del Titán de Fuego, forjada con el núcleo del Guardián. Nunca se enfría del todo.' WHERE code = 'SACERDOTE_WEAPON_TITAN_F';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'SACERDOTE_WEAPON_TITAN_F');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'SACERDOTE_WEAPON_TITAN_F'), v.* FROM (VALUES ('MAG', 117, FALSE), ('CRIT_CHANCE', 8.3, TRUE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station, scroll_item_id)
+SELECT 'RECIPE_SACERDOTE_WEAPON_TITAN_F', (SELECT id FROM items WHERE code = 'SACERDOTE_WEAPON_TITAN_F'), 1, 'LEGENDARIO', 45, 5, 55, 1, 'Ignar, en la Gran Forja de Ascuaria', 3, 'forja', (SELECT id FROM items WHERE code = 'SCROLL_TITAN_FUEGO_SACERDOTE') WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_SACERDOTE_WEAPON_TITAN_F');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'SACERDOTE_WEAPON_TITAN_F'), result_quantity = 1, rarity = 'LEGENDARIO', required_level = 45, required_class_id = 5, success_rate_percent = 55, craft_time_minutes = 1, artisan_name = 'Ignar, en la Gran Forja de Ascuaria', zone_id = 3, station = 'forja', scroll_item_id = (SELECT id FROM items WHERE code = 'SCROLL_TITAN_FUEGO_SACERDOTE') WHERE code = 'RECIPE_SACERDOTE_WEAPON_TITAN_F';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_SACERDOTE_WEAPON_TITAN_F');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_SACERDOTE_WEAPON_TITAN_F'), i.id, v.n FROM (VALUES ('NUCLEO_TITAN_FUEGO', 1), ('CORAZON_DE_LA_CALDERA', 1), ('COLA_DIABLILLO', 3), ('CORAZON_DE_BRASA', 1), ('FLOR_DE_CENIZA', 4)) AS v(code, n) JOIN items i ON i.code = v.code;
+-- Símbolo del Titán de Fuego
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'SACERDOTE_OFFHAND_TITAN_F', 'Símbolo del Titán de Fuego', 'EQUIPMENT', 'OFFHAND', FALSE, 'LEGENDARIO', 5, 45, TRUE, 'CRAFT', 'Pieza del set del Titán de Fuego, forjada con el núcleo del Guardián. Nunca se enfría del todo.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'SACERDOTE_OFFHAND_TITAN_F');
+UPDATE items SET name = 'Símbolo del Titán de Fuego', item_type = 'EQUIPMENT', slot = 'OFFHAND', is_two_handed = FALSE, rarity = 'LEGENDARIO', class_id = 5, required_level = 45, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Pieza del set del Titán de Fuego, forjada con el núcleo del Guardián. Nunca se enfría del todo.' WHERE code = 'SACERDOTE_OFFHAND_TITAN_F';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'SACERDOTE_OFFHAND_TITAN_F');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'SACERDOTE_OFFHAND_TITAN_F'), v.* FROM (VALUES ('HP', 34, FALSE), ('MAGIC_DEF', 26, FALSE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station, scroll_item_id)
+SELECT 'RECIPE_SACERDOTE_OFFHAND_TITAN_F', (SELECT id FROM items WHERE code = 'SACERDOTE_OFFHAND_TITAN_F'), 1, 'LEGENDARIO', 45, 5, 55, 1, 'Ignar, en la Gran Forja de Ascuaria', 3, 'forja', (SELECT id FROM items WHERE code = 'SCROLL_TITAN_FUEGO_SACERDOTE') WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_SACERDOTE_OFFHAND_TITAN_F');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'SACERDOTE_OFFHAND_TITAN_F'), result_quantity = 1, rarity = 'LEGENDARIO', required_level = 45, required_class_id = 5, success_rate_percent = 55, craft_time_minutes = 1, artisan_name = 'Ignar, en la Gran Forja de Ascuaria', zone_id = 3, station = 'forja', scroll_item_id = (SELECT id FROM items WHERE code = 'SCROLL_TITAN_FUEGO_SACERDOTE') WHERE code = 'RECIPE_SACERDOTE_OFFHAND_TITAN_F';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_SACERDOTE_OFFHAND_TITAN_F');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_SACERDOTE_OFFHAND_TITAN_F'), i.id, v.n FROM (VALUES ('NUCLEO_TITAN_FUEGO', 1), ('COLA_DIABLILLO', 2), ('CORAZON_DE_BRASA', 1), ('FLOR_DE_CENIZA', 2)) AS v(code, n) JOIN items i ON i.code = v.code;
+-- Diadema del Titán de Fuego
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'SACERDOTE_HELMET_TITAN_F', 'Diadema del Titán de Fuego', 'EQUIPMENT', 'HELMET', FALSE, 'LEGENDARIO', 5, 45, TRUE, 'CRAFT', 'Pieza del set del Titán de Fuego, forjada con el núcleo del Guardián. Nunca se enfría del todo.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'SACERDOTE_HELMET_TITAN_F');
+UPDATE items SET name = 'Diadema del Titán de Fuego', item_type = 'EQUIPMENT', slot = 'HELMET', is_two_handed = FALSE, rarity = 'LEGENDARIO', class_id = 5, required_level = 45, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Pieza del set del Titán de Fuego, forjada con el núcleo del Guardián. Nunca se enfría del todo.' WHERE code = 'SACERDOTE_HELMET_TITAN_F';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'SACERDOTE_HELMET_TITAN_F');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'SACERDOTE_HELMET_TITAN_F'), v.* FROM (VALUES ('DEF', 6, FALSE), ('HP', 18, FALSE), ('MAGIC_DEF', 21, FALSE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station, scroll_item_id)
+SELECT 'RECIPE_SACERDOTE_HELMET_TITAN_F', (SELECT id FROM items WHERE code = 'SACERDOTE_HELMET_TITAN_F'), 1, 'LEGENDARIO', 45, 5, 55, 1, 'Ignar, en la Gran Forja de Ascuaria', 3, 'forja', (SELECT id FROM items WHERE code = 'SCROLL_TITAN_FUEGO_SACERDOTE') WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_SACERDOTE_HELMET_TITAN_F');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'SACERDOTE_HELMET_TITAN_F'), result_quantity = 1, rarity = 'LEGENDARIO', required_level = 45, required_class_id = 5, success_rate_percent = 55, craft_time_minutes = 1, artisan_name = 'Ignar, en la Gran Forja de Ascuaria', zone_id = 3, station = 'forja', scroll_item_id = (SELECT id FROM items WHERE code = 'SCROLL_TITAN_FUEGO_SACERDOTE') WHERE code = 'RECIPE_SACERDOTE_HELMET_TITAN_F';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_SACERDOTE_HELMET_TITAN_F');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_SACERDOTE_HELMET_TITAN_F'), i.id, v.n FROM (VALUES ('NUCLEO_TITAN_FUEGO', 1), ('COLA_DIABLILLO', 2), ('CORAZON_DE_BRASA', 1), ('FLOR_DE_CENIZA', 2)) AS v(code, n) JOIN items i ON i.code = v.code;
+-- Vestidura del Titán de Fuego
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'SACERDOTE_ARMOR_TITAN_F', 'Vestidura del Titán de Fuego', 'EQUIPMENT', 'ARMOR', FALSE, 'LEGENDARIO', 5, 45, TRUE, 'CRAFT', 'Pieza del set del Titán de Fuego, forjada con el núcleo del Guardián. Nunca se enfría del todo.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'SACERDOTE_ARMOR_TITAN_F');
+UPDATE items SET name = 'Vestidura del Titán de Fuego', item_type = 'EQUIPMENT', slot = 'ARMOR', is_two_handed = FALSE, rarity = 'LEGENDARIO', class_id = 5, required_level = 45, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Pieza del set del Titán de Fuego, forjada con el núcleo del Guardián. Nunca se enfría del todo.' WHERE code = 'SACERDOTE_ARMOR_TITAN_F';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'SACERDOTE_ARMOR_TITAN_F');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'SACERDOTE_ARMOR_TITAN_F'), v.* FROM (VALUES ('DEF', 13, FALSE), ('HP', 68, FALSE), ('MAGIC_DEF', 42, FALSE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station, scroll_item_id)
+SELECT 'RECIPE_SACERDOTE_ARMOR_TITAN_F', (SELECT id FROM items WHERE code = 'SACERDOTE_ARMOR_TITAN_F'), 1, 'LEGENDARIO', 45, 5, 55, 1, 'Ignar, en la Gran Forja de Ascuaria', 3, 'forja', (SELECT id FROM items WHERE code = 'SCROLL_TITAN_FUEGO_SACERDOTE') WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_SACERDOTE_ARMOR_TITAN_F');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'SACERDOTE_ARMOR_TITAN_F'), result_quantity = 1, rarity = 'LEGENDARIO', required_level = 45, required_class_id = 5, success_rate_percent = 55, craft_time_minutes = 1, artisan_name = 'Ignar, en la Gran Forja de Ascuaria', zone_id = 3, station = 'forja', scroll_item_id = (SELECT id FROM items WHERE code = 'SCROLL_TITAN_FUEGO_SACERDOTE') WHERE code = 'RECIPE_SACERDOTE_ARMOR_TITAN_F';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_SACERDOTE_ARMOR_TITAN_F');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_SACERDOTE_ARMOR_TITAN_F'), i.id, v.n FROM (VALUES ('NUCLEO_TITAN_FUEGO', 1), ('CORAZON_DE_LA_CALDERA', 1), ('COLA_DIABLILLO', 3), ('CORAZON_DE_BRASA', 1), ('FLOR_DE_CENIZA', 4)) AS v(code, n) JOIN items i ON i.code = v.code;
+-- Guantes del Titán de Fuego
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'SACERDOTE_GLOVES_TITAN_F', 'Guantes del Titán de Fuego', 'EQUIPMENT', 'GLOVES', FALSE, 'LEGENDARIO', 5, 45, TRUE, 'CRAFT', 'Pieza del set del Titán de Fuego, forjada con el núcleo del Guardián. Nunca se enfría del todo.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'SACERDOTE_GLOVES_TITAN_F');
+UPDATE items SET name = 'Guantes del Titán de Fuego', item_type = 'EQUIPMENT', slot = 'GLOVES', is_two_handed = FALSE, rarity = 'LEGENDARIO', class_id = 5, required_level = 45, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Pieza del set del Titán de Fuego, forjada con el núcleo del Guardián. Nunca se enfría del todo.' WHERE code = 'SACERDOTE_GLOVES_TITAN_F';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'SACERDOTE_GLOVES_TITAN_F');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'SACERDOTE_GLOVES_TITAN_F'), v.* FROM (VALUES ('MAG', 53, FALSE), ('CRIT_CHANCE', 5.5, TRUE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station, scroll_item_id)
+SELECT 'RECIPE_SACERDOTE_GLOVES_TITAN_F', (SELECT id FROM items WHERE code = 'SACERDOTE_GLOVES_TITAN_F'), 1, 'LEGENDARIO', 45, 5, 55, 1, 'Ignar, en la Gran Forja de Ascuaria', 3, 'forja', (SELECT id FROM items WHERE code = 'SCROLL_TITAN_FUEGO_SACERDOTE') WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_SACERDOTE_GLOVES_TITAN_F');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'SACERDOTE_GLOVES_TITAN_F'), result_quantity = 1, rarity = 'LEGENDARIO', required_level = 45, required_class_id = 5, success_rate_percent = 55, craft_time_minutes = 1, artisan_name = 'Ignar, en la Gran Forja de Ascuaria', zone_id = 3, station = 'forja', scroll_item_id = (SELECT id FROM items WHERE code = 'SCROLL_TITAN_FUEGO_SACERDOTE') WHERE code = 'RECIPE_SACERDOTE_GLOVES_TITAN_F';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_SACERDOTE_GLOVES_TITAN_F');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_SACERDOTE_GLOVES_TITAN_F'), i.id, v.n FROM (VALUES ('NUCLEO_TITAN_FUEGO', 1), ('COLA_DIABLILLO', 2), ('CORAZON_DE_BRASA', 1), ('FLOR_DE_CENIZA', 2)) AS v(code, n) JOIN items i ON i.code = v.code;
+-- Sandalias del Titán de Fuego
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'SACERDOTE_BOOTS_TITAN_F', 'Sandalias del Titán de Fuego', 'EQUIPMENT', 'BOOTS', FALSE, 'LEGENDARIO', 5, 45, TRUE, 'CRAFT', 'Pieza del set del Titán de Fuego, forjada con el núcleo del Guardián. Nunca se enfría del todo.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'SACERDOTE_BOOTS_TITAN_F');
+UPDATE items SET name = 'Sandalias del Titán de Fuego', item_type = 'EQUIPMENT', slot = 'BOOTS', is_two_handed = FALSE, rarity = 'LEGENDARIO', class_id = 5, required_level = 45, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Pieza del set del Titán de Fuego, forjada con el núcleo del Guardián. Nunca se enfría del todo.' WHERE code = 'SACERDOTE_BOOTS_TITAN_F';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'SACERDOTE_BOOTS_TITAN_F');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'SACERDOTE_BOOTS_TITAN_F'), v.* FROM (VALUES ('SPD', 32, FALSE), ('HP', 8, FALSE), ('MAGIC_DEF', 10, FALSE), ('EVASION', 3, TRUE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station, scroll_item_id)
+SELECT 'RECIPE_SACERDOTE_BOOTS_TITAN_F', (SELECT id FROM items WHERE code = 'SACERDOTE_BOOTS_TITAN_F'), 1, 'LEGENDARIO', 45, 5, 55, 1, 'Ignar, en la Gran Forja de Ascuaria', 3, 'forja', (SELECT id FROM items WHERE code = 'SCROLL_TITAN_FUEGO_SACERDOTE') WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_SACERDOTE_BOOTS_TITAN_F');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'SACERDOTE_BOOTS_TITAN_F'), result_quantity = 1, rarity = 'LEGENDARIO', required_level = 45, required_class_id = 5, success_rate_percent = 55, craft_time_minutes = 1, artisan_name = 'Ignar, en la Gran Forja de Ascuaria', zone_id = 3, station = 'forja', scroll_item_id = (SELECT id FROM items WHERE code = 'SCROLL_TITAN_FUEGO_SACERDOTE') WHERE code = 'RECIPE_SACERDOTE_BOOTS_TITAN_F';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_SACERDOTE_BOOTS_TITAN_F');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_SACERDOTE_BOOTS_TITAN_F'), i.id, v.n FROM (VALUES ('NUCLEO_TITAN_FUEGO', 1), ('COLA_DIABLILLO', 2), ('CORAZON_DE_BRASA', 1), ('FLOR_DE_CENIZA', 2)) AS v(code, n) JOIN items i ON i.code = v.code;
+
+-- ---------------------------------------------------------------- armas de Forja Negra (nv 37, LEGENDARIO)
+-- Espada de Forja Negra
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'GUERRERO_WEAPON_FORJA_NEGRA', 'Espada de Forja Negra', 'EQUIPMENT', 'WEAPON', FALSE, 'LEGENDARIO', 1, 37, TRUE, 'CRAFT', 'Forjada con el corazón de la forja de los Ocultos, que Morvak alimentaba con escoria y odio. Pesa más de lo que parece.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'GUERRERO_WEAPON_FORJA_NEGRA');
+UPDATE items SET name = 'Espada de Forja Negra', item_type = 'EQUIPMENT', slot = 'WEAPON', is_two_handed = FALSE, rarity = 'LEGENDARIO', class_id = 1, required_level = 37, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Forjada con el corazón de la forja de los Ocultos, que Morvak alimentaba con escoria y odio. Pesa más de lo que parece.' WHERE code = 'GUERRERO_WEAPON_FORJA_NEGRA';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'GUERRERO_WEAPON_FORJA_NEGRA');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'GUERRERO_WEAPON_FORJA_NEGRA'), v.* FROM (VALUES ('ATK', 99, FALSE), ('CRIT_CHANCE', 8.3, TRUE), ('CRIT_DAMAGE', 13, TRUE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station, scroll_item_id)
+SELECT 'RECIPE_GUERRERO_WEAPON_FORJA_NEGRA', (SELECT id FROM items WHERE code = 'GUERRERO_WEAPON_FORJA_NEGRA'), 1, 'LEGENDARIO', 37, 1, 75, 1, 'Ignar, en la Gran Forja de Ascuaria', 3, 'forja', NULL WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_GUERRERO_WEAPON_FORJA_NEGRA');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'GUERRERO_WEAPON_FORJA_NEGRA'), result_quantity = 1, rarity = 'LEGENDARIO', required_level = 37, required_class_id = 1, success_rate_percent = 75, craft_time_minutes = 1, artisan_name = 'Ignar, en la Gran Forja de Ascuaria', zone_id = 3, station = 'forja', scroll_item_id = NULL WHERE code = 'RECIPE_GUERRERO_WEAPON_FORJA_NEGRA';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_GUERRERO_WEAPON_FORJA_NEGRA');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_GUERRERO_WEAPON_FORJA_NEGRA'), i.id, v.n FROM (VALUES ('CORAZON_FORJA_NEGRA', 1), ('ESCORIA_NEGRA', 6), ('ACERO_REFINADO', 3), ('ESQUIRLA_OBSIDIANA', 2)) AS v(code, n) JOIN items i ON i.code = v.code;
+-- Gran Espada de Forja Negra
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'GUERRERO_WEAPON2H_FORJA_NEGRA', 'Gran Espada de Forja Negra', 'EQUIPMENT', 'WEAPON', TRUE, 'LEGENDARIO', 1, 37, TRUE, 'CRAFT', 'Forjada con el corazón de la forja de los Ocultos, que Morvak alimentaba con escoria y odio. Pesa más de lo que parece.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'GUERRERO_WEAPON2H_FORJA_NEGRA');
+UPDATE items SET name = 'Gran Espada de Forja Negra', item_type = 'EQUIPMENT', slot = 'WEAPON', is_two_handed = TRUE, rarity = 'LEGENDARIO', class_id = 1, required_level = 37, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Forjada con el corazón de la forja de los Ocultos, que Morvak alimentaba con escoria y odio. Pesa más de lo que parece.' WHERE code = 'GUERRERO_WEAPON2H_FORJA_NEGRA';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'GUERRERO_WEAPON2H_FORJA_NEGRA');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'GUERRERO_WEAPON2H_FORJA_NEGRA'), v.* FROM (VALUES ('ATK', 149, FALSE), ('CRIT_CHANCE', 8.3, TRUE), ('CRIT_DAMAGE', 13, TRUE), ('DEF', -28, FALSE), ('SPD', -21, FALSE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station, scroll_item_id)
+SELECT 'RECIPE_GUERRERO_WEAPON2H_FORJA_NEGRA', (SELECT id FROM items WHERE code = 'GUERRERO_WEAPON2H_FORJA_NEGRA'), 1, 'LEGENDARIO', 37, 1, 75, 1, 'Ignar, en la Gran Forja de Ascuaria', 3, 'forja', NULL WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_GUERRERO_WEAPON2H_FORJA_NEGRA');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'GUERRERO_WEAPON2H_FORJA_NEGRA'), result_quantity = 1, rarity = 'LEGENDARIO', required_level = 37, required_class_id = 1, success_rate_percent = 75, craft_time_minutes = 1, artisan_name = 'Ignar, en la Gran Forja de Ascuaria', zone_id = 3, station = 'forja', scroll_item_id = NULL WHERE code = 'RECIPE_GUERRERO_WEAPON2H_FORJA_NEGRA';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_GUERRERO_WEAPON2H_FORJA_NEGRA');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_GUERRERO_WEAPON2H_FORJA_NEGRA'), i.id, v.n FROM (VALUES ('CORAZON_FORJA_NEGRA', 1), ('ESCORIA_NEGRA', 6), ('ACERO_REFINADO', 3), ('ESQUIRLA_OBSIDIANA', 2)) AS v(code, n) JOIN items i ON i.code = v.code;
+-- Báculo de Forja Negra
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'MAGO_WEAPON_FORJA_NEGRA', 'Báculo de Forja Negra', 'EQUIPMENT', 'WEAPON', FALSE, 'LEGENDARIO', 2, 37, TRUE, 'CRAFT', 'Forjada con el corazón de la forja de los Ocultos, que Morvak alimentaba con escoria y odio. Pesa más de lo que parece.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'MAGO_WEAPON_FORJA_NEGRA');
+UPDATE items SET name = 'Báculo de Forja Negra', item_type = 'EQUIPMENT', slot = 'WEAPON', is_two_handed = FALSE, rarity = 'LEGENDARIO', class_id = 2, required_level = 37, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Forjada con el corazón de la forja de los Ocultos, que Morvak alimentaba con escoria y odio. Pesa más de lo que parece.' WHERE code = 'MAGO_WEAPON_FORJA_NEGRA';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'MAGO_WEAPON_FORJA_NEGRA');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'MAGO_WEAPON_FORJA_NEGRA'), v.* FROM (VALUES ('MAG', 99, FALSE), ('CRIT_CHANCE', 8.3, TRUE), ('CRIT_DAMAGE', 13, TRUE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station, scroll_item_id)
+SELECT 'RECIPE_MAGO_WEAPON_FORJA_NEGRA', (SELECT id FROM items WHERE code = 'MAGO_WEAPON_FORJA_NEGRA'), 1, 'LEGENDARIO', 37, 2, 75, 1, 'Ignar, en la Gran Forja de Ascuaria', 3, 'forja', NULL WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_MAGO_WEAPON_FORJA_NEGRA');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'MAGO_WEAPON_FORJA_NEGRA'), result_quantity = 1, rarity = 'LEGENDARIO', required_level = 37, required_class_id = 2, success_rate_percent = 75, craft_time_minutes = 1, artisan_name = 'Ignar, en la Gran Forja de Ascuaria', zone_id = 3, station = 'forja', scroll_item_id = NULL WHERE code = 'RECIPE_MAGO_WEAPON_FORJA_NEGRA';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_MAGO_WEAPON_FORJA_NEGRA');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_MAGO_WEAPON_FORJA_NEGRA'), i.id, v.n FROM (VALUES ('CORAZON_FORJA_NEGRA', 1), ('ESCORIA_NEGRA', 6), ('ACERO_REFINADO', 3), ('ESENCIA_DE_FUEGO', 2)) AS v(code, n) JOIN items i ON i.code = v.code;
+-- Arco de Forja Negra
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'ARQUERO_WEAPON_FORJA_NEGRA', 'Arco de Forja Negra', 'EQUIPMENT', 'WEAPON', FALSE, 'LEGENDARIO', 3, 37, TRUE, 'CRAFT', 'Forjada con el corazón de la forja de los Ocultos, que Morvak alimentaba con escoria y odio. Pesa más de lo que parece.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'ARQUERO_WEAPON_FORJA_NEGRA');
+UPDATE items SET name = 'Arco de Forja Negra', item_type = 'EQUIPMENT', slot = 'WEAPON', is_two_handed = FALSE, rarity = 'LEGENDARIO', class_id = 3, required_level = 37, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Forjada con el corazón de la forja de los Ocultos, que Morvak alimentaba con escoria y odio. Pesa más de lo que parece.' WHERE code = 'ARQUERO_WEAPON_FORJA_NEGRA';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'ARQUERO_WEAPON_FORJA_NEGRA');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'ARQUERO_WEAPON_FORJA_NEGRA'), v.* FROM (VALUES ('ATK', 99, FALSE), ('CRIT_CHANCE', 8.3, TRUE), ('CRIT_DAMAGE', 13, TRUE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station, scroll_item_id)
+SELECT 'RECIPE_ARQUERO_WEAPON_FORJA_NEGRA', (SELECT id FROM items WHERE code = 'ARQUERO_WEAPON_FORJA_NEGRA'), 1, 'LEGENDARIO', 37, 3, 75, 1, 'Ignar, en la Gran Forja de Ascuaria', 3, 'forja', NULL WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_ARQUERO_WEAPON_FORJA_NEGRA');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'ARQUERO_WEAPON_FORJA_NEGRA'), result_quantity = 1, rarity = 'LEGENDARIO', required_level = 37, required_class_id = 3, success_rate_percent = 75, craft_time_minutes = 1, artisan_name = 'Ignar, en la Gran Forja de Ascuaria', zone_id = 3, station = 'forja', scroll_item_id = NULL WHERE code = 'RECIPE_ARQUERO_WEAPON_FORJA_NEGRA';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_ARQUERO_WEAPON_FORJA_NEGRA');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_ARQUERO_WEAPON_FORJA_NEGRA'), i.id, v.n FROM (VALUES ('CORAZON_FORJA_NEGRA', 1), ('ESCORIA_NEGRA', 6), ('ACERO_REFINADO', 3), ('ALA_DRACO', 2)) AS v(code, n) JOIN items i ON i.code = v.code;
+-- Daga de Forja Negra
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'PICARO_WEAPON_FORJA_NEGRA', 'Daga de Forja Negra', 'EQUIPMENT', 'WEAPON', FALSE, 'LEGENDARIO', 4, 37, TRUE, 'CRAFT', 'Forjada con el corazón de la forja de los Ocultos, que Morvak alimentaba con escoria y odio. Pesa más de lo que parece.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'PICARO_WEAPON_FORJA_NEGRA');
+UPDATE items SET name = 'Daga de Forja Negra', item_type = 'EQUIPMENT', slot = 'WEAPON', is_two_handed = FALSE, rarity = 'LEGENDARIO', class_id = 4, required_level = 37, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Forjada con el corazón de la forja de los Ocultos, que Morvak alimentaba con escoria y odio. Pesa más de lo que parece.' WHERE code = 'PICARO_WEAPON_FORJA_NEGRA';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'PICARO_WEAPON_FORJA_NEGRA');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'PICARO_WEAPON_FORJA_NEGRA'), v.* FROM (VALUES ('ATK', 99, FALSE), ('CRIT_CHANCE', 8.3, TRUE), ('CRIT_DAMAGE', 13, TRUE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station, scroll_item_id)
+SELECT 'RECIPE_PICARO_WEAPON_FORJA_NEGRA', (SELECT id FROM items WHERE code = 'PICARO_WEAPON_FORJA_NEGRA'), 1, 'LEGENDARIO', 37, 4, 75, 1, 'Ignar, en la Gran Forja de Ascuaria', 3, 'forja', NULL WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_PICARO_WEAPON_FORJA_NEGRA');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'PICARO_WEAPON_FORJA_NEGRA'), result_quantity = 1, rarity = 'LEGENDARIO', required_level = 37, required_class_id = 4, success_rate_percent = 75, craft_time_minutes = 1, artisan_name = 'Ignar, en la Gran Forja de Ascuaria', zone_id = 3, station = 'forja', scroll_item_id = NULL WHERE code = 'RECIPE_PICARO_WEAPON_FORJA_NEGRA';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_PICARO_WEAPON_FORJA_NEGRA');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_PICARO_WEAPON_FORJA_NEGRA'), i.id, v.n FROM (VALUES ('CORAZON_FORJA_NEGRA', 1), ('ESCORIA_NEGRA', 6), ('ACERO_REFINADO', 3), ('COLMILLO_MAGMA', 2)) AS v(code, n) JOIN items i ON i.code = v.code;
+-- Báculo Sagrado de Forja Negra
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'SACERDOTE_WEAPON_FORJA_NEGRA', 'Báculo Sagrado de Forja Negra', 'EQUIPMENT', 'WEAPON', FALSE, 'LEGENDARIO', 5, 37, TRUE, 'CRAFT', 'Forjada con el corazón de la forja de los Ocultos, que Morvak alimentaba con escoria y odio. Pesa más de lo que parece.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'SACERDOTE_WEAPON_FORJA_NEGRA');
+UPDATE items SET name = 'Báculo Sagrado de Forja Negra', item_type = 'EQUIPMENT', slot = 'WEAPON', is_two_handed = FALSE, rarity = 'LEGENDARIO', class_id = 5, required_level = 37, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Forjada con el corazón de la forja de los Ocultos, que Morvak alimentaba con escoria y odio. Pesa más de lo que parece.' WHERE code = 'SACERDOTE_WEAPON_FORJA_NEGRA';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'SACERDOTE_WEAPON_FORJA_NEGRA');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'SACERDOTE_WEAPON_FORJA_NEGRA'), v.* FROM (VALUES ('MAG', 99, FALSE), ('CRIT_CHANCE', 8.3, TRUE), ('CRIT_DAMAGE', 13, TRUE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station, scroll_item_id)
+SELECT 'RECIPE_SACERDOTE_WEAPON_FORJA_NEGRA', (SELECT id FROM items WHERE code = 'SACERDOTE_WEAPON_FORJA_NEGRA'), 1, 'LEGENDARIO', 37, 5, 75, 1, 'Ignar, en la Gran Forja de Ascuaria', 3, 'forja', NULL WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_SACERDOTE_WEAPON_FORJA_NEGRA');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'SACERDOTE_WEAPON_FORJA_NEGRA'), result_quantity = 1, rarity = 'LEGENDARIO', required_level = 37, required_class_id = 5, success_rate_percent = 75, craft_time_minutes = 1, artisan_name = 'Ignar, en la Gran Forja de Ascuaria', zone_id = 3, station = 'forja', scroll_item_id = NULL WHERE code = 'RECIPE_SACERDOTE_WEAPON_FORJA_NEGRA';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_SACERDOTE_WEAPON_FORJA_NEGRA');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_SACERDOTE_WEAPON_FORJA_NEGRA'), i.id, v.n FROM (VALUES ('CORAZON_FORJA_NEGRA', 1), ('ESCORIA_NEGRA', 6), ('ACERO_REFINADO', 3), ('FLOR_DE_CENIZA', 2)) AS v(code, n) JOIN items i ON i.code = v.code;
+
+-- ---------------------------------------------------------------- accesorios de los jefes
+-- Brazalete de la Caldera
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'BRAZALETE_CALDERA', 'Brazalete de la Caldera', 'EQUIPMENT', 'ACCESSORY', FALSE, 'EPICO', NULL, 40, TRUE, 'CRAFT', 'Joya del Señor de la Caldera. La suelta él mismo o se fabrica con su corazón.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'BRAZALETE_CALDERA');
+UPDATE items SET name = 'Brazalete de la Caldera', item_type = 'EQUIPMENT', slot = 'ACCESSORY', is_two_handed = FALSE, rarity = 'EPICO', class_id = NULL, required_level = 40, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Joya del Señor de la Caldera. La suelta él mismo o se fabrica con su corazón.' WHERE code = 'BRAZALETE_CALDERA';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'BRAZALETE_CALDERA');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'BRAZALETE_CALDERA'), v.* FROM (VALUES ('ATK', 38, FALSE), ('HP', 53, FALSE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station, scroll_item_id)
+SELECT 'RECIPE_GUERRERO_ACC_CALDERA', (SELECT id FROM items WHERE code = 'BRAZALETE_CALDERA'), 1, 'EPICO', 40, NULL, 70, 1, 'Ignar, en la Gran Forja de Ascuaria', 3, 'forja', (SELECT id FROM items WHERE code = 'SCROLL_CALDERA_GUERRERO') WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_GUERRERO_ACC_CALDERA');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'BRAZALETE_CALDERA'), result_quantity = 1, rarity = 'EPICO', required_level = 40, required_class_id = NULL, success_rate_percent = 70, craft_time_minutes = 1, artisan_name = 'Ignar, en la Gran Forja de Ascuaria', zone_id = 3, station = 'forja', scroll_item_id = (SELECT id FROM items WHERE code = 'SCROLL_CALDERA_GUERRERO') WHERE code = 'RECIPE_GUERRERO_ACC_CALDERA';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_GUERRERO_ACC_CALDERA');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_GUERRERO_ACC_CALDERA'), i.id, v.n FROM (VALUES ('CORAZON_DE_LA_CALDERA', 1), ('CUERNO_DEMONIO_LAVA', 2), ('ESQUIRLA_OBSIDIANA', 2)) AS v(code, n) JOIN items i ON i.code = v.code;
+-- Colgante de la Caldera
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'COLGANTE_CALDERA', 'Colgante de la Caldera', 'EQUIPMENT', 'ACCESSORY', FALSE, 'EPICO', NULL, 40, TRUE, 'CRAFT', 'Joya del Señor de la Caldera. La suelta él mismo o se fabrica con su corazón.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'COLGANTE_CALDERA');
+UPDATE items SET name = 'Colgante de la Caldera', item_type = 'EQUIPMENT', slot = 'ACCESSORY', is_two_handed = FALSE, rarity = 'EPICO', class_id = NULL, required_level = 40, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Joya del Señor de la Caldera. La suelta él mismo o se fabrica con su corazón.' WHERE code = 'COLGANTE_CALDERA';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'COLGANTE_CALDERA');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'COLGANTE_CALDERA'), v.* FROM (VALUES ('SPD', 23, FALSE), ('CRIT_CHANCE', 4.5, TRUE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station, scroll_item_id)
+SELECT 'RECIPE_ARQUERO_ACC_CALDERA', (SELECT id FROM items WHERE code = 'COLGANTE_CALDERA'), 1, 'EPICO', 40, NULL, 70, 1, 'Ignar, en la Gran Forja de Ascuaria', 3, 'forja', (SELECT id FROM items WHERE code = 'SCROLL_CALDERA_ARQUERO') WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_ARQUERO_ACC_CALDERA');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'COLGANTE_CALDERA'), result_quantity = 1, rarity = 'EPICO', required_level = 40, required_class_id = NULL, success_rate_percent = 70, craft_time_minutes = 1, artisan_name = 'Ignar, en la Gran Forja de Ascuaria', zone_id = 3, station = 'forja', scroll_item_id = (SELECT id FROM items WHERE code = 'SCROLL_CALDERA_ARQUERO') WHERE code = 'RECIPE_ARQUERO_ACC_CALDERA';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_ARQUERO_ACC_CALDERA');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_ARQUERO_ACC_CALDERA'), i.id, v.n FROM (VALUES ('CORAZON_DE_LA_CALDERA', 1), ('CUERNO_DEMONIO_LAVA', 2), ('ALA_DRACO', 2)) AS v(code, n) JOIN items i ON i.code = v.code;
+-- Medallón de la Caldera
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'MEDALLON_CALDERA', 'Medallón de la Caldera', 'EQUIPMENT', 'ACCESSORY', FALSE, 'EPICO', NULL, 40, TRUE, 'CRAFT', 'Joya del Señor de la Caldera. La suelta él mismo o se fabrica con su corazón.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'MEDALLON_CALDERA');
+UPDATE items SET name = 'Medallón de la Caldera', item_type = 'EQUIPMENT', slot = 'ACCESSORY', is_two_handed = FALSE, rarity = 'EPICO', class_id = NULL, required_level = 40, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Joya del Señor de la Caldera. La suelta él mismo o se fabrica con su corazón.' WHERE code = 'MEDALLON_CALDERA';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'MEDALLON_CALDERA');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'MEDALLON_CALDERA'), v.* FROM (VALUES ('EVASION', 2.5, TRUE), ('CRIT_CHANCE', 4.5, TRUE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station, scroll_item_id)
+SELECT 'RECIPE_PICARO_ACC_CALDERA', (SELECT id FROM items WHERE code = 'MEDALLON_CALDERA'), 1, 'EPICO', 40, NULL, 70, 1, 'Ignar, en la Gran Forja de Ascuaria', 3, 'forja', (SELECT id FROM items WHERE code = 'SCROLL_CALDERA_PICARO') WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_PICARO_ACC_CALDERA');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'MEDALLON_CALDERA'), result_quantity = 1, rarity = 'EPICO', required_level = 40, required_class_id = NULL, success_rate_percent = 70, craft_time_minutes = 1, artisan_name = 'Ignar, en la Gran Forja de Ascuaria', zone_id = 3, station = 'forja', scroll_item_id = (SELECT id FROM items WHERE code = 'SCROLL_CALDERA_PICARO') WHERE code = 'RECIPE_PICARO_ACC_CALDERA';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_PICARO_ACC_CALDERA');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_PICARO_ACC_CALDERA'), i.id, v.n FROM (VALUES ('CORAZON_DE_LA_CALDERA', 1), ('CUERNO_DEMONIO_LAVA', 2), ('COLMILLO_MAGMA', 2)) AS v(code, n) JOIN items i ON i.code = v.code;
+-- Amuleto de la Caldera
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'AMULETO_CALDERA_MAGO', 'Amuleto de la Caldera', 'EQUIPMENT', 'ACCESSORY', FALSE, 'EPICO', NULL, 40, TRUE, 'CRAFT', 'Joya del Señor de la Caldera. La suelta él mismo o se fabrica con su corazón.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'AMULETO_CALDERA_MAGO');
+UPDATE items SET name = 'Amuleto de la Caldera', item_type = 'EQUIPMENT', slot = 'ACCESSORY', is_two_handed = FALSE, rarity = 'EPICO', class_id = NULL, required_level = 40, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Joya del Señor de la Caldera. La suelta él mismo o se fabrica con su corazón.' WHERE code = 'AMULETO_CALDERA_MAGO';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'AMULETO_CALDERA_MAGO');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'AMULETO_CALDERA_MAGO'), v.* FROM (VALUES ('MAG', 22, FALSE), ('MAGIC_DEF', 15, FALSE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station, scroll_item_id)
+SELECT 'RECIPE_MAGO_ACC_CALDERA', (SELECT id FROM items WHERE code = 'AMULETO_CALDERA_MAGO'), 1, 'EPICO', 40, NULL, 70, 1, 'Ignar, en la Gran Forja de Ascuaria', 3, 'forja', (SELECT id FROM items WHERE code = 'SCROLL_CALDERA_MAGO') WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_MAGO_ACC_CALDERA');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'AMULETO_CALDERA_MAGO'), result_quantity = 1, rarity = 'EPICO', required_level = 40, required_class_id = NULL, success_rate_percent = 70, craft_time_minutes = 1, artisan_name = 'Ignar, en la Gran Forja de Ascuaria', zone_id = 3, station = 'forja', scroll_item_id = (SELECT id FROM items WHERE code = 'SCROLL_CALDERA_MAGO') WHERE code = 'RECIPE_MAGO_ACC_CALDERA';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_MAGO_ACC_CALDERA');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_MAGO_ACC_CALDERA'), i.id, v.n FROM (VALUES ('CORAZON_DE_LA_CALDERA', 1), ('CUERNO_DEMONIO_LAVA', 2), ('ESENCIA_DE_FUEGO', 2)) AS v(code, n) JOIN items i ON i.code = v.code;
+-- Relicario de la Caldera
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'RELICARIO_CALDERA', 'Relicario de la Caldera', 'EQUIPMENT', 'ACCESSORY', FALSE, 'EPICO', NULL, 40, TRUE, 'CRAFT', 'Joya del Señor de la Caldera. La suelta él mismo o se fabrica con su corazón.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'RELICARIO_CALDERA');
+UPDATE items SET name = 'Relicario de la Caldera', item_type = 'EQUIPMENT', slot = 'ACCESSORY', is_two_handed = FALSE, rarity = 'EPICO', class_id = NULL, required_level = 40, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Joya del Señor de la Caldera. La suelta él mismo o se fabrica con su corazón.' WHERE code = 'RELICARIO_CALDERA';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'RELICARIO_CALDERA');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'RELICARIO_CALDERA'), v.* FROM (VALUES ('HEALING', 16, TRUE), ('HP', 152, FALSE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station, scroll_item_id)
+SELECT 'RECIPE_SACERDOTE_ACC_CALDERA', (SELECT id FROM items WHERE code = 'RELICARIO_CALDERA'), 1, 'EPICO', 40, NULL, 70, 1, 'Ignar, en la Gran Forja de Ascuaria', 3, 'forja', (SELECT id FROM items WHERE code = 'SCROLL_CALDERA_SACERDOTE') WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_SACERDOTE_ACC_CALDERA');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'RELICARIO_CALDERA'), result_quantity = 1, rarity = 'EPICO', required_level = 40, required_class_id = NULL, success_rate_percent = 70, craft_time_minutes = 1, artisan_name = 'Ignar, en la Gran Forja de Ascuaria', zone_id = 3, station = 'forja', scroll_item_id = (SELECT id FROM items WHERE code = 'SCROLL_CALDERA_SACERDOTE') WHERE code = 'RECIPE_SACERDOTE_ACC_CALDERA';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_SACERDOTE_ACC_CALDERA');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_SACERDOTE_ACC_CALDERA'), i.id, v.n FROM (VALUES ('CORAZON_DE_LA_CALDERA', 1), ('CUERNO_DEMONIO_LAVA', 2), ('FLOR_DE_CENIZA', 3)) AS v(code, n) JOIN items i ON i.code = v.code;
+-- Brazalete del Titán de Fuego
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'BRAZALETE_TITAN_FUEGO', 'Brazalete del Titán de Fuego', 'EQUIPMENT', 'ACCESSORY', FALSE, 'LEGENDARIO', NULL, 45, TRUE, 'CRAFT', 'Joya del Titán de Fuego. La suelta él mismo o se fabrica con su núcleo.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'BRAZALETE_TITAN_FUEGO');
+UPDATE items SET name = 'Brazalete del Titán de Fuego', item_type = 'EQUIPMENT', slot = 'ACCESSORY', is_two_handed = FALSE, rarity = 'LEGENDARIO', class_id = NULL, required_level = 45, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Joya del Titán de Fuego. La suelta él mismo o se fabrica con su núcleo.' WHERE code = 'BRAZALETE_TITAN_FUEGO';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'BRAZALETE_TITAN_FUEGO');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'BRAZALETE_TITAN_FUEGO'), v.* FROM (VALUES ('ATK', 47, FALSE), ('HP', 66, FALSE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station, scroll_item_id)
+SELECT 'RECIPE_GUERRERO_ACC_TITAN_FUEGO', (SELECT id FROM items WHERE code = 'BRAZALETE_TITAN_FUEGO'), 1, 'LEGENDARIO', 45, NULL, 55, 1, 'Ignar, en la Gran Forja de Ascuaria', 3, 'forja', (SELECT id FROM items WHERE code = 'SCROLL_TITAN_FUEGO_GUERRERO') WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_GUERRERO_ACC_TITAN_FUEGO');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'BRAZALETE_TITAN_FUEGO'), result_quantity = 1, rarity = 'LEGENDARIO', required_level = 45, required_class_id = NULL, success_rate_percent = 55, craft_time_minutes = 1, artisan_name = 'Ignar, en la Gran Forja de Ascuaria', zone_id = 3, station = 'forja', scroll_item_id = (SELECT id FROM items WHERE code = 'SCROLL_TITAN_FUEGO_GUERRERO') WHERE code = 'RECIPE_GUERRERO_ACC_TITAN_FUEGO';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_GUERRERO_ACC_TITAN_FUEGO');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_GUERRERO_ACC_TITAN_FUEGO'), i.id, v.n FROM (VALUES ('NUCLEO_TITAN_FUEGO', 1), ('COLA_DIABLILLO', 2), ('CORAZON_DE_BRASA', 1), ('ESQUIRLA_OBSIDIANA', 3)) AS v(code, n) JOIN items i ON i.code = v.code;
+-- Colgante del Titán de Fuego
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'COLGANTE_TITAN_FUEGO', 'Colgante del Titán de Fuego', 'EQUIPMENT', 'ACCESSORY', FALSE, 'LEGENDARIO', NULL, 45, TRUE, 'CRAFT', 'Joya del Titán de Fuego. La suelta él mismo o se fabrica con su núcleo.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'COLGANTE_TITAN_FUEGO');
+UPDATE items SET name = 'Colgante del Titán de Fuego', item_type = 'EQUIPMENT', slot = 'ACCESSORY', is_two_handed = FALSE, rarity = 'LEGENDARIO', class_id = NULL, required_level = 45, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Joya del Titán de Fuego. La suelta él mismo o se fabrica con su núcleo.' WHERE code = 'COLGANTE_TITAN_FUEGO';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'COLGANTE_TITAN_FUEGO');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'COLGANTE_TITAN_FUEGO'), v.* FROM (VALUES ('SPD', 28, FALSE), ('CRIT_CHANCE', 5.5, TRUE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station, scroll_item_id)
+SELECT 'RECIPE_ARQUERO_ACC_TITAN_FUEGO', (SELECT id FROM items WHERE code = 'COLGANTE_TITAN_FUEGO'), 1, 'LEGENDARIO', 45, NULL, 55, 1, 'Ignar, en la Gran Forja de Ascuaria', 3, 'forja', (SELECT id FROM items WHERE code = 'SCROLL_TITAN_FUEGO_ARQUERO') WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_ARQUERO_ACC_TITAN_FUEGO');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'COLGANTE_TITAN_FUEGO'), result_quantity = 1, rarity = 'LEGENDARIO', required_level = 45, required_class_id = NULL, success_rate_percent = 55, craft_time_minutes = 1, artisan_name = 'Ignar, en la Gran Forja de Ascuaria', zone_id = 3, station = 'forja', scroll_item_id = (SELECT id FROM items WHERE code = 'SCROLL_TITAN_FUEGO_ARQUERO') WHERE code = 'RECIPE_ARQUERO_ACC_TITAN_FUEGO';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_ARQUERO_ACC_TITAN_FUEGO');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_ARQUERO_ACC_TITAN_FUEGO'), i.id, v.n FROM (VALUES ('NUCLEO_TITAN_FUEGO', 1), ('COLA_DIABLILLO', 2), ('CORAZON_DE_BRASA', 1), ('ALA_DRACO', 3)) AS v(code, n) JOIN items i ON i.code = v.code;
+-- Medallón del Titán de Fuego
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'MEDALLON_TITAN_FUEGO', 'Medallón del Titán de Fuego', 'EQUIPMENT', 'ACCESSORY', FALSE, 'LEGENDARIO', NULL, 45, TRUE, 'CRAFT', 'Joya del Titán de Fuego. La suelta él mismo o se fabrica con su núcleo.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'MEDALLON_TITAN_FUEGO');
+UPDATE items SET name = 'Medallón del Titán de Fuego', item_type = 'EQUIPMENT', slot = 'ACCESSORY', is_two_handed = FALSE, rarity = 'LEGENDARIO', class_id = NULL, required_level = 45, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Joya del Titán de Fuego. La suelta él mismo o se fabrica con su núcleo.' WHERE code = 'MEDALLON_TITAN_FUEGO';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'MEDALLON_TITAN_FUEGO');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'MEDALLON_TITAN_FUEGO'), v.* FROM (VALUES ('EVASION', 3, TRUE), ('CRIT_CHANCE', 5.5, TRUE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station, scroll_item_id)
+SELECT 'RECIPE_PICARO_ACC_TITAN_FUEGO', (SELECT id FROM items WHERE code = 'MEDALLON_TITAN_FUEGO'), 1, 'LEGENDARIO', 45, NULL, 55, 1, 'Ignar, en la Gran Forja de Ascuaria', 3, 'forja', (SELECT id FROM items WHERE code = 'SCROLL_TITAN_FUEGO_PICARO') WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_PICARO_ACC_TITAN_FUEGO');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'MEDALLON_TITAN_FUEGO'), result_quantity = 1, rarity = 'LEGENDARIO', required_level = 45, required_class_id = NULL, success_rate_percent = 55, craft_time_minutes = 1, artisan_name = 'Ignar, en la Gran Forja de Ascuaria', zone_id = 3, station = 'forja', scroll_item_id = (SELECT id FROM items WHERE code = 'SCROLL_TITAN_FUEGO_PICARO') WHERE code = 'RECIPE_PICARO_ACC_TITAN_FUEGO';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_PICARO_ACC_TITAN_FUEGO');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_PICARO_ACC_TITAN_FUEGO'), i.id, v.n FROM (VALUES ('NUCLEO_TITAN_FUEGO', 1), ('COLA_DIABLILLO', 2), ('CORAZON_DE_BRASA', 1), ('COLMILLO_MAGMA', 3)) AS v(code, n) JOIN items i ON i.code = v.code;
+-- Amuleto del Titán de Fuego
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'AMULETO_TITAN_FUEGO_MAGO', 'Amuleto del Titán de Fuego', 'EQUIPMENT', 'ACCESSORY', FALSE, 'LEGENDARIO', NULL, 45, TRUE, 'CRAFT', 'Joya del Titán de Fuego. La suelta él mismo o se fabrica con su núcleo.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'AMULETO_TITAN_FUEGO_MAGO');
+UPDATE items SET name = 'Amuleto del Titán de Fuego', item_type = 'EQUIPMENT', slot = 'ACCESSORY', is_two_handed = FALSE, rarity = 'LEGENDARIO', class_id = NULL, required_level = 45, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Joya del Titán de Fuego. La suelta él mismo o se fabrica con su núcleo.' WHERE code = 'AMULETO_TITAN_FUEGO_MAGO';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'AMULETO_TITAN_FUEGO_MAGO');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'AMULETO_TITAN_FUEGO_MAGO'), v.* FROM (VALUES ('MAG', 27, FALSE), ('MAGIC_DEF', 19, FALSE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station, scroll_item_id)
+SELECT 'RECIPE_MAGO_ACC_TITAN_FUEGO', (SELECT id FROM items WHERE code = 'AMULETO_TITAN_FUEGO_MAGO'), 1, 'LEGENDARIO', 45, NULL, 55, 1, 'Ignar, en la Gran Forja de Ascuaria', 3, 'forja', (SELECT id FROM items WHERE code = 'SCROLL_TITAN_FUEGO_MAGO') WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_MAGO_ACC_TITAN_FUEGO');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'AMULETO_TITAN_FUEGO_MAGO'), result_quantity = 1, rarity = 'LEGENDARIO', required_level = 45, required_class_id = NULL, success_rate_percent = 55, craft_time_minutes = 1, artisan_name = 'Ignar, en la Gran Forja de Ascuaria', zone_id = 3, station = 'forja', scroll_item_id = (SELECT id FROM items WHERE code = 'SCROLL_TITAN_FUEGO_MAGO') WHERE code = 'RECIPE_MAGO_ACC_TITAN_FUEGO';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_MAGO_ACC_TITAN_FUEGO');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_MAGO_ACC_TITAN_FUEGO'), i.id, v.n FROM (VALUES ('NUCLEO_TITAN_FUEGO', 1), ('COLA_DIABLILLO', 2), ('CRISTAL_DE_LAVA', 1), ('ESENCIA_DE_FUEGO', 3)) AS v(code, n) JOIN items i ON i.code = v.code;
+-- Relicario del Titán de Fuego
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'RELICARIO_TITAN_FUEGO', 'Relicario del Titán de Fuego', 'EQUIPMENT', 'ACCESSORY', FALSE, 'LEGENDARIO', NULL, 45, TRUE, 'CRAFT', 'Joya del Titán de Fuego. La suelta él mismo o se fabrica con su núcleo.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'RELICARIO_TITAN_FUEGO');
+UPDATE items SET name = 'Relicario del Titán de Fuego', item_type = 'EQUIPMENT', slot = 'ACCESSORY', is_two_handed = FALSE, rarity = 'LEGENDARIO', class_id = NULL, required_level = 45, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Joya del Titán de Fuego. La suelta él mismo o se fabrica con su núcleo.' WHERE code = 'RELICARIO_TITAN_FUEGO';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'RELICARIO_TITAN_FUEGO');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'RELICARIO_TITAN_FUEGO'), v.* FROM (VALUES ('HEALING', 18, TRUE), ('HP', 187, FALSE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station, scroll_item_id)
+SELECT 'RECIPE_SACERDOTE_ACC_TITAN_FUEGO', (SELECT id FROM items WHERE code = 'RELICARIO_TITAN_FUEGO'), 1, 'LEGENDARIO', 45, NULL, 55, 1, 'Ignar, en la Gran Forja de Ascuaria', 3, 'forja', (SELECT id FROM items WHERE code = 'SCROLL_TITAN_FUEGO_SACERDOTE') WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_SACERDOTE_ACC_TITAN_FUEGO');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'RELICARIO_TITAN_FUEGO'), result_quantity = 1, rarity = 'LEGENDARIO', required_level = 45, required_class_id = NULL, success_rate_percent = 55, craft_time_minutes = 1, artisan_name = 'Ignar, en la Gran Forja de Ascuaria', zone_id = 3, station = 'forja', scroll_item_id = (SELECT id FROM items WHERE code = 'SCROLL_TITAN_FUEGO_SACERDOTE') WHERE code = 'RECIPE_SACERDOTE_ACC_TITAN_FUEGO';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_SACERDOTE_ACC_TITAN_FUEGO');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_SACERDOTE_ACC_TITAN_FUEGO'), i.id, v.n FROM (VALUES ('NUCLEO_TITAN_FUEGO', 1), ('COLA_DIABLILLO', 2), ('CRISTAL_DE_LAVA', 1), ('FLOR_DE_CENIZA', 4)) AS v(code, n) JOIN items i ON i.code = v.code;
+
+-- botín de los jefes: el Corazón de la Caldera sale seguido (como el Yelmo del Señor del Acantilado);
+-- el Señor y el Titán sueltan también Corazones de Brasa
+UPDATE monster_drops SET drop_chance_percent = 60 WHERE monster_id = (SELECT id FROM monsters WHERE code = 'SENOR_CALDERA')
+  AND item_id = (SELECT id FROM items WHERE code = 'CORAZON_DE_LA_CALDERA');
+UPDATE items SET description = 'El corazón de roca fundida del Señor de la Caldera. Con él se forjan las piezas y las joyas de la Caldera y del Titán de Fuego.' WHERE code = 'CORAZON_DE_LA_CALDERA';
+UPDATE items SET name = 'Núcleo del Titán de Fuego', description = 'El núcleo del Guardián del Tercer Sello, ya en calma. Cada pieza del set del Titán de Fuego lleva uno.' WHERE code = 'NUCLEO_TITAN_FUEGO';
+DELETE FROM monster_drops WHERE item_id = (SELECT id FROM items WHERE code = 'CORAZON_DE_BRASA') AND monster_id IN (SELECT id FROM monsters WHERE code IN ('SENOR_CALDERA', 'TITAN_FUEGO'));
+INSERT INTO monster_drops (monster_id, item_id, drop_chance_percent, min_quantity, max_quantity)
+SELECT m.id, (SELECT id FROM items WHERE code = 'CORAZON_DE_BRASA'), v.pct, 1, v.mx FROM (VALUES ('SENOR_CALDERA', 50, 1), ('TITAN_FUEGO', 100, 2)) AS v(code, pct, mx) JOIN monsters m ON m.code = v.code;
+
+-- el resto del equipo de clase base o sin clase de nivel 31-45: la misma fórmula (mismo nivel y rareza)
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'ESPADA_DEL_DRAGON');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'ESPADA_DEL_DRAGON'), v.* FROM (VALUES ('ATK', 91, FALSE), ('DEF', 34, FALSE), ('CRIT_CHANCE', 6.8, TRUE), ('DAMAGE_VS_DRAGONS', 50, FALSE)) AS v(stat_code, amount, is_percent);
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'DAGA_DE_LA_SOMBRA');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'DAGA_DE_LA_SOMBRA'), v.* FROM (VALUES ('ATK', 45, FALSE), ('SPD', 45, FALSE), ('CRIT_CHANCE', 5.3, TRUE), ('EVASION', 2, TRUE)) AS v(stat_code, amount, is_percent);
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'BACULO_DE_SANACION');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'BACULO_DE_SANACION'), v.* FROM (VALUES ('MAG', 40, FALSE), ('MAGIC_DEF', 28, FALSE), ('HEALING', 35, TRUE)) AS v(stat_code, amount, is_percent);
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'ESPADA_LLAMEANTE_VOLCAN');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'ESPADA_LLAMEANTE_VOLCAN'), v.* FROM (VALUES ('ATK', 79, FALSE), ('DEF', 22, FALSE), ('FIRE_DAMAGE', 20, TRUE)) AS v(stat_code, amount, is_percent);
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'COLLAR_DE_LOS_ANTIGUOS');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'COLLAR_DE_LOS_ANTIGUOS'), v.* FROM (VALUES ('MAG', 14, FALSE), ('MAGIC_DEF', 14, FALSE)) AS v(stat_code, amount, is_percent);
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'GUERRERO_WEAPON2H_HACHA_L35');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'GUERRERO_WEAPON2H_HACHA_L35'), v.* FROM (VALUES ('ATK', 122, FALSE), ('CRIT_CHANCE', 6.8, TRUE)) AS v(stat_code, amount, is_percent);
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'ARQUERO_WEAPON2H_BALLESTA_L35');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'ARQUERO_WEAPON2H_BALLESTA_L35'), v.* FROM (VALUES ('ATK', 122, FALSE), ('CRIT_DAMAGE', 11, TRUE)) AS v(stat_code, amount, is_percent);
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'GUERRERO_ARMOR_PESADA_L35');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'GUERRERO_ARMOR_PESADA_L35'), v.* FROM (VALUES ('MAGIC_DEF', 8, FALSE), ('HP', 46, FALSE), ('DEF', 29, FALSE)) AS v(stat_code, amount, is_percent);
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'GUERRERO_HELMET_PESADA_L35');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'GUERRERO_HELMET_PESADA_L35'), v.* FROM (VALUES ('MAGIC_DEF', 5, FALSE), ('HP', 16, FALSE), ('DEF', 15, FALSE)) AS v(stat_code, amount, is_percent);
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'GUERRERO_GLOVES_PESADA_L35');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'GUERRERO_GLOVES_PESADA_L35'), v.* FROM (VALUES ('HP', 14, FALSE), ('DEF', 15, FALSE)) AS v(stat_code, amount, is_percent);
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'GUERRERO_BOOTS_PESADA_L35');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'GUERRERO_BOOTS_PESADA_L35'), v.* FROM (VALUES ('EVASION', 2.5, TRUE), ('SPD', 17, FALSE), ('HP', 14, FALSE), ('DEF', 15, FALSE)) AS v(stat_code, amount, is_percent);
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'GUERRERO_WEAPON_MAGICA_L35');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'GUERRERO_WEAPON_MAGICA_L35'), v.* FROM (VALUES ('ATK', 81, FALSE), ('MAG', 64, FALSE), ('CRIT_CHANCE', 6.8, TRUE)) AS v(stat_code, amount, is_percent);
+
+-- Espada del Volcán (arma Volcán: ATK71 CRIT_CHANCE5.3% → ATK175 CRIT_CHANCE8.8%)
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'GUERRERO_WEAPON_VOLCAN');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'ATK', 175, FALSE FROM items WHERE code = 'GUERRERO_WEAPON_VOLCAN';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'CRIT_CHANCE', 8.8, TRUE FROM items WHERE code = 'GUERRERO_WEAPON_VOLCAN';
+-- Gran Espada del Volcán (a dos manos Volcán: ATK107 → ATK264 CRIT_CHANCE3.5%)
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'GUERRERO_WEAPON2H_VOLCAN');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'ATK', 264, FALSE FROM items WHERE code = 'GUERRERO_WEAPON2H_VOLCAN';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'CRIT_CHANCE', 3.5, TRUE FROM items WHERE code = 'GUERRERO_WEAPON2H_VOLCAN';
+-- Guanteletes del Volcán (guantes Volcán: ATK32 CRIT_CHANCE3.5% → DEF13 MAGIC_DEF4 HP21)
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'GUERRERO_GLOVES_VOLCAN');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'DEF', 13, FALSE FROM items WHERE code = 'GUERRERO_GLOVES_VOLCAN';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'MAGIC_DEF', 4, FALSE FROM items WHERE code = 'GUERRERO_GLOVES_VOLCAN';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'HP', 21, FALSE FROM items WHERE code = 'GUERRERO_GLOVES_VOLCAN';
+-- Espada de Obsidiana (arma Obsidiana: ATK87 CRIT_CHANCE6.8% → ATK210 CRIT_CHANCE11.3%)
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'GUERRERO_WEAPON_OBSIDIANA');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'ATK', 210, FALSE FROM items WHERE code = 'GUERRERO_WEAPON_OBSIDIANA';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'CRIT_CHANCE', 11.3, TRUE FROM items WHERE code = 'GUERRERO_WEAPON_OBSIDIANA';
+-- Gran Espada de Obsidiana (a dos manos Obsidiana: ATK131 → ATK316 CRIT_CHANCE4.5%)
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'GUERRERO_WEAPON2H_OBSIDIANA');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'ATK', 316, FALSE FROM items WHERE code = 'GUERRERO_WEAPON2H_OBSIDIANA';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'CRIT_CHANCE', 4.5, TRUE FROM items WHERE code = 'GUERRERO_WEAPON2H_OBSIDIANA';
+-- Guanteletes de Obsidiana (guantes Obsidiana: ATK39 CRIT_CHANCE4.5% → DEF16 HP25 MAGIC_DEF5)
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'GUERRERO_GLOVES_OBSIDIANA');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'DEF', 16, FALSE FROM items WHERE code = 'GUERRERO_GLOVES_OBSIDIANA';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'HP', 25, FALSE FROM items WHERE code = 'GUERRERO_GLOVES_OBSIDIANA';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'MAGIC_DEF', 5, FALSE FROM items WHERE code = 'GUERRERO_GLOVES_OBSIDIANA';
+-- Espada de Forja Negra (arma Forja Negra: ATK99 CRIT_CHANCE8.3% CRIT_DAMAGE13% → ATK247 CRIT_CHANCE8.3% CRIT_DAMAGE15%)
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'GUERRERO_WEAPON_FORJA_NEGRA');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'ATK', 247, FALSE FROM items WHERE code = 'GUERRERO_WEAPON_FORJA_NEGRA';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'CRIT_CHANCE', 8.3, TRUE FROM items WHERE code = 'GUERRERO_WEAPON_FORJA_NEGRA';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'CRIT_DAMAGE', 15, TRUE FROM items WHERE code = 'GUERRERO_WEAPON_FORJA_NEGRA';
+-- Gran Espada de Forja Negra (a dos manos Forja Negra: ATK149 CRIT_CHANCE8.3% CRIT_DAMAGE13% DEF-28 SPD-21 → ATK372 CRIT_CHANCE8.3% CRIT_DAMAGE15% DEF-28 SPD-21)
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'GUERRERO_WEAPON2H_FORJA_NEGRA');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'ATK', 372, FALSE FROM items WHERE code = 'GUERRERO_WEAPON2H_FORJA_NEGRA';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'CRIT_CHANCE', 8.3, TRUE FROM items WHERE code = 'GUERRERO_WEAPON2H_FORJA_NEGRA';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'CRIT_DAMAGE', 15, TRUE FROM items WHERE code = 'GUERRERO_WEAPON2H_FORJA_NEGRA';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'DEF', -28, FALSE FROM items WHERE code = 'GUERRERO_WEAPON2H_FORJA_NEGRA';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'SPD', -21, FALSE FROM items WHERE code = 'GUERRERO_WEAPON2H_FORJA_NEGRA';
+-- Espada de la Caldera (arma Caldera: ATK95 CRIT_CHANCE6.8% → ATK285 CRIT_CHANCE11.3% CRIT_DAMAGE15%)
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'GUERRERO_WEAPON_CALDERA');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'ATK', 285, FALSE FROM items WHERE code = 'GUERRERO_WEAPON_CALDERA';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'CRIT_CHANCE', 11.3, TRUE FROM items WHERE code = 'GUERRERO_WEAPON_CALDERA';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'CRIT_DAMAGE', 15, TRUE FROM items WHERE code = 'GUERRERO_WEAPON_CALDERA';
+-- Gran Espada de la Caldera (a dos manos Caldera: ATK142 → ATK426 CRIT_CHANCE4.5% CRIT_DAMAGE15%)
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'GUERRERO_WEAPON2H_CALDERA');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'ATK', 426, FALSE FROM items WHERE code = 'GUERRERO_WEAPON2H_CALDERA';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'CRIT_CHANCE', 4.5, TRUE FROM items WHERE code = 'GUERRERO_WEAPON2H_CALDERA';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'CRIT_DAMAGE', 15, TRUE FROM items WHERE code = 'GUERRERO_WEAPON2H_CALDERA';
+-- Guanteletes de la Caldera (guantes Caldera: ATK43 CRIT_CHANCE4.5% → DEF17 HP27 MAGIC_DEF5)
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'GUERRERO_GLOVES_CALDERA');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'DEF', 17, FALSE FROM items WHERE code = 'GUERRERO_GLOVES_CALDERA';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'HP', 27, FALSE FROM items WHERE code = 'GUERRERO_GLOVES_CALDERA';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'MAGIC_DEF', 5, FALSE FROM items WHERE code = 'GUERRERO_GLOVES_CALDERA';
+-- Armadura de la Caldera (pecho Caldera con su extra: DEF34 HP53 MAGIC_DEF10 → DEF29 HP103 MAGIC_DEF10)
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'GUERRERO_ARMOR_CALDERA');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'DEF', 29, FALSE FROM items WHERE code = 'GUERRERO_ARMOR_CALDERA';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'HP', 103, FALSE FROM items WHERE code = 'GUERRERO_ARMOR_CALDERA';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'MAGIC_DEF', 10, FALSE FROM items WHERE code = 'GUERRERO_ARMOR_CALDERA';
+-- Espada del Titán de Fuego (arma Titán de Fuego: ATK117 CRIT_CHANCE8.3% → ATK326 CRIT_CHANCE13.8% CRIT_DAMAGE18%)
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'GUERRERO_WEAPON_TITAN_F');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'ATK', 326, FALSE FROM items WHERE code = 'GUERRERO_WEAPON_TITAN_F';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'CRIT_CHANCE', 13.8, TRUE FROM items WHERE code = 'GUERRERO_WEAPON_TITAN_F';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'CRIT_DAMAGE', 18, TRUE FROM items WHERE code = 'GUERRERO_WEAPON_TITAN_F';
+-- Gran Espada del Titán de Fuego (a dos manos Titán de Fuego: ATK175 → ATK488 CRIT_CHANCE5.5% CRIT_DAMAGE18%)
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'GUERRERO_WEAPON2H_TITAN_F');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'ATK', 488, FALSE FROM items WHERE code = 'GUERRERO_WEAPON2H_TITAN_F';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'CRIT_CHANCE', 5.5, TRUE FROM items WHERE code = 'GUERRERO_WEAPON2H_TITAN_F';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'CRIT_DAMAGE', 18, TRUE FROM items WHERE code = 'GUERRERO_WEAPON2H_TITAN_F';
+-- Guanteletes del Titán de Fuego (guantes Titán de Fuego: ATK53 CRIT_CHANCE5.5% → DEF21 HP33 MAGIC_DEF6)
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'GUERRERO_GLOVES_TITAN_F');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'DEF', 21, FALSE FROM items WHERE code = 'GUERRERO_GLOVES_TITAN_F';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'HP', 33, FALSE FROM items WHERE code = 'GUERRERO_GLOVES_TITAN_F';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'MAGIC_DEF', 6, FALSE FROM items WHERE code = 'GUERRERO_GLOVES_TITAN_F';
+-- Armadura del Titán de Fuego (pecho Titán de Fuego con su extra: DEF42 HP65 MAGIC_DEF12 → DEF36 HP125 MAGIC_DEF12)
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'GUERRERO_ARMOR_TITAN_F');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'DEF', 36, FALSE FROM items WHERE code = 'GUERRERO_ARMOR_TITAN_F';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'HP', 125, FALSE FROM items WHERE code = 'GUERRERO_ARMOR_TITAN_F';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'MAGIC_DEF', 12, FALSE FROM items WHERE code = 'GUERRERO_ARMOR_TITAN_F';
+-- Báculo Arcano del Volcán (arma Volcán: MAG71 CRIT_CHANCE5.3% → MAG178 CRIT_CHANCE8.8%)
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'MAGO_WEAPON_VOLCAN');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'MAG', 178, FALSE FROM items WHERE code = 'MAGO_WEAPON_VOLCAN';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'CRIT_CHANCE', 8.8, TRUE FROM items WHERE code = 'MAGO_WEAPON_VOLCAN';
+-- Guantes de Tela del Volcán (guantes Volcán: MAG32 CRIT_CHANCE3.5% → MAGIC_DEF13 DEF4 HP23)
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'MAGO_GLOVES_VOLCAN');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'MAGIC_DEF', 13, FALSE FROM items WHERE code = 'MAGO_GLOVES_VOLCAN';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'DEF', 4, FALSE FROM items WHERE code = 'MAGO_GLOVES_VOLCAN';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'HP', 23, FALSE FROM items WHERE code = 'MAGO_GLOVES_VOLCAN';
+-- Orbe del Volcán (orbe Volcán: MAG28 SPD24 → MAGIC_DEF10 DEF3 HP17 MANA_REGEN4% SPD24)
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'MAGO_OFFHAND_VOLCAN');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'MAGIC_DEF', 10, FALSE FROM items WHERE code = 'MAGO_OFFHAND_VOLCAN';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'DEF', 3, FALSE FROM items WHERE code = 'MAGO_OFFHAND_VOLCAN';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'HP', 17, FALSE FROM items WHERE code = 'MAGO_OFFHAND_VOLCAN';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'MANA_REGEN', 4, TRUE FROM items WHERE code = 'MAGO_OFFHAND_VOLCAN';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'SPD', 24, FALSE FROM items WHERE code = 'MAGO_OFFHAND_VOLCAN';
+-- Varita de Obsidiana (arma Obsidiana: MAG87 CRIT_CHANCE6.8% → MAG214 CRIT_CHANCE11.3%)
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'MAGO_WEAPON_OBSIDIANA');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'MAG', 214, FALSE FROM items WHERE code = 'MAGO_WEAPON_OBSIDIANA';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'CRIT_CHANCE', 11.3, TRUE FROM items WHERE code = 'MAGO_WEAPON_OBSIDIANA';
+-- Guantes de Obsidiana (guantes Obsidiana: MAG39 CRIT_CHANCE4.5% → DEF5 HP29 MAGIC_DEF16)
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'MAGO_GLOVES_OBSIDIANA');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'DEF', 5, FALSE FROM items WHERE code = 'MAGO_GLOVES_OBSIDIANA';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'HP', 29, FALSE FROM items WHERE code = 'MAGO_GLOVES_OBSIDIANA';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'MAGIC_DEF', 16, FALSE FROM items WHERE code = 'MAGO_GLOVES_OBSIDIANA';
+-- Orbe de Obsidiana (orbe Obsidiana: MAG36 SPD29 → DEF4 HP21 MAGIC_DEF11 MANA_REGEN4.5% SPD29)
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'MAGO_OFFHAND_ORB_OBSIDIANA');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'DEF', 4, FALSE FROM items WHERE code = 'MAGO_OFFHAND_ORB_OBSIDIANA';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'HP', 21, FALSE FROM items WHERE code = 'MAGO_OFFHAND_ORB_OBSIDIANA';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'MAGIC_DEF', 11, FALSE FROM items WHERE code = 'MAGO_OFFHAND_ORB_OBSIDIANA';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'MANA_REGEN', 4.5, TRUE FROM items WHERE code = 'MAGO_OFFHAND_ORB_OBSIDIANA';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'SPD', 29, FALSE FROM items WHERE code = 'MAGO_OFFHAND_ORB_OBSIDIANA';
+-- Cristal de Obsidiana (cristal Obsidiana: +8% de daño)
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'MAGO_OFFHAND_CRYSTAL_OBSIDIANA');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'MAG', 28, FALSE FROM items WHERE code = 'MAGO_OFFHAND_CRYSTAL_OBSIDIANA';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'CRIT_CHANCE', 4.5, TRUE FROM items WHERE code = 'MAGO_OFFHAND_CRYSTAL_OBSIDIANA';
+-- Báculo de Forja Negra (arma Forja Negra: MAG99 CRIT_CHANCE8.3% CRIT_DAMAGE13% → MAG252 CRIT_CHANCE8.3% CRIT_DAMAGE15%)
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'MAGO_WEAPON_FORJA_NEGRA');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'MAG', 252, FALSE FROM items WHERE code = 'MAGO_WEAPON_FORJA_NEGRA';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'CRIT_CHANCE', 8.3, TRUE FROM items WHERE code = 'MAGO_WEAPON_FORJA_NEGRA';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'CRIT_DAMAGE', 15, TRUE FROM items WHERE code = 'MAGO_WEAPON_FORJA_NEGRA';
+-- Varita de la Caldera (arma Caldera: MAG95 CRIT_CHANCE6.8% → MAG290 CRIT_CHANCE11.3% CRIT_DAMAGE15%)
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'MAGO_WEAPON_CALDERA');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'MAG', 290, FALSE FROM items WHERE code = 'MAGO_WEAPON_CALDERA';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'CRIT_CHANCE', 11.3, TRUE FROM items WHERE code = 'MAGO_WEAPON_CALDERA';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'CRIT_DAMAGE', 15, TRUE FROM items WHERE code = 'MAGO_WEAPON_CALDERA';
+-- Guantes de la Caldera (guantes Caldera: MAG43 CRIT_CHANCE4.5% → DEF5 HP31 MAGIC_DEF17)
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'MAGO_GLOVES_CALDERA');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'DEF', 5, FALSE FROM items WHERE code = 'MAGO_GLOVES_CALDERA';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'HP', 31, FALSE FROM items WHERE code = 'MAGO_GLOVES_CALDERA';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'MAGIC_DEF', 17, FALSE FROM items WHERE code = 'MAGO_GLOVES_CALDERA';
+-- Orbe de la Caldera (orbe Caldera: MAG39 SPD31 → DEF4 HP23 MAGIC_DEF12 MANA_REGEN5% SPD31)
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'MAGO_OFFHAND_ORB_CALDERA');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'DEF', 4, FALSE FROM items WHERE code = 'MAGO_OFFHAND_ORB_CALDERA';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'HP', 23, FALSE FROM items WHERE code = 'MAGO_OFFHAND_ORB_CALDERA';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'MAGIC_DEF', 12, FALSE FROM items WHERE code = 'MAGO_OFFHAND_ORB_CALDERA';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'MANA_REGEN', 5, TRUE FROM items WHERE code = 'MAGO_OFFHAND_ORB_CALDERA';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'SPD', 31, FALSE FROM items WHERE code = 'MAGO_OFFHAND_ORB_CALDERA';
+-- Cristal de la Caldera (cristal Caldera: +8% de daño)
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'MAGO_OFFHAND_CRYSTAL_CALDERA');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'MAG', 30, FALSE FROM items WHERE code = 'MAGO_OFFHAND_CRYSTAL_CALDERA';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'CRIT_CHANCE', 4.5, TRUE FROM items WHERE code = 'MAGO_OFFHAND_CRYSTAL_CALDERA';
+-- Túnica de la Caldera (pecho Caldera con su extra: DEF10 HP62 MAGIC_DEF34 → DEF9 HP56 MAGIC_DEF31 HP_REGEN3%)
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'MAGO_ARMOR_CALDERA');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'DEF', 9, FALSE FROM items WHERE code = 'MAGO_ARMOR_CALDERA';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'HP', 56, FALSE FROM items WHERE code = 'MAGO_ARMOR_CALDERA';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'MAGIC_DEF', 31, FALSE FROM items WHERE code = 'MAGO_ARMOR_CALDERA';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'HP_REGEN', 3, TRUE FROM items WHERE code = 'MAGO_ARMOR_CALDERA';
+-- Varita del Titán de Fuego (arma Titán de Fuego: MAG117 CRIT_CHANCE8.3% → MAG333 CRIT_CHANCE13.8% CRIT_DAMAGE18%)
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'MAGO_WEAPON_TITAN_F');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'MAG', 333, FALSE FROM items WHERE code = 'MAGO_WEAPON_TITAN_F';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'CRIT_CHANCE', 13.8, TRUE FROM items WHERE code = 'MAGO_WEAPON_TITAN_F';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'CRIT_DAMAGE', 18, TRUE FROM items WHERE code = 'MAGO_WEAPON_TITAN_F';
+-- Guantes del Titán de Fuego (guantes Titán de Fuego: MAG53 CRIT_CHANCE5.5% → DEF7 HP38 MAGIC_DEF21)
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'MAGO_GLOVES_TITAN_F');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'DEF', 7, FALSE FROM items WHERE code = 'MAGO_GLOVES_TITAN_F';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'HP', 38, FALSE FROM items WHERE code = 'MAGO_GLOVES_TITAN_F';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'MAGIC_DEF', 21, FALSE FROM items WHERE code = 'MAGO_GLOVES_TITAN_F';
+-- Orbe del Titán de Fuego (orbe Titán de Fuego: MAG48 SPD39 → DEF5 HP28 MAGIC_DEF15 MANA_REGEN5.5% SPD39)
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'MAGO_OFFHAND_ORB_TITAN_F');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'DEF', 5, FALSE FROM items WHERE code = 'MAGO_OFFHAND_ORB_TITAN_F';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'HP', 28, FALSE FROM items WHERE code = 'MAGO_OFFHAND_ORB_TITAN_F';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'MAGIC_DEF', 15, FALSE FROM items WHERE code = 'MAGO_OFFHAND_ORB_TITAN_F';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'MANA_REGEN', 5.5, TRUE FROM items WHERE code = 'MAGO_OFFHAND_ORB_TITAN_F';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'SPD', 39, FALSE FROM items WHERE code = 'MAGO_OFFHAND_ORB_TITAN_F';
+-- Cristal del Titán de Fuego (cristal Titán de Fuego: +8% de daño)
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'MAGO_OFFHAND_CRYSTAL_TITAN_F');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'MAG', 30, FALSE FROM items WHERE code = 'MAGO_OFFHAND_CRYSTAL_TITAN_F';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'CRIT_CHANCE', 5.5, TRUE FROM items WHERE code = 'MAGO_OFFHAND_CRYSTAL_TITAN_F';
+-- Túnica del Titán de Fuego (pecho Titán de Fuego con su extra: DEF13 HP76 MAGIC_DEF42 → DEF12 HP68 MAGIC_DEF38 HP_REGEN3.5%)
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'MAGO_ARMOR_TITAN_F');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'DEF', 12, FALSE FROM items WHERE code = 'MAGO_ARMOR_TITAN_F';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'HP', 68, FALSE FROM items WHERE code = 'MAGO_ARMOR_TITAN_F';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'MAGIC_DEF', 38, FALSE FROM items WHERE code = 'MAGO_ARMOR_TITAN_F';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'HP_REGEN', 3.5, TRUE FROM items WHERE code = 'MAGO_ARMOR_TITAN_F';
+-- Carcaj del Volcán (carcaj Volcán: ATK22 SPD24 → ATK20 CRIT_DAMAGE9% SPD24)
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'ARQUERO_OFFHAND_VOLCAN');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'ATK', 20, FALSE FROM items WHERE code = 'ARQUERO_OFFHAND_VOLCAN';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'CRIT_DAMAGE', 9, TRUE FROM items WHERE code = 'ARQUERO_OFFHAND_VOLCAN';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'SPD', 24, FALSE FROM items WHERE code = 'ARQUERO_OFFHAND_VOLCAN';
+-- Arco del Volcán (arma Volcán: ATK71 CRIT_CHANCE5.3% → ATK162 CRIT_CHANCE8.8%)
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'ARQUERO_WEAPON_VOLCAN');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'ATK', 162, FALSE FROM items WHERE code = 'ARQUERO_WEAPON_VOLCAN';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'CRIT_CHANCE', 8.8, TRUE FROM items WHERE code = 'ARQUERO_WEAPON_VOLCAN';
+-- Guantes del Volcán (guantes Volcán: ATK32 CRIT_CHANCE3.5% → DEF13 MAGIC_DEF4 HP23)
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'ARQUERO_GLOVES_VOLCAN');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'DEF', 13, FALSE FROM items WHERE code = 'ARQUERO_GLOVES_VOLCAN';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'MAGIC_DEF', 4, FALSE FROM items WHERE code = 'ARQUERO_GLOVES_VOLCAN';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'HP', 23, FALSE FROM items WHERE code = 'ARQUERO_GLOVES_VOLCAN';
+-- Carcaj de Obsidiana (carcaj Obsidiana: ATK29 SPD29 → ATK24 CRIT_DAMAGE11% SPD29)
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'ARQUERO_OFFHAND_OBSIDIANA');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'ATK', 24, FALSE FROM items WHERE code = 'ARQUERO_OFFHAND_OBSIDIANA';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'CRIT_DAMAGE', 11, TRUE FROM items WHERE code = 'ARQUERO_OFFHAND_OBSIDIANA';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'SPD', 29, FALSE FROM items WHERE code = 'ARQUERO_OFFHAND_OBSIDIANA';
+-- Arco de Obsidiana (arma Obsidiana: ATK87 CRIT_CHANCE6.8% → ATK189 CRIT_CHANCE11.3%)
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'ARQUERO_WEAPON_OBSIDIANA');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'ATK', 189, FALSE FROM items WHERE code = 'ARQUERO_WEAPON_OBSIDIANA';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'CRIT_CHANCE', 11.3, TRUE FROM items WHERE code = 'ARQUERO_WEAPON_OBSIDIANA';
+-- Guantes de Obsidiana (guantes Obsidiana: ATK39 CRIT_CHANCE4.5% → DEF16 HP28 MAGIC_DEF5)
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'ARQUERO_GLOVES_OBSIDIANA');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'DEF', 16, FALSE FROM items WHERE code = 'ARQUERO_GLOVES_OBSIDIANA';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'HP', 28, FALSE FROM items WHERE code = 'ARQUERO_GLOVES_OBSIDIANA';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'MAGIC_DEF', 5, FALSE FROM items WHERE code = 'ARQUERO_GLOVES_OBSIDIANA';
+-- Arco de Forja Negra (arma Forja Negra: ATK99 CRIT_CHANCE8.3% CRIT_DAMAGE13% → ATK217 CRIT_CHANCE8.3% CRIT_DAMAGE15%)
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'ARQUERO_WEAPON_FORJA_NEGRA');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'ATK', 217, FALSE FROM items WHERE code = 'ARQUERO_WEAPON_FORJA_NEGRA';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'CRIT_CHANCE', 8.3, TRUE FROM items WHERE code = 'ARQUERO_WEAPON_FORJA_NEGRA';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'CRIT_DAMAGE', 15, TRUE FROM items WHERE code = 'ARQUERO_WEAPON_FORJA_NEGRA';
+-- Carcaj de la Caldera (carcaj Caldera: ATK31 SPD31 → ATK26 CRIT_DAMAGE11% SPD31)
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'ARQUERO_OFFHAND_CALDERA');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'ATK', 26, FALSE FROM items WHERE code = 'ARQUERO_OFFHAND_CALDERA';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'CRIT_DAMAGE', 11, TRUE FROM items WHERE code = 'ARQUERO_OFFHAND_CALDERA';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'SPD', 31, FALSE FROM items WHERE code = 'ARQUERO_OFFHAND_CALDERA';
+-- Arco de la Caldera (arma Caldera: ATK95 CRIT_CHANCE6.8% → ATK250 CRIT_CHANCE11.3% CRIT_DAMAGE15%)
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'ARQUERO_WEAPON_CALDERA');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'ATK', 250, FALSE FROM items WHERE code = 'ARQUERO_WEAPON_CALDERA';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'CRIT_CHANCE', 11.3, TRUE FROM items WHERE code = 'ARQUERO_WEAPON_CALDERA';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'CRIT_DAMAGE', 15, TRUE FROM items WHERE code = 'ARQUERO_WEAPON_CALDERA';
+-- Guantes de la Caldera (guantes Caldera: ATK43 CRIT_CHANCE4.5% → DEF17 HP30 MAGIC_DEF5)
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'ARQUERO_GLOVES_CALDERA');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'DEF', 17, FALSE FROM items WHERE code = 'ARQUERO_GLOVES_CALDERA';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'HP', 30, FALSE FROM items WHERE code = 'ARQUERO_GLOVES_CALDERA';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'MAGIC_DEF', 5, FALSE FROM items WHERE code = 'ARQUERO_GLOVES_CALDERA';
+-- Gabán de la Caldera (pecho Caldera con su extra: DEF34 HP60 MAGIC_DEF10 → DEF31 HP54 MAGIC_DEF9 EVASION4%)
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'ARQUERO_ARMOR_CALDERA');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'DEF', 31, FALSE FROM items WHERE code = 'ARQUERO_ARMOR_CALDERA';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'HP', 54, FALSE FROM items WHERE code = 'ARQUERO_ARMOR_CALDERA';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'MAGIC_DEF', 9, FALSE FROM items WHERE code = 'ARQUERO_ARMOR_CALDERA';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'EVASION', 4, TRUE FROM items WHERE code = 'ARQUERO_ARMOR_CALDERA';
+-- Carcaj del Titán de Fuego (carcaj Titán de Fuego: ATK39 SPD39 → ATK32 CRIT_DAMAGE13% SPD39)
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'ARQUERO_OFFHAND_TITAN_F');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'ATK', 32, FALSE FROM items WHERE code = 'ARQUERO_OFFHAND_TITAN_F';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'CRIT_DAMAGE', 13, TRUE FROM items WHERE code = 'ARQUERO_OFFHAND_TITAN_F';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'SPD', 39, FALSE FROM items WHERE code = 'ARQUERO_OFFHAND_TITAN_F';
+-- Arco del Titán de Fuego (arma Titán de Fuego: ATK117 CRIT_CHANCE8.3% → ATK277 CRIT_CHANCE13.8% CRIT_DAMAGE18%)
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'ARQUERO_WEAPON_TITAN_F');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'ATK', 277, FALSE FROM items WHERE code = 'ARQUERO_WEAPON_TITAN_F';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'CRIT_CHANCE', 13.8, TRUE FROM items WHERE code = 'ARQUERO_WEAPON_TITAN_F';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'CRIT_DAMAGE', 18, TRUE FROM items WHERE code = 'ARQUERO_WEAPON_TITAN_F';
+-- Guantes del Titán de Fuego (guantes Titán de Fuego: ATK53 CRIT_CHANCE5.5% → DEF21 HP37 MAGIC_DEF7)
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'ARQUERO_GLOVES_TITAN_F');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'DEF', 21, FALSE FROM items WHERE code = 'ARQUERO_GLOVES_TITAN_F';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'HP', 37, FALSE FROM items WHERE code = 'ARQUERO_GLOVES_TITAN_F';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'MAGIC_DEF', 7, FALSE FROM items WHERE code = 'ARQUERO_GLOVES_TITAN_F';
+-- Gabán del Titán de Fuego (pecho Titán de Fuego con su extra: DEF42 HP74 MAGIC_DEF13 → DEF38 HP67 MAGIC_DEF12 EVASION4.5%)
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'ARQUERO_ARMOR_TITAN_F');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'DEF', 38, FALSE FROM items WHERE code = 'ARQUERO_ARMOR_TITAN_F';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'HP', 67, FALSE FROM items WHERE code = 'ARQUERO_ARMOR_TITAN_F';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'MAGIC_DEF', 12, FALSE FROM items WHERE code = 'ARQUERO_ARMOR_TITAN_F';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'EVASION', 4.5, TRUE FROM items WHERE code = 'ARQUERO_ARMOR_TITAN_F';
+-- Daga Gemela del Volcán (daga gemela Volcán: ATK22 SPD24 → ATK20 CRIT_CHANCE3.5% EVASION2% SPD24)
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'PICARO_OFFHAND_VOLCAN');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'ATK', 20, FALSE FROM items WHERE code = 'PICARO_OFFHAND_VOLCAN';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'CRIT_CHANCE', 3.5, TRUE FROM items WHERE code = 'PICARO_OFFHAND_VOLCAN';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'EVASION', 2, TRUE FROM items WHERE code = 'PICARO_OFFHAND_VOLCAN';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'SPD', 24, FALSE FROM items WHERE code = 'PICARO_OFFHAND_VOLCAN';
+-- Daga del Volcán (arma Volcán: ATK71 CRIT_CHANCE5.3% → ATK171 CRIT_CHANCE8.8%)
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'PICARO_WEAPON_VOLCAN');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'ATK', 171, FALSE FROM items WHERE code = 'PICARO_WEAPON_VOLCAN';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'CRIT_CHANCE', 8.8, TRUE FROM items WHERE code = 'PICARO_WEAPON_VOLCAN';
+-- Guantes del Volcán (guantes Volcán: ATK32 CRIT_CHANCE3.5% → DEF13 MAGIC_DEF4 HP25)
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'PICARO_GLOVES_VOLCAN');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'DEF', 13, FALSE FROM items WHERE code = 'PICARO_GLOVES_VOLCAN';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'MAGIC_DEF', 4, FALSE FROM items WHERE code = 'PICARO_GLOVES_VOLCAN';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'HP', 25, FALSE FROM items WHERE code = 'PICARO_GLOVES_VOLCAN';
+-- Daga Gemela de Obsidiana (daga gemela Obsidiana: ATK29 SPD29 → ATK24 CRIT_CHANCE4.5% EVASION2.5% SPD29)
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'PICARO_OFFHAND_OBSIDIANA');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'ATK', 24, FALSE FROM items WHERE code = 'PICARO_OFFHAND_OBSIDIANA';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'CRIT_CHANCE', 4.5, TRUE FROM items WHERE code = 'PICARO_OFFHAND_OBSIDIANA';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'EVASION', 2.5, TRUE FROM items WHERE code = 'PICARO_OFFHAND_OBSIDIANA';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'SPD', 29, FALSE FROM items WHERE code = 'PICARO_OFFHAND_OBSIDIANA';
+-- Daga de Obsidiana (arma Obsidiana: ATK87 CRIT_CHANCE6.8% → ATK201 CRIT_CHANCE11.3%)
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'PICARO_WEAPON_OBSIDIANA');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'ATK', 201, FALSE FROM items WHERE code = 'PICARO_WEAPON_OBSIDIANA';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'CRIT_CHANCE', 11.3, TRUE FROM items WHERE code = 'PICARO_WEAPON_OBSIDIANA';
+-- Guantes de Obsidiana (guantes Obsidiana: ATK39 CRIT_CHANCE4.5% → DEF16 HP30 MAGIC_DEF5)
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'PICARO_GLOVES_OBSIDIANA');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'DEF', 16, FALSE FROM items WHERE code = 'PICARO_GLOVES_OBSIDIANA';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'HP', 30, FALSE FROM items WHERE code = 'PICARO_GLOVES_OBSIDIANA';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'MAGIC_DEF', 5, FALSE FROM items WHERE code = 'PICARO_GLOVES_OBSIDIANA';
+-- Daga de Forja Negra (arma Forja Negra: ATK99 CRIT_CHANCE8.3% CRIT_DAMAGE13% → ATK221 CRIT_CHANCE8.3% CRIT_DAMAGE15%)
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'PICARO_WEAPON_FORJA_NEGRA');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'ATK', 221, FALSE FROM items WHERE code = 'PICARO_WEAPON_FORJA_NEGRA';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'CRIT_CHANCE', 8.3, TRUE FROM items WHERE code = 'PICARO_WEAPON_FORJA_NEGRA';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'CRIT_DAMAGE', 15, TRUE FROM items WHERE code = 'PICARO_WEAPON_FORJA_NEGRA';
+-- Daga Gemela de la Caldera (daga gemela Caldera: ATK31 SPD31 → ATK26 CRIT_CHANCE4.5% EVASION2.5% SPD31)
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'PICARO_OFFHAND_CALDERA');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'ATK', 26, FALSE FROM items WHERE code = 'PICARO_OFFHAND_CALDERA';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'CRIT_CHANCE', 4.5, TRUE FROM items WHERE code = 'PICARO_OFFHAND_CALDERA';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'EVASION', 2.5, TRUE FROM items WHERE code = 'PICARO_OFFHAND_CALDERA';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'SPD', 31, FALSE FROM items WHERE code = 'PICARO_OFFHAND_CALDERA';
+-- Daga de la Caldera (arma Caldera: ATK95 CRIT_CHANCE6.8% → ATK257 CRIT_CHANCE11.3% CRIT_DAMAGE15%)
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'PICARO_WEAPON_CALDERA');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'ATK', 257, FALSE FROM items WHERE code = 'PICARO_WEAPON_CALDERA';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'CRIT_CHANCE', 11.3, TRUE FROM items WHERE code = 'PICARO_WEAPON_CALDERA';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'CRIT_DAMAGE', 15, TRUE FROM items WHERE code = 'PICARO_WEAPON_CALDERA';
+-- Guantes de la Caldera (guantes Caldera: ATK43 CRIT_CHANCE4.5% → DEF17 HP33 MAGIC_DEF5)
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'PICARO_GLOVES_CALDERA');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'DEF', 17, FALSE FROM items WHERE code = 'PICARO_GLOVES_CALDERA';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'HP', 33, FALSE FROM items WHERE code = 'PICARO_GLOVES_CALDERA';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'MAGIC_DEF', 5, FALSE FROM items WHERE code = 'PICARO_GLOVES_CALDERA';
+-- Cuero de la Caldera (pecho Caldera con su extra: DEF34 HP66 MAGIC_DEF10 → DEF31 HP59 MAGIC_DEF9 EVASION4%)
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'PICARO_ARMOR_CALDERA');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'DEF', 31, FALSE FROM items WHERE code = 'PICARO_ARMOR_CALDERA';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'HP', 59, FALSE FROM items WHERE code = 'PICARO_ARMOR_CALDERA';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'MAGIC_DEF', 9, FALSE FROM items WHERE code = 'PICARO_ARMOR_CALDERA';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'EVASION', 4, TRUE FROM items WHERE code = 'PICARO_ARMOR_CALDERA';
+-- Daga Gemela del Titán de Fuego (daga gemela Titán de Fuego: ATK39 SPD39 → ATK32 CRIT_CHANCE5.5% EVASION3% SPD39)
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'PICARO_OFFHAND_TITAN_F');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'ATK', 32, FALSE FROM items WHERE code = 'PICARO_OFFHAND_TITAN_F';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'CRIT_CHANCE', 5.5, TRUE FROM items WHERE code = 'PICARO_OFFHAND_TITAN_F';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'EVASION', 3, TRUE FROM items WHERE code = 'PICARO_OFFHAND_TITAN_F';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'SPD', 39, FALSE FROM items WHERE code = 'PICARO_OFFHAND_TITAN_F';
+-- Daga del Titán de Fuego (arma Titán de Fuego: ATK117 CRIT_CHANCE8.3% → ATK285 CRIT_CHANCE13.8% CRIT_DAMAGE18%)
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'PICARO_WEAPON_TITAN_F');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'ATK', 285, FALSE FROM items WHERE code = 'PICARO_WEAPON_TITAN_F';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'CRIT_CHANCE', 13.8, TRUE FROM items WHERE code = 'PICARO_WEAPON_TITAN_F';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'CRIT_DAMAGE', 18, TRUE FROM items WHERE code = 'PICARO_WEAPON_TITAN_F';
+-- Guantes del Titán de Fuego (guantes Titán de Fuego: ATK53 CRIT_CHANCE5.5% → DEF21 HP41 MAGIC_DEF6)
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'PICARO_GLOVES_TITAN_F');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'DEF', 21, FALSE FROM items WHERE code = 'PICARO_GLOVES_TITAN_F';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'HP', 41, FALSE FROM items WHERE code = 'PICARO_GLOVES_TITAN_F';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'MAGIC_DEF', 6, FALSE FROM items WHERE code = 'PICARO_GLOVES_TITAN_F';
+-- Cuero del Titán de Fuego (pecho Titán de Fuego con su extra: DEF42 HP81 MAGIC_DEF12 → DEF38 HP73 MAGIC_DEF11 EVASION4.5%)
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'PICARO_ARMOR_TITAN_F');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'DEF', 38, FALSE FROM items WHERE code = 'PICARO_ARMOR_TITAN_F';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'HP', 73, FALSE FROM items WHERE code = 'PICARO_ARMOR_TITAN_F';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'MAGIC_DEF', 11, FALSE FROM items WHERE code = 'PICARO_ARMOR_TITAN_F';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'EVASION', 4.5, TRUE FROM items WHERE code = 'PICARO_ARMOR_TITAN_F';
+-- Báculo Sagrado del Volcán (arma Volcán: MAG71 CRIT_CHANCE5.3% → MAG166 CRIT_CHANCE8.8%)
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'SACERDOTE_WEAPON_VOLCAN');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'MAG', 166, FALSE FROM items WHERE code = 'SACERDOTE_WEAPON_VOLCAN';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'CRIT_CHANCE', 8.8, TRUE FROM items WHERE code = 'SACERDOTE_WEAPON_VOLCAN';
+-- Guantes Bendecidos del Volcán (guantes Volcán: MAG32 CRIT_CHANCE3.5% → MAGIC_DEF13 DEF4 HP21)
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'SACERDOTE_GLOVES_VOLCAN');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'MAGIC_DEF', 13, FALSE FROM items WHERE code = 'SACERDOTE_GLOVES_VOLCAN';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'DEF', 4, FALSE FROM items WHERE code = 'SACERDOTE_GLOVES_VOLCAN';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'HP', 21, FALSE FROM items WHERE code = 'SACERDOTE_GLOVES_VOLCAN';
+-- Símbolo Sagrado del Volcán (símbolo Volcán: MAGIC_DEF16 HP21 → MAGIC_DEF14 HP18 HEALING4%)
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'SACERDOTE_OFFHAND_VOLCAN');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'MAGIC_DEF', 14, FALSE FROM items WHERE code = 'SACERDOTE_OFFHAND_VOLCAN';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'HP', 18, FALSE FROM items WHERE code = 'SACERDOTE_OFFHAND_VOLCAN';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'HEALING', 4, TRUE FROM items WHERE code = 'SACERDOTE_OFFHAND_VOLCAN';
+-- Báculo de Obsidiana (arma Obsidiana: MAG87 CRIT_CHANCE6.8% → MAG197 CRIT_CHANCE11.3%)
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'SACERDOTE_WEAPON_OBSIDIANA');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'MAG', 197, FALSE FROM items WHERE code = 'SACERDOTE_WEAPON_OBSIDIANA';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'CRIT_CHANCE', 11.3, TRUE FROM items WHERE code = 'SACERDOTE_WEAPON_OBSIDIANA';
+-- Guantes de Obsidiana (guantes Obsidiana: MAG39 CRIT_CHANCE4.5% → DEF5 HP26 MAGIC_DEF16)
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'SACERDOTE_GLOVES_OBSIDIANA');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'DEF', 5, FALSE FROM items WHERE code = 'SACERDOTE_GLOVES_OBSIDIANA';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'HP', 26, FALSE FROM items WHERE code = 'SACERDOTE_GLOVES_OBSIDIANA';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'MAGIC_DEF', 16, FALSE FROM items WHERE code = 'SACERDOTE_GLOVES_OBSIDIANA';
+-- Símbolo de Obsidiana (símbolo Obsidiana: HP25 MAGIC_DEF19 → HP21 MAGIC_DEF16 HEALING4.5%)
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'SACERDOTE_OFFHAND_OBSIDIANA');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'HP', 21, FALSE FROM items WHERE code = 'SACERDOTE_OFFHAND_OBSIDIANA';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'MAGIC_DEF', 16, FALSE FROM items WHERE code = 'SACERDOTE_OFFHAND_OBSIDIANA';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'HEALING', 4.5, TRUE FROM items WHERE code = 'SACERDOTE_OFFHAND_OBSIDIANA';
+-- Báculo Sagrado de Forja Negra (arma Forja Negra: MAG99 CRIT_CHANCE8.3% CRIT_DAMAGE13% → MAG231 CRIT_CHANCE8.3% CRIT_DAMAGE15%)
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'SACERDOTE_WEAPON_FORJA_NEGRA');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'MAG', 231, FALSE FROM items WHERE code = 'SACERDOTE_WEAPON_FORJA_NEGRA';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'CRIT_CHANCE', 8.3, TRUE FROM items WHERE code = 'SACERDOTE_WEAPON_FORJA_NEGRA';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'CRIT_DAMAGE', 15, TRUE FROM items WHERE code = 'SACERDOTE_WEAPON_FORJA_NEGRA';
+-- Báculo de la Caldera (arma Caldera: MAG95 CRIT_CHANCE6.8% → MAG266 CRIT_CHANCE11.3% CRIT_DAMAGE15%)
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'SACERDOTE_WEAPON_CALDERA');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'MAG', 266, FALSE FROM items WHERE code = 'SACERDOTE_WEAPON_CALDERA';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'CRIT_CHANCE', 11.3, TRUE FROM items WHERE code = 'SACERDOTE_WEAPON_CALDERA';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'CRIT_DAMAGE', 15, TRUE FROM items WHERE code = 'SACERDOTE_WEAPON_CALDERA';
+-- Guantes de la Caldera (guantes Caldera: MAG43 CRIT_CHANCE4.5% → DEF6 HP28 MAGIC_DEF17)
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'SACERDOTE_GLOVES_CALDERA');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'DEF', 6, FALSE FROM items WHERE code = 'SACERDOTE_GLOVES_CALDERA';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'HP', 28, FALSE FROM items WHERE code = 'SACERDOTE_GLOVES_CALDERA';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'MAGIC_DEF', 17, FALSE FROM items WHERE code = 'SACERDOTE_GLOVES_CALDERA';
+-- Símbolo de la Caldera (símbolo Caldera: HP28 MAGIC_DEF21 → HP24 MAGIC_DEF18 HEALING5%)
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'SACERDOTE_OFFHAND_CALDERA');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'HP', 24, FALSE FROM items WHERE code = 'SACERDOTE_OFFHAND_CALDERA';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'MAGIC_DEF', 18, FALSE FROM items WHERE code = 'SACERDOTE_OFFHAND_CALDERA';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'HEALING', 5, TRUE FROM items WHERE code = 'SACERDOTE_OFFHAND_CALDERA';
+-- Vestidura de la Caldera (pecho Caldera con su extra: DEF11 HP55 MAGIC_DEF34 → DEF10 HP50 MAGIC_DEF31 HEALING8%)
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'SACERDOTE_ARMOR_CALDERA');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'DEF', 10, FALSE FROM items WHERE code = 'SACERDOTE_ARMOR_CALDERA';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'HP', 50, FALSE FROM items WHERE code = 'SACERDOTE_ARMOR_CALDERA';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'MAGIC_DEF', 31, FALSE FROM items WHERE code = 'SACERDOTE_ARMOR_CALDERA';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'HEALING', 8, TRUE FROM items WHERE code = 'SACERDOTE_ARMOR_CALDERA';
+-- Báculo del Titán de Fuego (arma Titán de Fuego: MAG117 CRIT_CHANCE8.3% → MAG303 CRIT_CHANCE13.8% CRIT_DAMAGE18%)
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'SACERDOTE_WEAPON_TITAN_F');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'MAG', 303, FALSE FROM items WHERE code = 'SACERDOTE_WEAPON_TITAN_F';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'CRIT_CHANCE', 13.8, TRUE FROM items WHERE code = 'SACERDOTE_WEAPON_TITAN_F';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'CRIT_DAMAGE', 18, TRUE FROM items WHERE code = 'SACERDOTE_WEAPON_TITAN_F';
+-- Guantes del Titán de Fuego (guantes Titán de Fuego: MAG53 CRIT_CHANCE5.5% → DEF7 HP34 MAGIC_DEF21)
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'SACERDOTE_GLOVES_TITAN_F');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'DEF', 7, FALSE FROM items WHERE code = 'SACERDOTE_GLOVES_TITAN_F';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'HP', 34, FALSE FROM items WHERE code = 'SACERDOTE_GLOVES_TITAN_F';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'MAGIC_DEF', 21, FALSE FROM items WHERE code = 'SACERDOTE_GLOVES_TITAN_F';
+-- Símbolo del Titán de Fuego (símbolo Titán de Fuego: HP34 MAGIC_DEF26 → HP29 MAGIC_DEF22 HEALING5.5%)
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'SACERDOTE_OFFHAND_TITAN_F');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'HP', 29, FALSE FROM items WHERE code = 'SACERDOTE_OFFHAND_TITAN_F';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'MAGIC_DEF', 22, FALSE FROM items WHERE code = 'SACERDOTE_OFFHAND_TITAN_F';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'HEALING', 5.5, TRUE FROM items WHERE code = 'SACERDOTE_OFFHAND_TITAN_F';
+-- Vestidura del Titán de Fuego (pecho Titán de Fuego con su extra: DEF13 HP68 MAGIC_DEF42 → DEF12 HP61 MAGIC_DEF38 HEALING9%)
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'SACERDOTE_ARMOR_TITAN_F');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'DEF', 12, FALSE FROM items WHERE code = 'SACERDOTE_ARMOR_TITAN_F';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'HP', 61, FALSE FROM items WHERE code = 'SACERDOTE_ARMOR_TITAN_F';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'MAGIC_DEF', 38, FALSE FROM items WHERE code = 'SACERDOTE_ARMOR_TITAN_F';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'HEALING', 9, TRUE FROM items WHERE code = 'SACERDOTE_ARMOR_TITAN_F';
+
+
+-- ============================================================================================
+-- Comidas del Volcán Rojo (repetible; sin ON CONFLICT). La Salamandra Roja suelta su cola (le
+-- vuelve a crecer) y Tuli, la parrillera de Ascuaria, la asa con flor de ceniza; además un chile de
+-- azufre, un estofado de draco y dos bebidas de alquimia. Todas dejan "bien alimentado" (lib/comida.js).
+-- ============================================================================================
+INSERT INTO items (code, name, item_type, rarity, obtain_method, description)
+SELECT 'CARNE_SALAMANDRA', 'Cola de Salamandra', 'MATERIAL', 'COMUN', 'Drop de monstruo', 'La cola que suelta una Salamandra Roja cuando se asusta (le vuelve a crecer). Asada con flor de ceniza es el plato típico de Ascuaria.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'CARNE_SALAMANDRA');
+UPDATE items SET name = 'Cola de Salamandra', item_type = 'MATERIAL', rarity = 'COMUN', obtain_method = 'Drop de monstruo', description = 'La cola que suelta una Salamandra Roja cuando se asusta (le vuelve a crecer). Asada con flor de ceniza es el plato típico de Ascuaria.' WHERE code = 'CARNE_SALAMANDRA';
+-- la cola: la salamandra la suelta además de su escama
+DELETE FROM monster_drops WHERE item_id IN (SELECT id FROM items WHERE code IN ('CARNE_SALAMANDRA'));
+INSERT INTO monster_drops (monster_id, item_id, drop_chance_percent, min_quantity, max_quantity)
+SELECT m.id, i.id, v.pct, v.mn, v.mx FROM (VALUES ('SALAMANDRA_ROJA', 'CARNE_SALAMANDRA', 35, 1, 2)) AS v(mon, item, pct, mn, mx)
+JOIN monsters m ON m.code = v.mon JOIN items i ON i.code = v.item;
+
+-- Asado de Salamandra
+INSERT INTO items (code, name, item_type, rarity, required_level, is_craftable, obtain_method, description)
+SELECT 'ASADO_SALAMANDRA', 'Asado de Salamandra', 'CONSUMABLE', 'POCO_COMUN', 32, TRUE, 'Crafteo', 'Cura 180 de vida y da +12% de ataque. La especialidad de Tuli: crujiente por fuera, ardiente por dentro. Tomada fuera de combate te deja bien alimentado 20 minutos: tus combates empiezan con ese bonus.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'ASADO_SALAMANDRA');
+UPDATE items SET name = 'Asado de Salamandra', item_type = 'CONSUMABLE', rarity = 'POCO_COMUN', required_level = 32, is_craftable = TRUE, obtain_method = 'Crafteo', description = 'Cura 180 de vida y da +12% de ataque. La especialidad de Tuli: crujiente por fuera, ardiente por dentro. Tomada fuera de combate te deja bien alimentado 20 minutos: tus combates empiezan con ese bonus.' WHERE code = 'ASADO_SALAMANDRA';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'ASADO_SALAMANDRA');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent, description)
+SELECT (SELECT id FROM items WHERE code = 'ASADO_SALAMANDRA'), v.* FROM (VALUES ('HEAL_HP', 180, FALSE, 'Restaura 180 HP'), ('BUFF_ATK', 12, TRUE, '+12% de ataque durante el combate')) AS v(stat_code, amount, is_percent, description);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station)
+SELECT 'RECETA_ASADO_SALAMANDRA', (SELECT id FROM items WHERE code = 'ASADO_SALAMANDRA'), 1, 'POCO_COMUN', 32, 95, 1, 'Tuli, la parrillera de Ascuaria', 3, NULL WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECETA_ASADO_SALAMANDRA');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'ASADO_SALAMANDRA'), result_quantity = 1, rarity = 'POCO_COMUN', required_level = 32, success_rate_percent = 95, craft_time_minutes = 1, artisan_name = 'Tuli, la parrillera de Ascuaria', zone_id = 3, station = NULL WHERE code = 'RECETA_ASADO_SALAMANDRA';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECETA_ASADO_SALAMANDRA');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECETA_ASADO_SALAMANDRA'), i.id, v.n FROM (VALUES ('CARNE_SALAMANDRA', 3), ('FLOR_DE_CENIZA', 1)) AS v(code, n) JOIN items i ON i.code = v.code;
+
+-- Té de Flor de Ceniza
+INSERT INTO items (code, name, item_type, rarity, required_level, is_craftable, obtain_method, description)
+SELECT 'TE_FLOR_CENIZA', 'Té de Flor de Ceniza', 'CONSUMABLE', 'POCO_COMUN', 33, TRUE, 'Crafteo', 'Devuelve 110 de maná y da +12% de inteligencia. Sabe a fogata, pero despeja la cabeza. Tomada fuera de combate te deja bien alimentado 20 minutos: tus combates empiezan con ese bonus.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'TE_FLOR_CENIZA');
+UPDATE items SET name = 'Té de Flor de Ceniza', item_type = 'CONSUMABLE', rarity = 'POCO_COMUN', required_level = 33, is_craftable = TRUE, obtain_method = 'Crafteo', description = 'Devuelve 110 de maná y da +12% de inteligencia. Sabe a fogata, pero despeja la cabeza. Tomada fuera de combate te deja bien alimentado 20 minutos: tus combates empiezan con ese bonus.' WHERE code = 'TE_FLOR_CENIZA';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'TE_FLOR_CENIZA');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent, description)
+SELECT (SELECT id FROM items WHERE code = 'TE_FLOR_CENIZA'), v.* FROM (VALUES ('HEAL_MP', 110, FALSE, 'Restaura 110 MP'), ('BUFF_MAG', 12, TRUE, '+12% de inteligencia durante el combate')) AS v(stat_code, amount, is_percent, description);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station)
+SELECT 'RECETA_TE_FLOR_CENIZA', (SELECT id FROM items WHERE code = 'TE_FLOR_CENIZA'), 1, 'POCO_COMUN', 33, 95, 1, 'Alquimia', 3, NULL WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECETA_TE_FLOR_CENIZA');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'TE_FLOR_CENIZA'), result_quantity = 1, rarity = 'POCO_COMUN', required_level = 33, success_rate_percent = 95, craft_time_minutes = 1, artisan_name = 'Alquimia', zone_id = 3, station = NULL WHERE code = 'RECETA_TE_FLOR_CENIZA';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECETA_TE_FLOR_CENIZA');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECETA_TE_FLOR_CENIZA'), i.id, v.n FROM (VALUES ('FLOR_DE_CENIZA', 3), ('AGUA_PURIFICADA', 1)) AS v(code, n) JOIN items i ON i.code = v.code;
+
+-- Chile de Azufre
+INSERT INTO items (code, name, item_type, rarity, required_level, is_craftable, obtain_method, description)
+SELECT 'CHILE_AZUFRE', 'Chile de Azufre', 'CONSUMABLE', 'POCO_COMUN', 34, TRUE, 'Crafteo', 'Cura 120 de vida y da +15% de ataque. Tan picante que hace llorar a un dracónido. Tomada fuera de combate te deja bien alimentado 20 minutos: tus combates empiezan con ese bonus.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'CHILE_AZUFRE');
+UPDATE items SET name = 'Chile de Azufre', item_type = 'CONSUMABLE', rarity = 'POCO_COMUN', required_level = 34, is_craftable = TRUE, obtain_method = 'Crafteo', description = 'Cura 120 de vida y da +15% de ataque. Tan picante que hace llorar a un dracónido. Tomada fuera de combate te deja bien alimentado 20 minutos: tus combates empiezan con ese bonus.' WHERE code = 'CHILE_AZUFRE';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'CHILE_AZUFRE');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent, description)
+SELECT (SELECT id FROM items WHERE code = 'CHILE_AZUFRE'), v.* FROM (VALUES ('HEAL_HP', 120, FALSE, 'Restaura 120 HP'), ('BUFF_ATK', 15, TRUE, '+15% de ataque durante el combate')) AS v(stat_code, amount, is_percent, description);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station)
+SELECT 'RECETA_CHILE_AZUFRE', (SELECT id FROM items WHERE code = 'CHILE_AZUFRE'), 1, 'POCO_COMUN', 34, 95, 1, 'Tuli, la parrillera de Ascuaria', 3, NULL WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECETA_CHILE_AZUFRE');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'CHILE_AZUFRE'), result_quantity = 1, rarity = 'POCO_COMUN', required_level = 34, success_rate_percent = 95, craft_time_minutes = 1, artisan_name = 'Tuli, la parrillera de Ascuaria', zone_id = 3, station = NULL WHERE code = 'RECETA_CHILE_AZUFRE';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECETA_CHILE_AZUFRE');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECETA_CHILE_AZUFRE'), i.id, v.n FROM (VALUES ('FLOR_DE_CENIZA', 2), ('AZUFRE', 1), ('ACEITE_DE_COCINA', 1)) AS v(code, n) JOIN items i ON i.code = v.code;
+
+-- Estofado de Draco
+INSERT INTO items (code, name, item_type, rarity, required_level, is_craftable, obtain_method, description)
+SELECT 'ESTOFADO_DRACO', 'Estofado de Draco', 'CONSUMABLE', 'RARO', 39, TRUE, 'Crafteo', 'Cura 220 de vida y da +15% de defensa. Se cocina tres días en una olla de basalto. Tomada fuera de combate te deja bien alimentado 20 minutos: tus combates empiezan con ese bonus.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'ESTOFADO_DRACO');
+UPDATE items SET name = 'Estofado de Draco', item_type = 'CONSUMABLE', rarity = 'RARO', required_level = 39, is_craftable = TRUE, obtain_method = 'Crafteo', description = 'Cura 220 de vida y da +15% de defensa. Se cocina tres días en una olla de basalto. Tomada fuera de combate te deja bien alimentado 20 minutos: tus combates empiezan con ese bonus.' WHERE code = 'ESTOFADO_DRACO';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'ESTOFADO_DRACO');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent, description)
+SELECT (SELECT id FROM items WHERE code = 'ESTOFADO_DRACO'), v.* FROM (VALUES ('HEAL_HP', 220, FALSE, 'Restaura 220 HP'), ('BUFF_DEF', 15, TRUE, '+15% de defensa durante el combate')) AS v(stat_code, amount, is_percent, description);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station)
+SELECT 'RECETA_ESTOFADO_DRACO', (SELECT id FROM items WHERE code = 'ESTOFADO_DRACO'), 1, 'RARO', 39, 95, 1, 'Tuli, la parrillera de Ascuaria', 3, NULL WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECETA_ESTOFADO_DRACO');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'ESTOFADO_DRACO'), result_quantity = 1, rarity = 'RARO', required_level = 39, success_rate_percent = 95, craft_time_minutes = 1, artisan_name = 'Tuli, la parrillera de Ascuaria', zone_id = 3, station = NULL WHERE code = 'RECETA_ESTOFADO_DRACO';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECETA_ESTOFADO_DRACO');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECETA_ESTOFADO_DRACO'), i.id, v.n FROM (VALUES ('ALA_DRACO', 2), ('CARNE_SALAMANDRA', 2), ('FLOR_DE_CENIZA', 1)) AS v(code, n) JOIN items i ON i.code = v.code;
+
+-- Elixir de Magma
+INSERT INTO items (code, name, item_type, rarity, required_level, is_craftable, obtain_method, description)
+SELECT 'ELIXIR_MAGMA', 'Elixir de Magma', 'CONSUMABLE', 'RARO', 41, TRUE, 'Crafteo', 'Devuelve 140 de maná y da +15% de velocidad y +10% de inteligencia. Burbujea en el frasco. Tomada fuera de combate te deja bien alimentado 20 minutos: tus combates empiezan con ese bonus.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'ELIXIR_MAGMA');
+UPDATE items SET name = 'Elixir de Magma', item_type = 'CONSUMABLE', rarity = 'RARO', required_level = 41, is_craftable = TRUE, obtain_method = 'Crafteo', description = 'Devuelve 140 de maná y da +15% de velocidad y +10% de inteligencia. Burbujea en el frasco. Tomada fuera de combate te deja bien alimentado 20 minutos: tus combates empiezan con ese bonus.' WHERE code = 'ELIXIR_MAGMA';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'ELIXIR_MAGMA');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent, description)
+SELECT (SELECT id FROM items WHERE code = 'ELIXIR_MAGMA'), v.* FROM (VALUES ('HEAL_MP', 140, FALSE, 'Restaura 140 MP'), ('BUFF_SPD', 15, TRUE, '+15% de velocidad durante el combate'), ('BUFF_MAG', 10, TRUE, '+10% de inteligencia durante el combate')) AS v(stat_code, amount, is_percent, description);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station)
+SELECT 'RECETA_ELIXIR_MAGMA', (SELECT id FROM items WHERE code = 'ELIXIR_MAGMA'), 1, 'RARO', 41, 95, 1, 'Alquimia', 3, NULL WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECETA_ELIXIR_MAGMA');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'ELIXIR_MAGMA'), result_quantity = 1, rarity = 'RARO', required_level = 41, success_rate_percent = 95, craft_time_minutes = 1, artisan_name = 'Alquimia', zone_id = 3, station = NULL WHERE code = 'RECETA_ELIXIR_MAGMA';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECETA_ELIXIR_MAGMA');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECETA_ELIXIR_MAGMA'), i.id, v.n FROM (VALUES ('ESENCIA_DE_FUEGO', 1), ('COLMILLO_MAGMA', 1), ('AGUA_PURIFICADA', 1)) AS v(code, n) JOIN items i ON i.code = v.code;
+
+
+-- ============================================================================================
+-- Historia del Volcán Rojo (repetible; sin ON CONFLICT): V1-V14, sigue a «El trono de la cumbre»
+-- (M14). NPCs: Gaspar (Ladera), Ascalia, Ignar, Tuli y Chispa (Ascuaria), Sulfo (Campos de Azufre),
+-- Ceniza (Bosque Calcinado), Pumo (Ríos de Lava), Kessa (Cantera de Obsidiana) y el Viejo Escamas
+-- (Nido del Dragón). Las viejas Domador de Fuego, El Corazón de la Caldera y Titán de Fuego se
+-- reaprovechan como V7, V12 y V14 (mismo código). V10 baja a la Fisura Infernal (mazmorra).
+-- Además 16 secundarias (Brokk contra Ignar, el huevo de Chispa, el bosque de Ceniza…), 3 diarias
+-- nuevas y las diarias viejas de la zona, cada una con su NPC. Diseño: docs/zona3_volcan.md.
+-- ============================================================================================
+
+-- objetos de misión (no se venden ni se regalan; se quitan al abandonar o entregar)
+INSERT INTO items (code, name, item_type, rarity, is_quest_item, description)
+SELECT 'CARGAMENTO_DE_IGNAR', 'Cargamento de Ignar', 'MATERIAL', 'POCO_COMUN', TRUE, 'Una caja de hierro con el sello de la Gran Forja de Ascuaria. Adentro hay herramientas… y un hueco donde iban unos moldes.'
+WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'CARGAMENTO_DE_IGNAR');
+UPDATE items SET name = 'Cargamento de Ignar', is_quest_item = TRUE, description = 'Una caja de hierro con el sello de la Gran Forja de Ascuaria. Adentro hay herramientas… y un hueco donde iban unos moldes.' WHERE code = 'CARGAMENTO_DE_IGNAR';
+INSERT INTO items (code, name, item_type, rarity, is_quest_item, description)
+SELECT 'MOLDE_CON_ECLIPSE', 'Molde con eclipse', 'MATERIAL', 'POCO_COMUN', TRUE, 'Un molde de forja de Ignar, de los buenos. Alguien le grabó por dentro un eclipse negro.'
+WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'MOLDE_CON_ECLIPSE');
+UPDATE items SET name = 'Molde con eclipse', is_quest_item = TRUE, description = 'Un molde de forja de Ignar, de los buenos. Alguien le grabó por dentro un eclipse negro.' WHERE code = 'MOLDE_CON_ECLIPSE';
+INSERT INTO items (code, name, item_type, rarity, is_quest_item, description)
+SELECT 'MOLDES_ROBADOS', 'Moldes robados', 'MATERIAL', 'POCO_COMUN', TRUE, 'Media docena de moldes de Ignar, envueltos en una lona quemada. Todos con el eclipse grabado.'
+WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'MOLDES_ROBADOS');
+UPDATE items SET name = 'Moldes robados', is_quest_item = TRUE, description = 'Media docena de moldes de Ignar, envueltos en una lona quemada. Todos con el eclipse grabado.' WHERE code = 'MOLDES_ROBADOS';
+INSERT INTO items (code, name, item_type, rarity, is_quest_item, description)
+SELECT 'ORDEN_DEL_MAESTRO', 'Orden del Maestro', 'MATERIAL', 'POCO_COMUN', TRUE, 'Una nota en papel de ceniza: «Llevar los moldes a la Grieta. El Maestro de la Lava los entrega abajo. Que nadie de Ascuaria los vea».'
+WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'ORDEN_DEL_MAESTRO');
+UPDATE items SET name = 'Orden del Maestro', is_quest_item = TRUE, description = 'Una nota en papel de ceniza: «Llevar los moldes a la Grieta. El Maestro de la Lava los entrega abajo. Que nadie de Ascuaria los vea».' WHERE code = 'ORDEN_DEL_MAESTRO';
+INSERT INTO items (code, name, item_type, rarity, is_quest_item, description)
+SELECT 'MOLDE_DEL_MAESTRO', 'Molde del Maestro', 'MATERIAL', 'POCO_COMUN', TRUE, 'El molde que llevaba el Maestro de la Lava. Tiene la forma exacta de un Cristal de Eclipse… y la marca de Ignar en el borde.'
+WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'MOLDE_DEL_MAESTRO');
+UPDATE items SET name = 'Molde del Maestro', is_quest_item = TRUE, description = 'El molde que llevaba el Maestro de la Lava. Tiene la forma exacta de un Cristal de Eclipse… y la marca de Ignar en el borde.' WHERE code = 'MOLDE_DEL_MAESTRO';
+INSERT INTO items (code, name, item_type, rarity, is_quest_item, description)
+SELECT 'CRISTAL_DEL_DRAGON', 'Cristal del dragón', 'MATERIAL', 'POCO_COMUN', TRUE, 'El Cristal de Eclipse que tenía clavado el Dragón Menor. Ya no late: se apagó cuando el dragón dejó de sufrir.'
+WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'CRISTAL_DEL_DRAGON');
+UPDATE items SET name = 'Cristal del dragón', is_quest_item = TRUE, description = 'El Cristal de Eclipse que tenía clavado el Dragón Menor. Ya no late: se apagó cuando el dragón dejó de sufrir.' WHERE code = 'CRISTAL_DEL_DRAGON';
+INSERT INTO items (code, name, item_type, rarity, is_quest_item, description)
+SELECT 'TALISMAN_DE_ASCUARIA', 'Talismán de Ascuaria', 'MATERIAL', 'POCO_COMUN', TRUE, 'Un talismán de basalto con una brasa adentro que no se apaga. Lo forjó Ignar con los moldes purificados para protegerte del Titán.'
+WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'TALISMAN_DE_ASCUARIA');
+UPDATE items SET name = 'Talismán de Ascuaria', is_quest_item = TRUE, description = 'Un talismán de basalto con una brasa adentro que no se apaga. Lo forjó Ignar con los moldes purificados para protegerte del Titán.' WHERE code = 'TALISMAN_DE_ASCUARIA';
+INSERT INTO items (code, name, item_type, rarity, is_quest_item, description)
+SELECT 'FRAGMENTO_SELLO_VOLCAN', 'Tercer Fragmento de Sello', 'MATERIAL', 'POCO_COMUN', TRUE, 'Una piedra roja que late como un corazón. Es un pedazo del Tercer Sello de Aethra, el que guardaba el Titán de Fuego.'
+WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'FRAGMENTO_SELLO_VOLCAN');
+UPDATE items SET name = 'Tercer Fragmento de Sello', is_quest_item = TRUE, description = 'Una piedra roja que late como un corazón. Es un pedazo del Tercer Sello de Aethra, el que guardaba el Titán de Fuego.' WHERE code = 'FRAGMENTO_SELLO_VOLCAN';
+INSERT INTO items (code, name, item_type, rarity, is_quest_item, description)
+SELECT 'CARTA_DE_IGNAR', 'Carta de Ignar', 'MATERIAL', 'POCO_COMUN', TRUE, 'Una carta escrita con letra enorme y muchas mayúsculas. Empieza: «Al HERRERUCHO de Aurelia».'
+WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'CARTA_DE_IGNAR');
+UPDATE items SET name = 'Carta de Ignar', is_quest_item = TRUE, description = 'Una carta escrita con letra enorme y muchas mayúsculas. Empieza: «Al HERRERUCHO de Aurelia».' WHERE code = 'CARTA_DE_IGNAR';
+INSERT INTO items (code, name, item_type, rarity, is_quest_item, description)
+SELECT 'MARTILLO_DE_BROKK', 'Martillo de Brokk', 'MATERIAL', 'POCO_COMUN', TRUE, 'El martillo de Brokk, gastado de tanto usarlo. Brokk dice que con este martillo «hasta un dracónido forjaría derecho».'
+WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'MARTILLO_DE_BROKK');
+UPDATE items SET name = 'Martillo de Brokk', is_quest_item = TRUE, description = 'El martillo de Brokk, gastado de tanto usarlo. Brokk dice que con este martillo «hasta un dracónido forjaría derecho».' WHERE code = 'MARTILLO_DE_BROKK';
+INSERT INTO items (code, name, item_type, rarity, is_quest_item, description)
+SELECT 'HUEVO_DE_PIEDRA', 'Huevo de piedra', 'MATERIAL', 'POCO_COMUN', TRUE, 'Un huevo de dragón del tamaño de una sandía, tibio y pesado. A veces se mueve un poquito.'
+WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'HUEVO_DE_PIEDRA');
+UPDATE items SET name = 'Huevo de piedra', is_quest_item = TRUE, description = 'Un huevo de dragón del tamaño de una sandía, tibio y pesado. A veces se mueve un poquito.' WHERE code = 'HUEVO_DE_PIEDRA';
+INSERT INTO items (code, name, item_type, rarity, is_quest_item, description)
+SELECT 'SEMILLAS_DE_FUEGO', 'Semillas de fuego', 'MATERIAL', 'POCO_COMUN', TRUE, 'Semillas negras de los árboles de fuego del Bosque Calcinado. Solo brotan después de un incendio.'
+WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'SEMILLAS_DE_FUEGO');
+UPDATE items SET name = 'Semillas de fuego', is_quest_item = TRUE, description = 'Semillas negras de los árboles de fuego del Bosque Calcinado. Solo brotan después de un incendio.' WHERE code = 'SEMILLAS_DE_FUEGO';
+INSERT INTO items (code, name, item_type, rarity, is_quest_item, description)
+SELECT 'FIGURA_DE_OBSIDIANA', 'Figura de obsidiana', 'MATERIAL', 'POCO_COMUN', TRUE, 'Un dragón tallado en obsidiana por Kessa, tan fino que parece que va a volar.'
+WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'FIGURA_DE_OBSIDIANA');
+UPDATE items SET name = 'Figura de obsidiana', is_quest_item = TRUE, description = 'Un dragón tallado en obsidiana por Kessa, tan fino que parece que va a volar.' WHERE code = 'FIGURA_DE_OBSIDIANA';
+INSERT INTO items (code, name, item_type, rarity, is_quest_item, description)
+SELECT 'ESCAMA_DEL_DRAGON', 'Escama del dragón', 'MATERIAL', 'POCO_COMUN', TRUE, 'La escama más grande del Dragón Menor. El Viejo Escamas la guardó toda la vida.'
+WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'ESCAMA_DEL_DRAGON');
+UPDATE items SET name = 'Escama del dragón', is_quest_item = TRUE, description = 'La escama más grande del Dragón Menor. El Viejo Escamas la guardó toda la vida.' WHERE code = 'ESCAMA_DEL_DRAGON';
+INSERT INTO items (code, name, item_type, rarity, is_quest_item, description)
+SELECT 'LLAVE_FISURA', 'Llave de Brasa', 'MATERIAL', 'RARO', TRUE, 'Una llave forjada por Ignar con el molde del Maestro de la Lava. Sigue tibia. Abre el portón de hierro de la Fisura Infernal.'
+WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'LLAVE_FISURA');
+
+-- El Paso del Humo (Durgan)
+INSERT INTO quests (code, name, quest_type, zone_id, min_level, max_level, difficulty_stars, npc_name, location_name, is_repeatable, repeat_cooldown_hours, reputation_reward, gold_reward, xp_reward, description, is_personal, is_boss_quest, giver_npc, turn_in_npc, dialog, chain_position, chain_total)
+SELECT 'VOLCAN_HISTORIA_01_PASO', 'El Paso del Humo', 'PRINCIPAL', 3, 31, 45, 3, 'Durgan', 'Ladera de Ceniza', FALSE, NULL, 150, 2700, 9500, '«El Encapuchado bajó por los túneles hacia el sur. Mis muchachos abrieron un paso nuevo por la Garganta del Eco: lo llamamos el Paso del Humo, porque al final no se ve otra cosa. Abajo está el Volcán Rojo. Y los dracónidos. Gente rara. Orgullosa. Como nosotros, pero con escamas.»', TRUE, FALSE, 'durgan', 'gaspar_volcan', '{"entrega":"¡Tú! ¡Por todos los caballos! ¿Viste a Trueno? Se me escapó en la Garganta y bajó por el humo como si lo llamaran. Ya que estás: aquí abajo todo quema. Hasta el aire. No te sientes en ninguna piedra."}'::jsonb, 1, 14
+WHERE NOT EXISTS (SELECT 1 FROM quests WHERE code = 'VOLCAN_HISTORIA_01_PASO');
+UPDATE quests SET name = 'El Paso del Humo', quest_type = 'PRINCIPAL', zone_id = 3, min_level = 31, max_level = 45, difficulty_stars = 3, npc_name = 'Durgan', location_name = 'Ladera de Ceniza', is_repeatable = FALSE, repeat_cooldown_hours = NULL, reputation_reward = 150, gold_reward = 2700, xp_reward = 9500, description = '«El Encapuchado bajó por los túneles hacia el sur. Mis muchachos abrieron un paso nuevo por la Garganta del Eco: lo llamamos el Paso del Humo, porque al final no se ve otra cosa. Abajo está el Volcán Rojo. Y los dracónidos. Gente rara. Orgullosa. Como nosotros, pero con escamas.»', is_personal = TRUE, is_boss_quest = FALSE, giver_npc = 'durgan', turn_in_npc = 'gaspar_volcan', dialog = '{"entrega":"¡Tú! ¡Por todos los caballos! ¿Viste a Trueno? Se me escapó en la Garganta y bajó por el humo como si lo llamaran. Ya que estás: aquí abajo todo quema. Hasta el aire. No te sientes en ninguna piedra."}'::jsonb, chain_position = 1, chain_total = 14 WHERE code = 'VOLCAN_HISTORIA_01_PASO';
+DELETE FROM quest_objectives WHERE quest_id = (SELECT id FROM quests WHERE code = 'VOLCAN_HISTORIA_01_PASO');
+INSERT INTO quest_objectives (quest_id, objective_type, step, target_code, monster_id, item_id, target_count, params, description)
+SELECT (SELECT id FROM quests WHERE code = 'VOLCAN_HISTORIA_01_PASO'), v.t, v.step, v.target, (SELECT id FROM monsters WHERE code = v.monster), (SELECT id FROM items WHERE code = v.item), v.n, v.params::jsonb, v.descr
+FROM (VALUES
+  ('TALK', 1, 'durgan', NULL, NULL, 1, '{"speaker":"Durgan","dialog":"Baja por la Garganta del Eco y sigue el camino nuevo hacia el sur. Cuando empiece a llover ceniza, ya llegaste. Y no te quejes del calor: te avisé."}', 'Pregúntale a Durgan por el Paso del Humo'),
+  ('VISIT', 2, NULL, NULL, NULL, 1, '{"zone":"volcan","x":88,"y":10,"radius":3,"label":"Llegar a la Ladera de Ceniza","speaker":"Tú","dialog":"La nieve se vuelve ceniza. El aire huele a fósforo y a lo lejos un volcán escupe humo rojo. Hay alguien gritando el nombre de un caballo."}', 'Baja por el Paso del Humo hasta la Ladera de Ceniza'),
+  ('TALK', 3, 'gaspar_volcan', NULL, NULL, 1, NULL, 'Habla con Gaspar, que grita al pie del paso')
+) AS v(t, step, target, monster, item, n, params, descr);
+DELETE FROM quest_npc_spots WHERE quest_id = (SELECT id FROM quests WHERE code = 'VOLCAN_HISTORIA_01_PASO');
+DELETE FROM quest_item_rewards WHERE quest_id = (SELECT id FROM quests WHERE code = 'VOLCAN_HISTORIA_01_PASO');
+
+-- Ceniza que quema (Gaspar)
+INSERT INTO quests (code, name, quest_type, zone_id, min_level, max_level, difficulty_stars, npc_name, location_name, is_repeatable, repeat_cooldown_hours, reputation_reward, gold_reward, xp_reward, description, is_personal, is_boss_quest, giver_npc, turn_in_npc, dialog, chain_position, chain_total)
+SELECT 'VOLCAN_HISTORIA_02_CENIZA', 'Ceniza que quema', 'PRINCIPAL', 3, 31, 45, 3, 'Gaspar', 'Ladera de Ceniza', FALSE, NULL, 150, 2750, 10000, '«Las salamandras y los lobos de ceniza no dejan bajar a nadie. Me comieron media carreta. ¡La mitad de madera! ¿Quién come madera? Espántalos un poco, que tengo que buscar a Trueno y no quiero que me coman a mí.»', TRUE, FALSE, 'gaspar_volcan', 'gaspar_volcan', '{"entrega":"¡Mucho mejor! Ahora sí se puede caminar. Y mira esto: una cola de salamandra. Le vuelve a crecer, ¿sabías? Los dracónidos de Ascuaria las asan. Dicen que son lo mejor del mundo. Yo prefiero las de mi mujer, pero no se lo digas a nadie."}'::jsonb, 2, 14
+WHERE NOT EXISTS (SELECT 1 FROM quests WHERE code = 'VOLCAN_HISTORIA_02_CENIZA');
+UPDATE quests SET name = 'Ceniza que quema', quest_type = 'PRINCIPAL', zone_id = 3, min_level = 31, max_level = 45, difficulty_stars = 3, npc_name = 'Gaspar', location_name = 'Ladera de Ceniza', is_repeatable = FALSE, repeat_cooldown_hours = NULL, reputation_reward = 150, gold_reward = 2750, xp_reward = 10000, description = '«Las salamandras y los lobos de ceniza no dejan bajar a nadie. Me comieron media carreta. ¡La mitad de madera! ¿Quién come madera? Espántalos un poco, que tengo que buscar a Trueno y no quiero que me coman a mí.»', is_personal = TRUE, is_boss_quest = FALSE, giver_npc = 'gaspar_volcan', turn_in_npc = 'gaspar_volcan', dialog = '{"entrega":"¡Mucho mejor! Ahora sí se puede caminar. Y mira esto: una cola de salamandra. Le vuelve a crecer, ¿sabías? Los dracónidos de Ascuaria las asan. Dicen que son lo mejor del mundo. Yo prefiero las de mi mujer, pero no se lo digas a nadie."}'::jsonb, chain_position = 2, chain_total = 14 WHERE code = 'VOLCAN_HISTORIA_02_CENIZA';
+DELETE FROM quest_objectives WHERE quest_id = (SELECT id FROM quests WHERE code = 'VOLCAN_HISTORIA_02_CENIZA');
+INSERT INTO quest_objectives (quest_id, objective_type, step, target_code, monster_id, item_id, target_count, params, description)
+SELECT (SELECT id FROM quests WHERE code = 'VOLCAN_HISTORIA_02_CENIZA'), v.t, v.step, v.target, (SELECT id FROM monsters WHERE code = v.monster), (SELECT id FROM items WHERE code = v.item), v.n, v.params::jsonb, v.descr
+FROM (VALUES
+  ('KILL_MONSTER', 1, 'SALAMANDRA_ROJA', 'SALAMANDRA_ROJA', NULL, 5, NULL, 'Derrota 5 Salamandras Rojas en la Ladera'),
+  ('KILL_MONSTER', 1, 'LOBO_CENIZA', 'LOBO_CENIZA', NULL, 5, NULL, 'Derrota 5 Lobos de Ceniza en la Ladera'),
+  ('TALK', 2, 'gaspar_volcan', NULL, NULL, 1, NULL, 'Vuelve con Gaspar')
+) AS v(t, step, target, monster, item, n, params, descr);
+DELETE FROM quest_npc_spots WHERE quest_id = (SELECT id FROM quests WHERE code = 'VOLCAN_HISTORIA_02_CENIZA');
+DELETE FROM quest_item_rewards WHERE quest_id = (SELECT id FROM quests WHERE code = 'VOLCAN_HISTORIA_02_CENIZA');
+INSERT INTO quest_item_rewards (quest_id, item_id, quantity)
+SELECT (SELECT id FROM quests WHERE code = 'VOLCAN_HISTORIA_02_CENIZA'), i.id, v.qty FROM (VALUES ('ASADO_SALAMANDRA', 3)) AS v(code, qty) JOIN items i ON i.code = v.code;
+
+-- Las puertas de Ascuaria (Gaspar)
+INSERT INTO quests (code, name, quest_type, zone_id, min_level, max_level, difficulty_stars, npc_name, location_name, is_repeatable, repeat_cooldown_hours, reputation_reward, gold_reward, xp_reward, description, is_personal, is_boss_quest, giver_npc, turn_in_npc, dialog, chain_position, chain_total)
+SELECT 'VOLCAN_HISTORIA_03_PUERTAS', 'Las puertas de Ascuaria', 'PRINCIPAL', 3, 32, 45, 3, 'Gaspar', 'Ascuaria', FALSE, NULL, 160, 2800, 10500, '«Allá arriba, sobre la meseta negra, está Ascuaria. Los dracónidos no dejan entrar a cualquiera: son orgullosos y desconfían de los humanos. Habla con la matriarca, Ascalia. Y no le mires las escamas. Se ofenden.»', TRUE, FALSE, 'gaspar_volcan', 'ascalia', '{"entrega":"Un humano que llega preguntando por el Encapuchado. Qué conveniente. Los últimos humanos que pasaron por aquí nos robaron. Si quieres quedarte en Ascuaria, demuestra que no eres como ellos."}'::jsonb, 3, 14
+WHERE NOT EXISTS (SELECT 1 FROM quests WHERE code = 'VOLCAN_HISTORIA_03_PUERTAS');
+UPDATE quests SET name = 'Las puertas de Ascuaria', quest_type = 'PRINCIPAL', zone_id = 3, min_level = 32, max_level = 45, difficulty_stars = 3, npc_name = 'Gaspar', location_name = 'Ascuaria', is_repeatable = FALSE, repeat_cooldown_hours = NULL, reputation_reward = 160, gold_reward = 2800, xp_reward = 10500, description = '«Allá arriba, sobre la meseta negra, está Ascuaria. Los dracónidos no dejan entrar a cualquiera: son orgullosos y desconfían de los humanos. Habla con la matriarca, Ascalia. Y no le mires las escamas. Se ofenden.»', is_personal = TRUE, is_boss_quest = FALSE, giver_npc = 'gaspar_volcan', turn_in_npc = 'ascalia', dialog = '{"entrega":"Un humano que llega preguntando por el Encapuchado. Qué conveniente. Los últimos humanos que pasaron por aquí nos robaron. Si quieres quedarte en Ascuaria, demuestra que no eres como ellos."}'::jsonb, chain_position = 3, chain_total = 14 WHERE code = 'VOLCAN_HISTORIA_03_PUERTAS';
+DELETE FROM quest_objectives WHERE quest_id = (SELECT id FROM quests WHERE code = 'VOLCAN_HISTORIA_03_PUERTAS');
+INSERT INTO quest_objectives (quest_id, objective_type, step, target_code, monster_id, item_id, target_count, params, description)
+SELECT (SELECT id FROM quests WHERE code = 'VOLCAN_HISTORIA_03_PUERTAS'), v.t, v.step, v.target, (SELECT id FROM monsters WHERE code = v.monster), (SELECT id FROM items WHERE code = v.item), v.n, v.params::jsonb, v.descr
+FROM (VALUES
+  ('VISIT', 1, NULL, NULL, NULL, 1, '{"zone":"volcan","x":108,"y":24,"radius":3,"label":"Entrar a Ascuaria","speaker":"Tú","dialog":"Casas de basalto con juntas que brillan como brasas, faroles de lava y estandartes rojos con un dragón dorado. Desde una forja enorme sale un martilleo que no para nunca."}', 'Sube a la meseta de Ascuaria'),
+  ('TALK', 2, 'ascalia', NULL, NULL, 1, NULL, 'Preséntate ante la matriarca Ascalia, en la plaza')
+) AS v(t, step, target, monster, item, n, params, descr);
+DELETE FROM quest_npc_spots WHERE quest_id = (SELECT id FROM quests WHERE code = 'VOLCAN_HISTORIA_03_PUERTAS');
+DELETE FROM quest_item_rewards WHERE quest_id = (SELECT id FROM quests WHERE code = 'VOLCAN_HISTORIA_03_PUERTAS');
+
+-- El cargamento de Ignar (Ascalia)
+INSERT INTO quests (code, name, quest_type, zone_id, min_level, max_level, difficulty_stars, npc_name, location_name, is_repeatable, repeat_cooldown_hours, reputation_reward, gold_reward, xp_reward, description, is_personal, is_boss_quest, giver_npc, turn_in_npc, dialog, chain_position, chain_total)
+SELECT 'VOLCAN_HISTORIA_04_CARGAMENTO', 'El cargamento de Ignar', 'PRINCIPAL', 3, 33, 45, 3, 'Ascalia', 'Bosque Calcinado', FALSE, NULL, 160, 2900, 11000, '«Los Bandidos de Fuego asaltaron la caravana de Ignar, nuestro forjador, en el Bosque Calcinado. Tráele de vuelta lo que le robaron y te dejaré quedarte. Y no esperes que Ignar te dé las gracias: no sabe hacerlo.»', TRUE, FALSE, 'ascalia', 'ignar', '{"entrega":"¿Mi cargamento? ¿Lo trajo un HUMANO? *revisa la caja* Martillos, tenazas, limas… ¿Y los moldes? ¡Faltan mis moldes! Los mejores de Etheria. ¿Para qué quiere un bandido un molde? No sabe ni sostener un martillo."}'::jsonb, 4, 14
+WHERE NOT EXISTS (SELECT 1 FROM quests WHERE code = 'VOLCAN_HISTORIA_04_CARGAMENTO');
+UPDATE quests SET name = 'El cargamento de Ignar', quest_type = 'PRINCIPAL', zone_id = 3, min_level = 33, max_level = 45, difficulty_stars = 3, npc_name = 'Ascalia', location_name = 'Bosque Calcinado', is_repeatable = FALSE, repeat_cooldown_hours = NULL, reputation_reward = 160, gold_reward = 2900, xp_reward = 11000, description = '«Los Bandidos de Fuego asaltaron la caravana de Ignar, nuestro forjador, en el Bosque Calcinado. Tráele de vuelta lo que le robaron y te dejaré quedarte. Y no esperes que Ignar te dé las gracias: no sabe hacerlo.»', is_personal = TRUE, is_boss_quest = FALSE, giver_npc = 'ascalia', turn_in_npc = 'ignar', dialog = '{"entrega":"¿Mi cargamento? ¿Lo trajo un HUMANO? *revisa la caja* Martillos, tenazas, limas… ¿Y los moldes? ¡Faltan mis moldes! Los mejores de Etheria. ¿Para qué quiere un bandido un molde? No sabe ni sostener un martillo."}'::jsonb, chain_position = 4, chain_total = 14 WHERE code = 'VOLCAN_HISTORIA_04_CARGAMENTO';
+DELETE FROM quest_objectives WHERE quest_id = (SELECT id FROM quests WHERE code = 'VOLCAN_HISTORIA_04_CARGAMENTO');
+INSERT INTO quest_objectives (quest_id, objective_type, step, target_code, monster_id, item_id, target_count, params, description)
+SELECT (SELECT id FROM quests WHERE code = 'VOLCAN_HISTORIA_04_CARGAMENTO'), v.t, v.step, v.target, (SELECT id FROM monsters WHERE code = v.monster), (SELECT id FROM items WHERE code = v.item), v.n, v.params::jsonb, v.descr
+FROM (VALUES
+  ('KILL_MONSTER', 1, 'BANDIDO_FUEGO', 'BANDIDO_FUEGO', NULL, 6, NULL, 'Derrota 6 Bandidos de Fuego en el Bosque Calcinado'),
+  ('INVESTIGATE', 2, NULL, NULL, NULL, 1, '{"zone":"volcan","x":15,"y":77,"radius":3,"label":"Revisar las cajas","speaker":"Tú","sprite":"carro_asaltado","dialog":"Entre cajas rotas y botellas vacías hay una caja de hierro con el sello de la Gran Forja. Pesa como un yunque.","gives":{"item":"CARGAMENTO_DE_IGNAR","qty":1}}', 'Busca el cargamento en el campamento de los bandidos'),
+  ('DELIVER', 3, 'ignar', NULL, 'CARGAMENTO_DE_IGNAR', 1, NULL, 'Lleva el cargamento a Ignar, en la Gran Forja')
+) AS v(t, step, target, monster, item, n, params, descr);
+DELETE FROM quest_npc_spots WHERE quest_id = (SELECT id FROM quests WHERE code = 'VOLCAN_HISTORIA_04_CARGAMENTO');
+DELETE FROM quest_item_rewards WHERE quest_id = (SELECT id FROM quests WHERE code = 'VOLCAN_HISTORIA_04_CARGAMENTO');
+
+-- El orgullo del forjador (Ignar)
+INSERT INTO quests (code, name, quest_type, zone_id, min_level, max_level, difficulty_stars, npc_name, location_name, is_repeatable, repeat_cooldown_hours, reputation_reward, gold_reward, xp_reward, description, is_personal, is_boss_quest, giver_npc, turn_in_npc, dialog, chain_position, chain_total)
+SELECT 'VOLCAN_HISTORIA_05_ORGULLO', 'El orgullo del forjador', 'PRINCIPAL', 3, 33, 45, 3, 'Ignar', 'Campos de Azufre', FALSE, NULL, 170, 3000, 11500, '«¿Quieres ayudar? Los humanos no saben forjar, pero saben cargar cosas. Tráeme azufre de las fumarolas y obsidiana de las vetas. Voy a hacer moldes nuevos. Y tú vas a mirar cómo trabaja un maestro de verdad.»', TRUE, FALSE, 'ignar', 'ignar', '{"entrega":"*el martillo de Ignar baja una vez, dos, tres, y el molde queda perfecto* ¿Viste? Eso es forjar. Tu herrero de Aurelia, ese… ¿Brokk? Él tarda tres días en lo que yo hago en una mañana. Hmph. Bueno. No eres tan inútil. Puedes usar mi forja."}'::jsonb, 5, 14
+WHERE NOT EXISTS (SELECT 1 FROM quests WHERE code = 'VOLCAN_HISTORIA_05_ORGULLO');
+UPDATE quests SET name = 'El orgullo del forjador', quest_type = 'PRINCIPAL', zone_id = 3, min_level = 33, max_level = 45, difficulty_stars = 3, npc_name = 'Ignar', location_name = 'Campos de Azufre', is_repeatable = FALSE, repeat_cooldown_hours = NULL, reputation_reward = 170, gold_reward = 3000, xp_reward = 11500, description = '«¿Quieres ayudar? Los humanos no saben forjar, pero saben cargar cosas. Tráeme azufre de las fumarolas y obsidiana de las vetas. Voy a hacer moldes nuevos. Y tú vas a mirar cómo trabaja un maestro de verdad.»', is_personal = TRUE, is_boss_quest = FALSE, giver_npc = 'ignar', turn_in_npc = 'ignar', dialog = '{"entrega":"*el martillo de Ignar baja una vez, dos, tres, y el molde queda perfecto* ¿Viste? Eso es forjar. Tu herrero de Aurelia, ese… ¿Brokk? Él tarda tres días en lo que yo hago en una mañana. Hmph. Bueno. No eres tan inútil. Puedes usar mi forja."}'::jsonb, chain_position = 5, chain_total = 14 WHERE code = 'VOLCAN_HISTORIA_05_ORGULLO';
+DELETE FROM quest_objectives WHERE quest_id = (SELECT id FROM quests WHERE code = 'VOLCAN_HISTORIA_05_ORGULLO');
+INSERT INTO quest_objectives (quest_id, objective_type, step, target_code, monster_id, item_id, target_count, params, description)
+SELECT (SELECT id FROM quests WHERE code = 'VOLCAN_HISTORIA_05_ORGULLO'), v.t, v.step, v.target, (SELECT id FROM monsters WHERE code = v.monster), (SELECT id FROM items WHERE code = v.item), v.n, v.params::jsonb, v.descr
+FROM (VALUES
+  ('COLLECT_ITEM', 1, NULL, NULL, 'AZUFRE', 6, NULL, 'Junta 6 de Azufre en las fumarolas de los Campos de Azufre'),
+  ('COLLECT_ITEM', 1, NULL, NULL, 'OBSIDIANA_BRUTA', 4, NULL, 'Junta 4 de Obsidiana Bruta'),
+  ('TALK', 2, 'ignar', NULL, NULL, 1, '{"speaker":"Ignar","dialog":"Pon eso ahí. No, AHÍ. Y apártate, que esto salpica."}', 'Lleva los materiales a Ignar y mira cómo forja')
+) AS v(t, step, target, monster, item, n, params, descr);
+DELETE FROM quest_npc_spots WHERE quest_id = (SELECT id FROM quests WHERE code = 'VOLCAN_HISTORIA_05_ORGULLO');
+DELETE FROM quest_item_rewards WHERE quest_id = (SELECT id FROM quests WHERE code = 'VOLCAN_HISTORIA_05_ORGULLO');
+INSERT INTO quest_item_rewards (quest_id, item_id, quantity)
+SELECT (SELECT id FROM quests WHERE code = 'VOLCAN_HISTORIA_05_ORGULLO'), i.id, v.qty FROM (VALUES ('PIEDRA_ENCANT_MENOR', 2)) AS v(code, qty) JOIN items i ON i.code = v.code;
+
+-- Moldes con eclipse (Ignar)
+INSERT INTO quests (code, name, quest_type, zone_id, min_level, max_level, difficulty_stars, npc_name, location_name, is_repeatable, repeat_cooldown_hours, reputation_reward, gold_reward, xp_reward, description, is_personal, is_boss_quest, giver_npc, turn_in_npc, dialog, chain_position, chain_total)
+SELECT 'VOLCAN_HISTORIA_06_MOLDES', 'Moldes con eclipse', 'PRINCIPAL', 3, 34, 45, 3, 'Ignar', 'Bosque Calcinado', FALSE, NULL, 170, 3100, 12000, '«Ceniza, la guardabosque, dice que vio a los bandidos enterrar cajas en el bosque. Si son mis moldes, los quiero de vuelta. Todos. Cuento hasta el último.»', TRUE, FALSE, 'ignar', 'ignar', '{"entrega":"*Ignar da vuelta el molde y se queda quieto* Un eclipse. Grabado por dentro. Con buena mano, además: no lo hizo un bandido. *aprieta el molde hasta que le crujen los dedos* Alguien está usando MIS moldes para algo. Y lo voy a encontrar."}'::jsonb, 6, 14
+WHERE NOT EXISTS (SELECT 1 FROM quests WHERE code = 'VOLCAN_HISTORIA_06_MOLDES');
+UPDATE quests SET name = 'Moldes con eclipse', quest_type = 'PRINCIPAL', zone_id = 3, min_level = 34, max_level = 45, difficulty_stars = 3, npc_name = 'Ignar', location_name = 'Bosque Calcinado', is_repeatable = FALSE, repeat_cooldown_hours = NULL, reputation_reward = 170, gold_reward = 3100, xp_reward = 12000, description = '«Ceniza, la guardabosque, dice que vio a los bandidos enterrar cajas en el bosque. Si son mis moldes, los quiero de vuelta. Todos. Cuento hasta el último.»', is_personal = TRUE, is_boss_quest = FALSE, giver_npc = 'ignar', turn_in_npc = 'ignar', dialog = '{"entrega":"*Ignar da vuelta el molde y se queda quieto* Un eclipse. Grabado por dentro. Con buena mano, además: no lo hizo un bandido. *aprieta el molde hasta que le crujen los dedos* Alguien está usando MIS moldes para algo. Y lo voy a encontrar."}'::jsonb, chain_position = 6, chain_total = 14 WHERE code = 'VOLCAN_HISTORIA_06_MOLDES';
+DELETE FROM quest_objectives WHERE quest_id = (SELECT id FROM quests WHERE code = 'VOLCAN_HISTORIA_06_MOLDES');
+INSERT INTO quest_objectives (quest_id, objective_type, step, target_code, monster_id, item_id, target_count, params, description)
+SELECT (SELECT id FROM quests WHERE code = 'VOLCAN_HISTORIA_06_MOLDES'), v.t, v.step, v.target, (SELECT id FROM monsters WHERE code = v.monster), (SELECT id FROM items WHERE code = v.item), v.n, v.params::jsonb, v.descr
+FROM (VALUES
+  ('TALK', 1, 'ceniza', NULL, NULL, 1, '{"speaker":"Ceniza","dialog":"Las enterraron en el claro de los robles muertos, al este del campamento. Pisaron todos mis brotes. Si encuentras a esos bandidos… dales uno de mi parte."}', 'Pregúntale a Ceniza, en el Bosque Calcinado, dónde enterraron las cajas'),
+  ('INVESTIGATE', 2, NULL, NULL, NULL, 1, '{"zone":"volcan","x":31,"y":65,"radius":3,"label":"Cavar en la ceniza","speaker":"Tú","sprite":"botin_goblin","dialog":"Bajo la ceniza tibia hay una caja quemada. Adentro, un molde de forja precioso… con un eclipse negro grabado por dentro.","gives":{"item":"MOLDE_CON_ECLIPSE","qty":1}}', 'Desentierra las cajas en el claro'),
+  ('DELIVER', 3, 'ignar', NULL, 'MOLDE_CON_ECLIPSE', 1, NULL, 'Lleva el molde a Ignar')
+) AS v(t, step, target, monster, item, n, params, descr);
+DELETE FROM quest_npc_spots WHERE quest_id = (SELECT id FROM quests WHERE code = 'VOLCAN_HISTORIA_06_MOLDES');
+DELETE FROM quest_item_rewards WHERE quest_id = (SELECT id FROM quests WHERE code = 'VOLCAN_HISTORIA_06_MOLDES');
+
+-- Fuego que camina (Ignar)
+INSERT INTO quests (code, name, quest_type, zone_id, min_level, max_level, difficulty_stars, npc_name, location_name, is_repeatable, repeat_cooldown_hours, reputation_reward, gold_reward, xp_reward, description, is_personal, is_boss_quest, giver_npc, turn_in_npc, dialog, chain_position, chain_total)
+SELECT 'VOLCAN_Q1_DOMADOR_FUEGO', 'Fuego que camina', 'PRINCIPAL', 3, 35, 45, 3, 'Ignar', 'Ríos de Lava', FALSE, NULL, 180, 3200, 12500, '«Pumo, el balsero de los Ríos de Lava, cruza todo lo que se puede cruzar. Si alguien se llevó mis moldes por el río, él lo vio. Pero cuidado: los Elementales de Fuego andan alterados, y Pumo cobra hasta por mirar.»', TRUE, FALSE, 'ignar', 'pumo', '{"entrega":"¡Te dije que eran moldes! Bueno, no te lo dije, pero lo pensé fuerte. Esa balsa la hicieron mal: pómez barata. Se hunde. Los que la cargaban iban hacia la Cantera de Obsidiana, al este. Y me pagaron con monedas falsas. FALSAS. A mí."}'::jsonb, 7, 14
+WHERE NOT EXISTS (SELECT 1 FROM quests WHERE code = 'VOLCAN_Q1_DOMADOR_FUEGO');
+UPDATE quests SET name = 'Fuego que camina', quest_type = 'PRINCIPAL', zone_id = 3, min_level = 35, max_level = 45, difficulty_stars = 3, npc_name = 'Ignar', location_name = 'Ríos de Lava', is_repeatable = FALSE, repeat_cooldown_hours = NULL, reputation_reward = 180, gold_reward = 3200, xp_reward = 12500, description = '«Pumo, el balsero de los Ríos de Lava, cruza todo lo que se puede cruzar. Si alguien se llevó mis moldes por el río, él lo vio. Pero cuidado: los Elementales de Fuego andan alterados, y Pumo cobra hasta por mirar.»', is_personal = TRUE, is_boss_quest = FALSE, giver_npc = 'ignar', turn_in_npc = 'pumo', dialog = '{"entrega":"¡Te dije que eran moldes! Bueno, no te lo dije, pero lo pensé fuerte. Esa balsa la hicieron mal: pómez barata. Se hunde. Los que la cargaban iban hacia la Cantera de Obsidiana, al este. Y me pagaron con monedas falsas. FALSAS. A mí."}'::jsonb, chain_position = 7, chain_total = 14 WHERE code = 'VOLCAN_Q1_DOMADOR_FUEGO';
+DELETE FROM quest_objectives WHERE quest_id = (SELECT id FROM quests WHERE code = 'VOLCAN_Q1_DOMADOR_FUEGO');
+INSERT INTO quest_objectives (quest_id, objective_type, step, target_code, monster_id, item_id, target_count, params, description)
+SELECT (SELECT id FROM quests WHERE code = 'VOLCAN_Q1_DOMADOR_FUEGO'), v.t, v.step, v.target, (SELECT id FROM monsters WHERE code = v.monster), (SELECT id FROM items WHERE code = v.item), v.n, v.params::jsonb, v.descr
+FROM (VALUES
+  ('TALK', 1, 'pumo', NULL, NULL, 1, '{"speaker":"Pumo","dialog":"¿Moldes? Hace dos noches crucé a unos encapuchados con una balsa cargada. La balsa se les trabó en el brazo del río, donde se juntan los dos. Los elementales la rodearon y no me animé a volver. ¿Tú sí?"}', 'Pregúntale a Pumo, en el muelle de los Ríos de Lava'),
+  ('KILL_MONSTER', 2, 'ELEMENTAL_FUEGO', 'ELEMENTAL_FUEGO', NULL, 6, NULL, 'Derrota 6 Elementales de Fuego en los Ríos de Lava'),
+  ('INVESTIGATE', 3, NULL, NULL, NULL, 1, '{"zone":"volcan","x":91,"y":64,"radius":3,"label":"Revisar la balsa","speaker":"Tú","sprite":"botin_goblin","dialog":"La balsa de pómez está medio hundida en la lava. Atadas con una lona quemada, media docena de moldes de Ignar. Todos con el eclipse.","gives":{"item":"MOLDES_ROBADOS","qty":1}}', 'Revisa la balsa trabada en el brazo del río'),
+  ('DELIVER', 4, 'pumo', NULL, 'MOLDES_ROBADOS', 1, NULL, 'Muéstrale los moldes a Pumo')
+) AS v(t, step, target, monster, item, n, params, descr);
+DELETE FROM quest_npc_spots WHERE quest_id = (SELECT id FROM quests WHERE code = 'VOLCAN_Q1_DOMADOR_FUEGO');
+DELETE FROM quest_item_rewards WHERE quest_id = (SELECT id FROM quests WHERE code = 'VOLCAN_Q1_DOMADOR_FUEGO');
+
+-- Vidrio negro (Pumo)
+INSERT INTO quests (code, name, quest_type, zone_id, min_level, max_level, difficulty_stars, npc_name, location_name, is_repeatable, repeat_cooldown_hours, reputation_reward, gold_reward, xp_reward, description, is_personal, is_boss_quest, giver_npc, turn_in_npc, dialog, chain_position, chain_total)
+SELECT 'VOLCAN_HISTORIA_08_VIDRIO', 'Vidrio negro', 'PRINCIPAL', 3, 37, 45, 4, 'Pumo', 'Cantera de Obsidiana', FALSE, NULL, 180, 3400, 13500, '«Los encapuchados iban a la Cantera de Obsidiana. Allá trabaja Kessa, la talladora. Si le dices que te mando yo, no te va a hacer descuento. Si le dices que te manda Ignar, te tira una piedra. Mejor no le digas nada.»', TRUE, FALSE, 'pumo', 'kessa', '{"entrega":"«Llevar los moldes a la Grieta. El Maestro de la Lava los entrega abajo.» *Kessa lee dos veces* Así que era eso. Alguien despertó a mis gólems y los puso a vigilar la cantera para que nadie viera pasar los moldes. Mis gólems. Los tallé yo, piedra por piedra."}'::jsonb, 8, 14
+WHERE NOT EXISTS (SELECT 1 FROM quests WHERE code = 'VOLCAN_HISTORIA_08_VIDRIO');
+UPDATE quests SET name = 'Vidrio negro', quest_type = 'PRINCIPAL', zone_id = 3, min_level = 37, max_level = 45, difficulty_stars = 4, npc_name = 'Pumo', location_name = 'Cantera de Obsidiana', is_repeatable = FALSE, repeat_cooldown_hours = NULL, reputation_reward = 180, gold_reward = 3400, xp_reward = 13500, description = '«Los encapuchados iban a la Cantera de Obsidiana. Allá trabaja Kessa, la talladora. Si le dices que te mando yo, no te va a hacer descuento. Si le dices que te manda Ignar, te tira una piedra. Mejor no le digas nada.»', is_personal = TRUE, is_boss_quest = FALSE, giver_npc = 'pumo', turn_in_npc = 'kessa', dialog = '{"entrega":"«Llevar los moldes a la Grieta. El Maestro de la Lava los entrega abajo.» *Kessa lee dos veces* Así que era eso. Alguien despertó a mis gólems y los puso a vigilar la cantera para que nadie viera pasar los moldes. Mis gólems. Los tallé yo, piedra por piedra."}'::jsonb, chain_position = 8, chain_total = 14 WHERE code = 'VOLCAN_HISTORIA_08_VIDRIO';
+DELETE FROM quest_objectives WHERE quest_id = (SELECT id FROM quests WHERE code = 'VOLCAN_HISTORIA_08_VIDRIO');
+INSERT INTO quest_objectives (quest_id, objective_type, step, target_code, monster_id, item_id, target_count, params, description)
+SELECT (SELECT id FROM quests WHERE code = 'VOLCAN_HISTORIA_08_VIDRIO'), v.t, v.step, v.target, (SELECT id FROM monsters WHERE code = v.monster), (SELECT id FROM items WHERE code = v.item), v.n, v.params::jsonb, v.descr
+FROM (VALUES
+  ('TALK', 1, 'kessa', NULL, NULL, 1, '{"speaker":"Kessa","dialog":"¿Te manda Pumo? Entonces cuida tu bolsa. Mira: mis gólems me desconocen desde hace una semana. Me echaron de mi propia cantera. Si los calmas, te dejo revisar lo que dejaron los encapuchados junto a la grúa."}', 'Habla con Kessa, en la Cantera de Obsidiana'),
+  ('KILL_MONSTER', 2, 'GOLEM_OBSIDIANA', 'GOLEM_OBSIDIANA', NULL, 6, NULL, 'Derrota 6 Gólems de Obsidiana en la Cantera'),
+  ('INVESTIGATE', 3, NULL, NULL, NULL, 1, '{"zone":"volcan","x":132,"y":52,"radius":3,"label":"Revisar junto a la grúa","speaker":"Tú","sprite":"nota_suelo","dialog":"Bajo una piedra hay una nota escrita en papel de ceniza, con el eclipse de los Ocultos.","gives":{"item":"ORDEN_DEL_MAESTRO","qty":1}}', 'Revisa lo que dejaron los encapuchados junto a la grúa'),
+  ('DELIVER', 4, 'kessa', NULL, 'ORDEN_DEL_MAESTRO', 1, NULL, 'Muéstrale la nota a Kessa')
+) AS v(t, step, target, monster, item, n, params, descr);
+DELETE FROM quest_npc_spots WHERE quest_id = (SELECT id FROM quests WHERE code = 'VOLCAN_HISTORIA_08_VIDRIO');
+DELETE FROM quest_item_rewards WHERE quest_id = (SELECT id FROM quests WHERE code = 'VOLCAN_HISTORIA_08_VIDRIO');
+
+-- El Maestro de la Lava (Kessa)
+INSERT INTO quests (code, name, quest_type, zone_id, min_level, max_level, difficulty_stars, npc_name, location_name, is_repeatable, repeat_cooldown_hours, reputation_reward, gold_reward, xp_reward, description, is_personal, is_boss_quest, giver_npc, turn_in_npc, dialog, chain_position, chain_total)
+SELECT 'VOLCAN_HISTORIA_09_MAESTRO', 'El Maestro de la Lava', 'PRINCIPAL', 3, 39, 45, 4, 'Kessa', 'Grieta Ardiente', FALSE, NULL, 200, 3600, 14500, '«El Maestro de la Lava anda por la Grieta Ardiente, con los fanáticos del eclipse. Encuéntralo y tráele a Ignar lo que lleve encima. Quiero ver la cara de ese engreído cuando sepa dónde terminaron sus moldes.»', TRUE, FALSE, 'kessa', 'ignar', '{"entrega":"*Ignar mira el molde un rato largo* Mi marca. En el borde. Este molde lo hice yo… se lo vendí a un comprador de Aurelia hace dos años. Pagaba bien. No preguntaba nada. Yo tampoco. *se sienta en el yunque* Forjé los cristales. Sin saberlo, pero los forjé. Todos esos lobos, el Titán de tu Pradera… Lo voy a arreglar. Toma: esta llave abre la Fisura. La forjé con su propio molde."}'::jsonb, 9, 14
+WHERE NOT EXISTS (SELECT 1 FROM quests WHERE code = 'VOLCAN_HISTORIA_09_MAESTRO');
+UPDATE quests SET name = 'El Maestro de la Lava', quest_type = 'PRINCIPAL', zone_id = 3, min_level = 39, max_level = 45, difficulty_stars = 4, npc_name = 'Kessa', location_name = 'Grieta Ardiente', is_repeatable = FALSE, repeat_cooldown_hours = NULL, reputation_reward = 200, gold_reward = 3600, xp_reward = 14500, description = '«El Maestro de la Lava anda por la Grieta Ardiente, con los fanáticos del eclipse. Encuéntralo y tráele a Ignar lo que lleve encima. Quiero ver la cara de ese engreído cuando sepa dónde terminaron sus moldes.»', is_personal = TRUE, is_boss_quest = FALSE, giver_npc = 'kessa', turn_in_npc = 'ignar', dialog = '{"entrega":"*Ignar mira el molde un rato largo* Mi marca. En el borde. Este molde lo hice yo… se lo vendí a un comprador de Aurelia hace dos años. Pagaba bien. No preguntaba nada. Yo tampoco. *se sienta en el yunque* Forjé los cristales. Sin saberlo, pero los forjé. Todos esos lobos, el Titán de tu Pradera… Lo voy a arreglar. Toma: esta llave abre la Fisura. La forjé con su propio molde."}'::jsonb, chain_position = 9, chain_total = 14 WHERE code = 'VOLCAN_HISTORIA_09_MAESTRO';
+DELETE FROM quest_objectives WHERE quest_id = (SELECT id FROM quests WHERE code = 'VOLCAN_HISTORIA_09_MAESTRO');
+INSERT INTO quest_objectives (quest_id, objective_type, step, target_code, monster_id, item_id, target_count, params, description)
+SELECT (SELECT id FROM quests WHERE code = 'VOLCAN_HISTORIA_09_MAESTRO'), v.t, v.step, v.target, (SELECT id FROM monsters WHERE code = v.monster), (SELECT id FROM items WHERE code = v.item), v.n, v.params::jsonb, v.descr
+FROM (VALUES
+  ('KILL_MONSTER', 1, 'MAESTRO_LAVA', 'MAESTRO_LAVA', NULL, 1, NULL, 'Derrota al Maestro de la Lava en la Grieta Ardiente'),
+  ('INVESTIGATE', 2, NULL, NULL, NULL, 1, '{"zone":"volcan","x":21,"y":100,"radius":3,"label":"Revisar el altar","speaker":"Tú","sprite":"altar_eclipse","dialog":"Sobre un altar de piedra negra, un molde con la forma exacta de un Cristal de Eclipse. En el borde, una marca pequeña: un martillo con una llama. La marca de Ignar.","gives":{"item":"MOLDE_DEL_MAESTRO","qty":1}}', 'Revisa el altar de los Ocultos en la Grieta'),
+  ('DELIVER', 3, 'ignar', NULL, 'MOLDE_DEL_MAESTRO', 1, NULL, 'Lleva el molde del Maestro a Ignar'),
+  ('TALK', 4, 'ignar', NULL, NULL, 1, '{"speaker":"Ignar","dialog":"La Fisura Infernal. Ahí abajo está la forja de los Ocultos. Mi forja, en realidad: alguien aprendió a forjar mirándome. Toma la llave. Y rompe todo lo que encuentres.","gives":{"item":"LLAVE_FISURA","qty":1}}', 'Escucha a Ignar')
+) AS v(t, step, target, monster, item, n, params, descr);
+DELETE FROM quest_npc_spots WHERE quest_id = (SELECT id FROM quests WHERE code = 'VOLCAN_HISTORIA_09_MAESTRO');
+DELETE FROM quest_item_rewards WHERE quest_id = (SELECT id FROM quests WHERE code = 'VOLCAN_HISTORIA_09_MAESTRO');
+
+-- La Fisura Infernal (Ignar)
+INSERT INTO quests (code, name, quest_type, zone_id, min_level, max_level, difficulty_stars, npc_name, location_name, is_repeatable, repeat_cooldown_hours, reputation_reward, gold_reward, xp_reward, description, is_personal, is_boss_quest, giver_npc, turn_in_npc, dialog, chain_position, chain_total)
+SELECT 'VOLCAN_HISTORIA_10_FISURA', 'La Fisura Infernal', 'PRINCIPAL', 3, 39, 45, 5, 'Ignar', 'Fisura Infernal', FALSE, NULL, 220, 3800, 15500, '«Baja a la Fisura, bajo la Grieta Ardiente. Al fondo trabaja Morvak, el Forjador de Eclipses. Lo conocí de joven: barría mi taller. Me miraba trabajar todo el día. Ahora sé por qué. Ve con amigos. Morvak sabe lo que hace con un crisol.»', TRUE, TRUE, 'ignar', 'ignar', '{"entrega":"Morvak… barría mi taller. Le enseñé a templar el acero porque me caía bien. *se queda callado* Ya no van a salir más cristales de esa forja. Ahora tengo que pensar cómo arreglar los que ya salieron. Y tú tienes un dragón que liberar: el Viejo Escamas te está buscando."}'::jsonb, 10, 14
+WHERE NOT EXISTS (SELECT 1 FROM quests WHERE code = 'VOLCAN_HISTORIA_10_FISURA');
+UPDATE quests SET name = 'La Fisura Infernal', quest_type = 'PRINCIPAL', zone_id = 3, min_level = 39, max_level = 45, difficulty_stars = 5, npc_name = 'Ignar', location_name = 'Fisura Infernal', is_repeatable = FALSE, repeat_cooldown_hours = NULL, reputation_reward = 220, gold_reward = 3800, xp_reward = 15500, description = '«Baja a la Fisura, bajo la Grieta Ardiente. Al fondo trabaja Morvak, el Forjador de Eclipses. Lo conocí de joven: barría mi taller. Me miraba trabajar todo el día. Ahora sé por qué. Ve con amigos. Morvak sabe lo que hace con un crisol.»', is_personal = TRUE, is_boss_quest = TRUE, giver_npc = 'ignar', turn_in_npc = 'ignar', dialog = '{"entrega":"Morvak… barría mi taller. Le enseñé a templar el acero porque me caía bien. *se queda callado* Ya no van a salir más cristales de esa forja. Ahora tengo que pensar cómo arreglar los que ya salieron. Y tú tienes un dragón que liberar: el Viejo Escamas te está buscando."}'::jsonb, chain_position = 10, chain_total = 14 WHERE code = 'VOLCAN_HISTORIA_10_FISURA';
+DELETE FROM quest_objectives WHERE quest_id = (SELECT id FROM quests WHERE code = 'VOLCAN_HISTORIA_10_FISURA');
+INSERT INTO quest_objectives (quest_id, objective_type, step, target_code, monster_id, item_id, target_count, params, description)
+SELECT (SELECT id FROM quests WHERE code = 'VOLCAN_HISTORIA_10_FISURA'), v.t, v.step, v.target, (SELECT id FROM monsters WHERE code = v.monster), (SELECT id FROM items WHERE code = v.item), v.n, v.params::jsonb, v.descr
+FROM (VALUES
+  ('DEFEAT_BOSS', 1, 'FISURA_MORVAK', 'FISURA_MORVAK', NULL, 1, NULL, 'Derrota a Morvak, el Forjador de Eclipses, en la Fisura Infernal'),
+  ('TALK', 2, 'ignar', NULL, NULL, 1, NULL, 'Cuéntale a Ignar lo que pasó en la Fisura')
+) AS v(t, step, target, monster, item, n, params, descr);
+DELETE FROM quest_npc_spots WHERE quest_id = (SELECT id FROM quests WHERE code = 'VOLCAN_HISTORIA_10_FISURA');
+DELETE FROM quest_item_rewards WHERE quest_id = (SELECT id FROM quests WHERE code = 'VOLCAN_HISTORIA_10_FISURA');
+
+-- El dragón que lloraba fuego (Viejo Escamas)
+INSERT INTO quests (code, name, quest_type, zone_id, min_level, max_level, difficulty_stars, npc_name, location_name, is_repeatable, repeat_cooldown_hours, reputation_reward, gold_reward, xp_reward, description, is_personal, is_boss_quest, giver_npc, turn_in_npc, dialog, chain_position, chain_total)
+SELECT 'VOLCAN_HISTORIA_11_DRAGON', 'El dragón que lloraba fuego', 'PRINCIPAL', 3, 40, 45, 4, 'Viejo Escamas', 'Nido del Dragón', FALSE, NULL, 220, 3900, 16000, '«Ese dragón… lo crié yo, cuando era así de chiquito. Le decía Brasita. Jugaba con mis escamas y me quemaba la barba. Ahora tiene un cristal negro clavado en el pecho y no me reconoce. Libéralo. Por favor. No dejes que siga sufriendo.»', TRUE, FALSE, 'escamas', 'escamas', '{"entrega":"*el Viejo Escamas sostiene el cristal apagado con las dos manos* Brasita… al final me miró. Me miró y me reconoció. Gracias, Vigía. *se seca los ojos* El humo, eso es. Siempre el humo."}'::jsonb, 11, 14
+WHERE NOT EXISTS (SELECT 1 FROM quests WHERE code = 'VOLCAN_HISTORIA_11_DRAGON');
+UPDATE quests SET name = 'El dragón que lloraba fuego', quest_type = 'PRINCIPAL', zone_id = 3, min_level = 40, max_level = 45, difficulty_stars = 4, npc_name = 'Viejo Escamas', location_name = 'Nido del Dragón', is_repeatable = FALSE, repeat_cooldown_hours = NULL, reputation_reward = 220, gold_reward = 3900, xp_reward = 16000, description = '«Ese dragón… lo crié yo, cuando era así de chiquito. Le decía Brasita. Jugaba con mis escamas y me quemaba la barba. Ahora tiene un cristal negro clavado en el pecho y no me reconoce. Libéralo. Por favor. No dejes que siga sufriendo.»', is_personal = TRUE, is_boss_quest = FALSE, giver_npc = 'escamas', turn_in_npc = 'escamas', dialog = '{"entrega":"*el Viejo Escamas sostiene el cristal apagado con las dos manos* Brasita… al final me miró. Me miró y me reconoció. Gracias, Vigía. *se seca los ojos* El humo, eso es. Siempre el humo."}'::jsonb, chain_position = 11, chain_total = 14 WHERE code = 'VOLCAN_HISTORIA_11_DRAGON';
+DELETE FROM quest_objectives WHERE quest_id = (SELECT id FROM quests WHERE code = 'VOLCAN_HISTORIA_11_DRAGON');
+INSERT INTO quest_objectives (quest_id, objective_type, step, target_code, monster_id, item_id, target_count, params, description)
+SELECT (SELECT id FROM quests WHERE code = 'VOLCAN_HISTORIA_11_DRAGON'), v.t, v.step, v.target, (SELECT id FROM monsters WHERE code = v.monster), (SELECT id FROM items WHERE code = v.item), v.n, v.params::jsonb, v.descr
+FROM (VALUES
+  ('KILL_MONSTER', 1, 'DRAGON_MENOR_CORRUPTO', 'DRAGON_MENOR_CORRUPTO', NULL, 1, NULL, 'Libera al Dragón Menor Corrupto en el Nido del Dragón'),
+  ('INVESTIGATE', 2, NULL, NULL, NULL, 1, '{"zone":"volcan","x":140,"y":100,"radius":3,"label":"Acercarte al dragón","speaker":"Tú","sprite":"mon:DRAGON_MENOR_CORRUPTO","dialog":"El dragón respira despacio. Le arrancas el cristal del pecho y la luz negra se apaga. Por un momento te mira con los ojos limpios. Después cierra los ojos y descansa.","gives":{"item":"CRISTAL_DEL_DRAGON","qty":1}}', 'Arranca el cristal del pecho del dragón'),
+  ('DELIVER', 3, 'escamas', NULL, 'CRISTAL_DEL_DRAGON', 1, NULL, 'Lleva el cristal al Viejo Escamas')
+) AS v(t, step, target, monster, item, n, params, descr);
+DELETE FROM quest_npc_spots WHERE quest_id = (SELECT id FROM quests WHERE code = 'VOLCAN_HISTORIA_11_DRAGON');
+DELETE FROM quest_item_rewards WHERE quest_id = (SELECT id FROM quests WHERE code = 'VOLCAN_HISTORIA_11_DRAGON');
+
+-- Las puertas de la Caldera (Ascalia)
+INSERT INTO quests (code, name, quest_type, zone_id, min_level, max_level, difficulty_stars, npc_name, location_name, is_repeatable, repeat_cooldown_hours, reputation_reward, gold_reward, xp_reward, description, is_personal, is_boss_quest, giver_npc, turn_in_npc, dialog, chain_position, chain_total)
+SELECT 'VOLCAN_Q2_CORAZON_CALDERA', 'Las puertas de la Caldera', 'PRINCIPAL', 3, 42, 45, 5, 'Ascalia', 'Caldera del Titán', FALSE, NULL, 240, 4100, 17000, '«El Titán de Fuego duerme en el lago de la Caldera. Los Ocultos le vendieron un trono al Señor de la Caldera para que cuide las puertas. Si quieres llegar al Titán, primero tienes que pasar por él. Ascuaria peleará contigo… desde aquí arriba. Ve con amigos.»', TRUE, TRUE, 'ascalia', 'ascalia', '{"entrega":"Las puertas de la Caldera están abiertas. Hace cien años que ningún dracónido pasa por ahí. *Ascalia te mira de arriba abajo* Llegaste pidiendo permiso para entrar a mi ciudad. Ahora Ascuaria te debe la suya. Habla con Ignar: está forjando algo para ti y no quiere decirme qué."}'::jsonb, 12, 14
+WHERE NOT EXISTS (SELECT 1 FROM quests WHERE code = 'VOLCAN_Q2_CORAZON_CALDERA');
+UPDATE quests SET name = 'Las puertas de la Caldera', quest_type = 'PRINCIPAL', zone_id = 3, min_level = 42, max_level = 45, difficulty_stars = 5, npc_name = 'Ascalia', location_name = 'Caldera del Titán', is_repeatable = FALSE, repeat_cooldown_hours = NULL, reputation_reward = 240, gold_reward = 4100, xp_reward = 17000, description = '«El Titán de Fuego duerme en el lago de la Caldera. Los Ocultos le vendieron un trono al Señor de la Caldera para que cuide las puertas. Si quieres llegar al Titán, primero tienes que pasar por él. Ascuaria peleará contigo… desde aquí arriba. Ve con amigos.»', is_personal = TRUE, is_boss_quest = TRUE, giver_npc = 'ascalia', turn_in_npc = 'ascalia', dialog = '{"entrega":"Las puertas de la Caldera están abiertas. Hace cien años que ningún dracónido pasa por ahí. *Ascalia te mira de arriba abajo* Llegaste pidiendo permiso para entrar a mi ciudad. Ahora Ascuaria te debe la suya. Habla con Ignar: está forjando algo para ti y no quiere decirme qué."}'::jsonb, chain_position = 12, chain_total = 14 WHERE code = 'VOLCAN_Q2_CORAZON_CALDERA';
+DELETE FROM quest_objectives WHERE quest_id = (SELECT id FROM quests WHERE code = 'VOLCAN_Q2_CORAZON_CALDERA');
+INSERT INTO quest_objectives (quest_id, objective_type, step, target_code, monster_id, item_id, target_count, params, description)
+SELECT (SELECT id FROM quests WHERE code = 'VOLCAN_Q2_CORAZON_CALDERA'), v.t, v.step, v.target, (SELECT id FROM monsters WHERE code = v.monster), (SELECT id FROM items WHERE code = v.item), v.n, v.params::jsonb, v.descr
+FROM (VALUES
+  ('DEFEAT_BOSS', 1, 'SENOR_CALDERA', 'SENOR_CALDERA', NULL, 1, NULL, 'Derrota al Señor de la Caldera en las puertas del cráter'),
+  ('INVESTIGATE', 2, NULL, NULL, NULL, 1, '{"zone":"volcan","x":88,"y":91,"radius":3,"label":"Acercarte al Señor","speaker":"El Señor de la Caldera","sprite":"mon:SENOR_CALDERA","dialog":"«Un trono… me prometieron un trono sobre la lava. Y el Titán debajo, gritando todas las noches.» Su corona de roca se parte en dos."}', 'Acércate al Señor caído'),
+  ('TALK', 3, 'ascalia', NULL, NULL, 1, NULL, 'Vuelve con Ascalia, en Ascuaria')
+) AS v(t, step, target, monster, item, n, params, descr);
+DELETE FROM quest_npc_spots WHERE quest_id = (SELECT id FROM quests WHERE code = 'VOLCAN_Q2_CORAZON_CALDERA');
+DELETE FROM quest_item_rewards WHERE quest_id = (SELECT id FROM quests WHERE code = 'VOLCAN_Q2_CORAZON_CALDERA');
+
+-- La ofrenda de Ascuaria (Ignar)
+INSERT INTO quests (code, name, quest_type, zone_id, min_level, max_level, difficulty_stars, npc_name, location_name, is_repeatable, repeat_cooldown_hours, reputation_reward, gold_reward, xp_reward, description, is_personal, is_boss_quest, giver_npc, turn_in_npc, dialog, chain_position, chain_total)
+SELECT 'VOLCAN_HISTORIA_13_OFRENDA', 'La ofrenda de Ascuaria', 'PRINCIPAL', 3, 43, 45, 4, 'Ignar', 'Ascuaria', FALSE, NULL, 240, 4300, 18000, '«Voy a forjarte un talismán con los moldes purificados. Así el fuego del Titán no te va a tocar tanto. Necesito Corazones de Brasa de los dracos y colas de esos diablillos que se ríen en la Caldera. No preguntes para qué son las colas. Funcionan.»', TRUE, FALSE, 'ignar', 'ignar', '{"entrega":"*el martillo baja una sola vez y el talismán queda perfecto, con una brasa adentro que late* Llévalo puesto. Y vuelve. *Ignar te da la espalda* Ascuaria entera te va a estar mirando desde la meseta. No me hagas quedar mal."}'::jsonb, 13, 14
+WHERE NOT EXISTS (SELECT 1 FROM quests WHERE code = 'VOLCAN_HISTORIA_13_OFRENDA');
+UPDATE quests SET name = 'La ofrenda de Ascuaria', quest_type = 'PRINCIPAL', zone_id = 3, min_level = 43, max_level = 45, difficulty_stars = 4, npc_name = 'Ignar', location_name = 'Ascuaria', is_repeatable = FALSE, repeat_cooldown_hours = NULL, reputation_reward = 240, gold_reward = 4300, xp_reward = 18000, description = '«Voy a forjarte un talismán con los moldes purificados. Así el fuego del Titán no te va a tocar tanto. Necesito Corazones de Brasa de los dracos y colas de esos diablillos que se ríen en la Caldera. No preguntes para qué son las colas. Funcionan.»', is_personal = TRUE, is_boss_quest = FALSE, giver_npc = 'ignar', turn_in_npc = 'ignar', dialog = '{"entrega":"*el martillo baja una sola vez y el talismán queda perfecto, con una brasa adentro que late* Llévalo puesto. Y vuelve. *Ignar te da la espalda* Ascuaria entera te va a estar mirando desde la meseta. No me hagas quedar mal."}'::jsonb, chain_position = 13, chain_total = 14 WHERE code = 'VOLCAN_HISTORIA_13_OFRENDA';
+DELETE FROM quest_objectives WHERE quest_id = (SELECT id FROM quests WHERE code = 'VOLCAN_HISTORIA_13_OFRENDA');
+INSERT INTO quest_objectives (quest_id, objective_type, step, target_code, monster_id, item_id, target_count, params, description)
+SELECT (SELECT id FROM quests WHERE code = 'VOLCAN_HISTORIA_13_OFRENDA'), v.t, v.step, v.target, (SELECT id FROM monsters WHERE code = v.monster), (SELECT id FROM items WHERE code = v.item), v.n, v.params::jsonb, v.descr
+FROM (VALUES
+  ('COLLECT_ITEM', 1, NULL, NULL, 'CORAZON_DE_BRASA', 2, NULL, 'Junta 2 Corazones de Brasa (dracos, geodas ardientes)'),
+  ('KILL_MONSTER', 1, 'DIABLILLO_CALDERA', 'DIABLILLO_CALDERA', NULL, 6, NULL, 'Derrota 6 Diablillos de la Caldera'),
+  ('TALK', 2, 'ignar', NULL, NULL, 1, '{"speaker":"Ignar","dialog":"Todo el pueblo vino a mirar. ¡A trabajar, chismosos! …Bueno, que miren. Esto vale la pena verlo.","gives":{"item":"TALISMAN_DE_ASCUARIA","qty":1}}', 'Lleva todo a Ignar y espera que forje el talismán')
+) AS v(t, step, target, monster, item, n, params, descr);
+DELETE FROM quest_npc_spots WHERE quest_id = (SELECT id FROM quests WHERE code = 'VOLCAN_HISTORIA_13_OFRENDA');
+DELETE FROM quest_item_rewards WHERE quest_id = (SELECT id FROM quests WHERE code = 'VOLCAN_HISTORIA_13_OFRENDA');
+INSERT INTO quest_item_rewards (quest_id, item_id, quantity)
+SELECT (SELECT id FROM quests WHERE code = 'VOLCAN_HISTORIA_13_OFRENDA'), i.id, v.qty FROM (VALUES ('ESTOFADO_DRACO', 3)) AS v(code, qty) JOIN items i ON i.code = v.code;
+
+-- El corazón del volcán (Ignar)
+INSERT INTO quests (code, name, quest_type, zone_id, min_level, max_level, difficulty_stars, npc_name, location_name, is_repeatable, repeat_cooldown_hours, reputation_reward, gold_reward, xp_reward, description, is_personal, is_boss_quest, giver_npc, turn_in_npc, dialog, chain_position, chain_total)
+SELECT 'VOLCAN_Q3_TITAN_FUEGO', 'El corazón del volcán', 'PRINCIPAL', 3, 45, 45, 5, 'Ignar', 'Caldera del Titán', FALSE, NULL, 300, 4500, 19500, '«Cruza el puente de la Caldera hasta la isla. El Titán de Fuego es el Guardián del Tercer Sello: los cristales lo están volviendo loco. Si puedes, devuélvelo a sí mismo. Si no… haz lo que tengas que hacer. Ve con los mejores que conozcas.»', TRUE, TRUE, 'ignar', 'elenya', '{"entrega":"El Tercer Fragmento… late como un corazón. *Elenya lo guarda junto a los otros dos* El Titán de Fuego te dijo que el Encapuchado bajó por los ríos de lava hasta el mar. Las Costas Muertas. Y ahora sabemos que alguien compraba moldes en Aurelia, en nuestra propia ciudad. Ten cuidado, Vigía."}'::jsonb, 14, 14
+WHERE NOT EXISTS (SELECT 1 FROM quests WHERE code = 'VOLCAN_Q3_TITAN_FUEGO');
+UPDATE quests SET name = 'El corazón del volcán', quest_type = 'PRINCIPAL', zone_id = 3, min_level = 45, max_level = 45, difficulty_stars = 5, npc_name = 'Ignar', location_name = 'Caldera del Titán', is_repeatable = FALSE, repeat_cooldown_hours = NULL, reputation_reward = 300, gold_reward = 4500, xp_reward = 19500, description = '«Cruza el puente de la Caldera hasta la isla. El Titán de Fuego es el Guardián del Tercer Sello: los cristales lo están volviendo loco. Si puedes, devuélvelo a sí mismo. Si no… haz lo que tengas que hacer. Ve con los mejores que conozcas.»', is_personal = TRUE, is_boss_quest = TRUE, giver_npc = 'ignar', turn_in_npc = 'elenya', dialog = '{"entrega":"El Tercer Fragmento… late como un corazón. *Elenya lo guarda junto a los otros dos* El Titán de Fuego te dijo que el Encapuchado bajó por los ríos de lava hasta el mar. Las Costas Muertas. Y ahora sabemos que alguien compraba moldes en Aurelia, en nuestra propia ciudad. Ten cuidado, Vigía."}'::jsonb, chain_position = 14, chain_total = 14 WHERE code = 'VOLCAN_Q3_TITAN_FUEGO';
+DELETE FROM quest_objectives WHERE quest_id = (SELECT id FROM quests WHERE code = 'VOLCAN_Q3_TITAN_FUEGO');
+INSERT INTO quest_objectives (quest_id, objective_type, step, target_code, monster_id, item_id, target_count, params, description)
+SELECT (SELECT id FROM quests WHERE code = 'VOLCAN_Q3_TITAN_FUEGO'), v.t, v.step, v.target, (SELECT id FROM monsters WHERE code = v.monster), (SELECT id FROM items WHERE code = v.item), v.n, v.params::jsonb, v.descr
+FROM (VALUES
+  ('DEFEAT_BOSS', 1, 'TITAN_FUEGO', 'TITAN_FUEGO', NULL, 1, NULL, 'Enfrenta al Titán de Fuego en la isla de la Caldera'),
+  ('INVESTIGATE', 2, NULL, NULL, NULL, 1, '{"zone":"volcan","x":86,"y":105,"radius":3,"label":"Acercarte al Titán","speaker":"El Titán de Fuego","sprite":"mon:TITAN_FUEGO","dialog":"«Los cristales… callaron. Gracias, Vigía. El encapuchado bajó por mis ríos hasta el mar, a las costas de los muertos. Protege los otros cuatro.» La lava se enfría alrededor del Titán y en su pecho queda una piedra roja que late.","gives":{"item":"FRAGMENTO_SELLO_VOLCAN","qty":1}}', 'Acércate al Titán caído'),
+  ('DELIVER', 3, 'elenya', NULL, 'FRAGMENTO_SELLO_VOLCAN', 1, NULL, 'Lleva el Tercer Fragmento de Sello a Elenya, en Aurelia')
+) AS v(t, step, target, monster, item, n, params, descr);
+DELETE FROM quest_npc_spots WHERE quest_id = (SELECT id FROM quests WHERE code = 'VOLCAN_Q3_TITAN_FUEGO');
+DELETE FROM quest_item_rewards WHERE quest_id = (SELECT id FROM quests WHERE code = 'VOLCAN_Q3_TITAN_FUEGO');
+INSERT INTO quest_item_rewards (quest_id, item_id, quantity)
+SELECT (SELECT id FROM quests WHERE code = 'VOLCAN_Q3_TITAN_FUEGO'), i.id, v.qty FROM (VALUES ('POCION_DE_VIDA_MAYOR', 6), ('POCION_DE_MANA_MAYOR', 6)) AS v(code, qty) JOIN items i ON i.code = v.code;
+
+-- ¿Dónde está Trueno? (otra vez) (Gaspar)
+INSERT INTO quests (code, name, quest_type, zone_id, min_level, max_level, difficulty_stars, npc_name, location_name, is_repeatable, repeat_cooldown_hours, reputation_reward, gold_reward, xp_reward, description, is_personal, is_boss_quest, giver_npc, turn_in_npc, dialog, chain_position, chain_total)
+SELECT 'VOLCAN_SEC_TRUENO', '¿Dónde está Trueno? (otra vez)', 'SECUNDARIA', 3, 31, 45, 3, 'Gaspar', 'Volcán Rojo', FALSE, NULL, 90, 1800, 7000, '«Trueno bajó por el humo como si lo llamaran. Un caballo. En un volcán. ¿Qué busca un caballo en un volcán? Ayúdame a encontrarlo antes de que se cocine. O antes de que se coma algo que no debe.»', TRUE, FALSE, 'gaspar_volcan', 'gaspar_volcan', '{"entrega":"¡TRUENO! *Gaspar lo abraza del cuello* ¿Dormido en la forja? ¿Con las brochetas de Tuli en la panza? Este caballo tiene más suerte que yo. Y más hambre. Toma, por las molestias. Y no le cuentes a mi mujer que lo perdí OTRA vez."}'::jsonb, NULL, NULL
+WHERE NOT EXISTS (SELECT 1 FROM quests WHERE code = 'VOLCAN_SEC_TRUENO');
+UPDATE quests SET name = '¿Dónde está Trueno? (otra vez)', quest_type = 'SECUNDARIA', zone_id = 3, min_level = 31, max_level = 45, difficulty_stars = 3, npc_name = 'Gaspar', location_name = 'Volcán Rojo', is_repeatable = FALSE, repeat_cooldown_hours = NULL, reputation_reward = 90, gold_reward = 1800, xp_reward = 7000, description = '«Trueno bajó por el humo como si lo llamaran. Un caballo. En un volcán. ¿Qué busca un caballo en un volcán? Ayúdame a encontrarlo antes de que se cocine. O antes de que se coma algo que no debe.»', is_personal = TRUE, is_boss_quest = FALSE, giver_npc = 'gaspar_volcan', turn_in_npc = 'gaspar_volcan', dialog = '{"entrega":"¡TRUENO! *Gaspar lo abraza del cuello* ¿Dormido en la forja? ¿Con las brochetas de Tuli en la panza? Este caballo tiene más suerte que yo. Y más hambre. Toma, por las molestias. Y no le cuentes a mi mujer que lo perdí OTRA vez."}'::jsonb, chain_position = NULL, chain_total = NULL WHERE code = 'VOLCAN_SEC_TRUENO';
+DELETE FROM quest_objectives WHERE quest_id = (SELECT id FROM quests WHERE code = 'VOLCAN_SEC_TRUENO');
+INSERT INTO quest_objectives (quest_id, objective_type, step, target_code, monster_id, item_id, target_count, params, description)
+SELECT (SELECT id FROM quests WHERE code = 'VOLCAN_SEC_TRUENO'), v.t, v.step, v.target, (SELECT id FROM monsters WHERE code = v.monster), (SELECT id FROM items WHERE code = v.item), v.n, v.params::jsonb, v.descr
+FROM (VALUES
+  ('INVESTIGATE', 1, NULL, NULL, NULL, 1, '{"zone":"volcan","x":18,"y":16,"radius":3,"label":"Mirar junto a la fumarola","speaker":"Tú","sprite":"huellas_lobo","dialog":"Hay huellas de herradura alrededor de una fumarola, como si alguien se hubiera calentado las patas un buen rato. Las huellas siguen hacia Ascuaria."}', 'Busca a Trueno en los Campos de Azufre'),
+  ('INVESTIGATE', 2, NULL, NULL, NULL, 1, '{"zone":"volcan","x":110,"y":37,"radius":3,"label":"Preguntar en la parrilla","speaker":"Tuli","dialog":"¡Un caballo gris se comió doce brochetas y salió corriendo hacia la forja! ¡Doce! ¡Con el palito y todo!"}', 'Sigue las huellas hasta la parrilla de Tuli'),
+  ('INVESTIGATE', 3, NULL, NULL, NULL, 1, '{"zone":"volcan","x":119,"y":26,"radius":3,"label":"Mirar detrás de la forja","speaker":"Tú","sprite":"trueno_dormido","dialog":"Trueno duerme tirado junto al horno de Ignar, con la panza llena y una cara de felicidad que nunca le viste."}', 'Busca a Trueno en la Gran Forja'),
+  ('TALK', 4, 'gaspar_volcan', NULL, NULL, 1, NULL, 'Avísale a Gaspar')
+) AS v(t, step, target, monster, item, n, params, descr);
+DELETE FROM quest_npc_spots WHERE quest_id = (SELECT id FROM quests WHERE code = 'VOLCAN_SEC_TRUENO');
+DELETE FROM quest_item_rewards WHERE quest_id = (SELECT id FROM quests WHERE code = 'VOLCAN_SEC_TRUENO');
+INSERT INTO quest_item_rewards (quest_id, item_id, quantity)
+SELECT (SELECT id FROM quests WHERE code = 'VOLCAN_SEC_TRUENO'), i.id, v.qty FROM (VALUES ('ASADO_SALAMANDRA', 2)) AS v(code, qty) JOIN items i ON i.code = v.code;
+
+-- El mejor herrero de Etheria (Ignar)
+INSERT INTO quests (code, name, quest_type, zone_id, min_level, max_level, difficulty_stars, npc_name, location_name, is_repeatable, repeat_cooldown_hours, reputation_reward, gold_reward, xp_reward, description, is_personal, is_boss_quest, giver_npc, turn_in_npc, dialog, chain_position, chain_total)
+SELECT 'VOLCAN_SEC_RIVALES_1', 'El mejor herrero de Etheria', 'SECUNDARIA', 3, 33, 45, 3, 'Ignar', 'Aurelia', FALSE, NULL, 90, 1850, 7200, '«Ese herrerucho de Aurelia, Brokk, anda diciendo que es el mejor herrero de Etheria. ¡De ETHERIA! Llévale esta carta. Y quédate a ver su cara cuando la lea.»', TRUE, FALSE, 'ignar', 'brokk', '{"entrega":"*Brokk lee la carta y se pone rojo hasta las orejas* ¿«Herrerucho»? ¿«Martillo de juguete»? ¿«Brazos de fideo»? ¡Ese lagarto engreído! Vas a llevarle mi respuesta. Y esta vez, la escribo con el martillo."}'::jsonb, NULL, NULL
+WHERE NOT EXISTS (SELECT 1 FROM quests WHERE code = 'VOLCAN_SEC_RIVALES_1');
+UPDATE quests SET name = 'El mejor herrero de Etheria', quest_type = 'SECUNDARIA', zone_id = 3, min_level = 33, max_level = 45, difficulty_stars = 3, npc_name = 'Ignar', location_name = 'Aurelia', is_repeatable = FALSE, repeat_cooldown_hours = NULL, reputation_reward = 90, gold_reward = 1850, xp_reward = 7200, description = '«Ese herrerucho de Aurelia, Brokk, anda diciendo que es el mejor herrero de Etheria. ¡De ETHERIA! Llévale esta carta. Y quédate a ver su cara cuando la lea.»', is_personal = TRUE, is_boss_quest = FALSE, giver_npc = 'ignar', turn_in_npc = 'brokk', dialog = '{"entrega":"*Brokk lee la carta y se pone rojo hasta las orejas* ¿«Herrerucho»? ¿«Martillo de juguete»? ¿«Brazos de fideo»? ¡Ese lagarto engreído! Vas a llevarle mi respuesta. Y esta vez, la escribo con el martillo."}'::jsonb, chain_position = NULL, chain_total = NULL WHERE code = 'VOLCAN_SEC_RIVALES_1';
+DELETE FROM quest_objectives WHERE quest_id = (SELECT id FROM quests WHERE code = 'VOLCAN_SEC_RIVALES_1');
+INSERT INTO quest_objectives (quest_id, objective_type, step, target_code, monster_id, item_id, target_count, params, description)
+SELECT (SELECT id FROM quests WHERE code = 'VOLCAN_SEC_RIVALES_1'), v.t, v.step, v.target, (SELECT id FROM monsters WHERE code = v.monster), (SELECT id FROM items WHERE code = v.item), v.n, v.params::jsonb, v.descr
+FROM (VALUES
+  ('TALK', 1, 'ignar', NULL, NULL, 1, '{"speaker":"Ignar","dialog":"Ten. Está escrita con letra grande, para que la entienda.","gives":{"item":"CARTA_DE_IGNAR","qty":1}}', 'Recibe la carta de Ignar'),
+  ('DELIVER', 2, 'brokk', NULL, 'CARTA_DE_IGNAR', 1, NULL, 'Lleva la carta a Brokk, en la forja de Aurelia')
+) AS v(t, step, target, monster, item, n, params, descr);
+DELETE FROM quest_npc_spots WHERE quest_id = (SELECT id FROM quests WHERE code = 'VOLCAN_SEC_RIVALES_1');
+DELETE FROM quest_item_rewards WHERE quest_id = (SELECT id FROM quests WHERE code = 'VOLCAN_SEC_RIVALES_1');
+
+-- Con el martillo (Brokk)
+INSERT INTO quests (code, name, quest_type, zone_id, min_level, max_level, difficulty_stars, npc_name, location_name, is_repeatable, repeat_cooldown_hours, reputation_reward, gold_reward, xp_reward, description, is_personal, is_boss_quest, giver_npc, turn_in_npc, dialog, chain_position, chain_total)
+SELECT 'VOLCAN_SEC_RIVALES_2', 'Con el martillo', 'SECUNDARIA', 3, 35, 45, 3, 'Brokk', 'Ascuaria', FALSE, NULL, 90, 1900, 7600, '«Llévale mi martillo a ese lagarto. Que lo levante, si puede. Y llévale también acero refinado del bueno, para que vea lo que es metal de verdad.»', TRUE, FALSE, 'brokk', 'ignar', '{"entrega":"*Ignar levanta el martillo de Brokk con una mano, lo mira, lo vuelve a mirar* …Está bien balanceado. MUY bien balanceado. *carraspea* Para un humano. Dile que el acero es aceptable. ACEPTABLE."}'::jsonb, NULL, NULL
+WHERE NOT EXISTS (SELECT 1 FROM quests WHERE code = 'VOLCAN_SEC_RIVALES_2');
+UPDATE quests SET name = 'Con el martillo', quest_type = 'SECUNDARIA', zone_id = 3, min_level = 35, max_level = 45, difficulty_stars = 3, npc_name = 'Brokk', location_name = 'Ascuaria', is_repeatable = FALSE, repeat_cooldown_hours = NULL, reputation_reward = 90, gold_reward = 1900, xp_reward = 7600, description = '«Llévale mi martillo a ese lagarto. Que lo levante, si puede. Y llévale también acero refinado del bueno, para que vea lo que es metal de verdad.»', is_personal = TRUE, is_boss_quest = FALSE, giver_npc = 'brokk', turn_in_npc = 'ignar', dialog = '{"entrega":"*Ignar levanta el martillo de Brokk con una mano, lo mira, lo vuelve a mirar* …Está bien balanceado. MUY bien balanceado. *carraspea* Para un humano. Dile que el acero es aceptable. ACEPTABLE."}'::jsonb, chain_position = NULL, chain_total = NULL WHERE code = 'VOLCAN_SEC_RIVALES_2';
+DELETE FROM quest_objectives WHERE quest_id = (SELECT id FROM quests WHERE code = 'VOLCAN_SEC_RIVALES_2');
+INSERT INTO quest_objectives (quest_id, objective_type, step, target_code, monster_id, item_id, target_count, params, description)
+SELECT (SELECT id FROM quests WHERE code = 'VOLCAN_SEC_RIVALES_2'), v.t, v.step, v.target, (SELECT id FROM monsters WHERE code = v.monster), (SELECT id FROM items WHERE code = v.item), v.n, v.params::jsonb, v.descr
+FROM (VALUES
+  ('TALK', 1, 'brokk', NULL, NULL, 1, '{"speaker":"Brokk","dialog":"Cuídalo con tu vida. Es el martillo de mi padre.","gives":{"item":"MARTILLO_DE_BROKK","qty":1}}', 'Recibe el martillo de Brokk'),
+  ('COLLECT_ITEM', 1, NULL, NULL, 'ACERO_REFINADO', 3, NULL, 'Junta 3 de Acero Refinado'),
+  ('DELIVER', 2, 'ignar', NULL, 'MARTILLO_DE_BROKK', 1, NULL, 'Lleva el martillo de Brokk a Ignar')
+) AS v(t, step, target, monster, item, n, params, descr);
+DELETE FROM quest_npc_spots WHERE quest_id = (SELECT id FROM quests WHERE code = 'VOLCAN_SEC_RIVALES_2');
+DELETE FROM quest_item_rewards WHERE quest_id = (SELECT id FROM quests WHERE code = 'VOLCAN_SEC_RIVALES_2');
+
+-- La misma espada (Ignar)
+INSERT INTO quests (code, name, quest_type, zone_id, min_level, max_level, difficulty_stars, npc_name, location_name, is_repeatable, repeat_cooldown_hours, reputation_reward, gold_reward, xp_reward, description, is_personal, is_boss_quest, giver_npc, turn_in_npc, dialog, chain_position, chain_total)
+SELECT 'VOLCAN_SEC_RIVALES_3', 'La misma espada', 'SECUNDARIA', 3, 37, 45, 3, 'Ignar', 'Ascuaria', FALSE, NULL, 90, 2000, 8000, '«Se me ocurrió algo. Brokk y yo vamos a forjar la misma espada, con los mismos materiales, y que juzgue el que la use. Tú. Trae obsidiana y esquirlas de los gólems: le mando la mitad a Brokk.»', TRUE, FALSE, 'ignar', 'brokk', '{"entrega":"*Brokk mira la obsidiana y sonríe por primera vez* Vidrio de volcán. Nunca lo trabajé. Es… es precioso. *se le borra la sonrisa* No le digas que dije eso."}'::jsonb, NULL, NULL
+WHERE NOT EXISTS (SELECT 1 FROM quests WHERE code = 'VOLCAN_SEC_RIVALES_3');
+UPDATE quests SET name = 'La misma espada', quest_type = 'SECUNDARIA', zone_id = 3, min_level = 37, max_level = 45, difficulty_stars = 3, npc_name = 'Ignar', location_name = 'Ascuaria', is_repeatable = FALSE, repeat_cooldown_hours = NULL, reputation_reward = 90, gold_reward = 2000, xp_reward = 8000, description = '«Se me ocurrió algo. Brokk y yo vamos a forjar la misma espada, con los mismos materiales, y que juzgue el que la use. Tú. Trae obsidiana y esquirlas de los gólems: le mando la mitad a Brokk.»', is_personal = TRUE, is_boss_quest = FALSE, giver_npc = 'ignar', turn_in_npc = 'brokk', dialog = '{"entrega":"*Brokk mira la obsidiana y sonríe por primera vez* Vidrio de volcán. Nunca lo trabajé. Es… es precioso. *se le borra la sonrisa* No le digas que dije eso."}'::jsonb, chain_position = NULL, chain_total = NULL WHERE code = 'VOLCAN_SEC_RIVALES_3';
+DELETE FROM quest_objectives WHERE quest_id = (SELECT id FROM quests WHERE code = 'VOLCAN_SEC_RIVALES_3');
+INSERT INTO quest_objectives (quest_id, objective_type, step, target_code, monster_id, item_id, target_count, params, description)
+SELECT (SELECT id FROM quests WHERE code = 'VOLCAN_SEC_RIVALES_3'), v.t, v.step, v.target, (SELECT id FROM monsters WHERE code = v.monster), (SELECT id FROM items WHERE code = v.item), v.n, v.params::jsonb, v.descr
+FROM (VALUES
+  ('COLLECT_ITEM', 1, NULL, NULL, 'OBSIDIANA_BRUTA', 6, NULL, 'Junta 6 de Obsidiana Bruta'),
+  ('COLLECT_ITEM', 1, NULL, NULL, 'ESQUIRLA_OBSIDIANA', 4, NULL, 'Junta 4 Esquirlas de Obsidiana de los gólems'),
+  ('TALK', 2, 'brokk', NULL, NULL, 1, NULL, 'Lleva la mitad de los materiales a Brokk, en Aurelia')
+) AS v(t, step, target, monster, item, n, params, descr);
+DELETE FROM quest_npc_spots WHERE quest_id = (SELECT id FROM quests WHERE code = 'VOLCAN_SEC_RIVALES_3');
+DELETE FROM quest_item_rewards WHERE quest_id = (SELECT id FROM quests WHERE code = 'VOLCAN_SEC_RIVALES_3');
+
+-- Dos martillos (Brokk)
+INSERT INTO quests (code, name, quest_type, zone_id, min_level, max_level, difficulty_stars, npc_name, location_name, is_repeatable, repeat_cooldown_hours, reputation_reward, gold_reward, xp_reward, description, is_personal, is_boss_quest, giver_npc, turn_in_npc, dialog, chain_position, chain_total)
+SELECT 'VOLCAN_SEC_RIVALES_4', 'Dos martillos', 'SECUNDARIA', 3, 41, 45, 3, 'Brokk', 'Ascuaria', FALSE, NULL, 90, 2300, 9000, '«Las dos espadas quedaron… iguales. Igual de buenas. Ninguna mejor. *suspira* Voy a ir a Ascuaria. Quiero ver cómo trabaja ese lagarto. Llévale un Corazón de Brasa de mi parte: dicen que con eso forja como nadie.»', TRUE, FALSE, 'brokk', 'ignar', '{"entrega":"*Brokk e Ignar se miran un largo rato frente a la Gran Forja. Después, sin decir nada, Ignar le pasa un martillo y Brokk se pone a trabajar a su lado. El martilleo suena a dos tiempos, como un corazón.* …No está mal, herrerucho. *Brokk sonríe* Tampoco tú, lagarto."}'::jsonb, NULL, NULL
+WHERE NOT EXISTS (SELECT 1 FROM quests WHERE code = 'VOLCAN_SEC_RIVALES_4');
+UPDATE quests SET name = 'Dos martillos', quest_type = 'SECUNDARIA', zone_id = 3, min_level = 41, max_level = 45, difficulty_stars = 3, npc_name = 'Brokk', location_name = 'Ascuaria', is_repeatable = FALSE, repeat_cooldown_hours = NULL, reputation_reward = 90, gold_reward = 2300, xp_reward = 9000, description = '«Las dos espadas quedaron… iguales. Igual de buenas. Ninguna mejor. *suspira* Voy a ir a Ascuaria. Quiero ver cómo trabaja ese lagarto. Llévale un Corazón de Brasa de mi parte: dicen que con eso forja como nadie.»', is_personal = TRUE, is_boss_quest = FALSE, giver_npc = 'brokk', turn_in_npc = 'ignar', dialog = '{"entrega":"*Brokk e Ignar se miran un largo rato frente a la Gran Forja. Después, sin decir nada, Ignar le pasa un martillo y Brokk se pone a trabajar a su lado. El martilleo suena a dos tiempos, como un corazón.* …No está mal, herrerucho. *Brokk sonríe* Tampoco tú, lagarto."}'::jsonb, chain_position = NULL, chain_total = NULL WHERE code = 'VOLCAN_SEC_RIVALES_4';
+DELETE FROM quest_objectives WHERE quest_id = (SELECT id FROM quests WHERE code = 'VOLCAN_SEC_RIVALES_4');
+INSERT INTO quest_objectives (quest_id, objective_type, step, target_code, monster_id, item_id, target_count, params, description)
+SELECT (SELECT id FROM quests WHERE code = 'VOLCAN_SEC_RIVALES_4'), v.t, v.step, v.target, (SELECT id FROM monsters WHERE code = v.monster), (SELECT id FROM items WHERE code = v.item), v.n, v.params::jsonb, v.descr
+FROM (VALUES
+  ('COLLECT_ITEM', 1, NULL, NULL, 'CORAZON_DE_BRASA', 1, NULL, 'Consigue un Corazón de Brasa'),
+  ('TALK', 2, 'ignar', NULL, NULL, 1, NULL, 'Llévale el Corazón de Brasa a Ignar, en la Gran Forja')
+) AS v(t, step, target, monster, item, n, params, descr);
+DELETE FROM quest_npc_spots WHERE quest_id = (SELECT id FROM quests WHERE code = 'VOLCAN_SEC_RIVALES_4');
+DELETE FROM quest_item_rewards WHERE quest_id = (SELECT id FROM quests WHERE code = 'VOLCAN_SEC_RIVALES_4');
+INSERT INTO quest_item_rewards (quest_id, item_id, quantity)
+SELECT (SELECT id FROM quests WHERE code = 'VOLCAN_SEC_RIVALES_4'), i.id, v.qty FROM (VALUES ('PIEDRA_ENCANT_MAYOR', 2)) AS v(code, qty) JOIN items i ON i.code = v.code;
+
+-- Un huevo frío (Chispa)
+INSERT INTO quests (code, name, quest_type, zone_id, min_level, max_level, difficulty_stars, npc_name, location_name, is_repeatable, repeat_cooldown_hours, reputation_reward, gold_reward, xp_reward, description, is_personal, is_boss_quest, giver_npc, turn_in_npc, dialog, chain_position, chain_total)
+SELECT 'VOLCAN_SEC_HUEVO_1', 'Un huevo frío', 'SECUNDARIA', 3, 35, 45, 3, 'Chispa', 'Ascuaria', FALSE, NULL, 90, 1900, 7500, '«¡Encontré un huevo de dragón! Está frío y no se mueve. La abuela dice que los huevos de dragón se mantienen con brasas que no se apagan nunca. ¡Los bandidos tienen de esas! ¿Me traes unas? ¡Porfa porfa porfa!»', TRUE, FALSE, 'chispa', 'chispa', '{"entrega":"*Chispa pone las brasas alrededor del huevo* ¡Se movió! ¡SE MOVIÓ! ¿Lo viste? Se va a llamar… se va a llamar… ¡Ya pensaré! ¡Gracias, gracias, gracias!"}'::jsonb, NULL, NULL
+WHERE NOT EXISTS (SELECT 1 FROM quests WHERE code = 'VOLCAN_SEC_HUEVO_1');
+UPDATE quests SET name = 'Un huevo frío', quest_type = 'SECUNDARIA', zone_id = 3, min_level = 35, max_level = 45, difficulty_stars = 3, npc_name = 'Chispa', location_name = 'Ascuaria', is_repeatable = FALSE, repeat_cooldown_hours = NULL, reputation_reward = 90, gold_reward = 1900, xp_reward = 7500, description = '«¡Encontré un huevo de dragón! Está frío y no se mueve. La abuela dice que los huevos de dragón se mantienen con brasas que no se apagan nunca. ¡Los bandidos tienen de esas! ¿Me traes unas? ¡Porfa porfa porfa!»', is_personal = TRUE, is_boss_quest = FALSE, giver_npc = 'chispa', turn_in_npc = 'chispa', dialog = '{"entrega":"*Chispa pone las brasas alrededor del huevo* ¡Se movió! ¡SE MOVIÓ! ¿Lo viste? Se va a llamar… se va a llamar… ¡Ya pensaré! ¡Gracias, gracias, gracias!"}'::jsonb, chain_position = NULL, chain_total = NULL WHERE code = 'VOLCAN_SEC_HUEVO_1';
+DELETE FROM quest_objectives WHERE quest_id = (SELECT id FROM quests WHERE code = 'VOLCAN_SEC_HUEVO_1');
+INSERT INTO quest_objectives (quest_id, objective_type, step, target_code, monster_id, item_id, target_count, params, description)
+SELECT (SELECT id FROM quests WHERE code = 'VOLCAN_SEC_HUEVO_1'), v.t, v.step, v.target, (SELECT id FROM monsters WHERE code = v.monster), (SELECT id FROM items WHERE code = v.item), v.n, v.params::jsonb, v.descr
+FROM (VALUES
+  ('COLLECT_ITEM', 1, NULL, NULL, 'BRASA_DE_BANDIDO', 4, NULL, 'Junta 4 Brasas de Bandido'),
+  ('TALK', 2, 'chispa', NULL, NULL, 1, NULL, 'Llévale las brasas a Chispa')
+) AS v(t, step, target, monster, item, n, params, descr);
+DELETE FROM quest_npc_spots WHERE quest_id = (SELECT id FROM quests WHERE code = 'VOLCAN_SEC_HUEVO_1');
+DELETE FROM quest_item_rewards WHERE quest_id = (SELECT id FROM quests WHERE code = 'VOLCAN_SEC_HUEVO_1');
+
+-- El calor de un dragón (Chispa)
+INSERT INTO quests (code, name, quest_type, zone_id, min_level, max_level, difficulty_stars, npc_name, location_name, is_repeatable, repeat_cooldown_hours, reputation_reward, gold_reward, xp_reward, description, is_personal, is_boss_quest, giver_npc, turn_in_npc, dialog, chain_position, chain_total)
+SELECT 'VOLCAN_SEC_HUEVO_2', 'El calor de un dragón', 'SECUNDARIA', 3, 38, 45, 3, 'Chispa', 'Nido del Dragón', FALSE, NULL, 90, 2050, 8200, '«El huevo se puso triste. La abuela dice que extraña a su mamá, que necesita el calor de un dragón de verdad. En el Nido hay huevos como el mío… ¿Puedes ir a ver cómo los cuidan los dracos? ¡Y que no te coman!»', TRUE, FALSE, 'chispa', 'chispa', '{"entrega":"¿Los dracos les cantan? ¿Les dan vueltas? ¿Y les soplan humo? *Chispa empieza a soplarle al huevo* Fuuu… fuuu… ¡Ay, me mareé! Pero creo que le gustó."}'::jsonb, NULL, NULL
+WHERE NOT EXISTS (SELECT 1 FROM quests WHERE code = 'VOLCAN_SEC_HUEVO_2');
+UPDATE quests SET name = 'El calor de un dragón', quest_type = 'SECUNDARIA', zone_id = 3, min_level = 38, max_level = 45, difficulty_stars = 3, npc_name = 'Chispa', location_name = 'Nido del Dragón', is_repeatable = FALSE, repeat_cooldown_hours = NULL, reputation_reward = 90, gold_reward = 2050, xp_reward = 8200, description = '«El huevo se puso triste. La abuela dice que extraña a su mamá, que necesita el calor de un dragón de verdad. En el Nido hay huevos como el mío… ¿Puedes ir a ver cómo los cuidan los dracos? ¡Y que no te coman!»', is_personal = TRUE, is_boss_quest = FALSE, giver_npc = 'chispa', turn_in_npc = 'chispa', dialog = '{"entrega":"¿Los dracos les cantan? ¿Les dan vueltas? ¿Y les soplan humo? *Chispa empieza a soplarle al huevo* Fuuu… fuuu… ¡Ay, me mareé! Pero creo que le gustó."}'::jsonb, chain_position = NULL, chain_total = NULL WHERE code = 'VOLCAN_SEC_HUEVO_2';
+DELETE FROM quest_objectives WHERE quest_id = (SELECT id FROM quests WHERE code = 'VOLCAN_SEC_HUEVO_2');
+INSERT INTO quest_objectives (quest_id, objective_type, step, target_code, monster_id, item_id, target_count, params, description)
+SELECT (SELECT id FROM quests WHERE code = 'VOLCAN_SEC_HUEVO_2'), v.t, v.step, v.target, (SELECT id FROM monsters WHERE code = v.monster), (SELECT id FROM items WHERE code = v.item), v.n, v.params::jsonb, v.descr
+FROM (VALUES
+  ('KILL_MONSTER', 1, 'DRACO_BRASA', 'DRACO_BRASA', NULL, 5, NULL, 'Espanta a 5 Dracos de Brasa del Nido'),
+  ('INVESTIGATE', 2, NULL, NULL, NULL, 1, '{"zone":"volcan","x":134,"y":103,"radius":3,"label":"Mirar los huevos","speaker":"Tú","sprite":"nido_brillos","dialog":"Los huevos están rodeados de piedras calientes, y alguien los dio vuelta hace poco: la ceniza está removida. Huele a humo dulce."}', 'Mira cómo cuidan los huevos en el Nido'),
+  ('TALK', 3, 'chispa', NULL, NULL, 1, NULL, 'Cuéntale a Chispa lo que viste')
+) AS v(t, step, target, monster, item, n, params, descr);
+DELETE FROM quest_npc_spots WHERE quest_id = (SELECT id FROM quests WHERE code = 'VOLCAN_SEC_HUEVO_2');
+DELETE FROM quest_item_rewards WHERE quest_id = (SELECT id FROM quests WHERE code = 'VOLCAN_SEC_HUEVO_2');
+
+-- ¡Crac! (Chispa)
+INSERT INTO quests (code, name, quest_type, zone_id, min_level, max_level, difficulty_stars, npc_name, location_name, is_repeatable, repeat_cooldown_hours, reputation_reward, gold_reward, xp_reward, description, is_personal, is_boss_quest, giver_npc, turn_in_npc, dialog, chain_position, chain_total)
+SELECT 'VOLCAN_SEC_HUEVO_3', '¡Crac!', 'SECUNDARIA', 3, 40, 45, 3, 'Chispa', 'Ascuaria', FALSE, NULL, 90, 2150, 8600, '«¡Ya casi! El huevo hace crac crac por las noches. La abuela dice que va a nacer cuando escuche cantar a un dragón grande. ¿Conoces algún dragón grande que cante? ¡Pregúntale al Viejo Escamas!»', TRUE, FALSE, 'chispa', 'chispa', '{"entrega":"*el huevo se parte y sale un dragoncito del tamaño de un gato, estornuda una chispa y se le duerme a Chispa en los brazos* ¡Es Brasita! ¡Se va a llamar Brasita, como el del abuelo Escamas! Toma, este huevo lo encontré junto al mío. ¡Para que tengas tu propio dragón! O lo que salga."}'::jsonb, NULL, NULL
+WHERE NOT EXISTS (SELECT 1 FROM quests WHERE code = 'VOLCAN_SEC_HUEVO_3');
+UPDATE quests SET name = '¡Crac!', quest_type = 'SECUNDARIA', zone_id = 3, min_level = 40, max_level = 45, difficulty_stars = 3, npc_name = 'Chispa', location_name = 'Ascuaria', is_repeatable = FALSE, repeat_cooldown_hours = NULL, reputation_reward = 90, gold_reward = 2150, xp_reward = 8600, description = '«¡Ya casi! El huevo hace crac crac por las noches. La abuela dice que va a nacer cuando escuche cantar a un dragón grande. ¿Conoces algún dragón grande que cante? ¡Pregúntale al Viejo Escamas!»', is_personal = TRUE, is_boss_quest = FALSE, giver_npc = 'chispa', turn_in_npc = 'chispa', dialog = '{"entrega":"*el huevo se parte y sale un dragoncito del tamaño de un gato, estornuda una chispa y se le duerme a Chispa en los brazos* ¡Es Brasita! ¡Se va a llamar Brasita, como el del abuelo Escamas! Toma, este huevo lo encontré junto al mío. ¡Para que tengas tu propio dragón! O lo que salga."}'::jsonb, chain_position = NULL, chain_total = NULL WHERE code = 'VOLCAN_SEC_HUEVO_3';
+DELETE FROM quest_objectives WHERE quest_id = (SELECT id FROM quests WHERE code = 'VOLCAN_SEC_HUEVO_3');
+INSERT INTO quest_objectives (quest_id, objective_type, step, target_code, monster_id, item_id, target_count, params, description)
+SELECT (SELECT id FROM quests WHERE code = 'VOLCAN_SEC_HUEVO_3'), v.t, v.step, v.target, (SELECT id FROM monsters WHERE code = v.monster), (SELECT id FROM items WHERE code = v.item), v.n, v.params::jsonb, v.descr
+FROM (VALUES
+  ('TALK', 1, 'escamas', NULL, NULL, 1, '{"speaker":"Viejo Escamas","dialog":"¿Un huevo? ¿Cantarle? *se aclara la garganta y canta bajito, una canción vieja que hace vibrar la ceniza* Así le cantaba a Brasita. Ve. Corre. Que lo escuche."}', 'Pídele al Viejo Escamas que le cante al huevo'),
+  ('TALK', 2, 'chispa', NULL, NULL, 1, NULL, 'Vuelve con Chispa')
+) AS v(t, step, target, monster, item, n, params, descr);
+DELETE FROM quest_npc_spots WHERE quest_id = (SELECT id FROM quests WHERE code = 'VOLCAN_SEC_HUEVO_3');
+DELETE FROM quest_item_rewards WHERE quest_id = (SELECT id FROM quests WHERE code = 'VOLCAN_SEC_HUEVO_3');
+INSERT INTO quest_item_rewards (quest_id, item_id, quantity)
+SELECT (SELECT id FROM quests WHERE code = 'VOLCAN_SEC_HUEVO_3'), i.id, v.qty FROM (VALUES ('HUEVO_RARO', 1)) AS v(code, qty) JOIN items i ON i.code = v.code;
+
+-- ¿Picante? (Tuli)
+INSERT INTO quests (code, name, quest_type, zone_id, min_level, max_level, difficulty_stars, npc_name, location_name, is_repeatable, repeat_cooldown_hours, reputation_reward, gold_reward, xp_reward, description, is_personal, is_boss_quest, giver_npc, turn_in_npc, dialog, chain_position, chain_total)
+SELECT 'VOLCAN_SEC_PICANTE', '¿Picante?', 'SECUNDARIA', 3, 34, 45, 3, 'Tuli', 'Ascuaria', FALSE, NULL, 90, 1880, 7400, '«Quiero inventar un chile que haga llorar a un dracónido. ¡A un dracónido! Comemos fuego desde que nacemos. Necesito flor de ceniza y azufre, del de las fumarolas. Y un valiente que lo pruebe primero. Tú pareces valiente.»', TRUE, FALSE, 'tuli', 'tuli', '{"entrega":"*Tuli se lo da a probar a la matriarca Ascalia, que se pone roja, después violeta, y le salen lágrimas* ¡FUNCIONÓ! ¡La matriarca lloró! ¡Nadie la vio llorar en cien años! Ay, me va a echar de la ciudad. Toma unos chiles. Y escóndete."}'::jsonb, NULL, NULL
+WHERE NOT EXISTS (SELECT 1 FROM quests WHERE code = 'VOLCAN_SEC_PICANTE');
+UPDATE quests SET name = '¿Picante?', quest_type = 'SECUNDARIA', zone_id = 3, min_level = 34, max_level = 45, difficulty_stars = 3, npc_name = 'Tuli', location_name = 'Ascuaria', is_repeatable = FALSE, repeat_cooldown_hours = NULL, reputation_reward = 90, gold_reward = 1880, xp_reward = 7400, description = '«Quiero inventar un chile que haga llorar a un dracónido. ¡A un dracónido! Comemos fuego desde que nacemos. Necesito flor de ceniza y azufre, del de las fumarolas. Y un valiente que lo pruebe primero. Tú pareces valiente.»', is_personal = TRUE, is_boss_quest = FALSE, giver_npc = 'tuli', turn_in_npc = 'tuli', dialog = '{"entrega":"*Tuli se lo da a probar a la matriarca Ascalia, que se pone roja, después violeta, y le salen lágrimas* ¡FUNCIONÓ! ¡La matriarca lloró! ¡Nadie la vio llorar en cien años! Ay, me va a echar de la ciudad. Toma unos chiles. Y escóndete."}'::jsonb, chain_position = NULL, chain_total = NULL WHERE code = 'VOLCAN_SEC_PICANTE';
+DELETE FROM quest_objectives WHERE quest_id = (SELECT id FROM quests WHERE code = 'VOLCAN_SEC_PICANTE');
+INSERT INTO quest_objectives (quest_id, objective_type, step, target_code, monster_id, item_id, target_count, params, description)
+SELECT (SELECT id FROM quests WHERE code = 'VOLCAN_SEC_PICANTE'), v.t, v.step, v.target, (SELECT id FROM monsters WHERE code = v.monster), (SELECT id FROM items WHERE code = v.item), v.n, v.params::jsonb, v.descr
+FROM (VALUES
+  ('COLLECT_ITEM', 1, NULL, NULL, 'FLOR_DE_CENIZA', 4, NULL, 'Junta 4 Flores de Ceniza'),
+  ('COLLECT_ITEM', 1, NULL, NULL, 'AZUFRE', 2, NULL, 'Junta 2 de Azufre'),
+  ('TALK', 2, 'tuli', NULL, NULL, 1, NULL, 'Lleva los ingredientes a Tuli')
+) AS v(t, step, target, monster, item, n, params, descr);
+DELETE FROM quest_npc_spots WHERE quest_id = (SELECT id FROM quests WHERE code = 'VOLCAN_SEC_PICANTE');
+DELETE FROM quest_item_rewards WHERE quest_id = (SELECT id FROM quests WHERE code = 'VOLCAN_SEC_PICANTE');
+INSERT INTO quest_item_rewards (quest_id, item_id, quantity)
+SELECT (SELECT id FROM quests WHERE code = 'VOLCAN_SEC_PICANTE'), i.id, v.qty FROM (VALUES ('CHILE_AZUFRE', 3)) AS v(code, qty) JOIN items i ON i.code = v.code;
+
+-- Brotes pisados (Ceniza)
+INSERT INTO quests (code, name, quest_type, zone_id, min_level, max_level, difficulty_stars, npc_name, location_name, is_repeatable, repeat_cooldown_hours, reputation_reward, gold_reward, xp_reward, description, is_personal, is_boss_quest, giver_npc, turn_in_npc, dialog, chain_position, chain_total)
+SELECT 'VOLCAN_SEC_BOSQUE_1', 'Brotes pisados', 'SECUNDARIA', 3, 33, 45, 3, 'Ceniza', 'Bosque Calcinado', FALSE, NULL, 90, 1850, 7200, '«Este bosque se quema cada cincuenta años y vuelve a crecer: los árboles de fuego solo brotan después de un incendio. Pero los Lobos de Ceniza escarban los brotes para hacer sus madrigueras. Si sigues así, el bosque no vuelve nunca.»', TRUE, FALSE, 'ceniza', 'ceniza', '{"entrega":"Mira: un brote nuevo. Rojo, como una brasa. *Ceniza se agacha y lo tapa con las manos* Mi abuela plantó estos árboles. Y la abuela de mi abuela. Ahora me toca a mí."}'::jsonb, NULL, NULL
+WHERE NOT EXISTS (SELECT 1 FROM quests WHERE code = 'VOLCAN_SEC_BOSQUE_1');
+UPDATE quests SET name = 'Brotes pisados', quest_type = 'SECUNDARIA', zone_id = 3, min_level = 33, max_level = 45, difficulty_stars = 3, npc_name = 'Ceniza', location_name = 'Bosque Calcinado', is_repeatable = FALSE, repeat_cooldown_hours = NULL, reputation_reward = 90, gold_reward = 1850, xp_reward = 7200, description = '«Este bosque se quema cada cincuenta años y vuelve a crecer: los árboles de fuego solo brotan después de un incendio. Pero los Lobos de Ceniza escarban los brotes para hacer sus madrigueras. Si sigues así, el bosque no vuelve nunca.»', is_personal = TRUE, is_boss_quest = FALSE, giver_npc = 'ceniza', turn_in_npc = 'ceniza', dialog = '{"entrega":"Mira: un brote nuevo. Rojo, como una brasa. *Ceniza se agacha y lo tapa con las manos* Mi abuela plantó estos árboles. Y la abuela de mi abuela. Ahora me toca a mí."}'::jsonb, chain_position = NULL, chain_total = NULL WHERE code = 'VOLCAN_SEC_BOSQUE_1';
+DELETE FROM quest_objectives WHERE quest_id = (SELECT id FROM quests WHERE code = 'VOLCAN_SEC_BOSQUE_1');
+INSERT INTO quest_objectives (quest_id, objective_type, step, target_code, monster_id, item_id, target_count, params, description)
+SELECT (SELECT id FROM quests WHERE code = 'VOLCAN_SEC_BOSQUE_1'), v.t, v.step, v.target, (SELECT id FROM monsters WHERE code = v.monster), (SELECT id FROM items WHERE code = v.item), v.n, v.params::jsonb, v.descr
+FROM (VALUES
+  ('KILL_MONSTER', 1, 'LOBO_CENIZA', 'LOBO_CENIZA', NULL, 6, NULL, 'Espanta a 6 Lobos de Ceniza del bosque'),
+  ('TALK', 2, 'ceniza', NULL, NULL, 1, NULL, 'Vuelve con Ceniza')
+) AS v(t, step, target, monster, item, n, params, descr);
+DELETE FROM quest_npc_spots WHERE quest_id = (SELECT id FROM quests WHERE code = 'VOLCAN_SEC_BOSQUE_1');
+DELETE FROM quest_item_rewards WHERE quest_id = (SELECT id FROM quests WHERE code = 'VOLCAN_SEC_BOSQUE_1');
+
+-- Semillas de fuego (Ceniza)
+INSERT INTO quests (code, name, quest_type, zone_id, min_level, max_level, difficulty_stars, npc_name, location_name, is_repeatable, repeat_cooldown_hours, reputation_reward, gold_reward, xp_reward, description, is_personal, is_boss_quest, giver_npc, turn_in_npc, dialog, chain_position, chain_total)
+SELECT 'VOLCAN_SEC_BOSQUE_2', 'Semillas de fuego', 'SECUNDARIA', 3, 35, 45, 3, 'Ceniza', 'Bosque Calcinado', FALSE, NULL, 90, 1900, 7600, '«Junté semillas de los árboles viejos. Para que brote, cada semilla necesita una gota de agua bendecida. Del Pilar de Aethra, en tu ciudad. Plántalas en el claro grande y riégalas con eso.»', TRUE, FALSE, 'ceniza', 'ceniza', '{"entrega":"¿Ya brotaron? ¿Todas? *Ceniza corre al claro y vuelve con los ojos brillando* ¡Doce brotes! Nunca vi tantos juntos. Voy a cuidarlos uno por uno. Gracias, humano. Para ser humano, tienes buenas manos."}'::jsonb, NULL, NULL
+WHERE NOT EXISTS (SELECT 1 FROM quests WHERE code = 'VOLCAN_SEC_BOSQUE_2');
+UPDATE quests SET name = 'Semillas de fuego', quest_type = 'SECUNDARIA', zone_id = 3, min_level = 35, max_level = 45, difficulty_stars = 3, npc_name = 'Ceniza', location_name = 'Bosque Calcinado', is_repeatable = FALSE, repeat_cooldown_hours = NULL, reputation_reward = 90, gold_reward = 1900, xp_reward = 7600, description = '«Junté semillas de los árboles viejos. Para que brote, cada semilla necesita una gota de agua bendecida. Del Pilar de Aethra, en tu ciudad. Plántalas en el claro grande y riégalas con eso.»', is_personal = TRUE, is_boss_quest = FALSE, giver_npc = 'ceniza', turn_in_npc = 'ceniza', dialog = '{"entrega":"¿Ya brotaron? ¿Todas? *Ceniza corre al claro y vuelve con los ojos brillando* ¡Doce brotes! Nunca vi tantos juntos. Voy a cuidarlos uno por uno. Gracias, humano. Para ser humano, tienes buenas manos."}'::jsonb, chain_position = NULL, chain_total = NULL WHERE code = 'VOLCAN_SEC_BOSQUE_2';
+DELETE FROM quest_objectives WHERE quest_id = (SELECT id FROM quests WHERE code = 'VOLCAN_SEC_BOSQUE_2');
+INSERT INTO quest_objectives (quest_id, objective_type, step, target_code, monster_id, item_id, target_count, params, description)
+SELECT (SELECT id FROM quests WHERE code = 'VOLCAN_SEC_BOSQUE_2'), v.t, v.step, v.target, (SELECT id FROM monsters WHERE code = v.monster), (SELECT id FROM items WHERE code = v.item), v.n, v.params::jsonb, v.descr
+FROM (VALUES
+  ('TALK', 1, 'ceniza', NULL, NULL, 1, '{"speaker":"Ceniza","dialog":"Ten. Cuídalas: son las últimas del árbol de mi abuela.","gives":{"item":"SEMILLAS_DE_FUEGO","qty":1}}', 'Recibe las semillas de Ceniza'),
+  ('COLLECT_ITEM', 1, NULL, NULL, 'AGUA_PURIFICADA', 2, NULL, 'Consigue 2 de Agua Purificada en el Pilar de Aethra'),
+  ('INVESTIGATE', 2, NULL, NULL, NULL, 1, '{"zone":"volcan","x":20,"y":56,"radius":3,"label":"Plantar las semillas","speaker":"Tú","sprite":"rama_suelo","dialog":"Entierras las semillas en la ceniza tibia y les echas el agua del Pilar. Por un momento la ceniza brilla, como si respirara."}', 'Planta las semillas en el claro grande del bosque'),
+  ('TALK', 3, 'ceniza', NULL, NULL, 1, NULL, 'Avísale a Ceniza')
+) AS v(t, step, target, monster, item, n, params, descr);
+DELETE FROM quest_npc_spots WHERE quest_id = (SELECT id FROM quests WHERE code = 'VOLCAN_SEC_BOSQUE_2');
+DELETE FROM quest_item_rewards WHERE quest_id = (SELECT id FROM quests WHERE code = 'VOLCAN_SEC_BOSQUE_2');
+
+-- Que no vuelva a arder (Ceniza)
+INSERT INTO quests (code, name, quest_type, zone_id, min_level, max_level, difficulty_stars, npc_name, location_name, is_repeatable, repeat_cooldown_hours, reputation_reward, gold_reward, xp_reward, description, is_personal, is_boss_quest, giver_npc, turn_in_npc, dialog, chain_position, chain_total)
+SELECT 'VOLCAN_SEC_BOSQUE_3', 'Que no vuelva a arder', 'SECUNDARIA', 3, 36, 45, 3, 'Ceniza', 'Bosque Calcinado', FALSE, NULL, 90, 1950, 7900, '«Los bandidos vieron los brotes. Dicen que van a quemar el claro "para practicar". Para practicar. Que alguien les enseñe lo que es un incendio de verdad. Tú. Ahora.»', TRUE, FALSE, 'ceniza', 'ceniza', '{"entrega":"*Ceniza mira el claro: los brotes siguen ahí, rojos y derechos* Los árboles de fuego crecen rápido. En diez años vas a poder caminar a la sombra por aquí. Vuelve entonces. Te voy a mostrar el bosque más lindo de Etheria."}'::jsonb, NULL, NULL
+WHERE NOT EXISTS (SELECT 1 FROM quests WHERE code = 'VOLCAN_SEC_BOSQUE_3');
+UPDATE quests SET name = 'Que no vuelva a arder', quest_type = 'SECUNDARIA', zone_id = 3, min_level = 36, max_level = 45, difficulty_stars = 3, npc_name = 'Ceniza', location_name = 'Bosque Calcinado', is_repeatable = FALSE, repeat_cooldown_hours = NULL, reputation_reward = 90, gold_reward = 1950, xp_reward = 7900, description = '«Los bandidos vieron los brotes. Dicen que van a quemar el claro "para practicar". Para practicar. Que alguien les enseñe lo que es un incendio de verdad. Tú. Ahora.»', is_personal = TRUE, is_boss_quest = FALSE, giver_npc = 'ceniza', turn_in_npc = 'ceniza', dialog = '{"entrega":"*Ceniza mira el claro: los brotes siguen ahí, rojos y derechos* Los árboles de fuego crecen rápido. En diez años vas a poder caminar a la sombra por aquí. Vuelve entonces. Te voy a mostrar el bosque más lindo de Etheria."}'::jsonb, chain_position = NULL, chain_total = NULL WHERE code = 'VOLCAN_SEC_BOSQUE_3';
+DELETE FROM quest_objectives WHERE quest_id = (SELECT id FROM quests WHERE code = 'VOLCAN_SEC_BOSQUE_3');
+INSERT INTO quest_objectives (quest_id, objective_type, step, target_code, monster_id, item_id, target_count, params, description)
+SELECT (SELECT id FROM quests WHERE code = 'VOLCAN_SEC_BOSQUE_3'), v.t, v.step, v.target, (SELECT id FROM monsters WHERE code = v.monster), (SELECT id FROM items WHERE code = v.item), v.n, v.params::jsonb, v.descr
+FROM (VALUES
+  ('AMBUSH', 1, NULL, NULL, NULL, 1, '{"zone":"volcan","x":23,"y":59,"radius":3,"label":"Ir al claro","dialog":"¡Tres bandidos con antorchas rodean los brotes! «¡Mira, más leña!», dice uno, y te atacan.","monsters":[{"code":"BANDIDO_FUEGO","level":36},{"code":"BANDIDO_FUEGO","level":35},{"code":"LOBO_CENIZA","level":35}]}', 'Detén a los bandidos que vienen a quemar el claro'),
+  ('TALK', 2, 'ceniza', NULL, NULL, 1, NULL, 'Vuelve con Ceniza')
+) AS v(t, step, target, monster, item, n, params, descr);
+DELETE FROM quest_npc_spots WHERE quest_id = (SELECT id FROM quests WHERE code = 'VOLCAN_SEC_BOSQUE_3');
+DELETE FROM quest_item_rewards WHERE quest_id = (SELECT id FROM quests WHERE code = 'VOLCAN_SEC_BOSQUE_3');
+INSERT INTO quest_item_rewards (quest_id, item_id, quantity)
+SELECT (SELECT id FROM quests WHERE code = 'VOLCAN_SEC_BOSQUE_3'), i.id, v.qty FROM (VALUES ('ESTOFADO_DRACO', 2)) AS v(code, qty) JOIN items i ON i.code = v.code;
+
+-- Pómez de calidad (Pumo)
+INSERT INTO quests (code, name, quest_type, zone_id, min_level, max_level, difficulty_stars, npc_name, location_name, is_repeatable, repeat_cooldown_hours, reputation_reward, gold_reward, xp_reward, description, is_personal, is_boss_quest, giver_npc, turn_in_npc, dialog, chain_position, chain_total)
+SELECT 'VOLCAN_SEC_POMEZ', 'Pómez de calidad', 'SECUNDARIA', 3, 35, 45, 3, 'Pumo', 'Ríos de Lava', FALSE, NULL, 90, 1900, 7600, '«Desde que se hundió la balsa de los encapuchados, nadie quiere subirse a las mías. ¡Y las mías son buenas! Bueno, más o menos. Ayúdame a hacer una balsa que no se hunda: pómez de los nidos y escamas de salamandra, que aguantan el calor.»', TRUE, FALSE, 'pumo', 'pumo', '{"entrega":"*Pumo sube a la balsa nueva, salta, salta más fuerte* ¡No se hunde! ¡Mírala! ¡Flota como una pluma! Te hago precio. No, mejor: te la regalo. Bueno, no te la regalo, pero te cobro menos. Algo menos."}'::jsonb, NULL, NULL
+WHERE NOT EXISTS (SELECT 1 FROM quests WHERE code = 'VOLCAN_SEC_POMEZ');
+UPDATE quests SET name = 'Pómez de calidad', quest_type = 'SECUNDARIA', zone_id = 3, min_level = 35, max_level = 45, difficulty_stars = 3, npc_name = 'Pumo', location_name = 'Ríos de Lava', is_repeatable = FALSE, repeat_cooldown_hours = NULL, reputation_reward = 90, gold_reward = 1900, xp_reward = 7600, description = '«Desde que se hundió la balsa de los encapuchados, nadie quiere subirse a las mías. ¡Y las mías son buenas! Bueno, más o menos. Ayúdame a hacer una balsa que no se hunda: pómez de los nidos y escamas de salamandra, que aguantan el calor.»', is_personal = TRUE, is_boss_quest = FALSE, giver_npc = 'pumo', turn_in_npc = 'pumo', dialog = '{"entrega":"*Pumo sube a la balsa nueva, salta, salta más fuerte* ¡No se hunde! ¡Mírala! ¡Flota como una pluma! Te hago precio. No, mejor: te la regalo. Bueno, no te la regalo, pero te cobro menos. Algo menos."}'::jsonb, chain_position = NULL, chain_total = NULL WHERE code = 'VOLCAN_SEC_POMEZ';
+DELETE FROM quest_objectives WHERE quest_id = (SELECT id FROM quests WHERE code = 'VOLCAN_SEC_POMEZ');
+INSERT INTO quest_objectives (quest_id, objective_type, step, target_code, monster_id, item_id, target_count, params, description)
+SELECT (SELECT id FROM quests WHERE code = 'VOLCAN_SEC_POMEZ'), v.t, v.step, v.target, (SELECT id FROM monsters WHERE code = v.monster), (SELECT id FROM items WHERE code = v.item), v.n, v.params::jsonb, v.descr
+FROM (VALUES
+  ('COLLECT_ITEM', 1, NULL, NULL, 'PIEDRA_POMEZ', 6, NULL, 'Junta 6 Piedras Pómez de los nidos de salamandra'),
+  ('COLLECT_ITEM', 1, NULL, NULL, 'ESCAMA_DE_FUEGO', 3, NULL, 'Junta 3 Escamas de Salamandra'),
+  ('TALK', 2, 'pumo', NULL, NULL, 1, NULL, 'Lleva todo a Pumo')
+) AS v(t, step, target, monster, item, n, params, descr);
+DELETE FROM quest_npc_spots WHERE quest_id = (SELECT id FROM quests WHERE code = 'VOLCAN_SEC_POMEZ');
+DELETE FROM quest_item_rewards WHERE quest_id = (SELECT id FROM quests WHERE code = 'VOLCAN_SEC_POMEZ');
+
+-- Artesana, no (Kessa)
+INSERT INTO quests (code, name, quest_type, zone_id, min_level, max_level, difficulty_stars, npc_name, location_name, is_repeatable, repeat_cooldown_hours, reputation_reward, gold_reward, xp_reward, description, is_personal, is_boss_quest, giver_npc, turn_in_npc, dialog, chain_position, chain_total)
+SELECT 'VOLCAN_SEC_ARTESANA', 'Artesana, no', 'SECUNDARIA', 3, 37, 45, 3, 'Kessa', 'Cantera de Obsidiana', FALSE, NULL, 90, 2000, 8000, '«Ignar me dice "artesana". ARTESANA. Como si tallar obsidiana fuera hacer cucharitas. Tráeme vidrio del bueno y le voy a tallar algo que lo deje con la boca abierta. Y se lo llevas tú, que a mí no me abre la puerta.»', TRUE, FALSE, 'kessa', 'kessa', '{"entrega":"¿Dijo eso? ¿«Esto lo hizo una MAESTRA»? *Kessa se da vuelta para que no le veas la cara* Bueno. Bien. Ya era hora. *carraspea* Tráeme más vidrio, que ahora me encargó tres."}'::jsonb, NULL, NULL
+WHERE NOT EXISTS (SELECT 1 FROM quests WHERE code = 'VOLCAN_SEC_ARTESANA');
+UPDATE quests SET name = 'Artesana, no', quest_type = 'SECUNDARIA', zone_id = 3, min_level = 37, max_level = 45, difficulty_stars = 3, npc_name = 'Kessa', location_name = 'Cantera de Obsidiana', is_repeatable = FALSE, repeat_cooldown_hours = NULL, reputation_reward = 90, gold_reward = 2000, xp_reward = 8000, description = '«Ignar me dice "artesana". ARTESANA. Como si tallar obsidiana fuera hacer cucharitas. Tráeme vidrio del bueno y le voy a tallar algo que lo deje con la boca abierta. Y se lo llevas tú, que a mí no me abre la puerta.»', is_personal = TRUE, is_boss_quest = FALSE, giver_npc = 'kessa', turn_in_npc = 'kessa', dialog = '{"entrega":"¿Dijo eso? ¿«Esto lo hizo una MAESTRA»? *Kessa se da vuelta para que no le veas la cara* Bueno. Bien. Ya era hora. *carraspea* Tráeme más vidrio, que ahora me encargó tres."}'::jsonb, chain_position = NULL, chain_total = NULL WHERE code = 'VOLCAN_SEC_ARTESANA';
+DELETE FROM quest_objectives WHERE quest_id = (SELECT id FROM quests WHERE code = 'VOLCAN_SEC_ARTESANA');
+INSERT INTO quest_objectives (quest_id, objective_type, step, target_code, monster_id, item_id, target_count, params, description)
+SELECT (SELECT id FROM quests WHERE code = 'VOLCAN_SEC_ARTESANA'), v.t, v.step, v.target, (SELECT id FROM monsters WHERE code = v.monster), (SELECT id FROM items WHERE code = v.item), v.n, v.params::jsonb, v.descr
+FROM (VALUES
+  ('COLLECT_ITEM', 1, NULL, NULL, 'OBSIDIANA_BRUTA', 5, NULL, 'Junta 5 de Obsidiana Bruta'),
+  ('TALK', 2, 'kessa', NULL, NULL, 1, '{"speaker":"Kessa","dialog":"Ahí está. Un dragón. Si se le cae, lo mato.","gives":{"item":"FIGURA_DE_OBSIDIANA","qty":1}}', 'Lleva la obsidiana a Kessa y espera que talle'),
+  ('DELIVER', 3, 'ignar', NULL, 'FIGURA_DE_OBSIDIANA', 1, '{"speaker":"Ignar","dialog":"*la mira de cerca, de lejos, de cerca otra vez* …Esto lo hizo una maestra. No se lo digas. …Díselo."}', 'Llévale la figura a Ignar'),
+  ('TALK', 4, 'kessa', NULL, NULL, 1, NULL, 'Cuéntale a Kessa qué dijo Ignar')
+) AS v(t, step, target, monster, item, n, params, descr);
+DELETE FROM quest_npc_spots WHERE quest_id = (SELECT id FROM quests WHERE code = 'VOLCAN_SEC_ARTESANA');
+DELETE FROM quest_item_rewards WHERE quest_id = (SELECT id FROM quests WHERE code = 'VOLCAN_SEC_ARTESANA');
+
+-- El olor del éxito (Sulfo)
+INSERT INTO quests (code, name, quest_type, zone_id, min_level, max_level, difficulty_stars, npc_name, location_name, is_repeatable, repeat_cooldown_hours, reputation_reward, gold_reward, xp_reward, description, is_personal, is_boss_quest, giver_npc, turn_in_npc, dialog, chain_position, chain_total)
+SELECT 'VOLCAN_SEC_OLOR', 'El olor del éxito', 'SECUNDARIA', 3, 32, 45, 3, 'Sulfo', 'Campos de Azufre', FALSE, NULL, 90, 1800, 7100, '«Estoy inventando una poción contra el olor a azufre. Llevo veinte años aquí y ya no huelo nada, pero todos se tapan la nariz cuando paso. Seguro es por los escarabajos. Tráeme azufre y caparazones, y espántalos de paso.»', TRUE, FALSE, 'sulfo', 'sulfo', '{"entrega":"*Sulfo se toma la poción, huele el aire, huele el azufre, se huele la manga* …Oh. Oh, no. Huelo todo. Huelo TODO. Los escarabajos no eran. *se tapa la nariz* Era yo. Veinte años. Nadie me dijo nada. Toma, llévate unos tés. Yo me voy a bañar."}'::jsonb, NULL, NULL
+WHERE NOT EXISTS (SELECT 1 FROM quests WHERE code = 'VOLCAN_SEC_OLOR');
+UPDATE quests SET name = 'El olor del éxito', quest_type = 'SECUNDARIA', zone_id = 3, min_level = 32, max_level = 45, difficulty_stars = 3, npc_name = 'Sulfo', location_name = 'Campos de Azufre', is_repeatable = FALSE, repeat_cooldown_hours = NULL, reputation_reward = 90, gold_reward = 1800, xp_reward = 7100, description = '«Estoy inventando una poción contra el olor a azufre. Llevo veinte años aquí y ya no huelo nada, pero todos se tapan la nariz cuando paso. Seguro es por los escarabajos. Tráeme azufre y caparazones, y espántalos de paso.»', is_personal = TRUE, is_boss_quest = FALSE, giver_npc = 'sulfo', turn_in_npc = 'sulfo', dialog = '{"entrega":"*Sulfo se toma la poción, huele el aire, huele el azufre, se huele la manga* …Oh. Oh, no. Huelo todo. Huelo TODO. Los escarabajos no eran. *se tapa la nariz* Era yo. Veinte años. Nadie me dijo nada. Toma, llévate unos tés. Yo me voy a bañar."}'::jsonb, chain_position = NULL, chain_total = NULL WHERE code = 'VOLCAN_SEC_OLOR';
+DELETE FROM quest_objectives WHERE quest_id = (SELECT id FROM quests WHERE code = 'VOLCAN_SEC_OLOR');
+INSERT INTO quest_objectives (quest_id, objective_type, step, target_code, monster_id, item_id, target_count, params, description)
+SELECT (SELECT id FROM quests WHERE code = 'VOLCAN_SEC_OLOR'), v.t, v.step, v.target, (SELECT id FROM monsters WHERE code = v.monster), (SELECT id FROM items WHERE code = v.item), v.n, v.params::jsonb, v.descr
+FROM (VALUES
+  ('KILL_MONSTER', 1, 'ESCARABAJO_AZUFRE', 'ESCARABAJO_AZUFRE', NULL, 5, NULL, 'Espanta a 5 Escarabajos de Azufre'),
+  ('COLLECT_ITEM', 1, NULL, NULL, 'AZUFRE', 6, NULL, 'Junta 6 de Azufre'),
+  ('TALK', 2, 'sulfo', NULL, NULL, 1, NULL, 'Lleva el azufre a Sulfo')
+) AS v(t, step, target, monster, item, n, params, descr);
+DELETE FROM quest_npc_spots WHERE quest_id = (SELECT id FROM quests WHERE code = 'VOLCAN_SEC_OLOR');
+DELETE FROM quest_item_rewards WHERE quest_id = (SELECT id FROM quests WHERE code = 'VOLCAN_SEC_OLOR');
+INSERT INTO quest_item_rewards (quest_id, item_id, quantity)
+SELECT (SELECT id FROM quests WHERE code = 'VOLCAN_SEC_OLOR'), i.id, v.qty FROM (VALUES ('TE_FLOR_CENIZA', 3)) AS v(code, qty) JOIN items i ON i.code = v.code;
+
+-- El último vuelo (Viejo Escamas)
+INSERT INTO quests (code, name, quest_type, zone_id, min_level, max_level, difficulty_stars, npc_name, location_name, is_repeatable, repeat_cooldown_hours, reputation_reward, gold_reward, xp_reward, description, is_personal, is_boss_quest, giver_npc, turn_in_npc, dialog, chain_position, chain_total)
+SELECT 'VOLCAN_SEC_ULTIMO_VUELO', 'El último vuelo', 'SECUNDARIA', 3, 41, 45, 3, 'Viejo Escamas', 'Caldera del Titán', FALSE, NULL, 90, 2300, 9000, '«Los dracónidos devolvemos a nuestros dragones al fuego del que nacieron. Esta es la escama más grande de Brasita. Llévala al borde de la Caldera y déjala caer en la lava. Yo ya no tengo piernas para ese viaje.»', TRUE, FALSE, 'escamas', 'escamas', '{"entrega":"*el Viejo Escamas mira hacia la Caldera, donde un hilo de humo rojo sube derecho al cielo* Ahí va. Volando, como le gustaba. *sonríe* Gracias, Vigía. Ahora sí puedo dormir tranquilo."}'::jsonb, NULL, NULL
+WHERE NOT EXISTS (SELECT 1 FROM quests WHERE code = 'VOLCAN_SEC_ULTIMO_VUELO');
+UPDATE quests SET name = 'El último vuelo', quest_type = 'SECUNDARIA', zone_id = 3, min_level = 41, max_level = 45, difficulty_stars = 3, npc_name = 'Viejo Escamas', location_name = 'Caldera del Titán', is_repeatable = FALSE, repeat_cooldown_hours = NULL, reputation_reward = 90, gold_reward = 2300, xp_reward = 9000, description = '«Los dracónidos devolvemos a nuestros dragones al fuego del que nacieron. Esta es la escama más grande de Brasita. Llévala al borde de la Caldera y déjala caer en la lava. Yo ya no tengo piernas para ese viaje.»', is_personal = TRUE, is_boss_quest = FALSE, giver_npc = 'escamas', turn_in_npc = 'escamas', dialog = '{"entrega":"*el Viejo Escamas mira hacia la Caldera, donde un hilo de humo rojo sube derecho al cielo* Ahí va. Volando, como le gustaba. *sonríe* Gracias, Vigía. Ahora sí puedo dormir tranquilo."}'::jsonb, chain_position = NULL, chain_total = NULL WHERE code = 'VOLCAN_SEC_ULTIMO_VUELO';
+DELETE FROM quest_objectives WHERE quest_id = (SELECT id FROM quests WHERE code = 'VOLCAN_SEC_ULTIMO_VUELO');
+INSERT INTO quest_objectives (quest_id, objective_type, step, target_code, monster_id, item_id, target_count, params, description)
+SELECT (SELECT id FROM quests WHERE code = 'VOLCAN_SEC_ULTIMO_VUELO'), v.t, v.step, v.target, (SELECT id FROM monsters WHERE code = v.monster), (SELECT id FROM items WHERE code = v.item), v.n, v.params::jsonb, v.descr
+FROM (VALUES
+  ('TALK', 1, 'escamas', NULL, NULL, 1, '{"speaker":"Viejo Escamas","dialog":"No la sueltes hasta llegar. Y dile adiós de mi parte.","gives":{"item":"ESCAMA_DEL_DRAGON","qty":1}}', 'Recibe la escama del dragón'),
+  ('INVESTIGATE', 2, NULL, NULL, NULL, 1, '{"zone":"volcan","x":80,"y":94,"radius":3,"label":"Dejar caer la escama","speaker":"Tú","sprite":"cristal_suelo","dialog":"La escama cae en la lava y se enciende como una estrella. Un hilo de humo rojo sube derecho al cielo y, por un segundo, tiene forma de alas."}', 'Deja caer la escama en la lava de la Caldera'),
+  ('TALK', 3, 'escamas', NULL, NULL, 1, NULL, 'Vuelve con el Viejo Escamas')
+) AS v(t, step, target, monster, item, n, params, descr);
+DELETE FROM quest_npc_spots WHERE quest_id = (SELECT id FROM quests WHERE code = 'VOLCAN_SEC_ULTIMO_VUELO');
+DELETE FROM quest_item_rewards WHERE quest_id = (SELECT id FROM quests WHERE code = 'VOLCAN_SEC_ULTIMO_VUELO');
+
+-- Azufre para las pociones (Sulfo)
+INSERT INTO quests (code, name, quest_type, zone_id, min_level, max_level, difficulty_stars, npc_name, location_name, is_repeatable, repeat_cooldown_hours, reputation_reward, gold_reward, xp_reward, description, is_personal, is_boss_quest, giver_npc, turn_in_npc, dialog, chain_position, chain_total)
+SELECT 'VOLCAN_DIARIA_AZUFRE', 'Azufre para las pociones', 'DIARIA', 3, 32, 45, 3, 'Sulfo', 'Campos de Azufre', TRUE, 20, 40, 800, 3200, '«Necesito azufre fresco todos los días. El viejo se pone feo, como yo.»', TRUE, FALSE, 'sulfo', 'sulfo', '{"entrega":"Fresquito. Huele horrible. Perfecto."}'::jsonb, NULL, NULL
+WHERE NOT EXISTS (SELECT 1 FROM quests WHERE code = 'VOLCAN_DIARIA_AZUFRE');
+UPDATE quests SET name = 'Azufre para las pociones', quest_type = 'DIARIA', zone_id = 3, min_level = 32, max_level = 45, difficulty_stars = 3, npc_name = 'Sulfo', location_name = 'Campos de Azufre', is_repeatable = TRUE, repeat_cooldown_hours = 20, reputation_reward = 40, gold_reward = 800, xp_reward = 3200, description = '«Necesito azufre fresco todos los días. El viejo se pone feo, como yo.»', is_personal = TRUE, is_boss_quest = FALSE, giver_npc = 'sulfo', turn_in_npc = 'sulfo', dialog = '{"entrega":"Fresquito. Huele horrible. Perfecto."}'::jsonb, chain_position = NULL, chain_total = NULL WHERE code = 'VOLCAN_DIARIA_AZUFRE';
+DELETE FROM quest_objectives WHERE quest_id = (SELECT id FROM quests WHERE code = 'VOLCAN_DIARIA_AZUFRE');
+INSERT INTO quest_objectives (quest_id, objective_type, step, target_code, monster_id, item_id, target_count, params, description)
+SELECT (SELECT id FROM quests WHERE code = 'VOLCAN_DIARIA_AZUFRE'), v.t, v.step, v.target, (SELECT id FROM monsters WHERE code = v.monster), (SELECT id FROM items WHERE code = v.item), v.n, v.params::jsonb, v.descr
+FROM (VALUES
+  ('COLLECT_ITEM', 1, NULL, NULL, 'AZUFRE', 6, NULL, 'Junta 6 de Azufre'),
+  ('TALK', 2, 'sulfo', NULL, NULL, 1, NULL, 'Lleva el azufre a Sulfo')
+) AS v(t, step, target, monster, item, n, params, descr);
+DELETE FROM quest_npc_spots WHERE quest_id = (SELECT id FROM quests WHERE code = 'VOLCAN_DIARIA_AZUFRE');
+DELETE FROM quest_item_rewards WHERE quest_id = (SELECT id FROM quests WHERE code = 'VOLCAN_DIARIA_AZUFRE');
+
+-- Vidrio para tallar (Kessa)
+INSERT INTO quests (code, name, quest_type, zone_id, min_level, max_level, difficulty_stars, npc_name, location_name, is_repeatable, repeat_cooldown_hours, reputation_reward, gold_reward, xp_reward, description, is_personal, is_boss_quest, giver_npc, turn_in_npc, dialog, chain_position, chain_total)
+SELECT 'VOLCAN_DIARIA_OBSIDIANA', 'Vidrio para tallar', 'DIARIA', 3, 36, 45, 3, 'Kessa', 'Cantera de Obsidiana', TRUE, 20, 40, 900, 3600, '«Ignar me encargó tres dragones más. TRES. Tráeme obsidiana.»', TRUE, FALSE, 'kessa', 'kessa', '{"entrega":"Buena. Este pedazo va a ser una cola."}'::jsonb, NULL, NULL
+WHERE NOT EXISTS (SELECT 1 FROM quests WHERE code = 'VOLCAN_DIARIA_OBSIDIANA');
+UPDATE quests SET name = 'Vidrio para tallar', quest_type = 'DIARIA', zone_id = 3, min_level = 36, max_level = 45, difficulty_stars = 3, npc_name = 'Kessa', location_name = 'Cantera de Obsidiana', is_repeatable = TRUE, repeat_cooldown_hours = 20, reputation_reward = 40, gold_reward = 900, xp_reward = 3600, description = '«Ignar me encargó tres dragones más. TRES. Tráeme obsidiana.»', is_personal = TRUE, is_boss_quest = FALSE, giver_npc = 'kessa', turn_in_npc = 'kessa', dialog = '{"entrega":"Buena. Este pedazo va a ser una cola."}'::jsonb, chain_position = NULL, chain_total = NULL WHERE code = 'VOLCAN_DIARIA_OBSIDIANA';
+DELETE FROM quest_objectives WHERE quest_id = (SELECT id FROM quests WHERE code = 'VOLCAN_DIARIA_OBSIDIANA');
+INSERT INTO quest_objectives (quest_id, objective_type, step, target_code, monster_id, item_id, target_count, params, description)
+SELECT (SELECT id FROM quests WHERE code = 'VOLCAN_DIARIA_OBSIDIANA'), v.t, v.step, v.target, (SELECT id FROM monsters WHERE code = v.monster), (SELECT id FROM items WHERE code = v.item), v.n, v.params::jsonb, v.descr
+FROM (VALUES
+  ('COLLECT_ITEM', 1, NULL, NULL, 'OBSIDIANA_BRUTA', 6, NULL, 'Junta 6 de Obsidiana Bruta'),
+  ('TALK', 2, 'kessa', NULL, NULL, 1, NULL, 'Lleva la obsidiana a Kessa')
+) AS v(t, step, target, monster, item, n, params, descr);
+DELETE FROM quest_npc_spots WHERE quest_id = (SELECT id FROM quests WHERE code = 'VOLCAN_DIARIA_OBSIDIANA');
+DELETE FROM quest_item_rewards WHERE quest_id = (SELECT id FROM quests WHERE code = 'VOLCAN_DIARIA_OBSIDIANA');
+
+-- Colas para la parrilla (Tuli)
+INSERT INTO quests (code, name, quest_type, zone_id, min_level, max_level, difficulty_stars, npc_name, location_name, is_repeatable, repeat_cooldown_hours, reputation_reward, gold_reward, xp_reward, description, is_personal, is_boss_quest, giver_npc, turn_in_npc, dialog, chain_position, chain_total)
+SELECT 'VOLCAN_DIARIA_COLAS', 'Colas para la parrilla', 'DIARIA', 3, 33, 45, 3, 'Tuli', 'Ascuaria', TRUE, 20, 40, 820, 3300, '«¡Se me acabaron las colas de salamandra! Les vuelven a crecer, así que no te sientas mal.»', TRUE, FALSE, 'tuli', 'tuli', '{"entrega":"¡Colas frescas! Hoy hay asado para toda la plaza."}'::jsonb, NULL, NULL
+WHERE NOT EXISTS (SELECT 1 FROM quests WHERE code = 'VOLCAN_DIARIA_COLAS');
+UPDATE quests SET name = 'Colas para la parrilla', quest_type = 'DIARIA', zone_id = 3, min_level = 33, max_level = 45, difficulty_stars = 3, npc_name = 'Tuli', location_name = 'Ascuaria', is_repeatable = TRUE, repeat_cooldown_hours = 20, reputation_reward = 40, gold_reward = 820, xp_reward = 3300, description = '«¡Se me acabaron las colas de salamandra! Les vuelven a crecer, así que no te sientas mal.»', is_personal = TRUE, is_boss_quest = FALSE, giver_npc = 'tuli', turn_in_npc = 'tuli', dialog = '{"entrega":"¡Colas frescas! Hoy hay asado para toda la plaza."}'::jsonb, chain_position = NULL, chain_total = NULL WHERE code = 'VOLCAN_DIARIA_COLAS';
+DELETE FROM quest_objectives WHERE quest_id = (SELECT id FROM quests WHERE code = 'VOLCAN_DIARIA_COLAS');
+INSERT INTO quest_objectives (quest_id, objective_type, step, target_code, monster_id, item_id, target_count, params, description)
+SELECT (SELECT id FROM quests WHERE code = 'VOLCAN_DIARIA_COLAS'), v.t, v.step, v.target, (SELECT id FROM monsters WHERE code = v.monster), (SELECT id FROM items WHERE code = v.item), v.n, v.params::jsonb, v.descr
+FROM (VALUES
+  ('COLLECT_ITEM', 1, NULL, NULL, 'CARNE_SALAMANDRA', 4, NULL, 'Junta 4 Colas de Salamandra'),
+  ('TALK', 2, 'tuli', NULL, NULL, 1, NULL, 'Lleva las colas a Tuli')
+) AS v(t, step, target, monster, item, n, params, descr);
+DELETE FROM quest_npc_spots WHERE quest_id = (SELECT id FROM quests WHERE code = 'VOLCAN_DIARIA_COLAS');
+DELETE FROM quest_item_rewards WHERE quest_id = (SELECT id FROM quests WHERE code = 'VOLCAN_DIARIA_COLAS');
+
+-- la cadena y los requisitos: la V1 pide la última de las Montañas
+UPDATE quests SET requires_quest_id = (SELECT id FROM quests WHERE code = 'MONTANAS_Q3_REY_MONTANA') WHERE code = 'VOLCAN_HISTORIA_01_PASO';
+UPDATE quests SET requires_quest_id = (SELECT id FROM quests WHERE code = 'VOLCAN_HISTORIA_01_PASO') WHERE code = 'VOLCAN_HISTORIA_02_CENIZA';
+UPDATE quests SET requires_quest_id = (SELECT id FROM quests WHERE code = 'VOLCAN_HISTORIA_02_CENIZA') WHERE code = 'VOLCAN_HISTORIA_03_PUERTAS';
+UPDATE quests SET requires_quest_id = (SELECT id FROM quests WHERE code = 'VOLCAN_HISTORIA_03_PUERTAS') WHERE code = 'VOLCAN_HISTORIA_04_CARGAMENTO';
+UPDATE quests SET requires_quest_id = (SELECT id FROM quests WHERE code = 'VOLCAN_HISTORIA_04_CARGAMENTO') WHERE code = 'VOLCAN_HISTORIA_05_ORGULLO';
+UPDATE quests SET requires_quest_id = (SELECT id FROM quests WHERE code = 'VOLCAN_HISTORIA_05_ORGULLO') WHERE code = 'VOLCAN_HISTORIA_06_MOLDES';
+UPDATE quests SET requires_quest_id = (SELECT id FROM quests WHERE code = 'VOLCAN_HISTORIA_06_MOLDES') WHERE code = 'VOLCAN_Q1_DOMADOR_FUEGO';
+UPDATE quests SET requires_quest_id = (SELECT id FROM quests WHERE code = 'VOLCAN_Q1_DOMADOR_FUEGO') WHERE code = 'VOLCAN_HISTORIA_08_VIDRIO';
+UPDATE quests SET requires_quest_id = (SELECT id FROM quests WHERE code = 'VOLCAN_HISTORIA_08_VIDRIO') WHERE code = 'VOLCAN_HISTORIA_09_MAESTRO';
+UPDATE quests SET requires_quest_id = (SELECT id FROM quests WHERE code = 'VOLCAN_HISTORIA_09_MAESTRO') WHERE code = 'VOLCAN_HISTORIA_10_FISURA';
+UPDATE quests SET requires_quest_id = (SELECT id FROM quests WHERE code = 'VOLCAN_HISTORIA_10_FISURA') WHERE code = 'VOLCAN_HISTORIA_11_DRAGON';
+UPDATE quests SET requires_quest_id = (SELECT id FROM quests WHERE code = 'VOLCAN_HISTORIA_11_DRAGON') WHERE code = 'VOLCAN_Q2_CORAZON_CALDERA';
+UPDATE quests SET requires_quest_id = (SELECT id FROM quests WHERE code = 'VOLCAN_Q2_CORAZON_CALDERA') WHERE code = 'VOLCAN_HISTORIA_13_OFRENDA';
+UPDATE quests SET requires_quest_id = (SELECT id FROM quests WHERE code = 'VOLCAN_HISTORIA_13_OFRENDA') WHERE code = 'VOLCAN_Q3_TITAN_FUEGO';
+UPDATE quests SET requires_quest_id = (SELECT id FROM quests WHERE code = 'VOLCAN_HISTORIA_01_PASO') WHERE code = 'VOLCAN_SEC_TRUENO';
+UPDATE quests SET requires_quest_id = (SELECT id FROM quests WHERE code = 'VOLCAN_HISTORIA_05_ORGULLO') WHERE code = 'VOLCAN_SEC_RIVALES_1';
+UPDATE quests SET requires_quest_id = (SELECT id FROM quests WHERE code = 'VOLCAN_SEC_RIVALES_1') WHERE code = 'VOLCAN_SEC_RIVALES_2';
+UPDATE quests SET requires_quest_id = (SELECT id FROM quests WHERE code = 'VOLCAN_SEC_RIVALES_2') WHERE code = 'VOLCAN_SEC_RIVALES_3';
+UPDATE quests SET requires_quest_id = (SELECT id FROM quests WHERE code = 'VOLCAN_SEC_RIVALES_3') WHERE code = 'VOLCAN_SEC_RIVALES_4';
+UPDATE quests SET requires_quest_id = (SELECT id FROM quests WHERE code = 'VOLCAN_HISTORIA_03_PUERTAS') WHERE code = 'VOLCAN_SEC_HUEVO_1';
+UPDATE quests SET requires_quest_id = (SELECT id FROM quests WHERE code = 'VOLCAN_SEC_HUEVO_1') WHERE code = 'VOLCAN_SEC_HUEVO_2';
+UPDATE quests SET requires_quest_id = (SELECT id FROM quests WHERE code = 'VOLCAN_SEC_HUEVO_2') WHERE code = 'VOLCAN_SEC_HUEVO_3';
+UPDATE quests SET requires_quest_id = (SELECT id FROM quests WHERE code = 'VOLCAN_HISTORIA_03_PUERTAS') WHERE code = 'VOLCAN_SEC_PICANTE';
+UPDATE quests SET requires_quest_id = (SELECT id FROM quests WHERE code = 'VOLCAN_HISTORIA_04_CARGAMENTO') WHERE code = 'VOLCAN_SEC_BOSQUE_1';
+UPDATE quests SET requires_quest_id = (SELECT id FROM quests WHERE code = 'VOLCAN_SEC_BOSQUE_1') WHERE code = 'VOLCAN_SEC_BOSQUE_2';
+UPDATE quests SET requires_quest_id = (SELECT id FROM quests WHERE code = 'VOLCAN_SEC_BOSQUE_2') WHERE code = 'VOLCAN_SEC_BOSQUE_3';
+UPDATE quests SET requires_quest_id = (SELECT id FROM quests WHERE code = 'VOLCAN_Q1_DOMADOR_FUEGO') WHERE code = 'VOLCAN_SEC_POMEZ';
+UPDATE quests SET requires_quest_id = (SELECT id FROM quests WHERE code = 'VOLCAN_HISTORIA_08_VIDRIO') WHERE code = 'VOLCAN_SEC_ARTESANA';
+UPDATE quests SET requires_quest_id = NULL WHERE code = 'VOLCAN_SEC_OLOR';
+UPDATE quests SET requires_quest_id = (SELECT id FROM quests WHERE code = 'VOLCAN_HISTORIA_11_DRAGON') WHERE code = 'VOLCAN_SEC_ULTIMO_VUELO';
+UPDATE quests SET requires_quest_id = NULL WHERE code = 'VOLCAN_DIARIA_AZUFRE';
+UPDATE quests SET requires_quest_id = NULL WHERE code = 'VOLCAN_DIARIA_OBSIDIANA';
+UPDATE quests SET requires_quest_id = NULL WHERE code = 'VOLCAN_DIARIA_COLAS';
+
+-- las diarias que ya existían: cada una la da (y la recibe) un NPC de la zona
+UPDATE quests SET giver_npc = 'ignar', turn_in_npc = 'ignar', npc_name = 'Ignar', name = 'Esencias para la forja', description = '«El fuego de la forja se cansa. Tráeme esencias de los elementales para avivarlo.»', min_level = 34, repeat_cooldown_hours = 20,
+  dialog = COALESCE(dialog, '{}'::jsonb) || '{"entrega":"Ahora sí. Escucha cómo ruge."}'::jsonb,
+  requires_quest_id = NULL WHERE code = 'VOLCAN_DAILY_RECOLECCION_LAVA';
+UPDATE quests SET giver_npc = 'ascalia', turn_in_npc = 'ascalia', npc_name = 'Ascalia', name = 'La guardia de la meseta', description = '«Ascuaria no tiene murallas: tiene vecinos que pelean. Ayuda a mantener lejos a las bestias y a los bandidos.»', min_level = 40, repeat_cooldown_hours = 20,
+  dialog = COALESCE(dialog, '{}'::jsonb) || '{"entrega":"Ascuaria duerme tranquila esta noche. Gracias."}'::jsonb,
+  requires_quest_id = (SELECT id FROM quests WHERE code = 'VOLCAN_HISTORIA_03_PUERTAS') WHERE code = 'VOLCAN_DAILY_PLAGA_CALDERA';
+UPDATE quests SET giver_npc = 'escamas', turn_in_npc = 'escamas', npc_name = 'Viejo Escamas', name = 'Cazadores de leyendas', description = '«El Maestro de la Lava y los dragones corruptos vuelven a aparecer. No dejes que se acostumbren.»', min_level = 39, repeat_cooldown_hours = 20,
+  dialog = COALESCE(dialog, '{}'::jsonb) || '{"entrega":"Eres terco. Me gusta."}'::jsonb,
+  requires_quest_id = (SELECT id FROM quests WHERE code = 'VOLCAN_HISTORIA_11_DRAGON') WHERE code = 'VOLCAN_DAILY_CACERIA_LAVA';
+UPDATE quests SET giver_npc = 'pumo', turn_in_npc = 'pumo', npc_name = 'Pumo', name = 'Salamandras en el muelle', description = '«¡Las salamandras se comen mis balsas! Espántalas, que el negocio no da para más pérdidas.»', min_level = 31, repeat_cooldown_hours = 20,
+  dialog = COALESCE(dialog, '{}'::jsonb) || '{"entrega":"Ni una salamandra a la vista. Te debo un viaje. Uno corto."}'::jsonb,
+  requires_quest_id = NULL WHERE code = 'VOLCAN_COMUN_SALAMANDRA';
+UPDATE quests SET giver_npc = 'ascalia', turn_in_npc = 'ascalia', npc_name = 'Ascalia', name = 'Demonios en la Caldera', description = '«Los demonios de lava suben desde la Caldera de noche. Que no lleguen a la meseta.»', min_level = 40, repeat_cooldown_hours = 20,
+  dialog = COALESCE(dialog, '{}'::jsonb) || '{"entrega":"Bien hecho. Los centinelas de la meseta te lo agradecen."}'::jsonb,
+  requires_quest_id = (SELECT id FROM quests WHERE code = 'VOLCAN_HISTORIA_03_PUERTAS') WHERE code = 'VOLCAN_COMUN_DEMONIO';
+UPDATE quests SET giver_npc = 'ceniza', turn_in_npc = 'ceniza', npc_name = 'Ceniza', name = 'Bandidos en el bosque', description = '«Volvieron los bandidos. Volvieron con antorchas. Ya sabes qué hacer.»', min_level = 32, repeat_cooldown_hours = 20,
+  dialog = COALESCE(dialog, '{}'::jsonb) || '{"entrega":"El bosque respira. Gracias."}'::jsonb,
+  requires_quest_id = (SELECT id FROM quests WHERE code = 'VOLCAN_HISTORIA_04_CARGAMENTO') WHERE code = 'VOLCAN_COMUN_BANDIDO_F';
+UPDATE quests SET giver_npc = 'kessa', turn_in_npc = 'kessa', npc_name = 'Kessa', name = 'Armaduras vacías', description = '«Esas armaduras con fuego adentro rondan mi cantera. Me ponen nerviosa. Rómpelas.»', min_level = 37, repeat_cooldown_hours = 20,
+  dialog = COALESCE(dialog, '{}'::jsonb) || '{"entrega":"Ya no se escucha ese clanc clanc. Qué paz."}'::jsonb,
+  requires_quest_id = (SELECT id FROM quests WHERE code = 'VOLCAN_HISTORIA_08_VIDRIO') WHERE code = 'VOLCAN_COMUN_CENTINELA_I';
+UPDATE quests SET giver_npc = 'ignar', turn_in_npc = 'ignar', npc_name = 'Ignar', name = 'El que robaba moldes', description = '«Dicen que hay otro Maestro de la Lava en la Grieta. Si roba moldes, que no sean los míos.»', min_level = 39, repeat_cooldown_hours = 20,
+  dialog = COALESCE(dialog, '{}'::jsonb) || '{"entrega":"Uno menos. Ojalá fuera el último."}'::jsonb,
+  requires_quest_id = (SELECT id FROM quests WHERE code = 'VOLCAN_HISTORIA_09_MAESTRO') WHERE code = 'VOLCAN_CAZA_MAESTRO';
+UPDATE quests SET giver_npc = 'escamas', turn_in_npc = 'escamas', npc_name = 'Viejo Escamas', name = 'Otros dragones', description = '«Brasita no era el único. Hay más con cristales clavados. Líbralos, como lo liberaste a él.»', min_level = 40, repeat_cooldown_hours = 20,
+  dialog = COALESCE(dialog, '{}'::jsonb) || '{"entrega":"Uno más que descansa. Gracias, Vigía."}'::jsonb,
+  requires_quest_id = (SELECT id FROM quests WHERE code = 'VOLCAN_HISTORIA_11_DRAGON') WHERE code = 'VOLCAN_CAZA_DRAGON';
+UPDATE quests SET giver_npc = 'ascalia', turn_in_npc = 'ascalia', npc_name = 'Ascalia', name = 'El Señor de la Caldera vuelve', description = '«Los Ocultos le prometieron otro trono al Señor de la Caldera. Ya volvió. Enséñale que no hay trono.»', min_level = 42, repeat_cooldown_hours = 20,
+  dialog = COALESCE(dialog, '{}'::jsonb) || '{"entrega":"Otra vez de rodillas. Vamos a tener que poner una puerta."}'::jsonb,
+  requires_quest_id = (SELECT id FROM quests WHERE code = 'VOLCAN_Q2_CORAZON_CALDERA') WHERE code = 'VOLCAN_BOSS_CALDERA';
+UPDATE quests SET giver_npc = 'ignar', turn_in_npc = 'ignar', npc_name = 'Ignar', name = 'El Titán no descansa', description = '«Quedan cristales en la Caldera. A veces el Titán vuelve a enloquecer. Calmalo, otra vez.»', min_level = 45, repeat_cooldown_hours = 20,
+  dialog = COALESCE(dialog, '{}'::jsonb) || '{"entrega":"Se volvió a dormir. Por ahora."}'::jsonb,
+  requires_quest_id = (SELECT id FROM quests WHERE code = 'VOLCAN_Q3_TITAN_FUEGO') WHERE code = 'VOLCAN_LEG_TITAN_FUEGO';
+UPDATE quest_objectives SET item_id = (SELECT id FROM items WHERE code = 'ESENCIA_DE_FUEGO'), description = 'Junta 5 Esencias de Fuego de los Elementales'
+WHERE quest_id = (SELECT id FROM quests WHERE code = 'VOLCAN_DAILY_RECOLECCION_LAVA') AND objective_type = 'COLLECT_ITEM';
+-- las emboscadas sin dibujo muestran a su primer monstruo
+UPDATE quest_objectives SET params = params || jsonb_build_object('sprite', 'mon:' || (params->'monsters'->0->>'code'))
+WHERE objective_type = 'AMBUSH' AND params ? 'monsters' AND jsonb_array_length(params->'monsters') > 0 AND NOT params ? 'sprite'
+  AND quest_id IN (SELECT id FROM quests WHERE zone_id = 3);
+INSERT INTO balance_versions (version) SELECT 'volcan_v1' WHERE NOT EXISTS (SELECT 1 FROM balance_versions WHERE version = 'volcan_v1');

@@ -36,8 +36,13 @@ Cumbre del Rey.
   y queman un poco al que esté al descubierto; los **arcos de basalto** y los techos protegen.
 - **Fumarolas** en los Campos de Azufre: escupen vapor cada tanto (se ve y suena); al lado se
   recoge **Azufre**.
-- **Balsas de piedra pómez** en los Ríos de Lava: el balsero Pumo te cruza a otra orilla que ya
-  descubriste por unas monedas (como las vagonetas de las Montañas).
+- **Balsas de piedra pómez** entre tres muelles: los Ríos de Lava (Pumo), la Cantera de Obsidiana
+  (su prima Toba) y la Caldera del Titán (su prima Lapilli). El viaje cuesta 20 de oro y solo te
+  lleva a un muelle de una subzona que ya descubriste caminando (como las vagonetas de las
+  Montañas; `lib/brasas.js`).
+- **Lluvia de brasas** (Ríos de Lava, Grieta Ardiente y Caldera): una sombra avisa 1,6 s antes; si
+  te alcanza quita el 12% de la vida máxima (nunca te deja en 0). A salvo bajo los 17 arcos de
+  basalto y cerca de las fogatas (`src/game/world/brasas.js`, `lib/brasas.js`).
 - **Recursos de la zona:** veta de obsidiana, fumarola (azufre), flor de ceniza (una flor que solo
   crece en la ceniza tibia), nido de salamandra (huevos y escamas sueltas) y geoda ardiente (rara:
   Gema de Fuego). Además los cofres de aventurero de siempre.
@@ -86,11 +91,13 @@ arma; en el pecho: vida, regeneración, evasión o curación según la clase).
 Comidas de Ascuaria (la parrilla de Tuli): Brocheta de Salamandra, Chile de Azufre (picante: +ataque)
 y Té de Flor de Ceniza (resistencia al fuego / aguante).
 
-## 5. La mazmorra: la Fisura Infernal (34-42)
+## 5. La mazmorra: la Fisura Infernal (36-42)
 
 La forja secreta de los Ocultos, bajo la Grieta Ardiente. Como la Mina Profunda (`lib/mazmorra.js`):
-guardianes que patrullan, monstruos que se ajustan a tu nivel dentro del rango, cofre del jefe cada
-20 h y la mitad de XP y oro en las pasadas siguientes.
+guardianes que patrullan, monstruos que se ajustan a tu nivel dentro del rango (36-42), cofre de la
+forja cada 3 h. Se abre con la Llave de Brasa que forja Ignar en la V9. Mapa: `art/mapas/generar_fisura.js`
+(Entrada → Sala de Fundición → Puente de Escoria → Galería de los Moldes → El Foso → Portón de la
+Forja → Cámara de Morvak); arte: `art/sprites/mundo/crear_fisura.lua` (tileset propio, cuba y portón).
 
 - **Guardianes:** Fundidor Oculto (forjador encapuchado), Diablillos de Fragua (de a dos) y el
   Gólem de Escoria.
@@ -115,6 +122,8 @@ guardianes que patrullan, monstruos que se ajustan a tu nivel dentro del rango, 
 | **Sulfo, el alquimista** | Campos de Azufre | humano que vive entre fumarolas y ya no siente el olor | recolección de azufre, poción de resistencia |
 | **Ceniza** | Bosque Calcinado | guardabosque dracónida que replanta el bosque quemado | amistad, semillas, los bandidos |
 | **Pumo, el balsero** | Ríos de Lava | pícaro que te cruza la lava en balsas de pómez | balsas, *Pómez de calidad* |
+| **Toba y Lapilli** | muelles de la Cantera y de la Caldera | las primas de Pumo, también balseras | balsas |
+| **Marga, la mercader** | puesto de la plaza de Ascuaria | dracónida que compra el botín del Volcán y trae lo de los artesanos de Aurelia en las caravanas | comerciar (vender botín, comprar materiales) |
 | **Kessa, la talladora** | Cantera de Obsidiana | talla obsidiana y odia que Ignar la llame "artesana" | Obsidiana, rivalidad con Ignar |
 | **Viejo Escamas** | Nido del Dragón | anciano que crió al dragón cuando era cría | el Dragón Menor (triste) |
 | **Brokk** | viaja a Ascuaria | el herrero de Aurelia | *Brokk contra Ignar* (cadena) |
