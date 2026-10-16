@@ -7910,3 +7910,307 @@ UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 
 DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_SACERDOTE_WEAPON_HIERRO_NEGRO');
 INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
 SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_SACERDOTE_WEAPON_HIERRO_NEGRO'), i.id, v.n FROM (VALUES ('CORAZON_HIERRO_NEGRO', 1), ('MENA_HIERRO_NEGRO', 6), ('ACERO_REFINADO', 3), ('FLOR_DE_NIEVE', 2)) AS v(code, n) JOIN items i ON i.code = v.code;
+
+-- ============================================================================================
+-- Secundarias y diarias de las Montañas Grises (repetible; sin ON CONFLICT). Cada puesto tiene su
+-- NPC y su historia: Gorm (Paso), Dora (Minas), Sven (Pinar), Ingrid (Lago), Halvar (Acantilados),
+-- Lío (Garganta) y Ulfa (Cumbre); en el Bastión, la barba de Durgan y la olla de Hilda. Las
+-- diarias que ya existían pasan a los NPCs de los puestos y se entregan en persona.
+-- ============================================================================================
+INSERT INTO items (code, name, item_type, rarity, is_quest_item, description)
+SELECT 'ANILLO_DE_DURGAN', 'Anillo de Durgan', 'MATERIAL', 'POCO_COMUN', TRUE, 'Un anillo de oro con una runa enana y una piedra azul. Por dentro dice, muy chiquito: «Para H.»'
+WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'ANILLO_DE_DURGAN');
+UPDATE items SET name = 'Anillo de Durgan', is_quest_item = TRUE, description = 'Un anillo de oro con una runa enana y una piedra azul. Por dentro dice, muy chiquito: «Para H.»' WHERE code = 'ANILLO_DE_DURGAN';
+INSERT INTO items (code, name, item_type, rarity, is_quest_item, description)
+SELECT 'OLLA_DE_HILDA', 'Olla de Hilda', 'MATERIAL', 'POCO_COMUN', TRUE, 'La olla de hierro de Hilda, abollada y todavía tibia. Huele a guiso… y a orco.'
+WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'OLLA_DE_HILDA');
+UPDATE items SET name = 'Olla de Hilda', is_quest_item = TRUE, description = 'La olla de hierro de Hilda, abollada y todavía tibia. Huele a guiso… y a orco.' WHERE code = 'OLLA_DE_HILDA';
+
+-- La cabra que mandaba (Gorm)
+INSERT INTO quests (code, name, quest_type, zone_id, min_level, max_level, difficulty_stars, npc_name, location_name, is_repeatable, repeat_cooldown_hours, reputation_reward, gold_reward, xp_reward, description, is_personal, is_boss_quest, giver_npc, turn_in_npc, dialog, chain_position, chain_total)
+SELECT 'MONTANAS_SEC_CABRA_REINA', 'La cabra que mandaba', 'SECUNDARIA', 2, 16, 30, 3, 'Gorm', 'Paso de la Montaña', FALSE, NULL, 80, 800, 3800, '«¡Otra carreta volcada! Las cabras monteses la embistieron y después vinieron los orcos a llevarse la SAL. Ni el hierro, ni el oro: la sal. ¿Para qué quiere un orco tanta sal? Espanta a esas cabras y averigua qué traman.»', TRUE, FALSE, 'gorm', 'gorm', '{"entrega":"¿Una cabra reina? ¿Con corona de latas? ¿Y los orcos le abanicaban? *se ríe hasta toser* ¡Treinta años de carretero y nunca vi algo así! Les voy a dejar un saco de sal en el cruce. Mejor una cabra contenta que una carreta volcada."}'::jsonb, NULL, NULL
+WHERE NOT EXISTS (SELECT 1 FROM quests WHERE code = 'MONTANAS_SEC_CABRA_REINA');
+UPDATE quests SET name = 'La cabra que mandaba', quest_type = 'SECUNDARIA', zone_id = 2, min_level = 16, max_level = 30, difficulty_stars = 3, npc_name = 'Gorm', location_name = 'Paso de la Montaña', is_repeatable = FALSE, repeat_cooldown_hours = NULL, reputation_reward = 80, gold_reward = 800, xp_reward = 3800, description = '«¡Otra carreta volcada! Las cabras monteses la embistieron y después vinieron los orcos a llevarse la SAL. Ni el hierro, ni el oro: la sal. ¿Para qué quiere un orco tanta sal? Espanta a esas cabras y averigua qué traman.»', is_personal = TRUE, is_boss_quest = FALSE, giver_npc = 'gorm', turn_in_npc = 'gorm', dialog = '{"entrega":"¿Una cabra reina? ¿Con corona de latas? ¿Y los orcos le abanicaban? *se ríe hasta toser* ¡Treinta años de carretero y nunca vi algo así! Les voy a dejar un saco de sal en el cruce. Mejor una cabra contenta que una carreta volcada."}'::jsonb, chain_position = NULL, chain_total = NULL WHERE code = 'MONTANAS_SEC_CABRA_REINA';
+DELETE FROM quest_objectives WHERE quest_id = (SELECT id FROM quests WHERE code = 'MONTANAS_SEC_CABRA_REINA');
+INSERT INTO quest_objectives (quest_id, objective_type, step, target_code, monster_id, item_id, target_count, params, description)
+SELECT (SELECT id FROM quests WHERE code = 'MONTANAS_SEC_CABRA_REINA'), v.t, v.step, v.target, (SELECT id FROM monsters WHERE code = v.monster), (SELECT id FROM items WHERE code = v.item), v.n, v.params::jsonb, v.descr
+FROM (VALUES
+  ('KILL_MONSTER', 1, 'CABRA_MONTES', 'CABRA_MONTES', NULL, 5, NULL, 'Espanta a 5 Cabras Monteses que embisten las carretas'),
+  ('INVESTIGATE', 2, NULL, NULL, NULL, 1, '{"zone":"montanas","x":41,"y":40,"radius":3,"label":"Mirar el cuero pintado","speaker":"Tú","sprite":"dibujo_orco","dialog":"Un cuero clavado entre dos palos. Pintada con carbón, una cabra enorme con corona… y los orcos de rodillas frente a ella. Al lado, sacos de sal vacíos."}', 'Revisa el campamento de los orcos'),
+  ('AMBUSH', 3, NULL, NULL, NULL, 1, '{"zone":"montanas","x":9,"y":68,"radius":3,"label":"Acercarte a la cabra reina","dialog":"¡Una cabra enorme con una corona de latas! Dos orcos la abanican con hojas de pino. «¡MEEEEH!», grita, y su escolta te ataca.","monsters":[{"code":"CABRA_MONTES","level":18},{"code":"ORCO_MONTANA","level":17},{"code":"ORCO_MONTANA","level":17}]}', 'Encuentra a la cabra reina en las Lomas de las Cabras')
+) AS v(t, step, target, monster, item, n, params, descr);
+DELETE FROM quest_item_rewards WHERE quest_id = (SELECT id FROM quests WHERE code = 'MONTANAS_SEC_CABRA_REINA');
+INSERT INTO quest_item_rewards (quest_id, item_id, quantity)
+SELECT (SELECT id FROM quests WHERE code = 'MONTANAS_SEC_CABRA_REINA'), i.id, v.qty FROM (VALUES ('POCION_DE_VIDA_MAYOR', 2)) AS v(code, qty) JOIN items i ON i.code = v.code;
+UPDATE quests SET requires_quest_id = NULL WHERE code = 'MONTANAS_SEC_CABRA_REINA';
+
+-- Lo que brilla en la oscuridad (Dora)
+INSERT INTO quests (code, name, quest_type, zone_id, min_level, max_level, difficulty_stars, npc_name, location_name, is_repeatable, repeat_cooldown_hours, reputation_reward, gold_reward, xp_reward, description, is_personal, is_boss_quest, giver_npc, turn_in_npc, dialog, chain_position, chain_total)
+SELECT 'MONTANAS_SEC_BRILLOS', 'Lo que brilla en la oscuridad', 'SECUNDARIA', 2, 17, 30, 3, 'Dora', 'Minas Abandonadas', FALSE, NULL, 80, 850, 4200, '«Esos murciélagos me robaron la lámpara de mi madre cuando me rescataste. No la quieren para alumbrar: se llevan todo lo que brilla a su nido. Si vas, fíjate qué más tienen. Una vez les vi un anillo de oro…»', TRUE, FALSE, 'dora', 'durgan', '{"entrega":"*Durgan mira el anillo y se pone rojo hasta las orejas* Esto… esto se me cayó en la mina hace cuarenta años. Era para… no importa para quién. ¡No importa! Gracias. Y ni una palabra a Hilda. NI UNA."}'::jsonb, NULL, NULL
+WHERE NOT EXISTS (SELECT 1 FROM quests WHERE code = 'MONTANAS_SEC_BRILLOS');
+UPDATE quests SET name = 'Lo que brilla en la oscuridad', quest_type = 'SECUNDARIA', zone_id = 2, min_level = 17, max_level = 30, difficulty_stars = 3, npc_name = 'Dora', location_name = 'Minas Abandonadas', is_repeatable = FALSE, repeat_cooldown_hours = NULL, reputation_reward = 80, gold_reward = 850, xp_reward = 4200, description = '«Esos murciélagos me robaron la lámpara de mi madre cuando me rescataste. No la quieren para alumbrar: se llevan todo lo que brilla a su nido. Si vas, fíjate qué más tienen. Una vez les vi un anillo de oro…»', is_personal = TRUE, is_boss_quest = FALSE, giver_npc = 'dora', turn_in_npc = 'durgan', dialog = '{"entrega":"*Durgan mira el anillo y se pone rojo hasta las orejas* Esto… esto se me cayó en la mina hace cuarenta años. Era para… no importa para quién. ¡No importa! Gracias. Y ni una palabra a Hilda. NI UNA."}'::jsonb, chain_position = NULL, chain_total = NULL WHERE code = 'MONTANAS_SEC_BRILLOS';
+DELETE FROM quest_objectives WHERE quest_id = (SELECT id FROM quests WHERE code = 'MONTANAS_SEC_BRILLOS');
+INSERT INTO quest_objectives (quest_id, objective_type, step, target_code, monster_id, item_id, target_count, params, description)
+SELECT (SELECT id FROM quests WHERE code = 'MONTANAS_SEC_BRILLOS'), v.t, v.step, v.target, (SELECT id FROM monsters WHERE code = v.monster), (SELECT id FROM items WHERE code = v.item), v.n, v.params::jsonb, v.descr
+FROM (VALUES
+  ('KILL_MONSTER', 1, 'MURCIELAGO_CAVERNA', 'MURCIELAGO_CAVERNA', NULL, 6, NULL, 'Derrota 6 Murciélagos de Caverna'),
+  ('INVESTIGATE', 2, NULL, NULL, NULL, 1, '{"zone":"montanas","x":9,"y":7,"radius":3,"label":"Revolver el nido","speaker":"Tú","sprite":"nido_brillos","dialog":"Monedas, botones, la lámpara de Dora… y un anillo de oro con una runa enana. Por dentro dice, chiquito: «Para H.» La runa es la de Durgan.","gives":{"item":"ANILLO_DE_DURGAN","qty":1}}', 'Revisa el Nido de Murciélagos'),
+  ('DELIVER', 3, 'durgan', NULL, 'ANILLO_DE_DURGAN', 1, NULL, 'Lleva el anillo a Durgan')
+) AS v(t, step, target, monster, item, n, params, descr);
+DELETE FROM quest_item_rewards WHERE quest_id = (SELECT id FROM quests WHERE code = 'MONTANAS_SEC_BRILLOS');
+UPDATE quests SET requires_quest_id = (SELECT id FROM quests WHERE code = 'MONTANAS_HISTORIA_03_MINEROS') WHERE code = 'MONTANAS_SEC_BRILLOS';
+
+-- La barba de Durgan (Durgan)
+INSERT INTO quests (code, name, quest_type, zone_id, min_level, max_level, difficulty_stars, npc_name, location_name, is_repeatable, repeat_cooldown_hours, reputation_reward, gold_reward, xp_reward, description, is_personal, is_boss_quest, giver_npc, turn_in_npc, dialog, chain_position, chain_total)
+SELECT 'MONTANAS_SEC_BARBA', 'La barba de Durgan', 'SECUNDARIA', 2, 18, 30, 3, 'Durgan', 'Bastión de Hierro', FALSE, NULL, 80, 900, 4500, '«Necesito… hmph. Necesito que mi barba vuelva a crecer. Me la chamusqué en la forja y así no puedo… no puedo hacer una cosa. Hilda sabe hacer un tónico de cuerno de cabra y flor de nieve. Pídeselo tú. Si se lo pido yo va a preguntar.»', TRUE, FALSE, 'durgan', 'hilda', '{"entrega":"¡Me pidió matrimonio! Con la barba AZUL, cielo. Azul como la flor de nieve. Se arrodilló, se le trabó la rodilla y tuvimos que levantarlo entre los dos. Le dije que sí antes de que se arrepienta. ¡Toma, para el camino!"}'::jsonb, NULL, NULL
+WHERE NOT EXISTS (SELECT 1 FROM quests WHERE code = 'MONTANAS_SEC_BARBA');
+UPDATE quests SET name = 'La barba de Durgan', quest_type = 'SECUNDARIA', zone_id = 2, min_level = 18, max_level = 30, difficulty_stars = 3, npc_name = 'Durgan', location_name = 'Bastión de Hierro', is_repeatable = FALSE, repeat_cooldown_hours = NULL, reputation_reward = 80, gold_reward = 900, xp_reward = 4500, description = '«Necesito… hmph. Necesito que mi barba vuelva a crecer. Me la chamusqué en la forja y así no puedo… no puedo hacer una cosa. Hilda sabe hacer un tónico de cuerno de cabra y flor de nieve. Pídeselo tú. Si se lo pido yo va a preguntar.»', is_personal = TRUE, is_boss_quest = FALSE, giver_npc = 'durgan', turn_in_npc = 'hilda', dialog = '{"entrega":"¡Me pidió matrimonio! Con la barba AZUL, cielo. Azul como la flor de nieve. Se arrodilló, se le trabó la rodilla y tuvimos que levantarlo entre los dos. Le dije que sí antes de que se arrepienta. ¡Toma, para el camino!"}'::jsonb, chain_position = NULL, chain_total = NULL WHERE code = 'MONTANAS_SEC_BARBA';
+DELETE FROM quest_objectives WHERE quest_id = (SELECT id FROM quests WHERE code = 'MONTANAS_SEC_BARBA');
+INSERT INTO quest_objectives (quest_id, objective_type, step, target_code, monster_id, item_id, target_count, params, description)
+SELECT (SELECT id FROM quests WHERE code = 'MONTANAS_SEC_BARBA'), v.t, v.step, v.target, (SELECT id FROM monsters WHERE code = v.monster), (SELECT id FROM items WHERE code = v.item), v.n, v.params::jsonb, v.descr
+FROM (VALUES
+  ('COLLECT_ITEM', 1, NULL, NULL, 'CUERNO_CABRA_MONTES', 3, NULL, 'Junta 3 Cuernos de Cabra Montés'),
+  ('COLLECT_ITEM', 1, NULL, NULL, 'FLOR_DE_NIEVE', 3, NULL, 'Junta 3 Flores de Nieve'),
+  ('TALK', 2, 'hilda', NULL, NULL, 1, '{"speaker":"Hilda","dialog":"¿Un tónico de barba? ¿Para Durgan? Ese terco no se cuida ni una uña… algo trama. Toma, que se lo ponga esta noche. Y dile que la flor de nieve a veces… bueno, ya verá."}', 'Pídele a Hilda el tónico de barba'),
+  ('TALK', 3, 'durgan', NULL, NULL, 1, '{"speaker":"Durgan","dialog":"*se lo echa entero* ¡Pica! ¡PICA! … ¿Por qué me miras así? ¿Creció? ¿¡Qué color tiene!? … Azul. Bueno. Azul es un color digno. Ve con Hilda, ya voy. Tengo que… buscar algo en el bolsillo."}', 'Llévale el tónico a Durgan')
+) AS v(t, step, target, monster, item, n, params, descr);
+DELETE FROM quest_item_rewards WHERE quest_id = (SELECT id FROM quests WHERE code = 'MONTANAS_SEC_BARBA');
+INSERT INTO quest_item_rewards (quest_id, item_id, quantity)
+SELECT (SELECT id FROM quests WHERE code = 'MONTANAS_SEC_BARBA'), i.id, v.qty FROM (VALUES ('ASADO_CABRA', 3)) AS v(code, qty) JOIN items i ON i.code = v.code;
+UPDATE quests SET requires_quest_id = (SELECT id FROM quests WHERE code = 'MONTANAS_SEC_BRILLOS') WHERE code = 'MONTANAS_SEC_BARBA';
+
+-- Guardia nocturna (Brund)
+INSERT INTO quests (code, name, quest_type, zone_id, min_level, max_level, difficulty_stars, npc_name, location_name, is_repeatable, repeat_cooldown_hours, reputation_reward, gold_reward, xp_reward, description, is_personal, is_boss_quest, giver_npc, turn_in_npc, dialog, chain_position, chain_total)
+SELECT 'MONTANAS_SEC_OLLA', 'Guardia nocturna', 'SECUNDARIA', 2, 19, 30, 3, 'Brund', 'Bastión de Hierro', FALSE, NULL, 80, 880, 4400, '«¡Me tocó mi primera guardia nocturna y alguien se robó la olla de Hilda! Con el guiso adentro. Hilda va a pensar que fui yo, porque… bueno, una vez fui yo. ¡Pero esta vez no! Vi huellas verdes que iban al oeste.»', TRUE, FALSE, 'guardia_enano', 'hilda', '{"entrega":"¿Los orcos se robaron mi guiso? ¿Y qué dijeron? … ¿Que le faltaba SAL? ¡Atrevidos! *se queda pensando* Aunque… un orco con hambre es un orco que asalta carretas. Desde mañana les dejo una olla en el cruce, con la sal de Gorm. Y tú, Brund, a dormir."}'::jsonb, NULL, NULL
+WHERE NOT EXISTS (SELECT 1 FROM quests WHERE code = 'MONTANAS_SEC_OLLA');
+UPDATE quests SET name = 'Guardia nocturna', quest_type = 'SECUNDARIA', zone_id = 2, min_level = 19, max_level = 30, difficulty_stars = 3, npc_name = 'Brund', location_name = 'Bastión de Hierro', is_repeatable = FALSE, repeat_cooldown_hours = NULL, reputation_reward = 80, gold_reward = 880, xp_reward = 4400, description = '«¡Me tocó mi primera guardia nocturna y alguien se robó la olla de Hilda! Con el guiso adentro. Hilda va a pensar que fui yo, porque… bueno, una vez fui yo. ¡Pero esta vez no! Vi huellas verdes que iban al oeste.»', is_personal = TRUE, is_boss_quest = FALSE, giver_npc = 'guardia_enano', turn_in_npc = 'hilda', dialog = '{"entrega":"¿Los orcos se robaron mi guiso? ¿Y qué dijeron? … ¿Que le faltaba SAL? ¡Atrevidos! *se queda pensando* Aunque… un orco con hambre es un orco que asalta carretas. Desde mañana les dejo una olla en el cruce, con la sal de Gorm. Y tú, Brund, a dormir."}'::jsonb, chain_position = NULL, chain_total = NULL WHERE code = 'MONTANAS_SEC_OLLA';
+DELETE FROM quest_objectives WHERE quest_id = (SELECT id FROM quests WHERE code = 'MONTANAS_SEC_OLLA');
+INSERT INTO quest_objectives (quest_id, objective_type, step, target_code, monster_id, item_id, target_count, params, description)
+SELECT (SELECT id FROM quests WHERE code = 'MONTANAS_SEC_OLLA'), v.t, v.step, v.target, (SELECT id FROM monsters WHERE code = v.monster), (SELECT id FROM items WHERE code = v.item), v.n, v.params::jsonb, v.descr
+FROM (VALUES
+  ('INVESTIGATE', 1, NULL, NULL, NULL, 1, '{"zone":"montanas","x":61,"y":60,"radius":3,"label":"Buscar huellas","speaker":"Tú","dialog":"Donde estaba la olla quedó un círculo limpio en la nieve. Unas huellas verdes y enormes salen hacia el oeste… y un rastro de guiso."}', 'Revisa la cocina de Hilda'),
+  ('AMBUSH', 2, NULL, NULL, NULL, 1, '{"zone":"montanas","x":38,"y":42,"radius":3,"label":"Seguir el rastro","dialog":"Dos orcos con la cara llena de guiso discuten quién se come el último trozo. Te ven y te tiran la cuchara.","monsters":[{"code":"ORCO_MONTANA","level":19},{"code":"ORCO_MONTANA","level":19}]}', 'Sigue el rastro de guiso hasta el Campamento Orco'),
+  ('INVESTIGATE', 3, NULL, NULL, NULL, 1, '{"zone":"montanas","x":44,"y":41,"radius":3,"label":"Levantar la olla","speaker":"Tú","sprite":"olla_robada","dialog":"La olla está volcada y casi vacía. Al lado, un orco escribió en la nieve con el dedo: «FALTA SAL».","gives":{"item":"OLLA_DE_HILDA","qty":1}}', 'Recupera la olla de Hilda'),
+  ('DELIVER', 4, 'hilda', NULL, 'OLLA_DE_HILDA', 1, NULL, 'Devuélvele la olla a Hilda')
+) AS v(t, step, target, monster, item, n, params, descr);
+DELETE FROM quest_item_rewards WHERE quest_id = (SELECT id FROM quests WHERE code = 'MONTANAS_SEC_OLLA');
+UPDATE quests SET requires_quest_id = NULL WHERE code = 'MONTANAS_SEC_OLLA';
+
+-- Trampas vacías (Sven)
+INSERT INTO quests (code, name, quest_type, zone_id, min_level, max_level, difficulty_stars, npc_name, location_name, is_repeatable, repeat_cooldown_hours, reputation_reward, gold_reward, xp_reward, description, is_personal, is_boss_quest, giver_npc, turn_in_npc, dialog, chain_position, chain_total)
+SELECT 'MONTANAS_SEC_TRAMPAS', 'Trampas vacías', 'SECUNDARIA', 2, 20, 30, 3, 'Sven', 'Pinar Nevado', FALSE, NULL, 80, 950, 5200, '«Alguien me vacía las trampas. Todas las mañanas, saltadas y sin un conejo. Seguro son los lobos de las nieves: son listos y malos. Dales una lección y mira las trampas del claro, a ver qué huellas hay.»', TRUE, FALSE, 'sven', 'sven', '{"entrega":"¿Oseznos? ¿Dos? … *se rasca la barba* La osa no me robaba: les daba de comer a sus hijos. Los espectros congelaron medio bosque y ya no queda nada que cazar. Bueno. Le voy a dejar conejos en la puerta de la cueva. Que no se entere Durgan, que dice que me ablando."}'::jsonb, NULL, NULL
+WHERE NOT EXISTS (SELECT 1 FROM quests WHERE code = 'MONTANAS_SEC_TRAMPAS');
+UPDATE quests SET name = 'Trampas vacías', quest_type = 'SECUNDARIA', zone_id = 2, min_level = 20, max_level = 30, difficulty_stars = 3, npc_name = 'Sven', location_name = 'Pinar Nevado', is_repeatable = FALSE, repeat_cooldown_hours = NULL, reputation_reward = 80, gold_reward = 950, xp_reward = 5200, description = '«Alguien me vacía las trampas. Todas las mañanas, saltadas y sin un conejo. Seguro son los lobos de las nieves: son listos y malos. Dales una lección y mira las trampas del claro, a ver qué huellas hay.»', is_personal = TRUE, is_boss_quest = FALSE, giver_npc = 'sven', turn_in_npc = 'sven', dialog = '{"entrega":"¿Oseznos? ¿Dos? … *se rasca la barba* La osa no me robaba: les daba de comer a sus hijos. Los espectros congelaron medio bosque y ya no queda nada que cazar. Bueno. Le voy a dejar conejos en la puerta de la cueva. Que no se entere Durgan, que dice que me ablando."}'::jsonb, chain_position = NULL, chain_total = NULL WHERE code = 'MONTANAS_SEC_TRAMPAS';
+DELETE FROM quest_objectives WHERE quest_id = (SELECT id FROM quests WHERE code = 'MONTANAS_SEC_TRAMPAS');
+INSERT INTO quest_objectives (quest_id, objective_type, step, target_code, monster_id, item_id, target_count, params, description)
+SELECT (SELECT id FROM quests WHERE code = 'MONTANAS_SEC_TRAMPAS'), v.t, v.step, v.target, (SELECT id FROM monsters WHERE code = v.monster), (SELECT id FROM items WHERE code = v.item), v.n, v.params::jsonb, v.descr
+FROM (VALUES
+  ('KILL_MONSTER', 1, 'LOBO_NIEVE', 'LOBO_NIEVE', NULL, 5, NULL, 'Derrota 5 Lobos de las Nieves'),
+  ('INVESTIGATE', 2, NULL, NULL, NULL, 1, '{"zone":"montanas","x":85,"y":29,"radius":3,"label":"Revisar la trampa","speaker":"Tú","sprite":"trampa_vacia","dialog":"La trampa está saltada y limpia. Las huellas alrededor no son de lobo: son enormes, de cinco dedos… y hay otras chiquitas al lado."}', 'Mira las trampas del Claro del Oso'),
+  ('AMBUSH', 3, NULL, NULL, NULL, 1, '{"zone":"montanas","x":99,"y":18,"radius":3,"label":"Seguir las huellas","dialog":"¡Una osa de las cumbres se planta en el camino y ruge! Atrás de ella, otra osa más joven te corta la retirada.","monsters":[{"code":"OSO_CUMBRES","level":20},{"code":"OSO_CUMBRES","level":19}]}', 'Sigue las huellas hasta el Bosque Callado'),
+  ('INVESTIGATE', 4, NULL, NULL, NULL, 1, '{"zone":"montanas","x":107,"y":13,"radius":3,"label":"Asomarte a la cueva","speaker":"Tú","sprite":"oseznos","dialog":"Dos oseznos flacos se comen los conejos de Sven. Te miran, uno estornuda y sigue comiendo."}', 'Busca qué protegía la osa')
+) AS v(t, step, target, monster, item, n, params, descr);
+DELETE FROM quest_item_rewards WHERE quest_id = (SELECT id FROM quests WHERE code = 'MONTANAS_SEC_TRAMPAS');
+INSERT INTO quest_item_rewards (quest_id, item_id, quantity)
+SELECT (SELECT id FROM quests WHERE code = 'MONTANAS_SEC_TRAMPAS'), i.id, v.qty FROM (VALUES ('POCION_DE_VIDA_MAYOR', 2)) AS v(code, qty) JOIN items i ON i.code = v.code;
+UPDATE quests SET requires_quest_id = NULL WHERE code = 'MONTANAS_SEC_TRAMPAS';
+
+-- Nombres en el viento (Sven)
+INSERT INTO quests (code, name, quest_type, zone_id, min_level, max_level, difficulty_stars, npc_name, location_name, is_repeatable, repeat_cooldown_hours, reputation_reward, gold_reward, xp_reward, description, is_personal, is_boss_quest, giver_npc, turn_in_npc, dialog, chain_position, chain_total)
+SELECT 'MONTANAS_SEC_NOMBRES', 'Nombres en el viento', 'SECUNDARIA', 2, 21, 30, 3, 'Sven', 'Pinar Nevado', FALSE, NULL, 80, 1000, 5600, '«Los espectros del Pinar susurran nombres. Mi abuela decía que son viajeros que se perdieron en la nieve y no encuentran el camino. Con su esencia se enciende el farol viejo de la Senda del Lobo: la luz les muestra la salida. Ayúdame… y si oyes algo, dímelo.»', TRUE, FALSE, 'sven', 'sven', '{"entrega":"¿Dijo «Sven»? ¿«Hermanito»? *se le quiebra la voz* Arne. Mi hermano se perdió en esta nieve hace diez inviernos. Lo busqué todos los días. … Entonces encontró la salida. Gracias, de verdad. Voy a dejar el farol encendido. Por si alguien más la está buscando."}'::jsonb, NULL, NULL
+WHERE NOT EXISTS (SELECT 1 FROM quests WHERE code = 'MONTANAS_SEC_NOMBRES');
+UPDATE quests SET name = 'Nombres en el viento', quest_type = 'SECUNDARIA', zone_id = 2, min_level = 21, max_level = 30, difficulty_stars = 3, npc_name = 'Sven', location_name = 'Pinar Nevado', is_repeatable = FALSE, repeat_cooldown_hours = NULL, reputation_reward = 80, gold_reward = 1000, xp_reward = 5600, description = '«Los espectros del Pinar susurran nombres. Mi abuela decía que son viajeros que se perdieron en la nieve y no encuentran el camino. Con su esencia se enciende el farol viejo de la Senda del Lobo: la luz les muestra la salida. Ayúdame… y si oyes algo, dímelo.»', is_personal = TRUE, is_boss_quest = FALSE, giver_npc = 'sven', turn_in_npc = 'sven', dialog = '{"entrega":"¿Dijo «Sven»? ¿«Hermanito»? *se le quiebra la voz* Arne. Mi hermano se perdió en esta nieve hace diez inviernos. Lo busqué todos los días. … Entonces encontró la salida. Gracias, de verdad. Voy a dejar el farol encendido. Por si alguien más la está buscando."}'::jsonb, chain_position = NULL, chain_total = NULL WHERE code = 'MONTANAS_SEC_NOMBRES';
+DELETE FROM quest_objectives WHERE quest_id = (SELECT id FROM quests WHERE code = 'MONTANAS_SEC_NOMBRES');
+INSERT INTO quest_objectives (quest_id, objective_type, step, target_code, monster_id, item_id, target_count, params, description)
+SELECT (SELECT id FROM quests WHERE code = 'MONTANAS_SEC_NOMBRES'), v.t, v.step, v.target, (SELECT id FROM monsters WHERE code = v.monster), (SELECT id FROM items WHERE code = v.item), v.n, v.params::jsonb, v.descr
+FROM (VALUES
+  ('COLLECT_ITEM', 1, NULL, NULL, 'ESENCIA_ESPECTRAL_HELADA', 4, NULL, 'Junta 4 Esencias Espectrales Heladas'),
+  ('INVESTIGATE', 2, NULL, NULL, NULL, 1, '{"zone":"montanas","x":91,"y":12,"radius":3,"label":"Encender el farol","speaker":"Tú","sprite":"farol_almas","dialog":"La llama se prende azul. Las sombras del pinar se acercan despacio… una se detiene frente a ti y susurra: «Dile a Sven… que ya encontré el camino, hermanito»."}', 'Enciende el farol de almas en la Senda del Lobo'),
+  ('AMBUSH', 3, NULL, NULL, NULL, 1, '{"zone":"montanas","x":93,"y":15,"radius":3,"label":"Cuidar el farol","dialog":"¡No todos quieren irse! Dos espectros furiosos se lanzan sobre el farol para apagarlo.","monsters":[{"code":"ESPECTRO_HELADO","level":21},{"code":"ESPECTRO_HELADO","level":21}]}', 'Protege el farol de los espectros que no quieren irse')
+) AS v(t, step, target, monster, item, n, params, descr);
+DELETE FROM quest_item_rewards WHERE quest_id = (SELECT id FROM quests WHERE code = 'MONTANAS_SEC_NOMBRES');
+UPDATE quests SET requires_quest_id = (SELECT id FROM quests WHERE code = 'MONTANAS_SEC_TRAMPAS') WHERE code = 'MONTANAS_SEC_NOMBRES';
+
+-- El Viejo Bigotes (Ingrid)
+INSERT INTO quests (code, name, quest_type, zone_id, min_level, max_level, difficulty_stars, npc_name, location_name, is_repeatable, repeat_cooldown_hours, reputation_reward, gold_reward, xp_reward, description, is_personal, is_boss_quest, giver_npc, turn_in_npc, dialog, chain_position, chain_total)
+SELECT 'MONTANAS_SEC_BIGOTES', 'El Viejo Bigotes', 'SECUNDARIA', 2, 22, 30, 3, 'Ingrid', 'Lago Helado', FALSE, NULL, 80, 1050, 5800, '«Mi abuelo juraba que en este lago vive el Viejo Bigotes: un pez gigante, con bigotes largos como cuerdas. Nadie le creyó. Yo sí. Las sierpes espantan a todos los peces, pero esta semana vi algo enorme bajo el hielo. ¡Ayúdame a encontrarlo!»', TRUE, FALSE, 'ingrid', 'ingrid', '{"entrega":"¿Una sierpe bebé? ¿Con bigotes? *se sienta en el hielo y se ríe* El Viejo Bigotes nunca fue un pez. Mi abuelo vio a su tatarabuela, seguro. Bueno… lo voy a criar. Le voy a enseñar a espantar a las otras sierpes. ¡Mi propia sierpe pescadora!"}'::jsonb, NULL, NULL
+WHERE NOT EXISTS (SELECT 1 FROM quests WHERE code = 'MONTANAS_SEC_BIGOTES');
+UPDATE quests SET name = 'El Viejo Bigotes', quest_type = 'SECUNDARIA', zone_id = 2, min_level = 22, max_level = 30, difficulty_stars = 3, npc_name = 'Ingrid', location_name = 'Lago Helado', is_repeatable = FALSE, repeat_cooldown_hours = NULL, reputation_reward = 80, gold_reward = 1050, xp_reward = 5800, description = '«Mi abuelo juraba que en este lago vive el Viejo Bigotes: un pez gigante, con bigotes largos como cuerdas. Nadie le creyó. Yo sí. Las sierpes espantan a todos los peces, pero esta semana vi algo enorme bajo el hielo. ¡Ayúdame a encontrarlo!»', is_personal = TRUE, is_boss_quest = FALSE, giver_npc = 'ingrid', turn_in_npc = 'ingrid', dialog = '{"entrega":"¿Una sierpe bebé? ¿Con bigotes? *se sienta en el hielo y se ríe* El Viejo Bigotes nunca fue un pez. Mi abuelo vio a su tatarabuela, seguro. Bueno… lo voy a criar. Le voy a enseñar a espantar a las otras sierpes. ¡Mi propia sierpe pescadora!"}'::jsonb, chain_position = NULL, chain_total = NULL WHERE code = 'MONTANAS_SEC_BIGOTES';
+DELETE FROM quest_objectives WHERE quest_id = (SELECT id FROM quests WHERE code = 'MONTANAS_SEC_BIGOTES');
+INSERT INTO quest_objectives (quest_id, objective_type, step, target_code, monster_id, item_id, target_count, params, description)
+SELECT (SELECT id FROM quests WHERE code = 'MONTANAS_SEC_BIGOTES'), v.t, v.step, v.target, (SELECT id FROM monsters WHERE code = v.monster), (SELECT id FROM items WHERE code = v.item), v.n, v.params::jsonb, v.descr
+FROM (VALUES
+  ('KILL_MONSTER', 1, 'SIERPE_HIELO', 'SIERPE_HIELO', NULL, 4, NULL, 'Derrota 4 Sierpes de Hielo que espantan a los peces'),
+  ('INVESTIGATE', 2, NULL, NULL, NULL, 1, '{"zone":"montanas","x":118,"y":27,"radius":3,"label":"Mirar por el agujero","speaker":"Tú","sprite":"agujero_hielo","huye":true,"dialog":"Una sombra larguísima pasa bajo el hielo… ¡con bigotes! Te salpica la cara y se va nadando hacia el este."}', 'Busca al Viejo Bigotes en los agujeros del hielo'),
+  ('INVESTIGATE', 3, NULL, NULL, NULL, 1, '{"zone":"montanas","x":140,"y":33,"radius":3,"label":"Mirar por el agujero","speaker":"Tú","sprite":"agujero_hielo","huye":true,"dialog":"Burbujas. Algo te mordisquea la bota a través del agujero y se escapa hacia el norte."}', 'Síguelo hasta la otra orilla'),
+  ('INVESTIGATE', 4, NULL, NULL, NULL, 1, '{"zone":"montanas","x":146,"y":20,"radius":3,"label":"Asomarte al agujero","speaker":"Tú","sprite":"agujero_hielo","dialog":"Una sierpe de hielo bebé, del largo de tu brazo, con dos bigotes larguísimos. Te mira, eructa una burbuja y se deja agarrar."}', 'Atrapa al Viejo Bigotes')
+) AS v(t, step, target, monster, item, n, params, descr);
+DELETE FROM quest_item_rewards WHERE quest_id = (SELECT id FROM quests WHERE code = 'MONTANAS_SEC_BIGOTES');
+INSERT INTO quest_item_rewards (quest_id, item_id, quantity)
+SELECT (SELECT id FROM quests WHERE code = 'MONTANAS_SEC_BIGOTES'), i.id, v.qty FROM (VALUES ('POCION_DE_MANA_MAYOR', 2)) AS v(code, qty) JOIN items i ON i.code = v.code;
+UPDATE quests SET requires_quest_id = NULL WHERE code = 'MONTANAS_SEC_BIGOTES';
+
+-- Pararrayos rotos (Halvar)
+INSERT INTO quests (code, name, quest_type, zone_id, min_level, max_level, difficulty_stars, npc_name, location_name, is_repeatable, repeat_cooldown_hours, reputation_reward, gold_reward, xp_reward, description, is_personal, is_boss_quest, giver_npc, turn_in_npc, dialog, chain_position, chain_total)
+SELECT 'MONTANAS_SEC_PARARRAYOS', 'Pararrayos rotos', 'SECUNDARIA', 2, 24, 30, 3, 'Halvar', 'Acantilados del Trueno', FALSE, NULL, 80, 1150, 6400, '«Mis pararrayos protegen el camino: atraen los rayos para que no caigan sobre los viajeros. Esta semana se rompieron tres. Los rayos no doblan el hierro así. Algo los está arrancando. Revísalos y averigua qué.»', TRUE, FALSE, 'halvar', 'halvar', '{"entrega":"¿Un troll? ¿Rascándose la espalda con mis pararrayos? *se tapa la cara* Treinta años cuidándolos de las tormentas y me los rompe un troll con picazón. Voy a poner uno de madera en su cueva. Para que se rasque tranquilo."}'::jsonb, NULL, NULL
+WHERE NOT EXISTS (SELECT 1 FROM quests WHERE code = 'MONTANAS_SEC_PARARRAYOS');
+UPDATE quests SET name = 'Pararrayos rotos', quest_type = 'SECUNDARIA', zone_id = 2, min_level = 24, max_level = 30, difficulty_stars = 3, npc_name = 'Halvar', location_name = 'Acantilados del Trueno', is_repeatable = FALSE, repeat_cooldown_hours = NULL, reputation_reward = 80, gold_reward = 1150, xp_reward = 6400, description = '«Mis pararrayos protegen el camino: atraen los rayos para que no caigan sobre los viajeros. Esta semana se rompieron tres. Los rayos no doblan el hierro así. Algo los está arrancando. Revísalos y averigua qué.»', is_personal = TRUE, is_boss_quest = FALSE, giver_npc = 'halvar', turn_in_npc = 'halvar', dialog = '{"entrega":"¿Un troll? ¿Rascándose la espalda con mis pararrayos? *se tapa la cara* Treinta años cuidándolos de las tormentas y me los rompe un troll con picazón. Voy a poner uno de madera en su cueva. Para que se rasque tranquilo."}'::jsonb, chain_position = NULL, chain_total = NULL WHERE code = 'MONTANAS_SEC_PARARRAYOS';
+DELETE FROM quest_objectives WHERE quest_id = (SELECT id FROM quests WHERE code = 'MONTANAS_SEC_PARARRAYOS');
+INSERT INTO quest_objectives (quest_id, objective_type, step, target_code, monster_id, item_id, target_count, params, description)
+SELECT (SELECT id FROM quests WHERE code = 'MONTANAS_SEC_PARARRAYOS'), v.t, v.step, v.target, (SELECT id FROM monsters WHERE code = v.monster), (SELECT id FROM items WHERE code = v.item), v.n, v.params::jsonb, v.descr
+FROM (VALUES
+  ('INVESTIGATE', 1, NULL, NULL, NULL, 1, '{"zone":"montanas","x":104,"y":46,"radius":3,"label":"Revisar el pararrayos","speaker":"Tú","sprite":"pararrayos_roto","dialog":"Está doblado como una cuchara. En el hierro hay pelos verdes y gruesos enganchados."}', 'Revisa el pararrayos del norte'),
+  ('INVESTIGATE', 1, NULL, NULL, NULL, 1, '{"zone":"montanas","x":115,"y":59,"radius":3,"label":"Revisar el pararrayos","speaker":"Tú","sprite":"pararrayos_roto","dialog":"Este no está doblado: está arrancado de raíz. Alrededor, chispas sueltas y elementales de tormenta dando vueltas como moscas."}', 'Revisa el pararrayos del camino'),
+  ('INVESTIGATE', 1, NULL, NULL, NULL, 1, '{"zone":"montanas","x":126,"y":56,"radius":3,"label":"Revisar el pararrayos","speaker":"Tú","sprite":"pararrayos_roto","dialog":"Doblado otra vez. Unas huellas enormes se van hacia el este, hacia los Pararrayos viejos."}', 'Revisa el pararrayos de las Peñas'),
+  ('KILL_MONSTER', 2, 'ELEMENTAL_TORMENTA', 'ELEMENTAL_TORMENTA', NULL, 4, NULL, 'Derrota 4 Elementales de Tormenta sueltos sin los pararrayos'),
+  ('AMBUSH', 3, NULL, NULL, NULL, 1, '{"zone":"montanas","x":147,"y":47,"radius":3,"label":"Acercarte al ruido","dialog":"Un troll enorme se rasca la espalda con el último pararrayos, feliz. Te ve, se enoja y llama a su hermano.","monsters":[{"code":"TROLL_SALVAJE","level":24},{"code":"TROLL_SALVAJE","level":24}]}', 'Encuentra al culpable en los Pararrayos viejos')
+) AS v(t, step, target, monster, item, n, params, descr);
+DELETE FROM quest_item_rewards WHERE quest_id = (SELECT id FROM quests WHERE code = 'MONTANAS_SEC_PARARRAYOS');
+INSERT INTO quest_item_rewards (quest_id, item_id, quantity)
+SELECT (SELECT id FROM quests WHERE code = 'MONTANAS_SEC_PARARRAYOS'), i.id, v.qty FROM (VALUES ('POCION_DE_VIDA_MAYOR', 3)) AS v(code, qty) JOIN items i ON i.code = v.code;
+UPDATE quests SET requires_quest_id = NULL WHERE code = 'MONTANAS_SEC_PARARRAYOS';
+
+-- La canción robada (Lío)
+INSERT INTO quests (code, name, quest_type, zone_id, min_level, max_level, difficulty_stars, npc_name, location_name, is_repeatable, repeat_cooldown_hours, reputation_reward, gold_reward, xp_reward, description, is_personal, is_boss_quest, giver_npc, turn_in_npc, dialog, chain_position, chain_total)
+SELECT 'MONTANAS_SEC_CANCION', 'La canción robada', 'SECUNDARIA', 2, 23, 30, 3, 'Lío', 'Garganta del Eco', FALSE, NULL, 80, 1100, 6000, '«¡Las arpías me robaron la canción! Cada vez que la toco, la repiten tan mal que ya no me acuerdo cómo era. Y se comieron mi pluma de escribir. Necesito una pluma nueva… de arpía, ya que estamos. Y dicen que las piedras del eco guardan todas las canciones de la Garganta.»', TRUE, FALSE, 'lio', 'lio', '{"entrega":"«Thorvald, Thorvald, rey del trueno, guarda la piedra, guarda el sueño…» ¡Es una canción enana! De las viejas. Nadie la cantaba hace siglos. *escribe rapidísimo* Thorvald… ese era el nombre del Rey de la Montaña, ¿no? Esto lo tiene que oír Durgan. ¡Y yo tengo canción nueva!"}'::jsonb, NULL, NULL
+WHERE NOT EXISTS (SELECT 1 FROM quests WHERE code = 'MONTANAS_SEC_CANCION');
+UPDATE quests SET name = 'La canción robada', quest_type = 'SECUNDARIA', zone_id = 2, min_level = 23, max_level = 30, difficulty_stars = 3, npc_name = 'Lío', location_name = 'Garganta del Eco', is_repeatable = FALSE, repeat_cooldown_hours = NULL, reputation_reward = 80, gold_reward = 1100, xp_reward = 6000, description = '«¡Las arpías me robaron la canción! Cada vez que la toco, la repiten tan mal que ya no me acuerdo cómo era. Y se comieron mi pluma de escribir. Necesito una pluma nueva… de arpía, ya que estamos. Y dicen que las piedras del eco guardan todas las canciones de la Garganta.»', is_personal = TRUE, is_boss_quest = FALSE, giver_npc = 'lio', turn_in_npc = 'lio', dialog = '{"entrega":"«Thorvald, Thorvald, rey del trueno, guarda la piedra, guarda el sueño…» ¡Es una canción enana! De las viejas. Nadie la cantaba hace siglos. *escribe rapidísimo* Thorvald… ese era el nombre del Rey de la Montaña, ¿no? Esto lo tiene que oír Durgan. ¡Y yo tengo canción nueva!"}'::jsonb, chain_position = NULL, chain_total = NULL WHERE code = 'MONTANAS_SEC_CANCION';
+DELETE FROM quest_objectives WHERE quest_id = (SELECT id FROM quests WHERE code = 'MONTANAS_SEC_CANCION');
+INSERT INTO quest_objectives (quest_id, objective_type, step, target_code, monster_id, item_id, target_count, params, description)
+SELECT (SELECT id FROM quests WHERE code = 'MONTANAS_SEC_CANCION'), v.t, v.step, v.target, (SELECT id FROM monsters WHERE code = v.monster), (SELECT id FROM items WHERE code = v.item), v.n, v.params::jsonb, v.descr
+FROM (VALUES
+  ('KILL_MONSTER', 1, 'ARPIA_ECO', 'ARPIA_ECO', NULL, 5, NULL, 'Derrota 5 Arpías del Eco que imitan la canción'),
+  ('COLLECT_ITEM', 1, NULL, NULL, 'PLUMA_ARPIA_ECO', 3, NULL, 'Junta 3 Plumas de Arpía del Eco para la pluma nueva de Lío'),
+  ('INVESTIGATE', 2, NULL, NULL, NULL, 1, '{"zone":"montanas","x":9,"y":107,"radius":3,"label":"Escuchar la piedra","speaker":"Tú","sprite":"piedra_eco","dialog":"Apoyas la oreja en la piedra. Muy lejos, una voz grave canta: «Thorvald, Thorvald, rey del trueno…»"}', 'Escucha la piedra del eco de las Paredes'),
+  ('INVESTIGATE', 2, NULL, NULL, NULL, 1, '{"zone":"montanas","x":30,"y":78,"radius":3,"label":"Escuchar la piedra","speaker":"Tú","sprite":"piedra_eco","dialog":"La piedra vibra. El eco sigue la canción: «…guarda la piedra, guarda el sueño, que el Sello duerma bajo tu reino»."}', 'Escucha la piedra del eco de los Puentes')
+) AS v(t, step, target, monster, item, n, params, descr);
+DELETE FROM quest_item_rewards WHERE quest_id = (SELECT id FROM quests WHERE code = 'MONTANAS_SEC_CANCION');
+INSERT INTO quest_item_rewards (quest_id, item_id, quantity)
+SELECT (SELECT id FROM quests WHERE code = 'MONTANAS_SEC_CANCION'), i.id, v.qty FROM (VALUES ('POCION_DE_MANA_MAYOR', 3)) AS v(code, qty) JOIN items i ON i.code = v.code;
+UPDATE quests SET requires_quest_id = NULL WHERE code = 'MONTANAS_SEC_CANCION';
+
+-- La última ronda (Ulfa)
+INSERT INTO quests (code, name, quest_type, zone_id, min_level, max_level, difficulty_stars, npc_name, location_name, is_repeatable, repeat_cooldown_hours, reputation_reward, gold_reward, xp_reward, description, is_personal, is_boss_quest, giver_npc, turn_in_npc, dialog, chain_position, chain_total)
+SELECT 'MONTANAS_SEC_RONDA', 'La última ronda', 'SECUNDARIA', 2, 28, 30, 3, 'Ulfa', 'Cumbre del Rey', FALSE, NULL, 80, 1500, 8200, '«Los guardias de la tormenta siguen haciendo la ronda, aunque están muertos hace tres siglos. No descansan porque nadie les llevó flores. Así era la costumbre: flor de nieve en la tumba, y el guardia termina su turno. Ayúdame. Y si alguno se enoja… bueno, eran guardias.»', TRUE, FALSE, 'ulfa', 'ulfa', '{"entrega":"¿El último se inclinó? ¿Con el hacha en el pecho? *aprieta los labios* Ese era mi abuelo Ulf. Capitán de la segunda guardia. Siempre dijo que no se iba a ir sin despedirse. Gracias, de verdad. Ahora la Cumbre está un poco más tranquila."}'::jsonb, NULL, NULL
+WHERE NOT EXISTS (SELECT 1 FROM quests WHERE code = 'MONTANAS_SEC_RONDA');
+UPDATE quests SET name = 'La última ronda', quest_type = 'SECUNDARIA', zone_id = 2, min_level = 28, max_level = 30, difficulty_stars = 3, npc_name = 'Ulfa', location_name = 'Cumbre del Rey', is_repeatable = FALSE, repeat_cooldown_hours = NULL, reputation_reward = 80, gold_reward = 1500, xp_reward = 8200, description = '«Los guardias de la tormenta siguen haciendo la ronda, aunque están muertos hace tres siglos. No descansan porque nadie les llevó flores. Así era la costumbre: flor de nieve en la tumba, y el guardia termina su turno. Ayúdame. Y si alguno se enoja… bueno, eran guardias.»', is_personal = TRUE, is_boss_quest = FALSE, giver_npc = 'ulfa', turn_in_npc = 'ulfa', dialog = '{"entrega":"¿El último se inclinó? ¿Con el hacha en el pecho? *aprieta los labios* Ese era mi abuelo Ulf. Capitán de la segunda guardia. Siempre dijo que no se iba a ir sin despedirse. Gracias, de verdad. Ahora la Cumbre está un poco más tranquila."}'::jsonb, chain_position = NULL, chain_total = NULL WHERE code = 'MONTANAS_SEC_RONDA';
+DELETE FROM quest_objectives WHERE quest_id = (SELECT id FROM quests WHERE code = 'MONTANAS_SEC_RONDA');
+INSERT INTO quest_objectives (quest_id, objective_type, step, target_code, monster_id, item_id, target_count, params, description)
+SELECT (SELECT id FROM quests WHERE code = 'MONTANAS_SEC_RONDA'), v.t, v.step, v.target, (SELECT id FROM monsters WHERE code = v.monster), (SELECT id FROM items WHERE code = v.item), v.n, v.params::jsonb, v.descr
+FROM (VALUES
+  ('COLLECT_ITEM', 1, NULL, NULL, 'FLOR_DE_NIEVE', 3, NULL, 'Junta 3 Flores de Nieve'),
+  ('INVESTIGATE', 2, NULL, NULL, NULL, 1, '{"zone":"montanas","x":124,"y":92,"radius":3,"label":"Dejar la flor","speaker":"Tú","sprite":"tumba_enana","dialog":"Dejas la flor de nieve en la losa. El viento se calma un momento, como si alguien suspirara."}', 'Deja una flor en la tumba del oeste'),
+  ('INVESTIGATE', 2, NULL, NULL, NULL, 1, '{"zone":"montanas","x":131,"y":97,"radius":3,"label":"Dejar la flor","speaker":"Tú","sprite":"tumba_enana","dialog":"En la losa hay un hacha tallada y un nombre gastado. Dejas la flor. A lo lejos, una lanza deja de golpear el suelo."}', 'Deja una flor en la tumba del centro'),
+  ('INVESTIGATE', 2, NULL, NULL, NULL, 1, '{"zone":"montanas","x":138,"y":92,"radius":3,"label":"Dejar la flor","speaker":"Tú","sprite":"tumba_enana","dialog":"La última flor. La nieve deja de caer sobre esta tumba, y solo sobre esta."}', 'Deja una flor en la tumba del este'),
+  ('AMBUSH', 3, NULL, NULL, NULL, 1, '{"zone":"montanas","x":131,"y":92,"radius":3,"label":"Esperar a la guardia","dialog":"Dos guardias de la tormenta aparecen marchando. No te reconocen: para ellos todavía es su turno. Levantan las lanzas.","monsters":[{"code":"GUARDIA_TORMENTA","level":28},{"code":"GUARDIA_TORMENTA","level":28}]}', 'Despide a los guardias que todavía hacen la ronda')
+) AS v(t, step, target, monster, item, n, params, descr);
+DELETE FROM quest_item_rewards WHERE quest_id = (SELECT id FROM quests WHERE code = 'MONTANAS_SEC_RONDA');
+INSERT INTO quest_item_rewards (quest_id, item_id, quantity)
+SELECT (SELECT id FROM quests WHERE code = 'MONTANAS_SEC_RONDA'), i.id, v.qty FROM (VALUES ('POCION_DE_VIDA_MAYOR', 3), ('POCION_DE_MANA_MAYOR', 3)) AS v(code, qty) JOIN items i ON i.code = v.code;
+UPDATE quests SET requires_quest_id = NULL WHERE code = 'MONTANAS_SEC_RONDA';
+
+-- Cuernos para las carretas (Gorm)
+INSERT INTO quests (code, name, quest_type, zone_id, min_level, max_level, difficulty_stars, npc_name, location_name, is_repeatable, repeat_cooldown_hours, reputation_reward, gold_reward, xp_reward, description, is_personal, is_boss_quest, giver_npc, turn_in_npc, dialog, chain_position, chain_total)
+SELECT 'MONTANAS_DIARIA_CUERNOS', 'Cuernos para las carretas', 'DIARIA', 2, 16, 30, 2, 'Gorm', 'Paso de la Montaña', TRUE, 20, 40, 300, 2000, '«Los enanos pagan bien por los cuernos de cabra: los usan para mangos y para los tónicos de Hilda. Tráeme cuatro y repartimos.»', TRUE, FALSE, 'gorm', 'gorm', '{"entrega":"Cuatro cuernos, cuatro mangos. Toma tu parte, que te la ganaste."}'::jsonb, NULL, NULL
+WHERE NOT EXISTS (SELECT 1 FROM quests WHERE code = 'MONTANAS_DIARIA_CUERNOS');
+UPDATE quests SET name = 'Cuernos para las carretas', quest_type = 'DIARIA', zone_id = 2, min_level = 16, max_level = 30, difficulty_stars = 2, npc_name = 'Gorm', location_name = 'Paso de la Montaña', is_repeatable = TRUE, repeat_cooldown_hours = 20, reputation_reward = 40, gold_reward = 300, xp_reward = 2000, description = '«Los enanos pagan bien por los cuernos de cabra: los usan para mangos y para los tónicos de Hilda. Tráeme cuatro y repartimos.»', is_personal = TRUE, is_boss_quest = FALSE, giver_npc = 'gorm', turn_in_npc = 'gorm', dialog = '{"entrega":"Cuatro cuernos, cuatro mangos. Toma tu parte, que te la ganaste."}'::jsonb, chain_position = NULL, chain_total = NULL WHERE code = 'MONTANAS_DIARIA_CUERNOS';
+DELETE FROM quest_objectives WHERE quest_id = (SELECT id FROM quests WHERE code = 'MONTANAS_DIARIA_CUERNOS');
+INSERT INTO quest_objectives (quest_id, objective_type, step, target_code, monster_id, item_id, target_count, params, description)
+SELECT (SELECT id FROM quests WHERE code = 'MONTANAS_DIARIA_CUERNOS'), v.t, v.step, v.target, (SELECT id FROM monsters WHERE code = v.monster), (SELECT id FROM items WHERE code = v.item), v.n, v.params::jsonb, v.descr
+FROM (VALUES
+  ('COLLECT_ITEM', 1, NULL, NULL, 'CUERNO_CABRA_MONTES', 4, NULL, 'Junta 4 Cuernos de Cabra Montés')
+) AS v(t, step, target, monster, item, n, params, descr);
+DELETE FROM quest_item_rewards WHERE quest_id = (SELECT id FROM quests WHERE code = 'MONTANAS_DIARIA_CUERNOS');
+UPDATE quests SET requires_quest_id = NULL WHERE code = 'MONTANAS_DIARIA_CUERNOS';
+
+-- Pieles para el invierno (Sven)
+INSERT INTO quests (code, name, quest_type, zone_id, min_level, max_level, difficulty_stars, npc_name, location_name, is_repeatable, repeat_cooldown_hours, reputation_reward, gold_reward, xp_reward, description, is_personal, is_boss_quest, giver_npc, turn_in_npc, dialog, chain_position, chain_total)
+SELECT 'MONTANAS_DIARIA_PIELES', 'Pieles para el invierno', 'DIARIA', 2, 19, 30, 2, 'Sven', 'Pinar Nevado', TRUE, 20, 40, 380, 2600, '«El Bastión necesita abrigos, y los mejores son de lobo de las nieves. Tráeme cuatro pieles. De lobo, eh: las de oso pesan tanto que un abrigo te dobla la espalda.»', TRUE, FALSE, 'sven', 'sven', '{"entrega":"Buenas pieles. Hilda va a hacer abrigos y Tilo va a pedir uno con capucha de orejas. Toma."}'::jsonb, NULL, NULL
+WHERE NOT EXISTS (SELECT 1 FROM quests WHERE code = 'MONTANAS_DIARIA_PIELES');
+UPDATE quests SET name = 'Pieles para el invierno', quest_type = 'DIARIA', zone_id = 2, min_level = 19, max_level = 30, difficulty_stars = 2, npc_name = 'Sven', location_name = 'Pinar Nevado', is_repeatable = TRUE, repeat_cooldown_hours = 20, reputation_reward = 40, gold_reward = 380, xp_reward = 2600, description = '«El Bastión necesita abrigos, y los mejores son de lobo de las nieves. Tráeme cuatro pieles. De lobo, eh: las de oso pesan tanto que un abrigo te dobla la espalda.»', is_personal = TRUE, is_boss_quest = FALSE, giver_npc = 'sven', turn_in_npc = 'sven', dialog = '{"entrega":"Buenas pieles. Hilda va a hacer abrigos y Tilo va a pedir uno con capucha de orejas. Toma."}'::jsonb, chain_position = NULL, chain_total = NULL WHERE code = 'MONTANAS_DIARIA_PIELES';
+DELETE FROM quest_objectives WHERE quest_id = (SELECT id FROM quests WHERE code = 'MONTANAS_DIARIA_PIELES');
+INSERT INTO quest_objectives (quest_id, objective_type, step, target_code, monster_id, item_id, target_count, params, description)
+SELECT (SELECT id FROM quests WHERE code = 'MONTANAS_DIARIA_PIELES'), v.t, v.step, v.target, (SELECT id FROM monsters WHERE code = v.monster), (SELECT id FROM items WHERE code = v.item), v.n, v.params::jsonb, v.descr
+FROM (VALUES
+  ('COLLECT_ITEM', 1, NULL, NULL, 'PIEL_LOBO_NIEVE', 4, NULL, 'Junta 4 Pieles de Lobo de las Nieves')
+) AS v(t, step, target, monster, item, n, params, descr);
+DELETE FROM quest_item_rewards WHERE quest_id = (SELECT id FROM quests WHERE code = 'MONTANAS_DIARIA_PIELES');
+UPDATE quests SET requires_quest_id = NULL WHERE code = 'MONTANAS_DIARIA_PIELES';
+
+-- Hielo fino (Ingrid)
+INSERT INTO quests (code, name, quest_type, zone_id, min_level, max_level, difficulty_stars, npc_name, location_name, is_repeatable, repeat_cooldown_hours, reputation_reward, gold_reward, xp_reward, description, is_personal, is_boss_quest, giver_npc, turn_in_npc, dialog, chain_position, chain_total)
+SELECT 'MONTANAS_DIARIA_SIERPES', 'Hielo fino', 'DIARIA', 2, 21, 30, 2, 'Ingrid', 'Lago Helado', TRUE, 20, 40, 420, 3000, '«Las sierpes rondan los agujeros de pesca y se comen todo lo que pica. Espanta a seis antes de que dejen el lago sin un pez.»', TRUE, FALSE, 'ingrid', 'ingrid', '{"entrega":"Lago tranquilo, peces contentos y yo con la cena asegurada. Toma."}'::jsonb, NULL, NULL
+WHERE NOT EXISTS (SELECT 1 FROM quests WHERE code = 'MONTANAS_DIARIA_SIERPES');
+UPDATE quests SET name = 'Hielo fino', quest_type = 'DIARIA', zone_id = 2, min_level = 21, max_level = 30, difficulty_stars = 2, npc_name = 'Ingrid', location_name = 'Lago Helado', is_repeatable = TRUE, repeat_cooldown_hours = 20, reputation_reward = 40, gold_reward = 420, xp_reward = 3000, description = '«Las sierpes rondan los agujeros de pesca y se comen todo lo que pica. Espanta a seis antes de que dejen el lago sin un pez.»', is_personal = TRUE, is_boss_quest = FALSE, giver_npc = 'ingrid', turn_in_npc = 'ingrid', dialog = '{"entrega":"Lago tranquilo, peces contentos y yo con la cena asegurada. Toma."}'::jsonb, chain_position = NULL, chain_total = NULL WHERE code = 'MONTANAS_DIARIA_SIERPES';
+DELETE FROM quest_objectives WHERE quest_id = (SELECT id FROM quests WHERE code = 'MONTANAS_DIARIA_SIERPES');
+INSERT INTO quest_objectives (quest_id, objective_type, step, target_code, monster_id, item_id, target_count, params, description)
+SELECT (SELECT id FROM quests WHERE code = 'MONTANAS_DIARIA_SIERPES'), v.t, v.step, v.target, (SELECT id FROM monsters WHERE code = v.monster), (SELECT id FROM items WHERE code = v.item), v.n, v.params::jsonb, v.descr
+FROM (VALUES
+  ('KILL_MONSTER', 1, 'SIERPE_HIELO', 'SIERPE_HIELO', NULL, 6, NULL, 'Derrota 6 Sierpes de Hielo')
+) AS v(t, step, target, monster, item, n, params, descr);
+DELETE FROM quest_item_rewards WHERE quest_id = (SELECT id FROM quests WHERE code = 'MONTANAS_DIARIA_SIERPES');
+UPDATE quests SET requires_quest_id = NULL WHERE code = 'MONTANAS_DIARIA_SIERPES';
+
+-- las diarias que ya existían: cada una la da (y la recibe) el NPC de su puesto
+UPDATE quests SET giver_npc = 'gorm', turn_in_npc = 'gorm', npc_name = 'Gorm', name = 'Orcos en el cruce', description = '«Los orcos bajan al Paso a asaltar carretas. No se llevan el hierro ni el oro… se llevan la sal. Cinco orcos menos, y te pago.»',
+  dialog = COALESCE(dialog, '{}'::jsonb) || '{"entrega":"Cinco menos. Las carretas te lo agradecen. Y yo también."}'::jsonb,
+  requires_quest_id = requires_quest_id WHERE code = 'MONTANAS_COMUN_ORCO';
+UPDATE quests SET giver_npc = 'dora', turn_in_npc = 'dora', npc_name = 'Dora', name = 'Los que se quedaron abajo', description = '«Los mineros corrompidos eran amigos míos. Ya no se acuerdan de su nombre. Hazles descansar, por favor. Cinco hoy.»', min_level = 17,
+  dialog = COALESCE(dialog, '{}'::jsonb) || '{"entrega":"Gracias. Esta noche prendo una vela por cada uno."}'::jsonb,
+  requires_quest_id = (SELECT id FROM quests WHERE code = 'MONTANAS_HISTORIA_03_MINEROS') WHERE code = 'MONTANAS_COMUN_MINERO';
+UPDATE quests SET giver_npc = 'sven', turn_in_npc = 'sven', npc_name = 'Sven', name = 'Espectros en el pinar', description = '«Los espectros congelan el bosque: donde pasan no queda ni un conejo. Cinco, y el pinar respira.»', min_level = 19,
+  dialog = COALESCE(dialog, '{}'::jsonb) || '{"entrega":"El pinar está más tibio. Hasta los lobos lo notan."}'::jsonb,
+  requires_quest_id = requires_quest_id WHERE code = 'MONTANAS_COMUN_ESPECTRO';
+UPDATE quests SET giver_npc = 'lio', turn_in_npc = 'lio', npc_name = 'Lío', name = 'Trolls desafinados', description = '«Los trolls de la Garganta rugen justo en el estribillo. Cinco trolls menos y termino mi balada.»', min_level = 22,
+  dialog = COALESCE(dialog, '{}'::jsonb) || '{"entrega":"¡Perfecto! Ahora la canción tiene un final. Uno épico, con trolls derrotados."}'::jsonb,
+  requires_quest_id = requires_quest_id WHERE code = 'MONTANAS_COMUN_TROLL';
+UPDATE quests SET giver_npc = 'ingrid', turn_in_npc = 'ingrid', npc_name = 'Ingrid', name = 'Gigantes en la orilla', description = '«Los gigantes de hielo pisan la orilla y rompen el hielo con todo y pescadores. Tres, y el lago queda tranquilo.»',
+  dialog = COALESCE(dialog, '{}'::jsonb) || '{"entrega":"El hielo aguanta otra vez. Los peces vuelven a picar."}'::jsonb,
+  requires_quest_id = requires_quest_id WHERE code = 'MONTANAS_CAZA_GIGANTE';
+UPDATE quests SET giver_npc = 'halvar', turn_in_npc = 'halvar', npc_name = 'Halvar', name = 'Aprendices del Brujo', description = '«Los brujos de la montaña llaman tormentas desde los riscos. Tres, antes de que me fundan otro pararrayos.»',
+  dialog = COALESCE(dialog, '{}'::jsonb) || '{"entrega":"Menos brujos, menos rayos. Mis pararrayos descansan."}'::jsonb,
+  requires_quest_id = requires_quest_id WHERE code = 'MONTANAS_CAZA_BRUJO';
+UPDATE quests SET giver_npc = 'halvar', turn_in_npc = 'halvar', npc_name = 'Halvar', name = 'Tormenta doble', description = '«Hoy los gigantes y los brujos bajaron juntos. Dos y dos, y el camino queda abierto.»',
+  dialog = COALESCE(dialog, '{}'::jsonb) || '{"entrega":"Camino abierto. Esta noche duermo sin truenos."}'::jsonb,
+  requires_quest_id = requires_quest_id WHERE code = 'MONTANAS_DAILY_CACERIA_GIGANTES';
+UPDATE quests SET giver_npc = 'halvar', turn_in_npc = 'halvar', npc_name = 'Halvar', name = 'El Señor regresa', description = '«El Señor del Acantilado volvió a su risco, con su lanza que atrae los rayos. Mientras esté ahí, nadie sube a la Cumbre. Ve con amigos.»',
+  dialog = COALESCE(dialog, '{}'::jsonb) || '{"entrega":"Otra vez abajo. Hasta la próxima tormenta."}'::jsonb,
+  requires_quest_id = requires_quest_id WHERE code = 'MONTANAS_BOSS_ACANTILADO';
+UPDATE quests SET giver_npc = 'ulfa', turn_in_npc = 'ulfa', npc_name = 'Ulfa', name = 'El Rey eterno', description = '«El Rey vuelve a sentarse en su trono cada vez que la tormenta lo despierta. Hay que acompañarlo de nuevo al sueño. Ve con los mejores.»',
+  dialog = COALESCE(dialog, '{}'::jsonb) || '{"entrega":"Descansa, Thorvald. Hasta la próxima tormenta."}'::jsonb,
+  requires_quest_id = requires_quest_id WHERE code = 'MONTANAS_LEG_REY';
+UPDATE quests SET giver_npc = 'hilda', turn_in_npc = 'hilda', npc_name = 'Hilda', name = 'Despensa del Bastión', description = '«La despensa no se llena sola, cielo. Lo que encuentres en la montaña sirve: diez enemigos menos son diez sustos menos para mis repartidores.»',
+  dialog = COALESCE(dialog, '{}'::jsonb) || '{"entrega":"Despensa llena y repartidores contentos. ¡Toma, que te lo ganaste!"}'::jsonb,
+  requires_quest_id = requires_quest_id WHERE code = 'MONTANAS_DAILY_RECOLECCION';
+UPDATE quests SET giver_npc = 'durgan', turn_in_npc = 'durgan', npc_name = 'Durgan', name = 'Invasión de la mina', description = '«Todo lo que vive en la montaña quiere entrar a mis túneles. Hoy toca limpiar: orcos, trolls, mineros perdidos y espectros. Cuatro de cada uno.»',
+  dialog = COALESCE(dialog, '{}'::jsonb) || '{"entrega":"Túneles limpios. Hmph. Bien hecho."}'::jsonb,
+  requires_quest_id = requires_quest_id WHERE code = 'MONTANAS_DAILY_INVASION_MINA';
+
+-- dibujos de los puntos de misión: ningún punto queda como un «?» flotando
+UPDATE quest_objectives SET params = COALESCE(params, '{}'::jsonb) || '{"sprite":"huellas_orco"}'::jsonb
+WHERE quest_id = (SELECT id FROM quests WHERE code = 'MONTANAS_SEC_OLLA') AND description = 'Revisa la cocina de Hilda';
+UPDATE quest_objectives SET params = COALESCE(params, '{}'::jsonb) || '{"sprite":"huellas_baston"}'::jsonb
+WHERE quest_id = (SELECT id FROM quests WHERE code = 'MONTANAS_HISTORIA_07_PINAR') AND description = 'Busca huellas en el Pinar Nevado';
+UPDATE quest_objectives SET params = COALESCE(params, '{}'::jsonb) || '{"sprite":"huellas_nino"}'::jsonb
+WHERE quest_id = (SELECT id FROM quests WHERE code = 'MONTANAS_HISTORIA_09_TILO') AND description = 'Sigue los gritos de Tilo por los Puentes del Eco';
+UPDATE quest_objectives SET params = COALESCE(params, '{}'::jsonb) || '{"sprite":"nota_suelo"}'::jsonb
+WHERE quest_id = (SELECT id FROM quests WHERE code = 'MONTANAS_HISTORIA_09_TILO') AND description = 'Recoge lo que encontró Tilo';
+UPDATE quest_objectives SET params = COALESCE(params, '{}'::jsonb) || '{"sprite":"bram_atrapado"}'::jsonb
+WHERE quest_id = (SELECT id FROM quests WHERE code = 'MONTANAS_HISTORIA_03_MINEROS') AND description = 'Encuentra a Bram en la Escombrera';
+UPDATE quest_objectives SET params = COALESCE(params, '{}'::jsonb) || '{"sprite":"kili_escondido"}'::jsonb
+WHERE quest_id = (SELECT id FROM quests WHERE code = 'MONTANAS_HISTORIA_03_MINEROS') AND description = 'Encuentra a Kili en las Vetas Viejas';
+UPDATE quest_objectives SET params = COALESCE(params, '{}'::jsonb) || '{"sprite":"mon:SENOR_ACANTILADO"}'::jsonb
+WHERE quest_id = (SELECT id FROM quests WHERE code = 'MONTANAS_Q2_SOMBRA_ACANTILADO') AND description = 'Acércate al Señor caído';
+UPDATE quest_objectives SET params = COALESCE(params, '{}'::jsonb) || '{"sprite":"mon:REY_MONTANA"}'::jsonb
+WHERE quest_id = (SELECT id FROM quests WHERE code = 'MONTANAS_Q3_REY_MONTANA') AND description = 'Devuélvele el Corazón al Rey caído';
+UPDATE quest_objectives SET params = COALESCE(params, '{}'::jsonb) || '{"sprite":"mon:TITAN_PRADERA"}'::jsonb
+WHERE quest_id = (SELECT id FROM quests WHERE code = 'PRADERA_Q3_TITAN_PRADERA') AND description = 'Acércate al Titán caído';
+UPDATE quest_objectives SET params = COALESCE(params, '{}'::jsonb) || '{"sprite":"huellas_lobo"}'::jsonb
+WHERE quest_id = (SELECT id FROM quests WHERE code = 'PRADERA_SEC_RECUERDO') AND description = 'Ve a la granja abandonada de Sela';
+UPDATE quest_objectives SET params = COALESCE(params, '{}'::jsonb) || '{"sprite":"red_pesca"}'::jsonb
+WHERE quest_id = (SELECT id FROM quests WHERE code = 'PRADERA_SEC_RED') AND description = 'Lanza la red desde la orilla';
+UPDATE quest_objectives SET params = COALESCE(params, '{}'::jsonb) || '{"sprite":"rama_suelo"}'::jsonb
+WHERE quest_id = (SELECT id FROM quests WHERE code = 'PRADERA_SEC_TILO_1') AND description = 'Busca una rama recta en el Bosque de Robleviejo';
+-- las emboscadas sin dibujo muestran a su primer monstruo
+UPDATE quest_objectives SET params = params || jsonb_build_object('sprite', 'mon:' || (params->'monsters'->0->>'code'))
+WHERE objective_type = 'AMBUSH' AND params ? 'monsters' AND jsonb_array_length(params->'monsters') > 0 AND NOT params ? 'sprite';
