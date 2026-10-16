@@ -12,6 +12,7 @@ const piedra = require('../lib/piedraRegreso');
 const guildContracts = require('../lib/guildContracts');
 const { lejosDe } = require('../lib/cercania');
 const tormenta = require('../lib/tormenta');
+const brasas = require('../lib/brasas');
 
 // Mundo 2D: recursos que se recolectan caminando (ver lib/worldNodes.js)
 const router = express.Router({ mergeParams: true });
@@ -302,6 +303,24 @@ router.post('/vagoneta', async (req, res, next) => {
 router.post('/rayo', async (req, res, next) => {
   try {
     const r = await tormenta.rayo(req.playerId);
+    if (r.error) return res.status(r.status ?? 400).json({ error: r.error });
+    res.json(r);
+  } catch (err) { next(err); }
+});
+
+// POST /world/balsa { destino } — viaje rápido entre los muelles de los Ríos de Lava (lib/brasas.js)
+router.post('/balsa', async (req, res, next) => {
+  try {
+    const r = await brasas.viajar(req.playerId, String(req.body?.destino ?? ''));
+    if (r.error) return res.status(r.status ?? 400).json({ error: r.error, ...(r.lejos ? { lejos: true } : {}) });
+    res.json(r);
+  } catch (err) { next(err); }
+});
+
+// POST /world/brasa — te alcanzó una brasa del volcán (Ríos, Grieta y Caldera): te quita vida
+router.post('/brasa', async (req, res, next) => {
+  try {
+    const r = await brasas.brasa(req.playerId);
     if (r.error) return res.status(r.status ?? 400).json({ error: r.error });
     res.json(r);
   } catch (err) { next(err); }

@@ -45,6 +45,23 @@ const PERFILES = {
   SENOR_ACANTILADO: { magic_def: 0.95 },
   REY_MONTANA: {},
   GUARDIA_TORMENTA: { hp: 1.05, atk: 1.1, def: 1.2, spd: 0.9 },
+  // Volcán Rojo (zona 3, nivel 31-45)
+  SALAMANDRA_ROJA: { magic: true, hp: 0.9, def: 0.9, magic_def: 1.1, spd: 1.15 },
+  LOBO_CENIZA: { spd: 1.25, magic_def: 0.9, crit_chance: 3 },
+  ESCARABAJO_AZUFRE: { magic: true, hp: 1.1, def: 1.25, magic_def: 0.9, spd: 0.8 },
+  BANDIDO_FUEGO: { atk: 1.1, def: 0.95, magic_def: 0.9, spd: 1.05 },
+  ELEMENTAL_FUEGO: { magic: true, hp: 0.9, def: 0.8, magic_def: 1.3, spd: 1.1 },
+  SERPIENTE_MAGMA: { magic: true, hp: 1.1, magic_def: 1.15, spd: 0.95 },
+  GOLEM_OBSIDIANA: { hp: 1.15, def: 1.45, magic_def: 1.05, spd: 0.7 },
+  CENTINELA_INFERNAL: { hp: 1.05, atk: 1.1, def: 1.25, magic_def: 0.9, spd: 0.85 },
+  DRACO_BRASA: { magic: true, hp: 1.05, magic_def: 1.05, spd: 1.2, evasion: 4 },
+  FANATICO_ECLIPSE: { magic: true, hp: 0.85, def: 0.8, magic_def: 1.2 },
+  DEMONIO_LAVA: { hp: 1.25, atk: 1.15, def: 1.1, magic_def: 0.9, spd: 0.85 },
+  DIABLILLO_CALDERA: { hp: 0.8, atk: 1.05, def: 0.85, spd: 1.4, evasion: 6, crit_chance: 3 },
+  MAESTRO_LAVA: { magic: true, def: 0.85, magic_def: 1.25 },
+  DRAGON_MENOR_CORRUPTO: { magic: true, hp: 1.15, magic_def: 1.1, spd: 1.05 },
+  SENOR_CALDERA: { magic: true, magic_def: 1.05 },
+  TITAN_FUEGO: { magic: true },
 };
 
 const SIM_LEVELS = [1, 3, 5, 8, 10, 12, 14, 15];
@@ -143,6 +160,7 @@ async function simulate({ classes, gear, monsters }) {
   simulateCripta(classes, gear);
   await simulateMontanas(classes);
   await simulateMina(classes);
+  await simulateVolcan(classes);
   // jefes y raros contra un grupo de 3 héroes promedio de su nivel
   console.log('\nRaros y jefes (nivel típico): vida / ataque / defensa');
   for (const m of monsters.filter((x) => x.rarity !== 'COMMON')) {
@@ -155,6 +173,55 @@ async function simulate({ classes, gear, monsters }) {
 // Montañas Grises (zona 2, nivel 16-30) con el equipo de la base: llega con el set del Titán (o sin él,
 // con el del Capitán y luego el de Montañas), después Escarcha (21), Acantilado (26) y Rey (30).
 // Meta: escala de 4 turnos (nv 16) a 5-6 (nv 30) y un común nunca gana el uno contra uno.
+// Volcán Rojo (zona 3, nivel 31-45): cada clase con el set de su tramo contra el peor común de su
+// nivel (el arma de Forja Negra se lleva con el set de Obsidiana). Mismas metas que las Montañas.
+async function simulateVolcan(classes) {
+  const rows = (await db.query(`SELECT i.id, i.code, i.class_id, i.slot, b.stat_code, b.amount
+    FROM items i JOIN item_stat_bonuses b ON b.item_id = i.id
+    WHERE i.item_type = 'EQUIPMENT' AND i.class_id <= 5 AND i.code ~ '_(VOLCAN|OBSIDIANA|FORJA_NEGRA|CALDERA|TITAN_F)$'
+      AND i.code !~ '(WEAPON2H|OFFHAND_CRYSTAL|ACCESSORY)'`)).rows;
+  const sets = {};
+  for (const r of rows) {
+    const set = r.code.match(/_(VOLCAN|OBSIDIANA|FORJA_NEGRA|CALDERA|TITAN_F)$/)[1];
+    const g = ((sets[r.class_id] ??= {})[set] ??= { slots: {} });
+    (g.slots[r.slot] ??= {})[r.stat_code] = ((g.slots[r.slot] ?? {})[r.stat_code] || 0) + Number(r.amount);
+  }
+  const gearAt = (classId, lv) => {
+    const set = lv >= 45 ? 'TITAN_F' : lv >= 40 ? 'CALDERA' : lv >= 36 ? 'OBSIDIANA' : 'VOLCAN';
+    const slots = { ...(sets[classId]?.[set]?.slots ?? {}) };
+    if (lv >= 37 && lv < 40) slots.WEAPON = sets[classId]?.FORJA_NEGRA?.slots.WEAPON;
+    const e = {};
+    for (const st of Object.values(slots)) for (const [k, v] of Object.entries(st ?? {})) e[k] = (e[k] || 0) + v;
+    return e;
+  };
+  const mons = (await db.query(`SELECT code, min_spawn_level mn, max_spawn_level mx FROM monsters WHERE zone_id = 3 AND rarity = 'COMMON'`)).rows;
+  console.log('\nVolcán Rojo · turnos para matar / golpes que aguanta (peor común que vive a ese nivel). Meta: 4 → 5-6, nunca perder');
+  const sk = EQ.skillTier(10);
+  for (const c of classes) {
+    const cells = [31, 33, 35, 36, 37, 39, 40, 42, 44, 45].map((lv) => {
+      const g = EQ.CLASS_GROWTH[c.code]; const k = lv - 1; const e = gearAt(c.id, lv);
+      const h = {
+        hp: Number(c.base_hp) + g.hp * k + (e.HP || 0), atk: Number(c.base_atk) + g.atk * k + (e.ATK || 0), mag: Number(c.base_mag) + g.mag * k + (e.MAG || 0),
+        def: Number(c.base_def) + g.def * k + (e.DEF || 0), magic_def: Number(c.base_magic_def) + g.magic_def * k + (e.MAGIC_DEF || 0),
+        crit: 10 + (PASSIVE_CRIT[c.code] || 0) + (e.CRIT_CHANCE || 0), critDmg: 50 + (e.CRIT_DAMAGE || 0),
+      };
+      const magic = EQ.MAIN_STAT[c.code] === 'mag';
+      let ttk = 0; let ttd = 99;
+      for (const m of mons.filter((x) => x.mn <= lv && x.mx >= lv)) {
+        const row = EQ.monsterRow(lv, 'COMMON', PERFILES[m.code]);
+        const raw = sk.base + sk.mult * h[EQ.MAIN_STAT[c.code]];
+        const dmg = Math.max(raw * DAMAGE_FLOOR, raw - 0.5 * (magic ? row.magic_def : row.def)) * (1 + Math.min(100, h.crit) / 100 * h.critDmg / 100);
+        const mm = row.magic_atk > row.atk;
+        const rh = 1.2 * (mm ? row.magic_atk : row.atk);
+        const hit = Math.max(rh * DAMAGE_FLOOR, rh - 0.5 * (mm ? h.magic_def : h.def)) * (1 + row.crit_chance / 100 * 0.5);
+        ttk = Math.max(ttk, Math.ceil(row.hp / dmg)); ttd = Math.min(ttd, Math.ceil(h.hp / hit));
+      }
+      return `nv${lv} ${ttk}/${ttd}`;
+    });
+    console.log(`  ${c.code.padEnd(10)} ${cells.join('  ')}`);
+  }
+}
+
 async function simulateMontanas(classes) {
   const rows = (await db.query(`SELECT i.id, i.code, i.class_id, i.slot, b.stat_code, b.amount
     FROM items i JOIN item_stat_bonuses b ON b.item_id = i.id

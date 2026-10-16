@@ -41,6 +41,9 @@ termina siendo el nuevo Vigía de Etheria.
 
 ## 2. El mapa del viaje
 
+> Este es el orden del viaje. Dónde queda cada zona en el continente, cómo se pasa de una a otra y
+> qué pueblos viven en cada tierra está en `mapa_etheria.md`.
+
 ```
                          [Ruinas Ancestrales] (86-100)  ← final
                                    ▲  (el Trono de Huesos se abre al templo)
