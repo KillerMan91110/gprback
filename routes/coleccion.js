@@ -207,42 +207,76 @@ router.post('/mitico/enter', async (req, res, next) => {
     const hunt = await mythic.activeHunt();
     if (!hunt) return res.status(400).json({ error: 'No hay ningún jefe mítico suelto ahora' });
     const def = mythic.MITICOS[hunt.zone_id];
-    const pr = await db.query('SELECT level FROM players WHERE id = $1', [req.playerId]);
-    const level = pr.rows[0]?.level ?? 1;
+    const cooldownLeft = async (pid) => {
+      const cd = await db.query('SELECT last_attempt_at FROM mythic_hunt_damage WHERE hunt_id = $1 AND player_id = $2', [hunt.id, pid]);
+      const since = cd.rows[0] ? (Date.now() - new Date(cd.rows[0].last_attempt_at).getTime()) / 1000 : Infinity;
+      return since < mythic.ATTEMPT_COOLDOWN_S ? Math.ceil(mythic.ATTEMPT_COOLDOWN_S - since) : 0;
+    };
     // def.minLevel es solo el nivel recomendado (lo muestra el front): se puede intentar igual
-    const cd = await db.query('SELECT last_attempt_at FROM mythic_hunt_damage WHERE hunt_id = $1 AND player_id = $2', [hunt.id, req.playerId]);
-    const since = cd.rows[0] ? (Date.now() - new Date(cd.rows[0].last_attempt_at).getTime()) / 1000 : Infinity;
-    if (since < mythic.ATTEMPT_COOLDOWN_S) return res.status(400).json({ error: `Recupera el aliento: ${Math.ceil(mythic.ATTEMPT_COOLDOWN_S - since)} s` });
+    const wait = await cooldownLeft(req.playerId);
+    if (wait) return res.status(400).json({ error: `Recupera el aliento: ${wait} s` });
     if (await combatEngine.hasAbandonedActiveSession(req.playerId) || await combatEngine.hasActiveCombatSession(req.playerId)) {
       return res.status(400).json({ error: 'Tienes un combate sin terminar' });
     }
-    const [heroes, npcs] = await Promise.all([
+    // Formación: tú y TODOS tus compañeros contratados primero; si sobra lugar (COMBAT_SIDE_MAX por
+    // lado), entran los jugadores de tu grupo del mundo que estén cerca. Si tu formación ya está
+    // completa, ellos no entran (se les avisa) y pueden hacer su propio intento.
+    const [leader, leaderNpcs] = await Promise.all([
       combatEngine.hydratePlayers([req.playerId]),
       combatEngine.hydratePartyNpcs(req.playerId, req.playerId),
     ]);
-    const alive = [...heroes, ...npcs].filter((p) => p.hp > 0);
-    if (!alive.length) return res.status(400).json({ error: 'Toda la formación está derrotada.' });
+    const own = [...leader, ...leaderNpcs].filter((p) => p.hp > 0);
+    if (!own.length) return res.status(400).json({ error: 'Toda la formación está derrotada.' });
+    const leftOut = [];
+    const candidates = req.body?.worldGroup === true ? await combatEngine.worldGroupPartners(req.playerId, leftOut) : [];
+    let freeSlots = Math.max(0, combatEngine.COMBAT_SIDE_MAX - own.length);
+    const partners = [];
+    for (const pid of candidates) {
+      if (!freeSlots) { leftOut.push({ pid, why: 'lleno' }); continue; }
+      if (await cooldownLeft(pid)) { leftOut.push({ pid, why: 'aliento' }); continue; }
+      partners.push(pid);
+      freeSlots -= 1;
+    }
+    const partnerHeroes = partners.length ? (await combatEngine.hydratePlayers(partners)).filter((p) => p.hp > 0) : [];
+    const playerIds = [req.playerId, ...partnerHeroes.map((p) => p.player_id)];
+    const pr = await db.query('SELECT id, level, nickname FROM players WHERE id = ANY($1::int[])', [playerIds]);
+    const nick = Object.fromEntries(pr.rows.map((p) => [p.id, p.nickname]));
+    // el clon sale al nivel más alto de los que entran (así un grupo no lo baja trayendo a alguien chico)
+    const level = Math.max(1, ...pr.rows.map((p) => Number(p.level) || 1));
+    // más cazadores = más vida (lib/mythic.js joinHunters)
+    const huntNow = await mythic.joinHunters(hunt, playerIds);
     // el clon nunca baja del nivel recomendado de su zona (mythic.cloneLevel)
     const enemies = await combatEngine.hydrateMonsters([{ code: hunt.monster_code, level: mythic.cloneLevel(def, level) }]);
     if (!enemies.length) return res.status(500).json({ error: 'No se pudo cargar al jefe mítico' });
+    const guests = playerIds.slice(1);
     const sess = await combatEngine.createCombatSessionWithClaim(
-      (client) => client.query('INSERT INTO combat_sessions (mythic_hunt_id) VALUES ($1) RETURNING *', [hunt.id]),
-      [req.playerId]
+      (client) => client.query('INSERT INTO combat_sessions (mythic_hunt_id, guest_player_id, guest_player_id_2) VALUES ($1, $2, $3) RETURNING *',
+        [hunt.id, guests[0] ?? null, guests[1] ?? null]),
+      playerIds
     );
     const sessionId = sess.rows[0].id;
-    await combatEngine.insertParticipants(sessionId, [...alive, ...enemies]);
+    await combatEngine.insertParticipants(sessionId, [...own, ...partnerHeroes, ...enemies]);
     // vida compartida; los esbirros cazados le bajan la defensa y la luna roja le sube el ataque
-    const down = 1 - mythic.defDownOf(hunt);
-    const atkMul = hunt.phase >= 3 ? mythic.RED_MOON_ATK : 1;
+    const down = 1 - mythic.defDownOf(huntNow);
+    const atkMul = huntNow.phase >= 3 ? mythic.RED_MOON_ATK : 1;
     await db.query(
       `UPDATE combat_participants SET hp = $1, max_hp = $1, def = ROUND(def * $4::numeric)::int, magic_def = ROUND(magic_def * $4::numeric)::int, atk = ROUND(atk * $5::numeric)::int
        WHERE session_id = $2 AND monster_code = $3`,
-      [hunt.hp_remaining, sessionId, hunt.monster_code, down, atkMul]
+      [huntNow.hp_remaining, sessionId, hunt.monster_code, down, atkMul]
     );
     await combatEngine.advanceEnemyTurns(sessionId);
     const state = await combatEngine.fetchSessionState(sessionId);
-    req.app.get('io')?.to(`combat:${sessionId}`).emit('combat:update', state);
-    res.status(201).json({ ...state, mythic: { name: def.name, hp: hunt.hp_remaining, maxHp: hunt.max_hp, phase: hunt.phase, defDown: Math.round(mythic.defDownOf(hunt) * 100) } });
+    const io = req.app.get('io');
+    io?.to(`combat:${sessionId}`).emit('combat:update', state);
+    // los del grupo que entran lo hacen al instante; los que quedaron afuera reciben un aviso
+    await combatEngine.notifyLeftOut(req, leftOut, sessionId);
+    for (const pid of guests) {
+      io?.to(`player:${pid}`).emit('coop:battle', { sessionId, zoneId: hunt.zone_id, leaderId: req.playerId, leaderName: nick[req.playerId] });
+    }
+    res.status(201).json({
+      ...state, coopPartnerIds: guests,
+      mythic: { name: def.name, hp: huntNow.hp_remaining, maxHp: huntNow.max_hp, phase: huntNow.phase, defDown: Math.round(mythic.defDownOf(huntNow) * 100) },
+    });
   } catch (err) {
     if (err.isActiveCombatConflict) return res.status(409).json({ error: err.message });
     next(err);
