@@ -510,8 +510,8 @@ async function insertParticipants(sessionId, combatants) {
          atk, mag, def, magic_def, spd, crit_chance, crit_damage, evasion,
          magic_damage_bonus, hot_hp_percent, xp_reward, gold_reward,
          physical_damage_bonus, elemental_damage_bonus, heal_bonus, luck, owner_player_id, damage_reduction, level,
-         mutation_code, mana_regen_percent
-       ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27,$28,$29,$30,$31,$32)
+         mutation_code, mana_regen_percent, element_id
+       ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27,$28,$29,$30,$31,$32,$33)
        RETURNING *`,
       [
         sessionId, c.side, c.player_id ?? null, c.npc_id ?? null, c.class_id ?? null,
@@ -521,6 +521,8 @@ async function insertParticipants(sessionId, combatants) {
         c.physical_damage_bonus ?? 0, c.elemental_damage_bonus ?? 0, c.heal_bonus ?? 0, c.luck ?? 0,
         c.owner_player_id ?? null, c.damage_reduction ?? 0, c.level ?? null,
         c.mutation_code ?? null, c.mana_regen_percent ?? 0,
+        // elemento del monstruo: su golpe básico lleva una parte de ese elemento (lib/combat.js resolveAttack)
+        c.monster_code ? c.element_id ?? null : null,
       ]
     );
     inserted.push(result.rows[0]);
@@ -1605,9 +1607,9 @@ const PIECE_CHANCE = { LEGENDARIO: 22.5, OTRO: 27.5 };
 const pieceChanceOf = (rarity) => (rarity === 'LEGENDARIO' ? PIECE_CHANCE.LEGENDARIO : PIECE_CHANCE.OTRO);
 // bono de experiencia por cada otro jugador del grupo (ver el reparto en finalizeSession)
 const GROUP_XP_BONUS = 0.1;
-// clases cuyo ataque básico es mágico (clase base; las evoluciones heredan) y cuánto maná devuelve
-// el ataque básico (fracción del máximo)
-const MAGIC_BASIC_CLASSES = ['MAGO', 'SACERDOTE'];
+// el elemento del golpe básico de un monstruo, como se lee en el registro ("+ 40 de fuego")
+const ELEMENT_WORD = { FIRE: 'fuego', ICE: 'hielo', LIGHTNING: 'rayo', WATER: 'agua', EARTH: 'tierra', WIND: 'viento', LIGHT: 'luz', DARK: 'oscuridad', COSMIC: 'energía cósmica' };
+// cuánto maná devuelve el ataque básico (fracción del máximo)
 const BASIC_ATTACK_MANA_PCT = 0.08;
 async function rollMonsterDrops(enemies, dropRateBonusPct = 0, partyClasses = []) {
   const codes = [...new Set(enemies.map((e) => e.monster_code))];
@@ -2383,11 +2385,14 @@ async function advanceEnemyTurns(sessionId) {
         if (s.skill_type === 'ATAQUE') return 5;
         return 6;
       };
-      const sortedSkills = monsterSkillsRes.rows.slice().sort((a, b) => skillPriority(a) - skillPriority(b));
+      let sortedSkills = monsterSkillsRes.rows.slice().sort((a, b) => skillPriority(a) - skillPriority(b));
+      // los monstruos de magia lanzan más seguido (lib/combat.js monsterForcedSkill)
+      const forcedSkill = combat.monsterForcedSkill(actor, sortedSkills);
+      if (forcedSkill) sortedSkills = [forcedSkill, ...sortedSkills.filter((s) => s !== forcedSkill)];
 
       for (const skill of sortedSkills) {
         if (Number(actor.mana || 0) < Number(skill.mana_cost || 0)) continue;
-        if (Math.random() * 100 >= Number(skill.use_chance_percent)) continue;
+        if (skill !== forcedSkill && Math.random() * 100 >= Number(skill.use_chance_percent)) continue;
 
         let specialEffects = [];
         let isReviveSkill = false;
@@ -2637,6 +2642,7 @@ async function advanceEnemyTurns(sessionId) {
     // resistencia del jugador objetivo a ese elemento. Monstruos sin element_id (la mayoria)
     // pegan sin modificador, igual que antes.
     let elementalMods;
+    let basicElemName = null;
     if (actor.element_id) {
       const damageBonusPercent = await elements.getMonsterElementalDamageBonus(actor.monster_code, actor.element_id);
       const baseResist = target.player_id
@@ -2645,6 +2651,7 @@ async function advanceEnemyTurns(sessionId) {
       const elemCode = await elements.getElementCodeById(actor.element_id);
       const tempResist = (elemCode && target.temp_resist?.[elemCode]) || 0;
       elementalMods = { damageBonusPercent, resistancePercent: baseResist + tempResist };
+      basicElemName = ELEMENT_WORD[elemCode] ?? null;
     }
 
     await checkCritImmunity(target);
@@ -2679,7 +2686,9 @@ async function advanceEnemyTurns(sessionId) {
       crit: result.crit,
       description: result.evaded
         ? `${actor.name} ataca a ${target.name}, pero esquiva el golpe.`
-        : `${actor.name} ataca a ${target.name}, infligiéndole ${result.damage} de daño${result.crit ? ' (¡Crítico!)' : ''}.`,
+        : result.elementDamage && basicElemName
+          ? `${actor.name} ataca a ${target.name}: ${result.damage - result.elementDamage} de daño + ${result.elementDamage} de ${basicElemName}${result.crit ? ' (¡Crítico!)' : ''}.`
+          : `${actor.name} ataca a ${target.name}, infligiéndole ${result.damage} de daño${result.crit ? ' (¡Crítico!)' : ''}.`,
       hp_after: target.hp,
     });
     } // end !skillActionDone
@@ -3677,10 +3686,9 @@ router.post('/sessions/:id/action', async (req, res, next) => {
       }
 
       let attackBonusPercent = 0;
-      // El básico de jugador/NPC es físico, salvo Mago y Sacerdote (y sus evoluciones), que pegan
-      // con MAG (su báculo): sin maná, si no, quedaban pegando 1. Ver lib/combat.js resolveAttack.
-      const isMagicAttack = MAGIC_BASIC_CLASSES.includes(await baseClassCode(actor.class_id));
-      actor.basic_magic = isMagicAttack;
+      // El básico de jugador/NPC es siempre físico (ATK contra DEF), también el de Mago y Sacerdote:
+      // la magia sale de las habilidades. Sin maná, el básico devuelve BASIC_ATTACK_MANA_PCT.
+      const isMagicAttack = false;
       if (actor.player_id === req.playerId) {
         const playerBonuses = await achievements.getPlayerBonuses(req.playerId);
         attackBonusPercent += isMagicAttack ? playerBonuses.magicalDamage : playerBonuses.physicalDamage;

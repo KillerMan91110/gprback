@@ -14314,3 +14314,27 @@ CREATE TABLE IF NOT EXISTS player_known_affinities (
   learned_at   TIMESTAMPTZ NOT NULL DEFAULT now(),
   PRIMARY KEY (player_id, monster_code, element_code)
 );
+
+-- Golpe básico físico para todos (lib/combat.js resolveAttack): los monstruos de magia ahora pegan
+-- su básico con ATK y lanzan más seguido (monsterForcedSkill). Los que solo tenían hechizos de área,
+-- golpes físicos o ningún hechizo de daño reciben uno de un solo objetivo de su elemento.
+INSERT INTO skills (code, name, skill_type, damage_school, element_id, target_type, base_value, scaling_stat, scaling_multiplier, hits, mana_cost, is_passive, learn_method, learn_level, learn_gold_cost, description)
+SELECT 'MONSTRUO_PIEDRAZO_AZUFRE', 'Piedrazo de Azufre', 'ATAQUE', 'MAGICO', (SELECT id FROM elements WHERE code = 'EARTH'), 'ENEMY', 4, 'MAG', 1.25, 1, 12, FALSE, 'LEVEL', 1, 0, 'Escupe una piedra de azufre ardiente contra un objetivo.'
+WHERE NOT EXISTS (SELECT 1 FROM skills WHERE code = 'MONSTRUO_PIEDRAZO_AZUFRE');
+UPDATE skills SET name = 'Piedrazo de Azufre', skill_type = 'ATAQUE', damage_school = 'MAGICO', element_id = (SELECT id FROM elements WHERE code = 'EARTH'), target_type = 'ENEMY', base_value = 4, scaling_stat = 'MAG', scaling_multiplier = 1.25, hits = 1, mana_cost = 12, is_passive = FALSE, learn_method = 'LEVEL', learn_level = 1, learn_gold_cost = 0, description = 'Escupe una piedra de azufre ardiente contra un objetivo.' WHERE code = 'MONSTRUO_PIEDRAZO_AZUFRE';
+INSERT INTO monster_skills (monster_id, skill_id, use_chance_percent)
+SELECT m.id, s.id, v.pct
+FROM (VALUES
+  ('CHAMAN_OSCURO', 'MONSTRUO_REZO_OSCURO', 35.00),
+  ('ACOLITO_ECLIPSE', 'MONSTRUO_REZO_OSCURO', 25.00),
+  ('SIERPE_HIELO', 'MONSTRUO_TOQUE_GELIDO', 30.00),
+  ('SERPIENTE_MAGMA', 'MONSTRUO_LLAMARADA', 30.00),
+  ('ESCARABAJO_AZUFRE', 'MONSTRUO_PIEDRAZO_AZUFRE', 30.00),
+  ('DRACO_BRASA', 'MONSTRUO_LLAMARADA', 25.00),
+  ('DRAGON_MENOR_CORRUPTO', 'MONSTRUO_LLAMARADA', 25.00),
+  ('SENOR_CALDERA', 'MONSTRUO_LLAMARADA', 15.00),
+  ('TITAN_FUEGO', 'MONSTRUO_LLAMARADA', 20.00)
+) AS v(mon, skill, pct)
+JOIN monsters m ON m.code = v.mon
+JOIN skills s ON s.code = v.skill
+WHERE NOT EXISTS (SELECT 1 FROM monster_skills ms WHERE ms.monster_id = m.id AND ms.skill_id = s.id);
