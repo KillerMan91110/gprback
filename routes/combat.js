@@ -8,6 +8,7 @@ const { getClassPassiveBonuses } = require('../lib/passives');
 const { getClassAncestorChain } = require('../lib/evolution');
 const questSteps = require('../lib/questSteps');
 const elements = require('../lib/elements');
+const afinidades = require('../lib/afinidades');
 const { getRankBonuses, applyPercentBonus } = require('../lib/ranks');
 const questProgress = require('../lib/questProgress');
 const achievements = require('../lib/achievements');
@@ -1062,6 +1063,43 @@ const DOT_NAMES = { BLEED: 'sangrado', BURN: 'quemadura', POISON: 'veneno' };
 // paralizado: probabilidad de perder el turno (se sortea una vez por ronda)
 const PARALYSIS_SKIP_PERCENT = 25;
 
+// Inmunidades lógicas: un monstruo de fuego no se quema, una roca no sangra, un fantasma no se
+// envenena. Por la categoría del monstruo (sin sangre ni cuerpo vivo) o por su elemento (si es de
+// ese elemento o lo resiste bastante). Solo monstruos: los héroes se protegen con su equipo.
+const STATUS_IMMUNE_CATEGORIES = {
+  BLEED: ['ELEMENTAL', 'ESPECTRO', 'MUERTO_VIVIENTE'],
+  POISON: ['ELEMENTAL', 'ESPECTRO', 'MUERTO_VIVIENTE'],
+};
+const STATUS_IMMUNE_ELEMENT = { BURN: 'FIRE', PARALYZE: 'LIGHTNING', SLOW: 'ICE' };
+const IMMUNE_RESIST_PERCENT = 40;
+const monsterNatureCache = new Map();
+async function monsterNature(code) {
+  if (!monsterNatureCache.has(code)) {
+    const m = (await db.query(
+      `SELECT m.category, e.code AS element,
+              COALESCE(json_object_agg(re.code, mer.resistance_percent) FILTER (WHERE re.code IS NOT NULL), '{}') AS resist
+       FROM monsters m LEFT JOIN elements e ON e.id = m.element_id
+       LEFT JOIN monster_element_resistances mer ON mer.monster_id = m.id
+       LEFT JOIN elements re ON re.id = mer.element_id
+       WHERE m.code = $1 GROUP BY m.id, e.code`,
+      [code]
+    )).rows[0];
+    monsterNatureCache.set(code, m ?? null);
+  }
+  return monsterNatureCache.get(code);
+}
+// ¿este objetivo no puede sufrir este estado? (status: BURN, BLEED, POISON, PARALYZE, SLOW…)
+async function immuneToStatus(target, status) {
+  if (!target?.monster_code || !status) return false;
+  const n = await monsterNature(target.monster_code);
+  if (!n) return false;
+  if (STATUS_IMMUNE_CATEGORIES[status]?.includes(n.category)) return true;
+  const el = STATUS_IMMUNE_ELEMENT[status];
+  return !!el && (n.element === el || Number(n.resist?.[el] ?? 0) >= IMMUNE_RESIST_PERCENT);
+}
+// el daño por turno de una habilidad de estado: quemadura si es de fuego, si no veneno
+const dotStatusOf = (elementCode) => (elementCode === 'FIRE' ? 'BURN' : 'POISON');
+
 async function applyStatusEffect(sessionId, target, effect, skillId, actor) {
   const status = effect.status_code ?? null;
   const dur = Number(effect.duration_turns);
@@ -1100,6 +1138,12 @@ async function applyOnHitStatuses(sessionId, actor, skill, results, descParts) {
     for (const [status, effects] of Object.entries(groups)) {
       if (Math.random() * 100 >= Number(effects[0].chance_percent)) continue;
       if (worldBoss && effects.some((e) => e.effect_type === 'DOT' || e.effect_type === 'PARALYZE')) continue;
+      // un DOT sin estado nombrado es veneno
+      const code = status === 'DOT' ? 'POISON' : status;
+      if (await immuneToStatus(t, code)) {
+        descParts.push(`${t.name} es inmune a ${STATUS_NAMES[code] ?? code.toLowerCase()}.`);
+        continue;
+      }
       for (const e of effects) await applyStatusEffect(sessionId, t, e, skill.id, actor);
       descParts.push(`¡${t.name} sufre ${STATUS_NAMES[status] ?? status.toLowerCase()}!`);
     }
@@ -1243,7 +1287,8 @@ async function applyStatModBuff(sessionId, target, effect, isDebuff, descParts, 
 
 // ─── Romper (estilo Octopath) ───────────────────────────────────────────────────────────────
 // Cada monstruo tiene un escudo según su rareza. Cada golpe que recibe de un jugador le quita 1
-// punto (2 si es su debilidad elemental; las habilidades de varios golpes quitan por golpe).
+// punto (2 si es su debilidad elemental, 0 si lo resiste; las habilidades de varios golpes quitan
+// por golpe).
 // Al llegar a 0 queda ROTO: pierde su turno en esta ronda y en la siguiente y recibe +50% de daño
 // (buff DAMAGE_TAKEN); al terminar se le restaura el escudo. Escudo y rotura se guardan como filas
 // especiales de combat_participant_buffs (SHIELD con el valor actual, BREAK con las rondas).
@@ -1302,27 +1347,41 @@ async function applyBreakAndFury(sessionId, round, actor, participants, hpBefore
         });
       }
     }
+    // golpear con un elemento descubre cómo le afecta a este tipo de monstruo (lib/afinidades.js)
+    if (elementId) {
+      const elCode = (await getElementCodes())[elementId];
+      await afinidades.learn(actor.player_id ?? actor.owner_player_id, enemy.monster_code, elCode).catch(() => {});
+    }
     if (enemy.hp <= 0) continue;
     const max = await maxShieldOf(enemy);
     if (!max) continue;
     const broken = await db.query("SELECT 1 FROM combat_participant_buffs WHERE participant_id = $1 AND stat_code = 'BREAK'", [enemy.id]);
     if (broken.rows.length) continue;
-    let weak = false;
+    // cuánto le quita al escudo cada golpe: 1 lo neutro (y lo físico), 2 su debilidad, 0 lo que resiste
+    let perHit = 1;
     // los jefes de mazmorra cambian de debilidad (lib/mazmorra.js): manda la de este momento
     const forcedWeak = mazmorras.isBoss(enemy.monster_code) ? await mazmorras.weakElementOf(enemy.id) : null;
     if (forcedWeak != null) {
-      weak = elementId === forcedWeak;
+      perHit = elementId === forcedWeak ? 2 : 1;
     } else if (elementId) {
       const res = await db.query(
         `SELECT mer.resistance_percent FROM monster_element_resistances mer
          JOIN monsters m ON m.id = mer.monster_id WHERE m.code = $1 AND mer.element_id = $2`,
         [enemy.monster_code, elementId]
       );
-      weak = Number(res.rows[0]?.resistance_percent ?? 0) < 0;
+      const pct = Number(res.rows[0]?.resistance_percent ?? 0);
+      perHit = pct < 0 ? 2 : pct > 0 ? 0 : 1;
+    }
+    if (perHit === 0) {
+      await insertLog(sessionId, round, {
+        actorId: actor.id, targetId: enemy.id, action: 'SKILL',
+        description: `${enemy.name} resiste ese elemento: su escudo no cede.`,
+      });
+      continue;
     }
     const row = (await db.query("SELECT id, applied_flat FROM combat_participant_buffs WHERE participant_id = $1 AND stat_code = 'SHIELD'", [enemy.id])).rows[0];
     const current = row ? Number(row.applied_flat) : max;
-    const next = Math.max(0, current - (weak ? 2 : 1) * hits);
+    const next = Math.max(0, current - perHit * hits);
     if (row) await db.query('UPDATE combat_participant_buffs SET applied_flat = $1 WHERE id = $2', [next, row.id]);
     else {
       await db.query(
@@ -2288,6 +2347,8 @@ async function advanceEnemyTurns(sessionId) {
     }
     // el Vigía de la cripta: marca a un héroe con su faro y al turno siguiente le dispara
     if (await mazmorras.bossTurn({ sessionId, round, actor, participants, persistParticipant, insertLog, markNearDeathIfLow })) continue;
+    // los jefes míticos anuncian su gran golpe a todo el grupo (lib/mythic.js)
+    if (await mythic.bossTurn({ sessionId, round, actor, participants, persistParticipant, insertLog, markNearDeathIfLow })) continue;
     if (round === 1) {
       await applyInnateTrigger('ON_COMBAT_START', { actor, target: null, allies: [], enemies: [] });
     }
@@ -2402,7 +2463,12 @@ async function advanceEnemyTurns(sessionId) {
             if (effect.effect_type === 'DOT') {
               const pct = Number(effect.percent_amount || 0);
               const dur = Number(effect.duration_turns);
+              const npcDotStatus = dotStatusOf(skill.element_id ? await elements.getElementCodeById(skill.element_id) : null);
               for (const t of skillTargets) {
+                if (await immuneToStatus(t, npcDotStatus)) {
+                  skillDescParts.push(`${t.name} es inmune a ${STATUS_NAMES[npcDotStatus]}.`);
+                  continue;
+                }
                 await db.query(
                   "DELETE FROM combat_participant_buffs WHERE participant_id=$1 AND stat_code='DOT' AND skill_id=$2",
                   [t.id, skill.id]
@@ -2721,7 +2787,7 @@ async function fetchSessionState(sessionId) {
     if (b.stat_code === 'BREAK') { brokenIds.add(b.participant_id); continue; }
     // contadores internos del Vigía (la debilidad se ve en sus resistencias)
     if (b.stat_code === 'WEAK_ELEM') { weakNow[b.participant_id] = Number(b.applied_flat); continue; }
-    if (b.stat_code === 'FARO_N') continue;
+    if (b.stat_code === 'FARO_N' || b.stat_code === 'MYTH_N' || b.stat_code === 'MYTH_CHARGE') continue;
     // el +50% de daño de la rotura ya se ve como "ROTO" en el cliente
     if (b.stat_code === 'DAMAGE_TAKEN' && brokenIds.has(b.participant_id) && Number(b.applied_flat) === BREAK_DAMAGE_BONUS) continue;
     (effectsById[b.participant_id] ??= []).push({
@@ -2756,6 +2822,9 @@ async function fetchSessionState(sessionId) {
     const left = c.ready_round - sessionResult.rows[0].current_round;
     if (left > 0) (cooldownsById[c.participant_id] ??= {})[c.skill_id] = left;
   }
+  // afinidades: solo las que ya descubrió alguno de los héroes del combate (las demás se ven como «?»)
+  const affHeroIds = [...new Set(participants.all.map((p) => (p.side === 'PLAYER' ? p.player_id : null)).filter(Boolean))];
+  const knownAff = await afinidades.knownFor(affHeroIds, monsterCodes).catch(() => new Map());
   const enrichedParticipants = participants.all.map((p) => ({
     ...p,
     cooldowns: cooldownsById[p.id] ?? {},
@@ -2764,11 +2833,13 @@ async function fetchSessionState(sessionId) {
     level: p.monster_code?.startsWith(WORLD_BOSS_CODE_PREFIX) ? null : p.level,
     element_code: elementCodes[p.element_id] ?? null,
     imbued_element_code: elementCodes[p.imbued_element_id] ?? null,
+    // el jefe de mazmorra anuncia su debilidad del momento: esa se ve siempre
     resistances: p.monster_code
       ? (weakNow[p.id] != null
-        ? { ...Object.fromEntries(Object.entries(resistByMonster[p.monster_code] ?? {}).filter(([, v]) => v > 0)), [mazmorras.ELEMENT_CODE[weakNow[p.id]]]: -50 }
-        : (resistByMonster[p.monster_code] ?? {}))
+        ? { ...afinidades.filter(Object.fromEntries(Object.entries(resistByMonster[p.monster_code] ?? {}).filter(([, v]) => v > 0)), knownAff.get(p.monster_code)).shown, [mazmorras.ELEMENT_CODE[weakNow[p.id]]]: -50 }
+        : afinidades.filter(resistByMonster[p.monster_code], knownAff.get(p.monster_code)).shown)
       : undefined,
+    affinity_hidden: p.monster_code ? afinidades.filter(resistByMonster[p.monster_code], knownAff.get(p.monster_code)).hidden : undefined,
     effects: effectsById[p.id] ?? [],
     gear: p.player_id ? (gearBy[p.player_id] ?? {}) : undefined,
   }));
@@ -3974,6 +4045,10 @@ router.post('/sessions/:id/action', async (req, res, next) => {
                 altDescParts.push(`${target.name} es inmune a ${skill.name} (daño por % de HP máximo).`);
                 continue;
               }
+              if (await immuneToStatus(target, dotStatusOf(dotElemCode))) {
+                altDescParts.push(`${target.name} es inmune a ${STATUS_NAMES[dotStatusOf(dotElemCode)]}.`);
+                continue;
+              }
               await db.query(
                 "DELETE FROM combat_participant_buffs WHERE participant_id = $1 AND stat_code = 'DOT' AND skill_id = $2",
                 [target.id, skillId]
@@ -4558,6 +4633,7 @@ module.exports = router;
 module.exports.hydratePlayers = hydratePlayers;
 module.exports.hydratePartyNpcs = hydratePartyNpcs;
 module.exports.hydrateMonsters = hydrateMonsters;
+module.exports.immuneToStatus = immuneToStatus;
 module.exports.insertParticipants = insertParticipants;
 module.exports.advanceEnemyTurns = advanceEnemyTurns;
 module.exports.fetchSessionState = fetchSessionState;

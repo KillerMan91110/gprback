@@ -116,6 +116,7 @@ mythic.start(io, addNews);
 // un objeto dentro de una compra, iría por otra conexión y podría quedar esperando a esa compra
 require('./lib/recetas').ensureTables().catch((err) => console.error('[recetas] tablas', err.message));
 require('./lib/npcSell').ensureColumns().catch((err) => console.error('[npcSell] columnas', err.message));
+require('./lib/afinidades').ensureTables().catch((err) => console.error('[afinidades] tablas', err.message));
 
 app.set('io', io);
 setLegendSchedulerIo(io); // asi las respuestas de chat de las leyendas (ver legendScheduler.js) tambien emiten en vivo por socket, no solo al refrescar

@@ -14304,3 +14304,13 @@ UPDATE monster_drops d SET drop_chance_percent = CASE i.rarity WHEN 'LEGENDARIO'
 FROM monsters m, items i
 WHERE d.monster_id = m.id AND d.item_id = i.id AND i.code LIKE 'SCROLL\_%' AND m.rarity IN ('MINIBOSS', 'LEGENDARY')
   AND d.drop_chance_percent <> CASE i.rarity WHEN 'LEGENDARIO' THEN 12.50 ELSE 17.50 END;
+
+-- Afinidades descubiertas (lib/afinidades.js): lo que cada jugador sabe de las debilidades y
+-- resistencias de cada tipo de monstruo (se descubre golpeándolo con ese elemento).
+CREATE TABLE IF NOT EXISTS player_known_affinities (
+  player_id    INTEGER NOT NULL REFERENCES players(id) ON DELETE CASCADE,
+  monster_code TEXT NOT NULL,
+  element_code TEXT NOT NULL,
+  learned_at   TIMESTAMPTZ NOT NULL DEFAULT now(),
+  PRIMARY KEY (player_id, monster_code, element_code)
+);
