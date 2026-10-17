@@ -209,6 +209,14 @@
   }
  },
  "3": {
+  "fumarola_campos": {
+   "tipo": "fumarola",
+   "sitios": 9
+  },
+  "cofre_campos": {
+   "tipo": "cofre_volcan",
+   "sitios": 2
+  },
   "flor_ladera": {
    "tipo": "flor_ceniza",
    "sitios": 6
@@ -221,25 +229,13 @@
    "tipo": "restos_volcan",
    "sitios": 3
   },
-  "fumarola_campos": {
-   "tipo": "fumarola",
-   "sitios": 9
-  },
   "flor_campos": {
    "tipo": "flor_ceniza",
    "sitios": 3
   },
-  "cofre_campos": {
-   "tipo": "cofre_volcan",
-   "sitios": 2
-  },
   "flor_bosque": {
    "tipo": "flor_ceniza",
    "sitios": 6
-  },
-  "restos_bosque": {
-   "tipo": "restos_volcan",
-   "sitios": 3
   },
   "cofre_bosque": {
    "tipo": "cofre_volcan",
@@ -249,13 +245,13 @@
    "tipo": "nido_salamandra",
    "sitios": 6
   },
-  "veta_rios": {
-   "tipo": "veta_obsidiana",
-   "sitios": 6
-  },
   "cofre_rios": {
    "tipo": "cofre_volcan",
    "sitios": 2
+  },
+  "veta_rios": {
+   "tipo": "veta_obsidiana",
+   "sitios": 6
   },
   "veta_cantera": {
    "tipo": "veta_obsidiana",
@@ -263,6 +259,34 @@
   },
   "geoda_cantera": {
    "tipo": "geoda_ardiente",
+   "sitios": 2
+  },
+  "restos_bosque": {
+   "tipo": "restos_volcan",
+   "sitios": 3
+  },
+  "fumarola_grieta": {
+   "tipo": "fumarola",
+   "sitios": 2
+  },
+  "restos_grieta": {
+   "tipo": "restos_volcan",
+   "sitios": 3
+  },
+  "cofre_grieta": {
+   "tipo": "cofre_volcan",
+   "sitios": 2
+  },
+  "veta_grieta": {
+   "tipo": "veta_obsidiana",
+   "sitios": 3
+  },
+  "geoda_caldera": {
+   "tipo": "geoda_ardiente",
+   "sitios": 2
+  },
+  "cofre_caldera": {
+   "tipo": "cofre_volcan",
    "sitios": 2
   },
   "nido_dragon": {
@@ -280,30 +304,6 @@
   "cofre_nido": {
    "tipo": "cofre_volcan",
    "sitios": 1
-  },
-  "veta_grieta": {
-   "tipo": "veta_obsidiana",
-   "sitios": 3
-  },
-  "fumarola_grieta": {
-   "tipo": "fumarola",
-   "sitios": 2
-  },
-  "restos_grieta": {
-   "tipo": "restos_volcan",
-   "sitios": 3
-  },
-  "cofre_grieta": {
-   "tipo": "cofre_volcan",
-   "sitios": 2
-  },
-  "geoda_caldera": {
-   "tipo": "geoda_ardiente",
-   "sitios": 2
-  },
-  "cofre_caldera": {
-   "tipo": "cofre_volcan",
-   "sitios": 2
   }
  }
 }
