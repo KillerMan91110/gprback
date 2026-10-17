@@ -17,7 +17,7 @@ const { incrementCounter } = require('../lib/counters');
 const { applyInnateTrigger } = require('../lib/innates');
 const { getPlayerGuildRow } = require('../lib/guilds');
 // servicios de la ciudad: hay que estar junto a quien los ofrece (ver lib/cercania.js)
-const { requireNear, lejosDe, SERVICIOS, cercaDe } = require('../lib/cercania');
+const { requireNear, lejosDe, SERVICIOS, cercaDe, positionOf } = require('../lib/cercania');
 const { isFestival } = require('../lib/aurelia');
 
 // Crafteo: dónde se fabrica cada receta (crafting_recipes.station). Sin lugar, en cualquier lado
@@ -29,6 +29,7 @@ function stationProblem(playerId, station) {
 }
 const npcSell = require('../lib/npcSell');
 const recetas = require('../lib/recetas');
+const fuentes = require('../lib/fuentes');
 const desmantelar = require('../lib/desmantelar');
 const comida = require('../lib/comida');
 
@@ -891,7 +892,7 @@ router.get('/:playerId/inventory', async (req, res, next) => {
     const result = await db.query(
       `SELECT pi.id AS inventory_id, pi.item_id, pi.enchant_level, pi.quality_tier, pi.quantity,
               i.code, i.name, i.item_type, i.slot, i.rarity, i.class_id, i.is_quest_item,
-              i.required_level, i.is_two_handed, i.buy_price, ${npcSell.SELL_CAP_SQL} AS sell_cap,
+              i.required_level, i.is_two_handed, i.buy_price, i.sell_zone_mult, ${npcSell.SELL_CAP_SQL} AS sell_cap,
               (EXISTS (SELECT 1 FROM crafting_recipes cr2 WHERE cr2.scroll_item_id = i.id)) AS is_scroll,
               (
                 EXISTS (SELECT 1 FROM crafting_recipes cr2 WHERE cr2.scroll_item_id = i.id)
@@ -1717,7 +1718,7 @@ router.post('/:playerId/quests/:questId/reset', async (req, res, next) => {
 router.post('/:playerId/quests/interact', async (req, res, next) => {
   const { playerId } = req.params;
   const kind = String(req.body?.kind ?? '');
-  if (!['TALK', 'VISIT', 'INVESTIGATE', 'AMBUSH'].includes(kind) || req.body?.target == null) {
+  if (!['TALK', 'VISIT', 'INVESTIGATE', 'AMBUSH', 'ESCORT'].includes(kind) || req.body?.target == null) {
     return res.status(400).json({ error: 'Interacción inválida' });
   }
   try {
@@ -1864,7 +1865,8 @@ router.get('/:playerId/craft/available', async (req, res, next) => {
     if (libro && scrollIds.length) {
       // solo jefes de zonas que ya tiene abiertas (las recetas sin zona no adelantan las que vienen)
       const src = await db.query(
-        `SELECT d.item_id, m.name, d.drop_chance_percent::float AS pct FROM monster_drops d JOIN monsters m ON m.id = d.monster_id
+        `SELECT d.item_id, m.name, d.drop_chance_percent::float AS pct, s.rarity
+         FROM monster_drops d JOIN monsters m ON m.id = d.monster_id JOIN items s ON s.id = d.item_id
          WHERE d.item_id = ANY($1::int[])
            AND (m.zone_id IS NULL OR m.zone_id IN (SELECT zone_id FROM player_zone_unlocks WHERE player_id = $2))
          ORDER BY d.drop_chance_percent DESC`,
@@ -1872,7 +1874,8 @@ router.get('/:playerId/craft/available', async (req, res, next) => {
       );
       for (const r of src.rows) {
         if (!scrollSources.has(r.item_id)) scrollSources.set(r.item_id, []);
-        scrollSources.get(r.item_id).push({ monster: r.name, chance: r.pct });
+        // pieza del set: la misma tabla que routes/combat.js (PIECE_CHANCE)
+        scrollSources.get(r.item_id).push({ monster: r.name, chance: r.pct, pieceChance: r.rarity === 'LEGENDARIO' ? 22.5 : 27.5 });
       }
     }
     const hidden = [];
@@ -1883,6 +1886,11 @@ router.get('/:playerId/craft/available', async (req, res, next) => {
     const festival = isFestival();
     // el nivel del héroe: el Taller avisa del equipo que todavía no se puede poner
     const heroLevel = Number((await db.query('SELECT level FROM players WHERE id = $1', [playerId])).rows[0]?.level ?? 1);
+    // las piezas de set de jefe de TU clase salen el doble (routes/combat.js OWN_CLASS_SCROLL_MULT):
+    // el Taller muestra la probabilidad que de verdad tienes
+    const pc = (await db.query('SELECT current_class_id, evolution_class_id FROM players WHERE id = $1', [playerId])).rows[0];
+    const heroChainIds = await evolution.getClassAncestorChain(pc?.evolution_class_id || pc?.current_class_id);
+    const heroClassCodes = new Set((await db.query('SELECT code FROM classes WHERE id = ANY($1::int[])', [heroChainIds])).rows.map((r) => r.code));
     // para comparar con lo que llevas puesto: las stats de cada pieza y las de tu equipo (con su calidad
     // y encantamiento, lo que de verdad te da)
     const eqIds = [...new Set(recipesResult.rows.filter((r) => r.result_item_type === 'EQUIPMENT').map((r) => r.result_item_id))];
@@ -1968,11 +1976,19 @@ router.get('/:playerId/craft/available', async (req, res, next) => {
         classCode: recipe.required_class_code ?? scrollClassOf(recipe),
         canCraft: canCraft && !locked,
         ingredients: ingredientStatus,
-        // libro de recetas: "NUEVO" hasta que la abre; candado si es de pergamino y no la aprendió
-        isNew: !isScroll && !recipe.seen,
+        // libro de recetas: "NUEVO" hasta que la abre (también las de set de jefe recién aprendidas);
+        // candado si es de set de jefe y todavía no conseguiste ninguna pieza
+        isNew: !recipe.seen && (!isScroll || recipe.learned),
         locked,
         scrollName: locked ? recipe.scroll_item_name : null,
-        scrollSources: locked ? scrollSources.get(recipe.scroll_item_id) ?? [] : null,
+        // quién suelta piezas de este set y con qué probabilidad para ti
+        scrollSources: locked
+          ? (scrollSources.get(recipe.scroll_item_id) ?? []).map((s) => ({
+            ...s,
+            chance: Math.min(100, Math.round(s.chance * (heroClassCodes.has(scrollClassOf(recipe)) ? 2 : 1) * 10) / 10),
+            pieceChance: Math.min(100, Math.round(s.pieceChance * (heroClassCodes.has(scrollClassOf(recipe)) ? 2 : 1) * 10) / 10),
+          }))
+          : null,
       });
     }
 
@@ -1985,6 +2001,18 @@ router.get('/:playerId/craft/available', async (req, res, next) => {
 // clase de una receta de pergamino sin clase propia, según el código del pergamino (SCROLL_X_MAGO)
 const SCROLL_CLASS_NAME = { GUERRERO: 'Guerrero', MAGO: 'Mago', ARQUERO: 'Arquero', PICARO: 'Pícaro', SACERDOTE: 'Sacerdote' };
 const scrollClassOf = (r) => String(r.scroll_item_code ?? '').match(/_(GUERRERO|MAGO|ARQUERO|PICARO|SACERDOTE)$/)?.[1] ?? null;
+
+// GET /api/player/:playerId/craft/fuentes/:itemId — de dónde sale un material: monstruos que lo
+// sueltan (con su %), recursos del mapa, si se fabrica y si se compra. El Taller lo pide al tocar
+// «¿Dónde?» en un material (lib/fuentes.js; no nombra lo de zonas que todavía no abriste).
+router.get('/:playerId/craft/fuentes/:itemId', async (req, res, next) => {
+  try {
+    const id = Number(req.params.itemId);
+    if (!Number.isInteger(id) || id <= 0) return res.status(400).json({ error: 'Ese material no existe' });
+    const sources = await fuentes.sourcesForItems(req.params.playerId, [id]);
+    res.json(sources.get(id) ?? null);
+  } catch (error) { next(error); }
+});
 
 // GET /api/player/:playerId/craft/novedades — crafteos descubiertos que todavía no se avisaron
 // (el mundo lo pregunta cuando cambia la mochila: "¡Descubriste un crafteo nuevo!")
@@ -3637,13 +3665,23 @@ router.post('/:playerId/enchant/npc/:npcId', requireAuth, async (req, res, next)
 // ─── ARTISAN SHOP ─────────────────────────────────────────────────────────────
 
 
+// zona del mapa → id de zona (artisans.zone_id): los mercaderes con zona solo venden en su tierra
+const ZONE_ID_OF_DIR = { pradera: 1, montanas: 2, volcan: 3 };
+const playerZoneId = (playerId) => ZONE_ID_OF_DIR[positionOf(Number(playerId))?.zone] ?? null;
+
 // GET /api/player/:playerId/artisan-shop
-// Devuelve todos los artesanos con su inventario y cuánto tiene el jugador de cada ítem.
+// Devuelve los artesanos con su inventario y cuánto tiene el jugador de cada ítem. Los de siempre
+// (sin zona) están en todos lados; los de una zona (Marga en Ascuaria) solo si estás en ella, y
+// van primero (la ventana abre en su pestaña).
 router.get('/:playerId/artisan-shop', requireAuth, async (req, res, next) => {
   const { playerId } = req.params;
   try {
+    const here = playerZoneId(playerId);
     const artisans = await db.query(
-      `SELECT code, name, specialty FROM artisans ORDER BY specialty`
+      `SELECT code, name, specialty, zone_id, description FROM artisans
+       WHERE zone_id IS NULL OR zone_id = $1
+       ORDER BY (zone_id IS NULL), specialty`,
+      [here]
     );
     const result = [];
     for (const art of artisans.rows) {
@@ -3663,7 +3701,7 @@ router.get('/:playerId/artisan-shop', requireAuth, async (req, res, next) => {
         price: it.price,
         playerOwns: await inventory.getQuantity(playerId, it.id),
       })));
-      result.push({ code: art.code, name: art.name, specialty: art.specialty, shop: items });
+      result.push({ code: art.code, name: art.name, specialty: art.specialty, local: art.zone_id != null, description: art.description, shop: items });
     }
     res.json(result);
   } catch (error) { next(error); }
@@ -3679,12 +3717,16 @@ router.post('/:playerId/artisan-shop/buy', requireAuth, requireNear('artesanos')
   if (!artisanCode || !itemCode) return res.status(400).json({ error: 'artisanCode e itemCode son requeridos' });
   try {
     const shopRow = await db.query(
-      `SELECT s.price, i.id AS item_id, i.name
-       FROM artisan_shop s JOIN items i ON i.id = s.item_id
+      `SELECT s.price, i.id AS item_id, i.name, a.zone_id, a.name AS artisan_name
+       FROM artisan_shop s JOIN items i ON i.id = s.item_id JOIN artisans a ON a.code = s.artisan_code
        WHERE s.artisan_code = $1 AND i.code = $2`,
       [artisanCode, itemCode]
     );
     if (!shopRow.rows.length) return res.status(404).json({ error: 'Ítem no disponible en esa tienda' });
+    // un mercader de zona solo vende en su tierra
+    if (shopRow.rows[0].zone_id != null && shopRow.rows[0].zone_id !== playerZoneId(playerId)) {
+      return res.status(403).json({ error: `${shopRow.rows[0].artisan_name} solo vende en su tierra: búscala allá.`, lejos: true });
+    }
 
     const { price, item_id: itemId, name } = shopRow.rows[0];
     const totalCost = price * qty;

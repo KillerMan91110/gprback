@@ -618,7 +618,7 @@ Así funciona hoy (`gprback/lib/recetas.js`, `routes/players.js` `/craft/availab
 - **Misiones de juntar objetos** (`lib/questProgress.js`): el rastreador sabe de dónde sale cada objeto (monstruos, recursos del mapa, o si se fabrica) y lo marca en el mapa.
 - **Descripción del material:** siempre dice quién lo suelta y dónde. Es la pista más directa y se escribe a mano en cada material. Por ejemplo: «La sueltan los Gólems de Obsidiana de la Cantera».
 
-**Mejora pendiente:** en el Taller, un **material que te falta** no dice dónde conseguirlo. Sería bueno que al pasar el mouse por el material mostrara sus fuentes: monstruos con %, recursos del mapa y receta si se fabrica. Los datos ya existen (`droppedBy`, `NODE_TYPES`, recetas). Hace falta agregarlos a `/craft/available` o pedirlos con el detalle del ítem.
+- **Taller, material que te falta:** el botón «¿Dónde?» muestra los monstruos que lo sueltan (con su %), los recursos del mapa, si se fabrica y si se compra (`lib/fuentes.js`, `GET /craft/fuentes/:itemId`). No nombra lo de zonas que el jugador no abrió; los monstruos de mazmorra cuentan como de la zona de su mazmorra. **Zona nueva:** agrega su id y nombre a `ZONE_NAMES` en `lib/fuentes.js`.
 
 **Al hacer una zona nueva, hay que revisar que:**
 
@@ -1067,7 +1067,7 @@ Resumen rápido:
 |---|---|---|
 | 1 | Bestiario, amuletos y cartas | casi solo (revisar la categoría de los monstruos) |
 | 2 | Mascotas y huevos | hay que poner huevos en los drops; idealmente, mascotas nuevas |
-| 3 | Jefe mítico | **no**: hoy solo existe en la Pradera |
+| 3 | Jefe mítico | sí: Ignivora, la Madre Salamandra (ver B3) |
 | 4 | Eventos del calendario | no hace falta, salvo que la zona tenga uno propio |
 | 5 | Encantamiento | solo (las piedras salen de desmantelar y de recompensas) |
 | 6 | Reputación y rangos | solo (las misiones dan `rep`) |
@@ -1301,7 +1301,7 @@ Que la suma de la zona lleve al jugador **más o menos un rango arriba**.
 - Hay **cofres secretos** escondidos en rincones: se abren una sola vez y dan oro, experiencia y a veces una carta (`card: true`). El punto del mapa (`type: 'secreto'`) lleva el mismo nombre que la clave en `SECRETS`.
 - Las balsas y las vagonetas solo te llevan a subzonas que ya exploraste.
 
-**⚠️ Las Montañas no tienen cofres secretos** (la Pradera tiene 4 y el Volcán 3).
+La Pradera tiene 4 cofres secretos, las Montañas 3 y el Volcán 3. La carta sale de los monstruos comunes y raros de la zona del cofre (`ZONE_IDS` en `lib/exploracion.js`: agrega ahí cada zona nueva).
 
 **En una zona nueva:**
 
@@ -1395,7 +1395,7 @@ En el Volcán, **Marga** (`mercader_ascuaria`, en el puesto de la plaza de Ascua
 **En una zona nueva:**
 
 - Pon **un mercader en la ciudad**: agrégalo a `SERVICIOS.artesanos` en `cercania.js`, con su opción `window: 'artesanos'` en el diálogo.
-- Si vende cosas propias, cárgalas en `artisan_shop` con un `artisan_code` nuevo. Ideas: frascos y aceite; en el Volcán, carbón, pómez barata y agua.
+- Si vende cosas propias, crea su fila en `artisans` con el `zone_id` de la zona y la especialidad de la zona (`FUEGO`, `MARINO`, `OSCURO`, `SUPREMO`: la tabla no acepta otras), y su mercancía en `artisan_shop`. Así solo aparece en su tierra y va primero en la ventana. En el front, su retrato y su saludo van en `LOCAL_MERCHANT` (`MerchantPanel.js`). Modelo: Marga (`MERCADER_ASCUARIA`).
 - **Nunca** vendas en tienda un material que un NPC compre más caro. Respeta la regla de la mitad.
 
 ### 14. Dónde despiertas al caer (refugios, Pilar y piedra de regreso)
@@ -1630,16 +1630,16 @@ Están en **`D:\vscode\gpr\_respaldo_claude\volcan\`** (sin seguimiento de git).
 
 ## B3. Lo que queda (son propuestas: consultarlas con el usuario antes)
 
-1. **Jefe mítico del Volcán** (y de las Montañas): hoy solo existe en la Pradera (A12.3). Idea: «Ignivora, la Madre Salamandra», que aparece en las noches de brasas. Hay que generalizar `lib/mythic.js`, porque algunas constantes suponen una sola zona.
-2. **Cofres secretos de las Montañas**: tienen 0 (A12.9).
+1. ~~**Jefe mítico del Volcán** (y de las Montañas)~~ **Hecho:** `lib/mythic.js` ahora tiene un mítico por zona en `MITICOS` (monstruo, esbirro, curva de niveles, escondites, rumores, textos de fases y `goldMul` / `xpMul` del botín): **Truenocuerno, el Carnero de la Tormenta** (Montañas, esbirro Cabra Tronadora, 15.000 de vida) e **Ignivora, la Madre Salamandra** (Volcán, esbirro Cría de Ignivora, 25.000 de vida). Solo uno ronda Etheria a la vez; cada zona lleva su cuenta. Los monstruos los crea `ensureTables` al arrancar (no hay SQL). Arte: `gpr/art/sprites/enemigos/crear_miticos.lua`; colores y textos por zona en `game/world/mythic.js` (`THEMES`) y `MythicHunt.js` (`PHASES`).
+2. ~~**Cofres secretos de las Montañas**~~ **Hecho:** 3 (`secreto_pinar`, `secreto_arpias`, `secreto_grieta_trueno`). La carta de los cofres ahora sale de los monstruos de **su** zona (antes siempre de la Pradera).
 3. **Pilar menor y Estatua del Viajero en Ascuaria** (A12.14).
-4. **Tienda propia de Ascuaria** en `artisan_shop`. Hoy Marga vende lo mismo que los artesanos de Aurelia, porque la ventana de comercio muestra todas las tiendas juntas.
-5. En el Taller, mostrar **de dónde sale un material que te falta** (A6, "Mejora pendiente").
+4. ~~**Tienda propia de Ascuaria**~~ **Hecho:** Marga es la artesana `MERCADER_ASCUARIA` (especialidad `FUEGO`, `zone_id` 3) con 7 productos del volcán. Los artesanos con `zone_id` solo aparecen (primero) y solo venden cuando estás en su zona (`/artisan-shop`). SQL al final de `schema.sql` y de `pendiente_supabase.sql`.
+5. ~~En el Taller, mostrar de dónde sale un material que te falta~~ **Hecho:** botón «¿Dónde?» en cada material que falta (`MaterialSources.js` → `GET /craft/fuentes/:itemId` → `lib/fuentes.js`).
 6. **Objetos del mapa con `requiere` / `oculto_tras`**, como los NPCs (A8, phasing).
-7. **Colores de equipo propios para la Obsidiana y la Forja Negra.** Hoy caen por rareza en los sets
-   "arcano" y "ancestral" (`gear.js`). Hay que agregar los sets `obsidiana` y `forja_negra` al
-   final de `crear_equipo.lua` y de `SETS`, con su sufijo en `SET_BY_CODE` (ver `CLAUDE.gpr.md`,
-   "Arte del equipo"). **Esto se hace con cada tier nuevo de cada zona.**
+7. ~~Colores de equipo propios para la Obsidiana y la Forja Negra.~~ **Hecho:** sets `obsidiana`
+   (vidrio negro con reflejo violeta) y `forja_negra` (hierro ennegrecido con vetas al rojo) al final
+   de `crear_equipo.lua` y de `SETS`, con su sufijo en `SET_BY_CODE`. **Esto se hace con cada tier
+   nuevo de cada zona** (ver `CLAUDE.gpr.md`, "Arte del equipo").
 
 ## B4. Qué se probó y qué no
 

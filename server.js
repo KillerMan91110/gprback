@@ -112,6 +112,10 @@ startEconomia();
 startPuestos(io);
 // jefe mítico de zona: revisa cada 30 s si aparece o se va, y avisa por socket
 mythic.start(io, addNews);
+// el libro de recetas crea sus tablas al arrancar: si lo hiciera la primera vez que alguien recibe
+// un objeto dentro de una compra, iría por otra conexión y podría quedar esperando a esa compra
+require('./lib/recetas').ensureTables().catch((err) => console.error('[recetas] tablas', err.message));
+require('./lib/npcSell').ensureColumns().catch((err) => console.error('[npcSell] columnas', err.message));
 
 app.set('io', io);
 setLegendSchedulerIo(io); // asi las respuestas de chat de las leyendas (ver legendScheduler.js) tambien emiten en vivo por socket, no solo al refrescar

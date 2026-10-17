@@ -13388,3 +13388,919 @@ UPDATE quest_objectives SET params = params || jsonb_build_object('sprite', 'mon
 WHERE objective_type = 'AMBUSH' AND params ? 'monsters' AND jsonb_array_length(params->'monsters') > 0 AND NOT params ? 'sprite'
   AND quest_id IN (SELECT id FROM quests WHERE zone_id = 3);
 INSERT INTO balance_versions (version) SELECT 'volcan_v1' WHERE NOT EXISTS (SELECT 1 FROM balance_versions WHERE version = 'volcan_v1');
+
+-- ============================================================================================
+-- Tienda propia de Ascuaria (Volcán Rojo): Marga, la mercader de la plaza. Solo aparece en la
+-- ventana de comercio cuando estás en el Volcán (artisans.zone_id, ver routes/players.js
+-- /artisan-shop). Vende lo de la zona a más del doble de lo que pagan los NPC (regla de la mitad,
+-- lib/npcSell.js), así no baja lo que te pagan por lo que recolectas. Repetible, sin ON CONFLICT.
+-- ============================================================================================
+INSERT INTO artisans (code, name, specialty, zone_id, description)
+SELECT 'MERCADER_ASCUARIA', 'Marga, mercader de Ascuaria', 'FUEGO', 3,
+       'Vende lo que da el volcán y lo que llega de afuera, sin que tengas que meter la mano en la lava.'
+WHERE NOT EXISTS (SELECT 1 FROM artisans WHERE code = 'MERCADER_ASCUARIA');
+UPDATE artisans SET name = 'Marga, mercader de Ascuaria', specialty = 'FUEGO', zone_id = 3,
+  description = 'Vende lo que da el volcán y lo que llega de afuera, sin que tengas que meter la mano en la lava.'
+WHERE code = 'MERCADER_ASCUARIA';
+
+INSERT INTO artisan_shop (artisan_code, item_id, price)
+SELECT 'MERCADER_ASCUARIA', i.id, v.price
+FROM (VALUES ('PIEDRA_POMEZ', 55), ('AZUFRE', 60), ('FLOR_DE_CENIZA', 60), ('CARNE_SALAMANDRA', 70),
+             ('FRASCO_VACIO', 10), ('ACEITE_DE_COCINA', 18), ('CARBON', 22)) AS v(code, price)
+JOIN items i ON i.code = v.code
+WHERE NOT EXISTS (SELECT 1 FROM artisan_shop s WHERE s.artisan_code = 'MERCADER_ASCUARIA' AND s.item_id = i.id);
+UPDATE artisan_shop s SET price = v.price
+FROM (VALUES ('PIEDRA_POMEZ', 55), ('AZUFRE', 60), ('FLOR_DE_CENIZA', 60), ('CARNE_SALAMANDRA', 70),
+             ('FRASCO_VACIO', 10), ('ACEITE_DE_COCINA', 18), ('CARBON', 22)) AS v(code, price), items i
+WHERE i.code = v.code AND s.item_id = i.id AND s.artisan_code = 'MERCADER_ASCUARIA';
+
+-- ============================================================================================
+-- Secundarias al ritmo de la historia (repetible). Antes casi todas las de la Pradera estaban
+-- abiertas desde el principio y al nivel 6 el jugador veía unos diez «!» a la vez. Ahora cada una
+-- se abre cuando la historia te lleva a la zona de quien la da (como en los MMO): como mucho dos
+-- nuevas por misión principal. Las que ya aceptaste o completaste no cambian.
+-- ============================================================================================
+UPDATE quests q SET requires_quest_id = pre.id
+FROM (VALUES
+  -- Pradera Dorada
+  ('PRADERA_SEC_TRUENO',          'PRADERA_HISTORIA_01_LLEGADA'),
+  ('PRADERA_SEC_TILO_1',          'PRADERA_Q1_LOBO_DEL_BOSQUE'),
+  ('PRADERA_SEC_PAN',             'PRADERA_Q2_BANDIDO_PRADERA'),
+  ('PRADERA_SEC_HERRAMIENTAS',    'PRADERA_Q2_BANDIDO_PRADERA'),
+  ('PRADERA_SEC_GALLINA',         'PRADERA_HISTORIA_04_TRIGO'),
+  ('PRADERA_SEC_CERCA_1',         'PRADERA_HISTORIA_05_MOLINO'),
+  ('PRADERA_SEC_HACHA',           'PRADERA_HISTORIA_06_RAICES'),
+  ('PRADERA_SEC_RED',             'PRADERA_HISTORIA_07_LAGO'),
+  ('PRADERA_SEC_INSCRIPCIONES',   'PRADERA_HISTORIA_08_TORRE'),
+  ('PRADERA_SEC_MARTA_1',         'PRADERA_HISTORIA_08_TORRE'),
+  ('PRADERA_SEC_LINO',            'PRADERA_HISTORIA_09_ESTE'),
+  ('PRADERA_SEC_RECUERDO',        'PRADERA_HISTORIA_09_ESTE'),
+  ('PRADERA_SEC_GUARIDA',         'PRADERA_HISTORIA_10_RITUAL'),
+  -- Montañas Grises (la cabra de Gorm queda libre: es lo primero que ves al llegar)
+  ('MONTANAS_SEC_OLLA',           'MONTANAS_HISTORIA_02_ORCOS'),
+  ('MONTANAS_SEC_TRAMPAS',        'MONTANAS_HISTORIA_06_SELLO'),
+  ('MONTANAS_SEC_BIGOTES',        'MONTANAS_HISTORIA_07_PINAR'),
+  ('MONTANAS_SEC_CANCION',        'MONTANAS_HISTORIA_08_LAGO'),
+  ('MONTANAS_SEC_PARARRAYOS',     'MONTANAS_HISTORIA_09_TILO'),
+  ('MONTANAS_SEC_ASTRID',         'MONTANAS_SEC_PARARRAYOS'),
+  ('MONTANAS_SEC_RONDA',          'MONTANAS_Q2_SOMBRA_ACANTILADO'),
+  ('MONTANAS_SEC_ORDEN',          'MONTANAS_SEC_RONDA'),
+  -- Volcán Rojo (el resto ya seguía la historia)
+  ('VOLCAN_SEC_OLOR',             'VOLCAN_HISTORIA_04_CARGAMENTO')
+) AS v(code, pre_code)
+JOIN quests pre ON pre.code = v.pre_code
+WHERE q.code = v.code AND q.requires_quest_id IS DISTINCT FROM pre.id;
+
+-- «Ecos en el Este» la daba Goreth, el herrero, y no tenía mucho sentido que un herrero mandara
+-- vendajes. Ahora la da Mirna: es la que se queda sin vendas que vender, y su «Hilo de lino» de
+-- después sigue con los mismos heridos.
+UPDATE quests SET npc_name = 'Mirna', giver_npc = 'mirna',
+       description = '«Ay, ¿te enteraste? Unos granjeros de las Praderas del Este huyeron de sus casas y acampan junto al camino. Los guía una tal Sela. Llegan heridos y yo ya no tengo vendas que vender: hazles cinco Vendajes (Tela de Lino y una Hierba Curativa cada uno) y llévaselos tú. Y cuidado: dicen que un lobo enorme los sigue.»'
+WHERE code = 'PRADERA_HISTORIA_09_ESTE' AND giver_npc IS DISTINCT FROM 'mirna';
+
+-- ============================================================================================
+-- Escoltas (objetivo ESCORT, ver lib/questSteps.js y gpr/src/game/world/escolta.js): alguien te
+-- sigue por el mapa y tiene que llegar contigo. Repetible y sin ON CONFLICT.
+-- ============================================================================================
+DO $$
+DECLARE allowed TEXT;
+BEGIN
+  SELECT string_agg(DISTINCT quote_literal(t), ',') INTO allowed
+  FROM (SELECT unnest(ARRAY['KILL_MONSTER','KILL_ANY_IN_ZONE','DEFEAT_BOSS','COLLECT_ITEM','USE_ACTION',
+                            'TALK','DELIVER','VISIT','INVESTIGATE','CRAFT','AMBUSH','ESCORT']) AS t
+        UNION SELECT objective_type FROM quest_objectives) x;
+  ALTER TABLE quest_objectives DROP CONSTRAINT IF EXISTS quest_objectives_objective_type_check;
+  EXECUTE 'ALTER TABLE quest_objectives ADD CONSTRAINT quest_objectives_objective_type_check CHECK (objective_type IN (' || allowed || '))';
+END $$;
+
+-- «Nos vemos en el Festival»: Ren ya no te espera en Aurelia por arte de magia. Lo llevas tú desde
+-- la Aldea (paso 2) y se queda nervioso en la calle de la posada mientras hablas con Marta (paso 3).
+UPDATE quest_objectives SET step = 3
+WHERE quest_id = (SELECT id FROM quests WHERE code = 'PRADERA_SEC_MARTA_4')
+  AND objective_type = 'TALK' AND target_code = 'marta' AND step = 2;
+INSERT INTO quest_objectives (quest_id, objective_type, step, target_count, description, params)
+SELECT q.id, 'ESCORT', 2, 1, 'Acompaña a Ren hasta la posada de Aurelia',
+       '{"zone":"aurelia","x":78,"y":66,"radius":3,"label":"La posada de Marta","speaker":"Ren",
+         "dialog":"Ahí está. La posada. Y ella adentro. Entra tú primero, ¿sí? Dile que… no, no le digas nada. Bueno, dile que estoy aquí. Pero sin decirlo.",
+         "escort":{"sprite":"npc_ren","name":"Ren","lines":["¿Se me nota que me peiné?","Si me ves dar media vuelta, empújame. En serio.","¿Y si no me reconoce? Me peiné distinto.","Practiqué un saludo. «Hola, Marta.» ¿Suena bien? ¿Muy simple?","Los lobos me dan menos miedo que esto."]}}'::jsonb
+FROM quests q
+WHERE q.code = 'PRADERA_SEC_MARTA_4'
+  AND NOT EXISTS (SELECT 1 FROM quest_objectives o WHERE o.quest_id = q.id AND o.objective_type = 'ESCORT');
+INSERT INTO quest_npc_spots (quest_id, step, npc, zone, x, y, hide_home)
+SELECT q.id, 3, 'ren', 'aurelia', 81, 65, TRUE FROM quests q
+WHERE q.code = 'PRADERA_SEC_MARTA_4'
+  AND NOT EXISTS (SELECT 1 FROM quest_npc_spots s WHERE s.quest_id = q.id AND s.step = 3 AND s.npc = 'ren');
+
+-- «El escudero perdido»: después de salvarlo, Tilo vuelve al Bastión contigo (paso 4) y en la forja
+-- leen juntos la nota del Brujo (paso 5). Mientras está perdido no está en la forja (fase en el mapa).
+UPDATE quest_objectives SET step = 5
+WHERE quest_id = (SELECT id FROM quests WHERE code = 'MONTANAS_HISTORIA_09_TILO')
+  AND objective_type = 'DELIVER' AND target_code = 'tilo_bastion' AND step = 4;
+INSERT INTO quest_objectives (quest_id, objective_type, step, target_count, description, params)
+SELECT q.id, 'ESCORT', 4, 1, 'Lleva a Tilo de vuelta al Bastión',
+       '{"zone":"montanas","x":71,"y":58,"radius":3,"label":"La forja del Bastión","speaker":"Tilo",
+         "dialog":"¡Llegamos! ¿Viste cómo esquivé esa piedra? Bueno, me tropecé con ella. Pero con estilo. Ven, que la nota hay que leerla con luz.",
+         "escort":{"sprite":"npc_tilo_escudero","name":"Tilo","lines":["¿Le vas a contar a Durgan? No le cuentes a Durgan.","¡Esa arpía tenía mi voz! Yo no grito así. ¿Grito así?","Ya no tengo hambre. Bueno, un poco.","Cuando sea grande voy a ser espía. Ya tengo la nota.","¿Caminas siempre tan rápido? Tengo las piernas cortas."]}}'::jsonb
+FROM quests q
+WHERE q.code = 'MONTANAS_HISTORIA_09_TILO'
+  AND NOT EXISTS (SELECT 1 FROM quest_objectives o WHERE o.quest_id = q.id AND o.objective_type = 'ESCORT');
+
+-- «¿Dónde está Trueno? (otra vez)»: después de encontrarlo dormido en la Gran Forja lo llevas tú de
+-- vuelta con Gaspar (paso 4, escolta) y después le avisas (paso 5). Repetible, sin ON CONFLICT.
+UPDATE quest_objectives SET step = 5
+WHERE quest_id = (SELECT id FROM quests WHERE code = 'VOLCAN_SEC_TRUENO')
+  AND objective_type = 'TALK' AND target_code = 'gaspar_volcan' AND step = 4;
+INSERT INTO quest_objectives (quest_id, objective_type, step, target_count, description, params)
+SELECT q.id, 'ESCORT', 4, 1, 'Lleva a Trueno de vuelta con Gaspar',
+       '{"zone":"volcan","x":91,"y":8,"radius":3,"label":"Gaspar, al pie del Paso del Humo","speaker":"Tú",
+         "dialog":"Trueno ve a Gaspar, suelta un relincho que se oye en todo el Volcán y sale trotando hacia él. Gaspar no sabe si abrazarlo o retarlo. Hace las dos cosas.",
+         "escort":{"sprite":"npc_trueno","name":"Trueno",
+           "lines":["*relincha feliz*","*olfatea el aire buscando brochetas*","*eructa. Huele a brocheta de Tuli*","*mueve la cola como si nada hubiera pasado*","*mira una fumarola con ganas de echarse a dormir*"],
+           "waitLines":["*relincha, ofendido*","*se sienta. Los caballos no se sientan. Trueno sí*","*se pone a comer ceniza. No le gusta. Sigue comiendo*"]}}'::jsonb
+FROM quests q
+WHERE q.code = 'VOLCAN_SEC_TRUENO'
+  AND NOT EXISTS (SELECT 1 FROM quest_objectives o WHERE o.quest_id = q.id AND o.objective_type = 'ESCORT');
+UPDATE quest_objectives SET description = 'Avísale a Gaspar que Trueno volvió'
+WHERE quest_id = (SELECT id FROM quests WHERE code = 'VOLCAN_SEC_TRUENO')
+  AND objective_type = 'TALK' AND target_code = 'gaspar_volcan' AND step = 5;
+
+-- ============================================================================================
+-- Montañas · secundaria «Un orco en la despensa» (Pell, el mozo de carretas del Puesto del Paso).
+-- Sigue a «Guardia nocturna» (la olla de Hilda que los orcos se llevaron): alguien roba la despensa
+-- del Puesto, sigues huellas de orco preparado para pelear… y es un orco que quiere aprender a
+-- cocinar. Hilda le manda su receta. Repetible y sin ON CONFLICT.
+-- ============================================================================================
+INSERT INTO quests (code, name, quest_type, zone_id, min_level, max_level, difficulty_stars, npc_name, location_name,
+                    is_repeatable, repeat_cooldown_hours, reputation_reward, gold_reward, xp_reward, description,
+                    is_personal, giver_npc, turn_in_npc, dialog)
+SELECT 'MONTANAS_SEC_ORCO_COCINERO', 'Un orco en la despensa', 'SECUNDARIA', 2, 20, 30, 2, 'Pell', 'Puesto del Paso',
+       FALSE, NULL, 80, 900, 4500,
+       '«¡Alguien se come la despensa del Puesto! Zanahorias, sal, cebollas… y anoche, ¡el libro de cuentas de Gorm! Bueno, eso no se lo comió: le arrancó una hoja. Gorm dice que es un orco y que lo va a esperar con el hacha. Yo creo que hay que averiguar antes. ¿Me ayudas?»',
+       TRUE, 'pell', 'pell',
+       '{"entrega":"¿Un orco que llora porque se le quema el guiso? ¿Y ahora nos deja SAL en la puerta? Gorm no me lo va a creer. Bueno, le muestro la sal. La sal no miente."}'::jsonb
+WHERE NOT EXISTS (SELECT 1 FROM quests WHERE code = 'MONTANAS_SEC_ORCO_COCINERO');
+UPDATE quests SET requires_quest_id = (SELECT id FROM quests WHERE code = 'MONTANAS_SEC_OLLA')
+WHERE code = 'MONTANAS_SEC_ORCO_COCINERO'
+  AND requires_quest_id IS DISTINCT FROM (SELECT id FROM quests WHERE code = 'MONTANAS_SEC_OLLA');
+
+INSERT INTO quest_objectives (quest_id, objective_type, step, target_code, target_count, description, params)
+SELECT q.id, v.t, v.step, v.target, 1, v.descr, v.params::jsonb
+FROM quests q, (VALUES
+  ('INVESTIGATE', 1, NULL, 'Revisa la despensa del Puesto',
+   '{"zone":"montanas","x":12,"y":47,"radius":3,"label":"Revisar la despensa","sprite":"huellas_orco","speaker":"Tú","dialog":"Cajas abiertas, cáscaras de cebolla y una hoja arrancada del libro de Gorm. Las huellas son verdes y enormes… y van de puntillas. Un orco que camina de puntillas. Raro."}'),
+  ('VISIT', 2, NULL, 'Sigue las huellas hacia el campamento orco',
+   '{"zone":"montanas","x":26,"y":40,"radius":3,"label":"Seguir las huellas","sprite":"huellas_orco","speaker":"Tú","dialog":"Las huellas se apartan del camino. Huele a humo y a… ¿cebolla quemada? Alguien llora detrás de las rocas."}'),
+  ('INVESTIGATE', 3, NULL, 'Asómate detrás de las rocas',
+   '{"zone":"montanas","x":32,"y":44,"radius":3,"label":"Asomarte detrás de las rocas","sprite":"mon:ORCO_MONTANA","speaker":"El orco","dialog":"Un orco enorme, con un delantal hecho de bolsa de harina, revuelve una olla y llora. «¡No me sale como el de la enana! ¡Le puse sal! ¡Le puse cebolla! ¡Le puse la hoja con números!» Te mira. Le tiembla el labio. «…¿Tú sabes cocinar?»"}'),
+  ('TALK', 4, 'hilda', 'Cuéntale a Hilda lo del orco',
+   '{"speaker":"Hilda","dialog":"¿Un orco que quiere aprender a cocinar? ¿Y llora? Ay, cielo… Cocinar se le enseña a cualquiera que tenga hambre y ganas. Toma: mi receta del guiso, la de verdad. La que no le doy ni a Durgan. Y dile que el papel de cuentas no se come."}'),
+  ('INVESTIGATE', 5, NULL, 'Llévale la receta al orco',
+   '{"zone":"montanas","x":32,"y":44,"radius":3,"label":"Darle la receta al orco","sprite":"olla_robada","speaker":"El orco","dialog":"El orco lee la receta moviendo los labios. Despacio. Dos veces. Después la dobla con mucho cuidado y se la guarda en el delantal. «Gruk dice gracias. Gruk devuelve sal. Gruk no come más papeles.» Y te sirve un plato. Está… sorprendentemente bueno."}')
+) AS v(t, step, target, descr, params)
+WHERE q.code = 'MONTANAS_SEC_ORCO_COCINERO'
+  AND NOT EXISTS (SELECT 1 FROM quest_objectives o WHERE o.quest_id = q.id);
+
+-- ============================================================================================
+-- Equilibrio (repaso de las 3 zonas). Repetible y sin ON CONFLICT.
+-- ============================================================================================
+-- 1) Los jefes ya no sueltan equipo: sueltan el PERGAMINO que enseña a fabricarlo (el crafteo es
+--    el camino). Sus accesorios ya tenían receta dentro del pergamino de cada clase.
+DELETE FROM monster_drops d USING monsters m, items i
+WHERE d.monster_id = m.id AND d.item_id = i.id AND i.item_type = 'EQUIPMENT' AND m.rarity IN ('MINIBOSS', 'LEGENDARY');
+
+-- 2) Pergaminos: el de TU clase sale el doble (OWN_CLASS_SCROLL_MULT en routes/combat.js), así que
+--    la base es la mitad de lo que se busca, según lo que enseña: un set legendario 45% para tu
+--    clase; uno épico o raro, 55%. Los de otras clases salen a la mitad, para comerciarlos.
+UPDATE monster_drops d SET drop_chance_percent = CASE i.rarity WHEN 'LEGENDARIO' THEN 22.50 ELSE 27.50 END
+FROM monsters m, items i
+WHERE d.monster_id = m.id AND d.item_id = i.id AND i.code LIKE 'SCROLL\_%' AND m.rarity IN ('MINIBOSS', 'LEGENDARY')
+  AND d.drop_chance_percent <> CASE i.rarity WHEN 'LEGENDARIO' THEN 22.50 ELSE 27.50 END;
+
+-- 3) Las armas de las mazmorras también se aprenden con el pergamino de su jefe (por clase):
+--    Cripta del Vigía (Vigía Caído, raro: 55% para tu clase), Mina Profunda (Hierro Negro) y
+--    Fisura Infernal (Forja Negra), legendarias: 45% para tu clase.
+INSERT INTO items (code, name, item_type, rarity, description)
+SELECT 'SCROLL_' || s.set || '_' || c.code, 'Pergamino: ' || s.nombre || ' (' || c.nombre || ')', 'MATERIAL', s.rarity,
+       'Pergamino de recetas: léelo desde la mochila para aprender a forjar ' || s.que || ' de ' || c.nombre || '.'
+FROM (VALUES ('VIGIA_CAIDO', 'Arma del Vigía Caído', 'RARO', 'el arma del Vigía Caído'),
+             ('HIERRO_NEGRO', 'Armas de Hierro Negro', 'LEGENDARIO', 'las armas de Hierro Negro'),
+             ('FORJA_NEGRA', 'Armas de Forja Negra', 'LEGENDARIO', 'las armas de Forja Negra')) AS s(set, nombre, rarity, que),
+     (VALUES ('GUERRERO', 'Guerrero'), ('MAGO', 'Mago'), ('ARQUERO', 'Arquero'), ('PICARO', 'Pícaro'), ('SACERDOTE', 'Sacerdote')) AS c(code, nombre)
+WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'SCROLL_' || s.set || '_' || c.code);
+UPDATE crafting_recipes cr SET scroll_item_id = sc.id
+FROM items o, items sc
+WHERE o.id = cr.result_item_id AND o.code ~ '^(GUERRERO|MAGO|ARQUERO|PICARO|SACERDOTE)_WEAPON2?H?_(VIGIA_CAIDO|HIERRO_NEGRO|FORJA_NEGRA)$'
+  AND sc.code = 'SCROLL_' || substring(o.code from '_(VIGIA_CAIDO|HIERRO_NEGRO|FORJA_NEGRA)$') || '_' || split_part(o.code, '_', 1)
+  AND cr.scroll_item_id IS DISTINCT FROM sc.id;
+INSERT INTO monster_drops (monster_id, item_id, drop_chance_percent, min_quantity, max_quantity)
+SELECT m.id, sc.id, v.chance, 1, 1
+FROM (VALUES ('CRIPTA_VIGIA', 'VIGIA_CAIDO', 27.50), ('MINA_GOLEM_NEGRO', 'HIERRO_NEGRO', 22.50), ('FISURA_MORVAK', 'FORJA_NEGRA', 22.50)) AS v(boss, set, chance)
+JOIN monsters m ON m.code = v.boss
+JOIN items sc ON sc.code LIKE 'SCROLL_' || v.set || '_%'
+WHERE NOT EXISTS (SELECT 1 FROM monster_drops d WHERE d.monster_id = m.id AND d.item_id = sc.id);
+
+-- 4) El set del Titán de la Pradera costaba ~830 peleas (más que los legendarios de nivel 30 y 45):
+--    el Colmillo de Lobo Feroz y el Tótem Oscuro salían muy poco.
+UPDATE monster_drops d SET drop_chance_percent = v.c
+FROM (VALUES ('LOBO_FEROZ', 'COLMILLO_LOBO_FEROZ', 30.00), ('ACOLITO_ECLIPSE', 'TOTEM_OSCURO', 20.00)) AS v(mon, item, c), monsters m, items i
+WHERE d.monster_id = m.id AND d.item_id = i.id AND m.code = v.mon AND i.code = v.item AND d.drop_chance_percent < v.c;
+
+-- 5) Lo que se consigue en las Montañas y el Volcán vale más al venderlo a un NPC (×1,5 y ×2,5;
+--    lib/npcSell.js): recolectar sigue siendo un oficio rentable en las zonas altas. El tope de la
+--    mitad del precio de tienda sigue mandando.
+ALTER TABLE items ADD COLUMN IF NOT EXISTS sell_zone_mult NUMERIC(4,2) NOT NULL DEFAULT 1;
+UPDATE items i SET sell_zone_mult = v.m
+FROM (VALUES
+  ('ACEITE_DE_COCINA', 2.5),
+  ('ACERO_REFINADO', 1.5),
+  ('ALA_DRACO', 2.5),
+  ('AZUFRE', 2.5),
+  ('BRASA_DE_BANDIDO', 2.5),
+  ('CAPARAZON_AZUFRE', 2.5),
+  ('CARBON', 1.5),
+  ('CARNE_CABRA', 1.5),
+  ('CARNE_SALAMANDRA', 2.5),
+  ('COLA_DIABLILLO', 2.5),
+  ('COLMILLO_DE_ORCO', 1.5),
+  ('COLMILLO_MAGMA', 2.5),
+  ('CORAZON_DE_BRASA', 2.5),
+  ('CORAZON_DE_LA_CALDERA', 2.5),
+  ('CORAZON_FORJA_NEGRA', 2.5),
+  ('CORAZON_HIERRO_NEGRO', 1.5),
+  ('CORONA_REY_MONTANA', 1.5),
+  ('CRISTAL_DE_LAVA', 2.5),
+  ('CRISTAL_GIGANTE_HIELO', 1.5),
+  ('CUERNO_CABRA_MONTES', 1.5),
+  ('CUERNO_DEMONIO_LAVA', 2.5),
+  ('ESCAMA_DE_FUEGO', 2.5),
+  ('ESCAMA_DRAGON_CORRUPTO', 2.5),
+  ('ESCAMA_SIERPE_HIELO', 1.5),
+  ('ESCORIA_NEGRA', 2.5),
+  ('ESENCIA_DE_FUEGO', 2.5),
+  ('ESENCIA_ESPECTRAL_HELADA', 1.5),
+  ('ESQUIRLA_OBSIDIANA', 2.5),
+  ('FLOR_DE_CENIZA', 2.5),
+  ('FLOR_DE_NIEVE', 1.5),
+  ('FRAGMENTO_PIEDRA_VIVA', 1.5),
+  ('GARRA_OSO_CUMBRES', 1.5),
+  ('GEMA_DE_FUEGO', 2.5),
+  ('HUEVO_LEGENDARIO', 1.5),
+  ('INSIGNIA_GUARDIA_REAL', 1.5),
+  ('LOMO_OSO', 1.5),
+  ('MADERA_PINO', 1.5),
+  ('MEMBRANA_MURCIELAGO', 1.5),
+  ('MENA_HIERRO_NEGRO', 1.5),
+  ('MINERAL_DE_ACERO', 1.5),
+  ('NUCLEO_INFERNAL_MENOR', 2.5),
+  ('NUCLEO_TITAN_FUEGO', 2.5),
+  ('NUCLEO_TORMENTA', 1.5),
+  ('OBSIDIANA_BRUTA', 2.5),
+  ('ORO_PURO', 2.5),
+  ('PELAJE_CENIZA', 2.5),
+  ('PICO_CORROMPIDO', 1.5),
+  ('PIEDRA_ENCANT_MAYOR', 1.5),
+  ('PIEDRA_POMEZ', 2.5),
+  ('PIEL_DE_TROLL', 1.5),
+  ('PIEL_LOBO_NIEVE', 1.5),
+  ('PLUMA_ARPIA_ECO', 1.5),
+  ('POCION_DE_MANA_MAYOR', 1.5),
+  ('POCION_DE_VIDA_MAYOR', 1.5),
+  ('SCROLL_ACANTILADO_ARQUERO', 1.5),
+  ('SCROLL_ACANTILADO_GUERRERO', 1.5),
+  ('SCROLL_ACANTILADO_MAGO', 1.5),
+  ('SCROLL_ACANTILADO_PICARO', 1.5),
+  ('SCROLL_ACANTILADO_SACERDOTE', 1.5),
+  ('SCROLL_CALDERA_ARQUERO', 2.5),
+  ('SCROLL_CALDERA_GUERRERO', 2.5),
+  ('SCROLL_CALDERA_MAGO', 2.5),
+  ('SCROLL_CALDERA_PICARO', 2.5),
+  ('SCROLL_CALDERA_SACERDOTE', 2.5),
+  ('SCROLL_REY_MONTANA_ARQUERO', 1.5),
+  ('SCROLL_REY_MONTANA_GUERRERO', 1.5),
+  ('SCROLL_REY_MONTANA_MAGO', 1.5),
+  ('SCROLL_REY_MONTANA_PICARO', 1.5),
+  ('SCROLL_REY_MONTANA_SACERDOTE', 1.5),
+  ('SCROLL_TITAN_FUEGO_ARQUERO', 2.5),
+  ('SCROLL_TITAN_FUEGO_GUERRERO', 2.5),
+  ('SCROLL_TITAN_FUEGO_MAGO', 2.5),
+  ('SCROLL_TITAN_FUEGO_PICARO', 2.5),
+  ('SCROLL_TITAN_FUEGO_SACERDOTE', 2.5),
+  ('SELLO_ECLIPSE', 2.5),
+  ('VARA_BRUJO_MONTANA', 1.5),
+  ('YELMO_SENOR_ACANTILADO', 1.5)
+) AS v(code, m)
+WHERE i.code = v.code AND i.sell_zone_mult <> v.m;
+
+-- Sets de jefe alcanzables al final de su zona: el material clave del jefe sigue en 1 por pieza (las
+-- ~6 victorias que dan sentido al farmeo) y el resto de los materiales baja a la mitad. Cantidades
+-- fijas: se puede correr dos veces.
+UPDATE crafting_recipe_ingredients ri SET quantity = v.q
+FROM (VALUES
+  ('RECIPE_ARQUERO_ARMOR_CAPITAN', 'OREJA_DE_GOBLIN', 3),
+  ('RECIPE_ARQUERO_ARMOR_CAPITAN', 'PIEL_DE_LOBO', 2),
+  ('RECIPE_ARQUERO_ARMOR_CAPITAN', 'VENENO_DE_ARANA', 2),
+  ('RECIPE_ARQUERO_BOOTS_CAPITAN', 'OREJA_DE_GOBLIN', 3),
+  ('RECIPE_ARQUERO_BOOTS_CAPITAN', 'PIEL_DE_LOBO', 2),
+  ('RECIPE_ARQUERO_BOOTS_CAPITAN', 'VENENO_DE_ARANA', 2),
+  ('RECIPE_ARQUERO_GLOVES_CAPITAN', 'OREJA_DE_GOBLIN', 3),
+  ('RECIPE_ARQUERO_GLOVES_CAPITAN', 'PIEL_DE_LOBO', 2),
+  ('RECIPE_ARQUERO_GLOVES_CAPITAN', 'VENENO_DE_ARANA', 2),
+  ('RECIPE_ARQUERO_HELMET_CAPITAN', 'OREJA_DE_GOBLIN', 3),
+  ('RECIPE_ARQUERO_HELMET_CAPITAN', 'PIEL_DE_LOBO', 2),
+  ('RECIPE_ARQUERO_HELMET_CAPITAN', 'VENENO_DE_ARANA', 2),
+  ('RECIPE_ARQUERO_OFFHAND_CAPITAN', 'OREJA_DE_GOBLIN', 3),
+  ('RECIPE_ARQUERO_OFFHAND_CAPITAN', 'PIEL_DE_LOBO', 2),
+  ('RECIPE_ARQUERO_OFFHAND_CAPITAN', 'VENENO_DE_ARANA', 2),
+  ('RECIPE_ARQUERO_WEAPON_CAPITAN', 'OREJA_DE_GOBLIN', 3),
+  ('RECIPE_ARQUERO_WEAPON_CAPITAN', 'PIEL_DE_LOBO', 2),
+  ('RECIPE_ARQUERO_WEAPON_CAPITAN', 'VENENO_DE_ARANA', 2),
+  ('RECIPE_GUERRERO_ARMOR_CAPITAN', 'OREJA_DE_GOBLIN', 3),
+  ('RECIPE_GUERRERO_ARMOR_CAPITAN', 'PIEL_DE_LOBO', 2),
+  ('RECIPE_GUERRERO_ARMOR_CAPITAN', 'VENENO_DE_ARANA', 2),
+  ('RECIPE_GUERRERO_BOOTS_CAPITAN', 'OREJA_DE_GOBLIN', 3),
+  ('RECIPE_GUERRERO_BOOTS_CAPITAN', 'PIEL_DE_LOBO', 2),
+  ('RECIPE_GUERRERO_BOOTS_CAPITAN', 'VENENO_DE_ARANA', 2),
+  ('RECIPE_GUERRERO_GLOVES_CAPITAN', 'OREJA_DE_GOBLIN', 3),
+  ('RECIPE_GUERRERO_GLOVES_CAPITAN', 'PIEL_DE_LOBO', 2),
+  ('RECIPE_GUERRERO_GLOVES_CAPITAN', 'VENENO_DE_ARANA', 2),
+  ('RECIPE_GUERRERO_HELMET_CAPITAN', 'OREJA_DE_GOBLIN', 3),
+  ('RECIPE_GUERRERO_HELMET_CAPITAN', 'PIEL_DE_LOBO', 2),
+  ('RECIPE_GUERRERO_HELMET_CAPITAN', 'VENENO_DE_ARANA', 2),
+  ('RECIPE_GUERRERO_OFFHAND_CAPITAN', 'OREJA_DE_GOBLIN', 3),
+  ('RECIPE_GUERRERO_OFFHAND_CAPITAN', 'PIEL_DE_LOBO', 2),
+  ('RECIPE_GUERRERO_OFFHAND_CAPITAN', 'VENENO_DE_ARANA', 2),
+  ('RECIPE_GUERRERO_WEAPON_CAPITAN', 'OREJA_DE_GOBLIN', 3),
+  ('RECIPE_GUERRERO_WEAPON_CAPITAN', 'PIEL_DE_LOBO', 2),
+  ('RECIPE_GUERRERO_WEAPON_CAPITAN', 'VENENO_DE_ARANA', 2),
+  ('RECIPE_GUERRERO_WEAPON2H_CAPITAN', 'OREJA_DE_GOBLIN', 3),
+  ('RECIPE_GUERRERO_WEAPON2H_CAPITAN', 'PIEL_DE_LOBO', 2),
+  ('RECIPE_GUERRERO_WEAPON2H_CAPITAN', 'VENENO_DE_ARANA', 2),
+  ('RECIPE_MAGO_ARMOR_CAPITAN', 'OREJA_DE_GOBLIN', 3),
+  ('RECIPE_MAGO_ARMOR_CAPITAN', 'VENENO_DE_ARANA', 2),
+  ('RECIPE_MAGO_BOOTS_CAPITAN', 'OREJA_DE_GOBLIN', 3),
+  ('RECIPE_MAGO_BOOTS_CAPITAN', 'VENENO_DE_ARANA', 2),
+  ('RECIPE_MAGO_GLOVES_CAPITAN', 'OREJA_DE_GOBLIN', 3),
+  ('RECIPE_MAGO_GLOVES_CAPITAN', 'VENENO_DE_ARANA', 2),
+  ('RECIPE_MAGO_HELMET_CAPITAN', 'OREJA_DE_GOBLIN', 3),
+  ('RECIPE_MAGO_HELMET_CAPITAN', 'VENENO_DE_ARANA', 2),
+  ('RECIPE_MAGO_OFFHAND_CRYSTAL_CAPITAN', 'OREJA_DE_GOBLIN', 3),
+  ('RECIPE_MAGO_OFFHAND_CRYSTAL_CAPITAN', 'PIEL_DE_LOBO', 2),
+  ('RECIPE_MAGO_OFFHAND_CRYSTAL_CAPITAN', 'VENENO_DE_ARANA', 2),
+  ('RECIPE_MAGO_OFFHAND_ORB_CAPITAN', 'OREJA_DE_GOBLIN', 3),
+  ('RECIPE_MAGO_OFFHAND_ORB_CAPITAN', 'PIEL_DE_LOBO', 2),
+  ('RECIPE_MAGO_OFFHAND_ORB_CAPITAN', 'VENENO_DE_ARANA', 2),
+  ('RECIPE_MAGO_WEAPON_CAPITAN', 'OREJA_DE_GOBLIN', 3),
+  ('RECIPE_MAGO_WEAPON_CAPITAN', 'PIEL_DE_LOBO', 2),
+  ('RECIPE_MAGO_WEAPON_CAPITAN', 'VENENO_DE_ARANA', 2),
+  ('RECIPE_PICARO_ARMOR_CAPITAN', 'OREJA_DE_GOBLIN', 3),
+  ('RECIPE_PICARO_ARMOR_CAPITAN', 'PIEL_DE_LOBO', 2),
+  ('RECIPE_PICARO_ARMOR_CAPITAN', 'VENENO_DE_ARANA', 2),
+  ('RECIPE_PICARO_BOOTS_CAPITAN', 'OREJA_DE_GOBLIN', 3),
+  ('RECIPE_PICARO_BOOTS_CAPITAN', 'PIEL_DE_LOBO', 2),
+  ('RECIPE_PICARO_BOOTS_CAPITAN', 'VENENO_DE_ARANA', 2),
+  ('RECIPE_PICARO_GLOVES_CAPITAN', 'OREJA_DE_GOBLIN', 3),
+  ('RECIPE_PICARO_GLOVES_CAPITAN', 'PIEL_DE_LOBO', 2),
+  ('RECIPE_PICARO_GLOVES_CAPITAN', 'VENENO_DE_ARANA', 2),
+  ('RECIPE_PICARO_HELMET_CAPITAN', 'OREJA_DE_GOBLIN', 3),
+  ('RECIPE_PICARO_HELMET_CAPITAN', 'PIEL_DE_LOBO', 2),
+  ('RECIPE_PICARO_HELMET_CAPITAN', 'VENENO_DE_ARANA', 2),
+  ('RECIPE_PICARO_OFFHAND_CAPITAN', 'OREJA_DE_GOBLIN', 3),
+  ('RECIPE_PICARO_OFFHAND_CAPITAN', 'PIEL_DE_LOBO', 2),
+  ('RECIPE_PICARO_OFFHAND_CAPITAN', 'VENENO_DE_ARANA', 2),
+  ('RECIPE_PICARO_WEAPON_CAPITAN', 'OREJA_DE_GOBLIN', 3),
+  ('RECIPE_PICARO_WEAPON_CAPITAN', 'PIEL_DE_LOBO', 2),
+  ('RECIPE_PICARO_WEAPON_CAPITAN', 'VENENO_DE_ARANA', 2),
+  ('RECIPE_SACERDOTE_ARMOR_CAPITAN', 'OREJA_DE_GOBLIN', 3),
+  ('RECIPE_SACERDOTE_ARMOR_CAPITAN', 'VENENO_DE_ARANA', 2),
+  ('RECIPE_SACERDOTE_BOOTS_CAPITAN', 'OREJA_DE_GOBLIN', 3),
+  ('RECIPE_SACERDOTE_BOOTS_CAPITAN', 'VENENO_DE_ARANA', 2),
+  ('RECIPE_SACERDOTE_GLOVES_CAPITAN', 'OREJA_DE_GOBLIN', 3),
+  ('RECIPE_SACERDOTE_GLOVES_CAPITAN', 'VENENO_DE_ARANA', 2),
+  ('RECIPE_SACERDOTE_HELMET_CAPITAN', 'OREJA_DE_GOBLIN', 3),
+  ('RECIPE_SACERDOTE_HELMET_CAPITAN', 'VENENO_DE_ARANA', 2),
+  ('RECIPE_SACERDOTE_OFFHAND_CAPITAN', 'OREJA_DE_GOBLIN', 3),
+  ('RECIPE_SACERDOTE_OFFHAND_CAPITAN', 'PIEL_DE_LOBO', 2),
+  ('RECIPE_SACERDOTE_OFFHAND_CAPITAN', 'VENENO_DE_ARANA', 2),
+  ('RECIPE_SACERDOTE_WEAPON_CAPITAN', 'OREJA_DE_GOBLIN', 3),
+  ('RECIPE_SACERDOTE_WEAPON_CAPITAN', 'PIEL_DE_LOBO', 2),
+  ('RECIPE_SACERDOTE_WEAPON_CAPITAN', 'VENENO_DE_ARANA', 2),
+  ('RECIPE_ARQUERO_ARMOR_TITAN_P', 'COLMILLO_LOBO_FEROZ', 1),
+  ('RECIPE_ARQUERO_ARMOR_TITAN_P', 'PIEL_DE_LOBO', 3),
+  ('RECIPE_ARQUERO_BOOTS_TITAN_P', 'COLMILLO_LOBO_FEROZ', 1),
+  ('RECIPE_ARQUERO_BOOTS_TITAN_P', 'PIEL_DE_LOBO', 3),
+  ('RECIPE_ARQUERO_GLOVES_TITAN_P', 'COLMILLO_LOBO_FEROZ', 1),
+  ('RECIPE_ARQUERO_GLOVES_TITAN_P', 'PIEL_DE_LOBO', 3),
+  ('RECIPE_ARQUERO_HELMET_TITAN_P', 'COLMILLO_LOBO_FEROZ', 1),
+  ('RECIPE_ARQUERO_HELMET_TITAN_P', 'PIEL_DE_LOBO', 3),
+  ('RECIPE_ARQUERO_OFFHAND_TITAN_P', 'COLMILLO_LOBO_FEROZ', 1),
+  ('RECIPE_ARQUERO_OFFHAND_TITAN_P', 'PIEL_DE_LOBO', 3),
+  ('RECIPE_ARQUERO_WEAPON_TITAN_P', 'COLMILLO_LOBO_FEROZ', 1),
+  ('RECIPE_ARQUERO_WEAPON_TITAN_P', 'PIEL_DE_LOBO', 3),
+  ('RECIPE_GUERRERO_ARMOR_TITAN_P', 'COLMILLO_LOBO_FEROZ', 1),
+  ('RECIPE_GUERRERO_ARMOR_TITAN_P', 'PIEL_DE_LOBO', 3),
+  ('RECIPE_GUERRERO_BOOTS_TITAN_P', 'COLMILLO_LOBO_FEROZ', 1),
+  ('RECIPE_GUERRERO_BOOTS_TITAN_P', 'PIEL_DE_LOBO', 3),
+  ('RECIPE_GUERRERO_GLOVES_TITAN_P', 'COLMILLO_LOBO_FEROZ', 1),
+  ('RECIPE_GUERRERO_GLOVES_TITAN_P', 'PIEL_DE_LOBO', 3),
+  ('RECIPE_GUERRERO_HELMET_TITAN_P', 'COLMILLO_LOBO_FEROZ', 1),
+  ('RECIPE_GUERRERO_HELMET_TITAN_P', 'PIEL_DE_LOBO', 3),
+  ('RECIPE_GUERRERO_OFFHAND_TITAN_P', 'COLMILLO_LOBO_FEROZ', 1),
+  ('RECIPE_GUERRERO_OFFHAND_TITAN_P', 'PIEL_DE_LOBO', 3),
+  ('RECIPE_GUERRERO_WEAPON_TITAN_P', 'COLMILLO_LOBO_FEROZ', 1),
+  ('RECIPE_GUERRERO_WEAPON_TITAN_P', 'PIEL_DE_LOBO', 3),
+  ('RECIPE_GUERRERO_WEAPON2H_TITAN_P', 'COLMILLO_LOBO_FEROZ', 1),
+  ('RECIPE_GUERRERO_WEAPON2H_TITAN_P', 'PIEL_DE_LOBO', 3),
+  ('RECIPE_MAGO_ARMOR_TITAN_P', 'COLMILLO_LOBO_FEROZ', 1),
+  ('RECIPE_MAGO_BOOTS_TITAN_P', 'COLMILLO_LOBO_FEROZ', 1),
+  ('RECIPE_MAGO_GLOVES_TITAN_P', 'COLMILLO_LOBO_FEROZ', 1),
+  ('RECIPE_MAGO_HELMET_TITAN_P', 'COLMILLO_LOBO_FEROZ', 1),
+  ('RECIPE_MAGO_OFFHAND_CRYSTAL_TITAN_P', 'COLMILLO_LOBO_FEROZ', 1),
+  ('RECIPE_MAGO_OFFHAND_CRYSTAL_TITAN_P', 'PIEL_DE_LOBO', 3),
+  ('RECIPE_MAGO_OFFHAND_ORB_TITAN_P', 'COLMILLO_LOBO_FEROZ', 1),
+  ('RECIPE_MAGO_OFFHAND_ORB_TITAN_P', 'PIEL_DE_LOBO', 3),
+  ('RECIPE_MAGO_WEAPON_TITAN_P', 'COLMILLO_LOBO_FEROZ', 1),
+  ('RECIPE_MAGO_WEAPON_TITAN_P', 'PIEL_DE_LOBO', 3),
+  ('RECIPE_PICARO_ARMOR_TITAN_P', 'COLMILLO_LOBO_FEROZ', 1),
+  ('RECIPE_PICARO_ARMOR_TITAN_P', 'PIEL_DE_LOBO', 3),
+  ('RECIPE_PICARO_BOOTS_TITAN_P', 'COLMILLO_LOBO_FEROZ', 1),
+  ('RECIPE_PICARO_BOOTS_TITAN_P', 'PIEL_DE_LOBO', 3),
+  ('RECIPE_PICARO_GLOVES_TITAN_P', 'COLMILLO_LOBO_FEROZ', 1),
+  ('RECIPE_PICARO_GLOVES_TITAN_P', 'PIEL_DE_LOBO', 3),
+  ('RECIPE_PICARO_HELMET_TITAN_P', 'COLMILLO_LOBO_FEROZ', 1),
+  ('RECIPE_PICARO_HELMET_TITAN_P', 'PIEL_DE_LOBO', 3),
+  ('RECIPE_PICARO_OFFHAND_TITAN_P', 'COLMILLO_LOBO_FEROZ', 1),
+  ('RECIPE_PICARO_OFFHAND_TITAN_P', 'PIEL_DE_LOBO', 3),
+  ('RECIPE_PICARO_WEAPON_TITAN_P', 'COLMILLO_LOBO_FEROZ', 1),
+  ('RECIPE_PICARO_WEAPON_TITAN_P', 'PIEL_DE_LOBO', 3),
+  ('RECIPE_SACERDOTE_ARMOR_TITAN_P', 'COLMILLO_LOBO_FEROZ', 1),
+  ('RECIPE_SACERDOTE_BOOTS_TITAN_P', 'COLMILLO_LOBO_FEROZ', 1),
+  ('RECIPE_SACERDOTE_GLOVES_TITAN_P', 'COLMILLO_LOBO_FEROZ', 1),
+  ('RECIPE_SACERDOTE_HELMET_TITAN_P', 'COLMILLO_LOBO_FEROZ', 1),
+  ('RECIPE_SACERDOTE_OFFHAND_TITAN_P', 'COLMILLO_LOBO_FEROZ', 1),
+  ('RECIPE_SACERDOTE_OFFHAND_TITAN_P', 'PIEL_DE_LOBO', 3),
+  ('RECIPE_SACERDOTE_WEAPON_TITAN_P', 'COLMILLO_LOBO_FEROZ', 1),
+  ('RECIPE_SACERDOTE_WEAPON_TITAN_P', 'PIEL_DE_LOBO', 3),
+  ('RECIPE_GUERRERO_ACC_CAPITAN', 'PIEL_DE_LOBO', 1),
+  ('RECIPE_GUERRERO_ACC_CAPITAN', 'OREJA_DE_GOBLIN', 1),
+  ('RECIPE_MAGO_ACC_CAPITAN', 'PIEL_DE_LOBO', 1),
+  ('RECIPE_MAGO_ACC_CAPITAN', 'OREJA_DE_GOBLIN', 1),
+  ('RECIPE_ARQUERO_ACC_CAPITAN', 'PIEL_DE_LOBO', 1),
+  ('RECIPE_ARQUERO_ACC_CAPITAN', 'OREJA_DE_GOBLIN', 1),
+  ('RECIPE_PICARO_ACC_CAPITAN', 'PIEL_DE_LOBO', 1),
+  ('RECIPE_PICARO_ACC_CAPITAN', 'OREJA_DE_GOBLIN', 1),
+  ('RECIPE_SACERDOTE_ACC_CAPITAN', 'PIEL_DE_LOBO', 1),
+  ('RECIPE_SACERDOTE_ACC_CAPITAN', 'OREJA_DE_GOBLIN', 1),
+  ('RECIPE_GUERRERO_ACC_TITAN', 'PIEL_DE_LOBO', 1),
+  ('RECIPE_MAGO_ACC_TITAN', 'PIEL_DE_LOBO', 1),
+  ('RECIPE_ARQUERO_ACC_TITAN', 'PIEL_DE_LOBO', 1),
+  ('RECIPE_PICARO_ACC_TITAN', 'PIEL_DE_LOBO', 1),
+  ('RECIPE_SACERDOTE_ACC_TITAN', 'PIEL_DE_LOBO', 1),
+  ('RECIPE_GUERRERO_WEAPON_CAPITAN', 'LINGOTE_HIERRO', 1),
+  ('RECIPE_GUERRERO_WEAPON2H_CAPITAN', 'LINGOTE_HIERRO', 1),
+  ('RECIPE_GUERRERO_OFFHAND_CAPITAN', 'LINGOTE_HIERRO', 1),
+  ('RECIPE_GUERRERO_HELMET_CAPITAN', 'LINGOTE_HIERRO', 1),
+  ('RECIPE_GUERRERO_ARMOR_CAPITAN', 'LINGOTE_HIERRO', 1),
+  ('RECIPE_GUERRERO_GLOVES_CAPITAN', 'LINGOTE_HIERRO', 1),
+  ('RECIPE_GUERRERO_BOOTS_CAPITAN', 'LINGOTE_HIERRO', 1),
+  ('RECIPE_MAGO_WEAPON_CAPITAN', 'TABLA_ROBLE', 1),
+  ('RECIPE_ARQUERO_WEAPON_CAPITAN', 'TABLA_ROBLE', 1),
+  ('RECIPE_ARQUERO_OFFHAND_CAPITAN', 'CUERO_TRATADO', 1),
+  ('RECIPE_ARQUERO_HELMET_CAPITAN', 'CUERO_TRATADO', 1),
+  ('RECIPE_ARQUERO_ARMOR_CAPITAN', 'CUERO_TRATADO', 1),
+  ('RECIPE_ARQUERO_GLOVES_CAPITAN', 'CUERO_TRATADO', 1),
+  ('RECIPE_ARQUERO_BOOTS_CAPITAN', 'CUERO_TRATADO', 1),
+  ('RECIPE_PICARO_WEAPON_CAPITAN', 'LINGOTE_HIERRO', 1),
+  ('RECIPE_PICARO_OFFHAND_CAPITAN', 'LINGOTE_HIERRO', 1),
+  ('RECIPE_PICARO_HELMET_CAPITAN', 'CUERO_TRATADO', 1),
+  ('RECIPE_PICARO_ARMOR_CAPITAN', 'CUERO_TRATADO', 1),
+  ('RECIPE_PICARO_GLOVES_CAPITAN', 'CUERO_TRATADO', 1),
+  ('RECIPE_PICARO_BOOTS_CAPITAN', 'CUERO_TRATADO', 1),
+  ('RECIPE_SACERDOTE_WEAPON_CAPITAN', 'TABLA_ROBLE', 1),
+  ('RECIPE_SACERDOTE_OFFHAND_CAPITAN', 'FLOR_LUMINOSA', 1),
+  ('RECIPE_SACERDOTE_HELMET_CAPITAN', 'FLOR_LUMINOSA', 1),
+  ('RECIPE_SACERDOTE_ARMOR_CAPITAN', 'FLOR_LUMINOSA', 1),
+  ('RECIPE_SACERDOTE_GLOVES_CAPITAN', 'FLOR_LUMINOSA', 1),
+  ('RECIPE_SACERDOTE_BOOTS_CAPITAN', 'FLOR_LUMINOSA', 1),
+  ('RECIPE_GUERRERO_WEAPON_TITAN_P', 'LINGOTE_HIERRO', 2),
+  ('RECIPE_GUERRERO_WEAPON2H_TITAN_P', 'LINGOTE_HIERRO', 2),
+  ('RECIPE_GUERRERO_OFFHAND_TITAN_P', 'LINGOTE_HIERRO', 2),
+  ('RECIPE_GUERRERO_HELMET_TITAN_P', 'LINGOTE_HIERRO', 2),
+  ('RECIPE_GUERRERO_ARMOR_TITAN_P', 'LINGOTE_HIERRO', 2),
+  ('RECIPE_GUERRERO_GLOVES_TITAN_P', 'LINGOTE_HIERRO', 2),
+  ('RECIPE_GUERRERO_BOOTS_TITAN_P', 'LINGOTE_HIERRO', 2),
+  ('RECIPE_MAGO_WEAPON_TITAN_P', 'TABLA_ROBLE', 2),
+  ('RECIPE_ARQUERO_WEAPON_TITAN_P', 'TABLA_ROBLE', 2),
+  ('RECIPE_ARQUERO_OFFHAND_TITAN_P', 'CUERO_TRATADO', 2),
+  ('RECIPE_ARQUERO_HELMET_TITAN_P', 'CUERO_TRATADO', 2),
+  ('RECIPE_ARQUERO_ARMOR_TITAN_P', 'CUERO_TRATADO', 2),
+  ('RECIPE_ARQUERO_GLOVES_TITAN_P', 'CUERO_TRATADO', 2),
+  ('RECIPE_ARQUERO_BOOTS_TITAN_P', 'CUERO_TRATADO', 2),
+  ('RECIPE_PICARO_WEAPON_TITAN_P', 'LINGOTE_HIERRO', 2),
+  ('RECIPE_PICARO_OFFHAND_TITAN_P', 'LINGOTE_HIERRO', 2),
+  ('RECIPE_PICARO_HELMET_TITAN_P', 'CUERO_TRATADO', 2),
+  ('RECIPE_PICARO_ARMOR_TITAN_P', 'CUERO_TRATADO', 2),
+  ('RECIPE_PICARO_GLOVES_TITAN_P', 'CUERO_TRATADO', 2),
+  ('RECIPE_PICARO_BOOTS_TITAN_P', 'CUERO_TRATADO', 2),
+  ('RECIPE_SACERDOTE_WEAPON_TITAN_P', 'TABLA_ROBLE', 2),
+  ('RECIPE_SACERDOTE_OFFHAND_TITAN_P', 'FLOR_LUMINOSA', 2),
+  ('RECIPE_SACERDOTE_HELMET_TITAN_P', 'FLOR_LUMINOSA', 2),
+  ('RECIPE_SACERDOTE_ARMOR_TITAN_P', 'FLOR_LUMINOSA', 2),
+  ('RECIPE_SACERDOTE_GLOVES_TITAN_P', 'FLOR_LUMINOSA', 2),
+  ('RECIPE_SACERDOTE_BOOTS_TITAN_P', 'FLOR_LUMINOSA', 2),
+  ('RECIPE_MAGO_OFFHAND_ORB_CAPITAN', 'HIERBA_MAGICA', 2),
+  ('RECIPE_MAGO_OFFHAND_CRYSTAL_CAPITAN', 'HIERBA_MAGICA', 2),
+  ('RECIPE_MAGO_HELMET_CAPITAN', 'HIERBA_MAGICA', 2),
+  ('RECIPE_MAGO_ARMOR_CAPITAN', 'HIERBA_MAGICA', 2),
+  ('RECIPE_MAGO_GLOVES_CAPITAN', 'HIERBA_MAGICA', 2),
+  ('RECIPE_MAGO_BOOTS_CAPITAN', 'HIERBA_MAGICA', 2),
+  ('RECIPE_MAGO_OFFHAND_ORB_TITAN_P', 'HIERBA_MAGICA', 3),
+  ('RECIPE_MAGO_OFFHAND_CRYSTAL_TITAN_P', 'HIERBA_MAGICA', 3),
+  ('RECIPE_MAGO_HELMET_TITAN_P', 'HIERBA_MAGICA', 3),
+  ('RECIPE_MAGO_ARMOR_TITAN_P', 'HIERBA_MAGICA', 3),
+  ('RECIPE_MAGO_GLOVES_TITAN_P', 'HIERBA_MAGICA', 3),
+  ('RECIPE_MAGO_BOOTS_TITAN_P', 'HIERBA_MAGICA', 3),
+  ('RECIPE_MAGO_OFFHAND_ORB_CAPITAN', 'POLVO_ARCANO', 1),
+  ('RECIPE_MAGO_OFFHAND_CRYSTAL_CAPITAN', 'POLVO_ARCANO', 1),
+  ('RECIPE_MAGO_OFFHAND_ORB_TITAN_P', 'POLVO_ARCANO', 2),
+  ('RECIPE_MAGO_OFFHAND_CRYSTAL_TITAN_P', 'POLVO_ARCANO', 2),
+  ('RECIPE_MAGO_ARMOR_CAPITAN', 'TELA_LINO', 1),
+  ('RECIPE_MAGO_BOOTS_CAPITAN', 'TELA_LINO', 1),
+  ('RECIPE_MAGO_GLOVES_CAPITAN', 'TELA_LINO', 1),
+  ('RECIPE_MAGO_HELMET_CAPITAN', 'TELA_LINO', 1),
+  ('RECIPE_SACERDOTE_ARMOR_CAPITAN', 'TELA_LINO', 1),
+  ('RECIPE_SACERDOTE_BOOTS_CAPITAN', 'TELA_LINO', 1),
+  ('RECIPE_SACERDOTE_GLOVES_CAPITAN', 'TELA_LINO', 1),
+  ('RECIPE_SACERDOTE_HELMET_CAPITAN', 'TELA_LINO', 1),
+  ('RECIPE_MAGO_ARMOR_TITAN_P', 'TELA_LINO', 2),
+  ('RECIPE_MAGO_BOOTS_TITAN_P', 'TELA_LINO', 2),
+  ('RECIPE_MAGO_GLOVES_TITAN_P', 'TELA_LINO', 2),
+  ('RECIPE_MAGO_HELMET_TITAN_P', 'TELA_LINO', 2),
+  ('RECIPE_SACERDOTE_ARMOR_TITAN_P', 'TELA_LINO', 2),
+  ('RECIPE_SACERDOTE_BOOTS_TITAN_P', 'TELA_LINO', 2),
+  ('RECIPE_SACERDOTE_GLOVES_TITAN_P', 'TELA_LINO', 2),
+  ('RECIPE_SACERDOTE_HELMET_TITAN_P', 'TELA_LINO', 2),
+  ('RECIPE_GUERRERO_WEAPON_ACANT', 'NUCLEO_TORMENTA', 1),
+  ('RECIPE_GUERRERO_WEAPON_ACANT', 'FRAGMENTO_PIEDRA_VIVA', 2),
+  ('RECIPE_GUERRERO_WEAPON_ACANT', 'PIEL_DE_TROLL', 2),
+  ('RECIPE_GUERRERO_WEAPON2H_ACANT', 'NUCLEO_TORMENTA', 1),
+  ('RECIPE_GUERRERO_WEAPON2H_ACANT', 'FRAGMENTO_PIEDRA_VIVA', 2),
+  ('RECIPE_GUERRERO_WEAPON2H_ACANT', 'PIEL_DE_TROLL', 2),
+  ('RECIPE_GUERRERO_OFFHAND_ACANT', 'FRAGMENTO_PIEDRA_VIVA', 1),
+  ('RECIPE_GUERRERO_OFFHAND_ACANT', 'PIEL_DE_TROLL', 1),
+  ('RECIPE_GUERRERO_HELMET_ACANT', 'FRAGMENTO_PIEDRA_VIVA', 1),
+  ('RECIPE_GUERRERO_HELMET_ACANT', 'PIEL_DE_TROLL', 1),
+  ('RECIPE_GUERRERO_ARMOR_ACANT', 'NUCLEO_TORMENTA', 1),
+  ('RECIPE_GUERRERO_ARMOR_ACANT', 'FRAGMENTO_PIEDRA_VIVA', 2),
+  ('RECIPE_GUERRERO_ARMOR_ACANT', 'PIEL_DE_TROLL', 2),
+  ('RECIPE_GUERRERO_GLOVES_ACANT', 'FRAGMENTO_PIEDRA_VIVA', 1),
+  ('RECIPE_GUERRERO_GLOVES_ACANT', 'PIEL_DE_TROLL', 1),
+  ('RECIPE_GUERRERO_BOOTS_ACANT', 'FRAGMENTO_PIEDRA_VIVA', 1),
+  ('RECIPE_GUERRERO_BOOTS_ACANT', 'PIEL_DE_TROLL', 1),
+  ('RECIPE_MAGO_WEAPON_ACANT', 'NUCLEO_TORMENTA', 1),
+  ('RECIPE_MAGO_WEAPON_ACANT', 'FRAGMENTO_PIEDRA_VIVA', 2),
+  ('RECIPE_MAGO_WEAPON_ACANT', 'ESENCIA_ESPECTRAL_HELADA', 2),
+  ('RECIPE_MAGO_OFFHAND_ORB_ACANT', 'FRAGMENTO_PIEDRA_VIVA', 1),
+  ('RECIPE_MAGO_OFFHAND_ORB_ACANT', 'ESENCIA_ESPECTRAL_HELADA', 1),
+  ('RECIPE_MAGO_OFFHAND_CRYSTAL_ACANT', 'FRAGMENTO_PIEDRA_VIVA', 1),
+  ('RECIPE_MAGO_OFFHAND_CRYSTAL_ACANT', 'ESENCIA_ESPECTRAL_HELADA', 1),
+  ('RECIPE_MAGO_HELMET_ACANT', 'FRAGMENTO_PIEDRA_VIVA', 1),
+  ('RECIPE_MAGO_HELMET_ACANT', 'ESENCIA_ESPECTRAL_HELADA', 1),
+  ('RECIPE_MAGO_ARMOR_ACANT', 'NUCLEO_TORMENTA', 1),
+  ('RECIPE_MAGO_ARMOR_ACANT', 'FRAGMENTO_PIEDRA_VIVA', 2),
+  ('RECIPE_MAGO_ARMOR_ACANT', 'ESENCIA_ESPECTRAL_HELADA', 2),
+  ('RECIPE_MAGO_GLOVES_ACANT', 'FRAGMENTO_PIEDRA_VIVA', 1),
+  ('RECIPE_MAGO_GLOVES_ACANT', 'ESENCIA_ESPECTRAL_HELADA', 1),
+  ('RECIPE_MAGO_BOOTS_ACANT', 'FRAGMENTO_PIEDRA_VIVA', 1),
+  ('RECIPE_MAGO_BOOTS_ACANT', 'ESENCIA_ESPECTRAL_HELADA', 1),
+  ('RECIPE_ARQUERO_WEAPON_ACANT', 'NUCLEO_TORMENTA', 1),
+  ('RECIPE_ARQUERO_WEAPON_ACANT', 'FRAGMENTO_PIEDRA_VIVA', 2),
+  ('RECIPE_ARQUERO_WEAPON_ACANT', 'PLUMA_ARPIA_ECO', 2),
+  ('RECIPE_ARQUERO_OFFHAND_ACANT', 'FRAGMENTO_PIEDRA_VIVA', 1),
+  ('RECIPE_ARQUERO_OFFHAND_ACANT', 'PLUMA_ARPIA_ECO', 1),
+  ('RECIPE_ARQUERO_HELMET_ACANT', 'FRAGMENTO_PIEDRA_VIVA', 1),
+  ('RECIPE_ARQUERO_HELMET_ACANT', 'PLUMA_ARPIA_ECO', 1),
+  ('RECIPE_ARQUERO_ARMOR_ACANT', 'NUCLEO_TORMENTA', 1),
+  ('RECIPE_ARQUERO_ARMOR_ACANT', 'FRAGMENTO_PIEDRA_VIVA', 2),
+  ('RECIPE_ARQUERO_ARMOR_ACANT', 'PLUMA_ARPIA_ECO', 2),
+  ('RECIPE_ARQUERO_GLOVES_ACANT', 'FRAGMENTO_PIEDRA_VIVA', 1),
+  ('RECIPE_ARQUERO_GLOVES_ACANT', 'PLUMA_ARPIA_ECO', 1),
+  ('RECIPE_ARQUERO_BOOTS_ACANT', 'FRAGMENTO_PIEDRA_VIVA', 1),
+  ('RECIPE_ARQUERO_BOOTS_ACANT', 'PLUMA_ARPIA_ECO', 1),
+  ('RECIPE_PICARO_WEAPON_ACANT', 'NUCLEO_TORMENTA', 1),
+  ('RECIPE_PICARO_WEAPON_ACANT', 'FRAGMENTO_PIEDRA_VIVA', 2),
+  ('RECIPE_PICARO_WEAPON_ACANT', 'GARRA_OSO_CUMBRES', 2),
+  ('RECIPE_PICARO_OFFHAND_ACANT', 'FRAGMENTO_PIEDRA_VIVA', 1),
+  ('RECIPE_PICARO_OFFHAND_ACANT', 'GARRA_OSO_CUMBRES', 1),
+  ('RECIPE_PICARO_HELMET_ACANT', 'FRAGMENTO_PIEDRA_VIVA', 1),
+  ('RECIPE_PICARO_HELMET_ACANT', 'GARRA_OSO_CUMBRES', 1),
+  ('RECIPE_PICARO_ARMOR_ACANT', 'NUCLEO_TORMENTA', 1),
+  ('RECIPE_PICARO_ARMOR_ACANT', 'FRAGMENTO_PIEDRA_VIVA', 2),
+  ('RECIPE_PICARO_ARMOR_ACANT', 'GARRA_OSO_CUMBRES', 2),
+  ('RECIPE_PICARO_GLOVES_ACANT', 'FRAGMENTO_PIEDRA_VIVA', 1),
+  ('RECIPE_PICARO_GLOVES_ACANT', 'GARRA_OSO_CUMBRES', 1),
+  ('RECIPE_PICARO_BOOTS_ACANT', 'FRAGMENTO_PIEDRA_VIVA', 1),
+  ('RECIPE_PICARO_BOOTS_ACANT', 'GARRA_OSO_CUMBRES', 1),
+  ('RECIPE_SACERDOTE_WEAPON_ACANT', 'NUCLEO_TORMENTA', 1),
+  ('RECIPE_SACERDOTE_WEAPON_ACANT', 'FRAGMENTO_PIEDRA_VIVA', 2),
+  ('RECIPE_SACERDOTE_WEAPON_ACANT', 'FLOR_DE_NIEVE', 2),
+  ('RECIPE_SACERDOTE_OFFHAND_ACANT', 'FRAGMENTO_PIEDRA_VIVA', 1),
+  ('RECIPE_SACERDOTE_OFFHAND_ACANT', 'FLOR_DE_NIEVE', 1),
+  ('RECIPE_SACERDOTE_HELMET_ACANT', 'FRAGMENTO_PIEDRA_VIVA', 1),
+  ('RECIPE_SACERDOTE_HELMET_ACANT', 'FLOR_DE_NIEVE', 1),
+  ('RECIPE_SACERDOTE_ARMOR_ACANT', 'NUCLEO_TORMENTA', 1),
+  ('RECIPE_SACERDOTE_ARMOR_ACANT', 'FRAGMENTO_PIEDRA_VIVA', 2),
+  ('RECIPE_SACERDOTE_ARMOR_ACANT', 'FLOR_DE_NIEVE', 2),
+  ('RECIPE_SACERDOTE_GLOVES_ACANT', 'FRAGMENTO_PIEDRA_VIVA', 1),
+  ('RECIPE_SACERDOTE_GLOVES_ACANT', 'FLOR_DE_NIEVE', 1),
+  ('RECIPE_SACERDOTE_BOOTS_ACANT', 'FRAGMENTO_PIEDRA_VIVA', 1),
+  ('RECIPE_SACERDOTE_BOOTS_ACANT', 'FLOR_DE_NIEVE', 1),
+  ('RECIPE_GUERRERO_WEAPON_REY_MONT', 'INSIGNIA_GUARDIA_REAL', 2),
+  ('RECIPE_GUERRERO_WEAPON_REY_MONT', 'NUCLEO_TORMENTA', 1),
+  ('RECIPE_GUERRERO_WEAPON_REY_MONT', 'PIEL_DE_TROLL', 2),
+  ('RECIPE_GUERRERO_WEAPON2H_REY_MONT', 'INSIGNIA_GUARDIA_REAL', 2),
+  ('RECIPE_GUERRERO_WEAPON2H_REY_MONT', 'NUCLEO_TORMENTA', 1),
+  ('RECIPE_GUERRERO_WEAPON2H_REY_MONT', 'PIEL_DE_TROLL', 2),
+  ('RECIPE_GUERRERO_OFFHAND_REY_MONT', 'INSIGNIA_GUARDIA_REAL', 1),
+  ('RECIPE_GUERRERO_OFFHAND_REY_MONT', 'NUCLEO_TORMENTA', 1),
+  ('RECIPE_GUERRERO_OFFHAND_REY_MONT', 'PIEL_DE_TROLL', 1),
+  ('RECIPE_GUERRERO_HELMET_REY_MONT', 'INSIGNIA_GUARDIA_REAL', 1),
+  ('RECIPE_GUERRERO_HELMET_REY_MONT', 'NUCLEO_TORMENTA', 1),
+  ('RECIPE_GUERRERO_HELMET_REY_MONT', 'PIEL_DE_TROLL', 1),
+  ('RECIPE_GUERRERO_ARMOR_REY_MONT', 'INSIGNIA_GUARDIA_REAL', 2),
+  ('RECIPE_GUERRERO_ARMOR_REY_MONT', 'NUCLEO_TORMENTA', 1),
+  ('RECIPE_GUERRERO_ARMOR_REY_MONT', 'PIEL_DE_TROLL', 2),
+  ('RECIPE_GUERRERO_GLOVES_REY_MONT', 'INSIGNIA_GUARDIA_REAL', 1),
+  ('RECIPE_GUERRERO_GLOVES_REY_MONT', 'NUCLEO_TORMENTA', 1),
+  ('RECIPE_GUERRERO_GLOVES_REY_MONT', 'PIEL_DE_TROLL', 1),
+  ('RECIPE_GUERRERO_BOOTS_REY_MONT', 'INSIGNIA_GUARDIA_REAL', 1),
+  ('RECIPE_GUERRERO_BOOTS_REY_MONT', 'NUCLEO_TORMENTA', 1),
+  ('RECIPE_GUERRERO_BOOTS_REY_MONT', 'PIEL_DE_TROLL', 1),
+  ('RECIPE_MAGO_WEAPON_REY_MONT', 'INSIGNIA_GUARDIA_REAL', 2),
+  ('RECIPE_MAGO_WEAPON_REY_MONT', 'NUCLEO_TORMENTA', 1),
+  ('RECIPE_MAGO_WEAPON_REY_MONT', 'ESENCIA_ESPECTRAL_HELADA', 2),
+  ('RECIPE_MAGO_OFFHAND_ORB_REY_MONT', 'INSIGNIA_GUARDIA_REAL', 1),
+  ('RECIPE_MAGO_OFFHAND_ORB_REY_MONT', 'NUCLEO_TORMENTA', 1),
+  ('RECIPE_MAGO_OFFHAND_ORB_REY_MONT', 'ESENCIA_ESPECTRAL_HELADA', 1),
+  ('RECIPE_MAGO_OFFHAND_CRYSTAL_REY_MONT', 'INSIGNIA_GUARDIA_REAL', 1),
+  ('RECIPE_MAGO_OFFHAND_CRYSTAL_REY_MONT', 'NUCLEO_TORMENTA', 1),
+  ('RECIPE_MAGO_OFFHAND_CRYSTAL_REY_MONT', 'ESENCIA_ESPECTRAL_HELADA', 1),
+  ('RECIPE_MAGO_HELMET_REY_MONT', 'INSIGNIA_GUARDIA_REAL', 1),
+  ('RECIPE_MAGO_HELMET_REY_MONT', 'NUCLEO_TORMENTA', 1),
+  ('RECIPE_MAGO_HELMET_REY_MONT', 'ESENCIA_ESPECTRAL_HELADA', 1),
+  ('RECIPE_MAGO_ARMOR_REY_MONT', 'INSIGNIA_GUARDIA_REAL', 2),
+  ('RECIPE_MAGO_ARMOR_REY_MONT', 'NUCLEO_TORMENTA', 1),
+  ('RECIPE_MAGO_ARMOR_REY_MONT', 'ESENCIA_ESPECTRAL_HELADA', 2),
+  ('RECIPE_MAGO_GLOVES_REY_MONT', 'INSIGNIA_GUARDIA_REAL', 1),
+  ('RECIPE_MAGO_GLOVES_REY_MONT', 'NUCLEO_TORMENTA', 1),
+  ('RECIPE_MAGO_GLOVES_REY_MONT', 'ESENCIA_ESPECTRAL_HELADA', 1),
+  ('RECIPE_MAGO_BOOTS_REY_MONT', 'INSIGNIA_GUARDIA_REAL', 1),
+  ('RECIPE_MAGO_BOOTS_REY_MONT', 'NUCLEO_TORMENTA', 1),
+  ('RECIPE_MAGO_BOOTS_REY_MONT', 'ESENCIA_ESPECTRAL_HELADA', 1),
+  ('RECIPE_ARQUERO_WEAPON_REY_MONT', 'INSIGNIA_GUARDIA_REAL', 2),
+  ('RECIPE_ARQUERO_WEAPON_REY_MONT', 'NUCLEO_TORMENTA', 1),
+  ('RECIPE_ARQUERO_WEAPON_REY_MONT', 'PLUMA_ARPIA_ECO', 2),
+  ('RECIPE_ARQUERO_OFFHAND_REY_MONT', 'INSIGNIA_GUARDIA_REAL', 1),
+  ('RECIPE_ARQUERO_OFFHAND_REY_MONT', 'NUCLEO_TORMENTA', 1),
+  ('RECIPE_ARQUERO_OFFHAND_REY_MONT', 'PLUMA_ARPIA_ECO', 1),
+  ('RECIPE_ARQUERO_HELMET_REY_MONT', 'INSIGNIA_GUARDIA_REAL', 1),
+  ('RECIPE_ARQUERO_HELMET_REY_MONT', 'NUCLEO_TORMENTA', 1),
+  ('RECIPE_ARQUERO_HELMET_REY_MONT', 'PLUMA_ARPIA_ECO', 1),
+  ('RECIPE_ARQUERO_ARMOR_REY_MONT', 'INSIGNIA_GUARDIA_REAL', 2),
+  ('RECIPE_ARQUERO_ARMOR_REY_MONT', 'NUCLEO_TORMENTA', 1),
+  ('RECIPE_ARQUERO_ARMOR_REY_MONT', 'PLUMA_ARPIA_ECO', 2),
+  ('RECIPE_ARQUERO_GLOVES_REY_MONT', 'INSIGNIA_GUARDIA_REAL', 1),
+  ('RECIPE_ARQUERO_GLOVES_REY_MONT', 'NUCLEO_TORMENTA', 1),
+  ('RECIPE_ARQUERO_GLOVES_REY_MONT', 'PLUMA_ARPIA_ECO', 1),
+  ('RECIPE_ARQUERO_BOOTS_REY_MONT', 'INSIGNIA_GUARDIA_REAL', 1),
+  ('RECIPE_ARQUERO_BOOTS_REY_MONT', 'NUCLEO_TORMENTA', 1),
+  ('RECIPE_ARQUERO_BOOTS_REY_MONT', 'PLUMA_ARPIA_ECO', 1),
+  ('RECIPE_PICARO_WEAPON_REY_MONT', 'INSIGNIA_GUARDIA_REAL', 2),
+  ('RECIPE_PICARO_WEAPON_REY_MONT', 'NUCLEO_TORMENTA', 1),
+  ('RECIPE_PICARO_WEAPON_REY_MONT', 'GARRA_OSO_CUMBRES', 2),
+  ('RECIPE_PICARO_OFFHAND_REY_MONT', 'INSIGNIA_GUARDIA_REAL', 1),
+  ('RECIPE_PICARO_OFFHAND_REY_MONT', 'NUCLEO_TORMENTA', 1),
+  ('RECIPE_PICARO_OFFHAND_REY_MONT', 'GARRA_OSO_CUMBRES', 1),
+  ('RECIPE_PICARO_HELMET_REY_MONT', 'INSIGNIA_GUARDIA_REAL', 1),
+  ('RECIPE_PICARO_HELMET_REY_MONT', 'NUCLEO_TORMENTA', 1),
+  ('RECIPE_PICARO_HELMET_REY_MONT', 'GARRA_OSO_CUMBRES', 1),
+  ('RECIPE_PICARO_ARMOR_REY_MONT', 'INSIGNIA_GUARDIA_REAL', 2),
+  ('RECIPE_PICARO_ARMOR_REY_MONT', 'NUCLEO_TORMENTA', 1),
+  ('RECIPE_PICARO_ARMOR_REY_MONT', 'GARRA_OSO_CUMBRES', 2),
+  ('RECIPE_PICARO_GLOVES_REY_MONT', 'INSIGNIA_GUARDIA_REAL', 1),
+  ('RECIPE_PICARO_GLOVES_REY_MONT', 'NUCLEO_TORMENTA', 1),
+  ('RECIPE_PICARO_GLOVES_REY_MONT', 'GARRA_OSO_CUMBRES', 1),
+  ('RECIPE_PICARO_BOOTS_REY_MONT', 'INSIGNIA_GUARDIA_REAL', 1),
+  ('RECIPE_PICARO_BOOTS_REY_MONT', 'NUCLEO_TORMENTA', 1),
+  ('RECIPE_PICARO_BOOTS_REY_MONT', 'GARRA_OSO_CUMBRES', 1),
+  ('RECIPE_SACERDOTE_WEAPON_REY_MONT', 'INSIGNIA_GUARDIA_REAL', 2),
+  ('RECIPE_SACERDOTE_WEAPON_REY_MONT', 'NUCLEO_TORMENTA', 1),
+  ('RECIPE_SACERDOTE_WEAPON_REY_MONT', 'FLOR_DE_NIEVE', 2),
+  ('RECIPE_SACERDOTE_OFFHAND_REY_MONT', 'INSIGNIA_GUARDIA_REAL', 1),
+  ('RECIPE_SACERDOTE_OFFHAND_REY_MONT', 'NUCLEO_TORMENTA', 1),
+  ('RECIPE_SACERDOTE_OFFHAND_REY_MONT', 'FLOR_DE_NIEVE', 1),
+  ('RECIPE_SACERDOTE_HELMET_REY_MONT', 'INSIGNIA_GUARDIA_REAL', 1),
+  ('RECIPE_SACERDOTE_HELMET_REY_MONT', 'NUCLEO_TORMENTA', 1),
+  ('RECIPE_SACERDOTE_HELMET_REY_MONT', 'FLOR_DE_NIEVE', 1),
+  ('RECIPE_SACERDOTE_ARMOR_REY_MONT', 'INSIGNIA_GUARDIA_REAL', 2),
+  ('RECIPE_SACERDOTE_ARMOR_REY_MONT', 'NUCLEO_TORMENTA', 1),
+  ('RECIPE_SACERDOTE_ARMOR_REY_MONT', 'FLOR_DE_NIEVE', 2),
+  ('RECIPE_SACERDOTE_GLOVES_REY_MONT', 'INSIGNIA_GUARDIA_REAL', 1),
+  ('RECIPE_SACERDOTE_GLOVES_REY_MONT', 'NUCLEO_TORMENTA', 1),
+  ('RECIPE_SACERDOTE_GLOVES_REY_MONT', 'FLOR_DE_NIEVE', 1),
+  ('RECIPE_SACERDOTE_BOOTS_REY_MONT', 'INSIGNIA_GUARDIA_REAL', 1),
+  ('RECIPE_SACERDOTE_BOOTS_REY_MONT', 'NUCLEO_TORMENTA', 1),
+  ('RECIPE_SACERDOTE_BOOTS_REY_MONT', 'FLOR_DE_NIEVE', 1),
+  ('RECIPE_GUERRERO_ACC_ACANTILADO', 'NUCLEO_TORMENTA', 1),
+  ('RECIPE_GUERRERO_ACC_ACANTILADO', 'PIEL_DE_TROLL', 1),
+  ('RECIPE_ARQUERO_ACC_ACANTILADO', 'NUCLEO_TORMENTA', 1),
+  ('RECIPE_ARQUERO_ACC_ACANTILADO', 'PLUMA_ARPIA_ECO', 1),
+  ('RECIPE_GUERRERO_WEAPON_CALDERA', 'CUERNO_DEMONIO_LAVA', 2),
+  ('RECIPE_GUERRERO_WEAPON_CALDERA', 'SELLO_ECLIPSE', 1),
+  ('RECIPE_GUERRERO_WEAPON_CALDERA', 'ESQUIRLA_OBSIDIANA', 2),
+  ('RECIPE_GUERRERO_WEAPON2H_CALDERA', 'CUERNO_DEMONIO_LAVA', 2),
+  ('RECIPE_GUERRERO_WEAPON2H_CALDERA', 'SELLO_ECLIPSE', 1),
+  ('RECIPE_GUERRERO_WEAPON2H_CALDERA', 'ESQUIRLA_OBSIDIANA', 2),
+  ('RECIPE_GUERRERO_OFFHAND_CALDERA', 'CUERNO_DEMONIO_LAVA', 1),
+  ('RECIPE_GUERRERO_OFFHAND_CALDERA', 'ESQUIRLA_OBSIDIANA', 1),
+  ('RECIPE_GUERRERO_HELMET_CALDERA', 'CUERNO_DEMONIO_LAVA', 1),
+  ('RECIPE_GUERRERO_HELMET_CALDERA', 'ESQUIRLA_OBSIDIANA', 1),
+  ('RECIPE_GUERRERO_ARMOR_CALDERA', 'CUERNO_DEMONIO_LAVA', 2),
+  ('RECIPE_GUERRERO_ARMOR_CALDERA', 'SELLO_ECLIPSE', 1),
+  ('RECIPE_GUERRERO_ARMOR_CALDERA', 'ESQUIRLA_OBSIDIANA', 2),
+  ('RECIPE_GUERRERO_GLOVES_CALDERA', 'CUERNO_DEMONIO_LAVA', 1),
+  ('RECIPE_GUERRERO_GLOVES_CALDERA', 'ESQUIRLA_OBSIDIANA', 1),
+  ('RECIPE_GUERRERO_BOOTS_CALDERA', 'CUERNO_DEMONIO_LAVA', 1),
+  ('RECIPE_GUERRERO_BOOTS_CALDERA', 'ESQUIRLA_OBSIDIANA', 1),
+  ('RECIPE_MAGO_WEAPON_CALDERA', 'CUERNO_DEMONIO_LAVA', 2),
+  ('RECIPE_MAGO_WEAPON_CALDERA', 'SELLO_ECLIPSE', 1),
+  ('RECIPE_MAGO_WEAPON_CALDERA', 'ESENCIA_DE_FUEGO', 2),
+  ('RECIPE_MAGO_OFFHAND_ORB_CALDERA', 'CUERNO_DEMONIO_LAVA', 1),
+  ('RECIPE_MAGO_OFFHAND_ORB_CALDERA', 'ESENCIA_DE_FUEGO', 1),
+  ('RECIPE_MAGO_OFFHAND_CRYSTAL_CALDERA', 'CUERNO_DEMONIO_LAVA', 1),
+  ('RECIPE_MAGO_OFFHAND_CRYSTAL_CALDERA', 'ESENCIA_DE_FUEGO', 1),
+  ('RECIPE_MAGO_HELMET_CALDERA', 'CUERNO_DEMONIO_LAVA', 1),
+  ('RECIPE_MAGO_HELMET_CALDERA', 'ESENCIA_DE_FUEGO', 1),
+  ('RECIPE_MAGO_ARMOR_CALDERA', 'CUERNO_DEMONIO_LAVA', 2),
+  ('RECIPE_MAGO_ARMOR_CALDERA', 'SELLO_ECLIPSE', 1),
+  ('RECIPE_MAGO_ARMOR_CALDERA', 'ESENCIA_DE_FUEGO', 2),
+  ('RECIPE_MAGO_GLOVES_CALDERA', 'CUERNO_DEMONIO_LAVA', 1),
+  ('RECIPE_MAGO_GLOVES_CALDERA', 'ESENCIA_DE_FUEGO', 1),
+  ('RECIPE_MAGO_BOOTS_CALDERA', 'CUERNO_DEMONIO_LAVA', 1),
+  ('RECIPE_MAGO_BOOTS_CALDERA', 'ESENCIA_DE_FUEGO', 1),
+  ('RECIPE_ARQUERO_WEAPON_CALDERA', 'CUERNO_DEMONIO_LAVA', 2),
+  ('RECIPE_ARQUERO_WEAPON_CALDERA', 'SELLO_ECLIPSE', 1),
+  ('RECIPE_ARQUERO_WEAPON_CALDERA', 'ALA_DRACO', 2),
+  ('RECIPE_ARQUERO_OFFHAND_CALDERA', 'CUERNO_DEMONIO_LAVA', 1),
+  ('RECIPE_ARQUERO_OFFHAND_CALDERA', 'ALA_DRACO', 1),
+  ('RECIPE_ARQUERO_HELMET_CALDERA', 'CUERNO_DEMONIO_LAVA', 1),
+  ('RECIPE_ARQUERO_HELMET_CALDERA', 'ALA_DRACO', 1),
+  ('RECIPE_ARQUERO_ARMOR_CALDERA', 'CUERNO_DEMONIO_LAVA', 2),
+  ('RECIPE_ARQUERO_ARMOR_CALDERA', 'SELLO_ECLIPSE', 1),
+  ('RECIPE_ARQUERO_ARMOR_CALDERA', 'ALA_DRACO', 2),
+  ('RECIPE_ARQUERO_GLOVES_CALDERA', 'CUERNO_DEMONIO_LAVA', 1),
+  ('RECIPE_ARQUERO_GLOVES_CALDERA', 'ALA_DRACO', 1),
+  ('RECIPE_ARQUERO_BOOTS_CALDERA', 'CUERNO_DEMONIO_LAVA', 1),
+  ('RECIPE_ARQUERO_BOOTS_CALDERA', 'ALA_DRACO', 1),
+  ('RECIPE_PICARO_WEAPON_CALDERA', 'CUERNO_DEMONIO_LAVA', 2),
+  ('RECIPE_PICARO_WEAPON_CALDERA', 'SELLO_ECLIPSE', 1),
+  ('RECIPE_PICARO_WEAPON_CALDERA', 'COLMILLO_MAGMA', 2),
+  ('RECIPE_PICARO_OFFHAND_CALDERA', 'CUERNO_DEMONIO_LAVA', 1),
+  ('RECIPE_PICARO_OFFHAND_CALDERA', 'COLMILLO_MAGMA', 1),
+  ('RECIPE_PICARO_HELMET_CALDERA', 'CUERNO_DEMONIO_LAVA', 1),
+  ('RECIPE_PICARO_HELMET_CALDERA', 'COLMILLO_MAGMA', 1),
+  ('RECIPE_PICARO_ARMOR_CALDERA', 'CUERNO_DEMONIO_LAVA', 2),
+  ('RECIPE_PICARO_ARMOR_CALDERA', 'SELLO_ECLIPSE', 1),
+  ('RECIPE_PICARO_ARMOR_CALDERA', 'COLMILLO_MAGMA', 2),
+  ('RECIPE_PICARO_GLOVES_CALDERA', 'CUERNO_DEMONIO_LAVA', 1),
+  ('RECIPE_PICARO_GLOVES_CALDERA', 'COLMILLO_MAGMA', 1),
+  ('RECIPE_PICARO_BOOTS_CALDERA', 'CUERNO_DEMONIO_LAVA', 1),
+  ('RECIPE_PICARO_BOOTS_CALDERA', 'COLMILLO_MAGMA', 1),
+  ('RECIPE_SACERDOTE_WEAPON_CALDERA', 'CUERNO_DEMONIO_LAVA', 2),
+  ('RECIPE_SACERDOTE_WEAPON_CALDERA', 'SELLO_ECLIPSE', 1),
+  ('RECIPE_SACERDOTE_WEAPON_CALDERA', 'FLOR_DE_CENIZA', 2),
+  ('RECIPE_SACERDOTE_OFFHAND_CALDERA', 'CUERNO_DEMONIO_LAVA', 1),
+  ('RECIPE_SACERDOTE_OFFHAND_CALDERA', 'FLOR_DE_CENIZA', 1),
+  ('RECIPE_SACERDOTE_HELMET_CALDERA', 'CUERNO_DEMONIO_LAVA', 1),
+  ('RECIPE_SACERDOTE_HELMET_CALDERA', 'FLOR_DE_CENIZA', 1),
+  ('RECIPE_SACERDOTE_ARMOR_CALDERA', 'CUERNO_DEMONIO_LAVA', 2),
+  ('RECIPE_SACERDOTE_ARMOR_CALDERA', 'SELLO_ECLIPSE', 1),
+  ('RECIPE_SACERDOTE_ARMOR_CALDERA', 'FLOR_DE_CENIZA', 2),
+  ('RECIPE_SACERDOTE_GLOVES_CALDERA', 'CUERNO_DEMONIO_LAVA', 1),
+  ('RECIPE_SACERDOTE_GLOVES_CALDERA', 'FLOR_DE_CENIZA', 1),
+  ('RECIPE_SACERDOTE_BOOTS_CALDERA', 'CUERNO_DEMONIO_LAVA', 1),
+  ('RECIPE_SACERDOTE_BOOTS_CALDERA', 'FLOR_DE_CENIZA', 1),
+  ('RECIPE_GUERRERO_WEAPON_TITAN_F', 'COLA_DIABLILLO', 2),
+  ('RECIPE_GUERRERO_WEAPON_TITAN_F', 'ESQUIRLA_OBSIDIANA', 2),
+  ('RECIPE_GUERRERO_WEAPON2H_TITAN_F', 'COLA_DIABLILLO', 2),
+  ('RECIPE_GUERRERO_WEAPON2H_TITAN_F', 'ESQUIRLA_OBSIDIANA', 2),
+  ('RECIPE_GUERRERO_OFFHAND_TITAN_F', 'COLA_DIABLILLO', 1),
+  ('RECIPE_GUERRERO_OFFHAND_TITAN_F', 'ESQUIRLA_OBSIDIANA', 1),
+  ('RECIPE_GUERRERO_HELMET_TITAN_F', 'COLA_DIABLILLO', 1),
+  ('RECIPE_GUERRERO_HELMET_TITAN_F', 'ESQUIRLA_OBSIDIANA', 1),
+  ('RECIPE_GUERRERO_ARMOR_TITAN_F', 'COLA_DIABLILLO', 2),
+  ('RECIPE_GUERRERO_ARMOR_TITAN_F', 'ESQUIRLA_OBSIDIANA', 2),
+  ('RECIPE_GUERRERO_GLOVES_TITAN_F', 'COLA_DIABLILLO', 1),
+  ('RECIPE_GUERRERO_GLOVES_TITAN_F', 'ESQUIRLA_OBSIDIANA', 1),
+  ('RECIPE_GUERRERO_BOOTS_TITAN_F', 'COLA_DIABLILLO', 1),
+  ('RECIPE_GUERRERO_BOOTS_TITAN_F', 'ESQUIRLA_OBSIDIANA', 1),
+  ('RECIPE_MAGO_WEAPON_TITAN_F', 'COLA_DIABLILLO', 2),
+  ('RECIPE_MAGO_WEAPON_TITAN_F', 'ESENCIA_DE_FUEGO', 2),
+  ('RECIPE_PICARO_ACC_ACANTILADO', 'NUCLEO_TORMENTA', 1),
+  ('RECIPE_PICARO_ACC_ACANTILADO', 'GARRA_OSO_CUMBRES', 1),
+  ('RECIPE_MAGO_ACC_ACANTILADO', 'NUCLEO_TORMENTA', 1),
+  ('RECIPE_MAGO_ACC_ACANTILADO', 'ESENCIA_ESPECTRAL_HELADA', 1),
+  ('RECIPE_SACERDOTE_ACC_ACANTILADO', 'NUCLEO_TORMENTA', 1),
+  ('RECIPE_SACERDOTE_ACC_ACANTILADO', 'FLOR_DE_NIEVE', 2),
+  ('RECIPE_GUERRERO_ACC_REY_MONTANA', 'INSIGNIA_GUARDIA_REAL', 1),
+  ('RECIPE_GUERRERO_ACC_REY_MONTANA', 'NUCLEO_TORMENTA', 1),
+  ('RECIPE_GUERRERO_ACC_REY_MONTANA', 'PIEL_DE_TROLL', 2),
+  ('RECIPE_ARQUERO_ACC_REY_MONTANA', 'INSIGNIA_GUARDIA_REAL', 1),
+  ('RECIPE_ARQUERO_ACC_REY_MONTANA', 'NUCLEO_TORMENTA', 1),
+  ('RECIPE_ARQUERO_ACC_REY_MONTANA', 'PLUMA_ARPIA_ECO', 2),
+  ('RECIPE_PICARO_ACC_REY_MONTANA', 'INSIGNIA_GUARDIA_REAL', 1),
+  ('RECIPE_PICARO_ACC_REY_MONTANA', 'NUCLEO_TORMENTA', 1),
+  ('RECIPE_PICARO_ACC_REY_MONTANA', 'GARRA_OSO_CUMBRES', 2),
+  ('RECIPE_MAGO_ACC_REY_MONTANA', 'INSIGNIA_GUARDIA_REAL', 1),
+  ('RECIPE_MAGO_ACC_REY_MONTANA', 'NUCLEO_TORMENTA', 1),
+  ('RECIPE_MAGO_ACC_REY_MONTANA', 'ESENCIA_ESPECTRAL_HELADA', 2),
+  ('RECIPE_SACERDOTE_ACC_REY_MONTANA', 'INSIGNIA_GUARDIA_REAL', 1),
+  ('RECIPE_SACERDOTE_ACC_REY_MONTANA', 'NUCLEO_TORMENTA', 1),
+  ('RECIPE_SACERDOTE_ACC_REY_MONTANA', 'FLOR_DE_NIEVE', 2),
+  ('RECIPE_MAGO_OFFHAND_ORB_TITAN_F', 'COLA_DIABLILLO', 1),
+  ('RECIPE_MAGO_OFFHAND_ORB_TITAN_F', 'ESENCIA_DE_FUEGO', 1),
+  ('RECIPE_MAGO_OFFHAND_CRYSTAL_TITAN_F', 'COLA_DIABLILLO', 1),
+  ('RECIPE_MAGO_OFFHAND_CRYSTAL_TITAN_F', 'ESENCIA_DE_FUEGO', 1),
+  ('RECIPE_MAGO_HELMET_TITAN_F', 'COLA_DIABLILLO', 1),
+  ('RECIPE_MAGO_HELMET_TITAN_F', 'ESENCIA_DE_FUEGO', 1),
+  ('RECIPE_MAGO_ARMOR_TITAN_F', 'COLA_DIABLILLO', 2),
+  ('RECIPE_MAGO_ARMOR_TITAN_F', 'ESENCIA_DE_FUEGO', 2),
+  ('RECIPE_MAGO_GLOVES_TITAN_F', 'COLA_DIABLILLO', 1),
+  ('RECIPE_MAGO_GLOVES_TITAN_F', 'ESENCIA_DE_FUEGO', 1),
+  ('RECIPE_MAGO_BOOTS_TITAN_F', 'COLA_DIABLILLO', 1),
+  ('RECIPE_MAGO_BOOTS_TITAN_F', 'ESENCIA_DE_FUEGO', 1),
+  ('RECIPE_ARQUERO_WEAPON_TITAN_F', 'COLA_DIABLILLO', 2),
+  ('RECIPE_ARQUERO_WEAPON_TITAN_F', 'ALA_DRACO', 2),
+  ('RECIPE_ARQUERO_OFFHAND_TITAN_F', 'COLA_DIABLILLO', 1),
+  ('RECIPE_ARQUERO_OFFHAND_TITAN_F', 'ALA_DRACO', 1),
+  ('RECIPE_ARQUERO_HELMET_TITAN_F', 'COLA_DIABLILLO', 1),
+  ('RECIPE_ARQUERO_HELMET_TITAN_F', 'ALA_DRACO', 1),
+  ('RECIPE_ARQUERO_ARMOR_TITAN_F', 'COLA_DIABLILLO', 2),
+  ('RECIPE_ARQUERO_ARMOR_TITAN_F', 'ALA_DRACO', 2),
+  ('RECIPE_ARQUERO_GLOVES_TITAN_F', 'COLA_DIABLILLO', 1),
+  ('RECIPE_ARQUERO_GLOVES_TITAN_F', 'ALA_DRACO', 1),
+  ('RECIPE_ARQUERO_BOOTS_TITAN_F', 'COLA_DIABLILLO', 1),
+  ('RECIPE_ARQUERO_BOOTS_TITAN_F', 'ALA_DRACO', 1),
+  ('RECIPE_PICARO_WEAPON_TITAN_F', 'COLA_DIABLILLO', 2),
+  ('RECIPE_PICARO_WEAPON_TITAN_F', 'COLMILLO_MAGMA', 2),
+  ('RECIPE_PICARO_OFFHAND_TITAN_F', 'COLA_DIABLILLO', 1),
+  ('RECIPE_PICARO_OFFHAND_TITAN_F', 'COLMILLO_MAGMA', 1),
+  ('RECIPE_PICARO_HELMET_TITAN_F', 'COLA_DIABLILLO', 1),
+  ('RECIPE_PICARO_HELMET_TITAN_F', 'COLMILLO_MAGMA', 1),
+  ('RECIPE_PICARO_ARMOR_TITAN_F', 'COLA_DIABLILLO', 2),
+  ('RECIPE_PICARO_ARMOR_TITAN_F', 'COLMILLO_MAGMA', 2),
+  ('RECIPE_PICARO_GLOVES_TITAN_F', 'COLA_DIABLILLO', 1),
+  ('RECIPE_PICARO_GLOVES_TITAN_F', 'COLMILLO_MAGMA', 1),
+  ('RECIPE_PICARO_BOOTS_TITAN_F', 'COLA_DIABLILLO', 1),
+  ('RECIPE_PICARO_BOOTS_TITAN_F', 'COLMILLO_MAGMA', 1),
+  ('RECIPE_SACERDOTE_WEAPON_TITAN_F', 'COLA_DIABLILLO', 2),
+  ('RECIPE_SACERDOTE_WEAPON_TITAN_F', 'FLOR_DE_CENIZA', 2),
+  ('RECIPE_SACERDOTE_OFFHAND_TITAN_F', 'COLA_DIABLILLO', 1),
+  ('RECIPE_SACERDOTE_OFFHAND_TITAN_F', 'FLOR_DE_CENIZA', 1),
+  ('RECIPE_SACERDOTE_HELMET_TITAN_F', 'COLA_DIABLILLO', 1),
+  ('RECIPE_SACERDOTE_HELMET_TITAN_F', 'FLOR_DE_CENIZA', 1),
+  ('RECIPE_SACERDOTE_ARMOR_TITAN_F', 'COLA_DIABLILLO', 2),
+  ('RECIPE_SACERDOTE_ARMOR_TITAN_F', 'FLOR_DE_CENIZA', 2),
+  ('RECIPE_SACERDOTE_GLOVES_TITAN_F', 'COLA_DIABLILLO', 1),
+  ('RECIPE_SACERDOTE_GLOVES_TITAN_F', 'FLOR_DE_CENIZA', 1),
+  ('RECIPE_SACERDOTE_BOOTS_TITAN_F', 'COLA_DIABLILLO', 1),
+  ('RECIPE_SACERDOTE_BOOTS_TITAN_F', 'FLOR_DE_CENIZA', 1),
+  ('RECIPE_GUERRERO_ACC_CALDERA', 'CUERNO_DEMONIO_LAVA', 1),
+  ('RECIPE_GUERRERO_ACC_CALDERA', 'ESQUIRLA_OBSIDIANA', 1),
+  ('RECIPE_ARQUERO_ACC_CALDERA', 'CUERNO_DEMONIO_LAVA', 1),
+  ('RECIPE_ARQUERO_ACC_CALDERA', 'ALA_DRACO', 1),
+  ('RECIPE_PICARO_ACC_CALDERA', 'CUERNO_DEMONIO_LAVA', 1),
+  ('RECIPE_PICARO_ACC_CALDERA', 'COLMILLO_MAGMA', 1),
+  ('RECIPE_MAGO_ACC_CALDERA', 'CUERNO_DEMONIO_LAVA', 1),
+  ('RECIPE_MAGO_ACC_CALDERA', 'ESENCIA_DE_FUEGO', 1),
+  ('RECIPE_SACERDOTE_ACC_CALDERA', 'CUERNO_DEMONIO_LAVA', 1),
+  ('RECIPE_SACERDOTE_ACC_CALDERA', 'FLOR_DE_CENIZA', 2),
+  ('RECIPE_GUERRERO_ACC_TITAN_FUEGO', 'COLA_DIABLILLO', 1),
+  ('RECIPE_GUERRERO_ACC_TITAN_FUEGO', 'ESQUIRLA_OBSIDIANA', 2),
+  ('RECIPE_ARQUERO_ACC_TITAN_FUEGO', 'COLA_DIABLILLO', 1),
+  ('RECIPE_ARQUERO_ACC_TITAN_FUEGO', 'ALA_DRACO', 2),
+  ('RECIPE_PICARO_ACC_TITAN_FUEGO', 'COLA_DIABLILLO', 1),
+  ('RECIPE_PICARO_ACC_TITAN_FUEGO', 'COLMILLO_MAGMA', 2),
+  ('RECIPE_MAGO_ACC_TITAN_FUEGO', 'COLA_DIABLILLO', 1),
+  ('RECIPE_MAGO_ACC_TITAN_FUEGO', 'ESENCIA_DE_FUEGO', 2),
+  ('RECIPE_SACERDOTE_ACC_TITAN_FUEGO', 'COLA_DIABLILLO', 1),
+  ('RECIPE_SACERDOTE_ACC_TITAN_FUEGO', 'FLOR_DE_CENIZA', 2)
+) AS v(rcode, icode, q), crafting_recipes cr, items i
+WHERE ri.recipe_id = cr.id AND cr.code = v.rcode AND ri.item_id = i.id AND i.code = v.icode AND ri.quantity <> v.q;
+
+-- Pergaminos de set de jefe (la receta de todo el set): 25% el legendario y 35% el épico o raro para
+-- TU clase (la base es la mitad: tu clase sale el doble, OWN_CLASS_SCROLL_MULT). La pieza del set,
+-- que sale más seguido (45% / 55%), se decide en routes/combat.js (PIECE_CHANCE).
+UPDATE monster_drops d SET drop_chance_percent = CASE i.rarity WHEN 'LEGENDARIO' THEN 12.50 ELSE 17.50 END
+FROM monsters m, items i
+WHERE d.monster_id = m.id AND d.item_id = i.id AND i.code LIKE 'SCROLL\_%' AND m.rarity IN ('MINIBOSS', 'LEGENDARY')
+  AND d.drop_chance_percent <> CASE i.rarity WHEN 'LEGENDARIO' THEN 12.50 ELSE 17.50 END;

@@ -1539,6 +1539,13 @@ async function startNewRound(sessionId, participants) {
 // de esas clases (SCROLL_<SET>_<CLASE>) tienen el doble de probabilidad: así a cada uno le cae más
 // seguido el suyo, y los de otras clases siguen saliendo para comerciarlos.
 const OWN_CLASS_SCROLL_MULT = 2;
+// Piezas de set de jefe (rollMonsterDrops): % base por victoria según la rareza del set; tu clase
+// sale el doble (45% legendario, 55% épico o raro). El pergamino, que enseña todo el set, es más
+// raro: su % está en monster_drops (25% / 35% para tu clase).
+const PIECE_CHANCE = { LEGENDARIO: 22.5, OTRO: 27.5 };
+const pieceChanceOf = (rarity) => (rarity === 'LEGENDARIO' ? PIECE_CHANCE.LEGENDARIO : PIECE_CHANCE.OTRO);
+// bono de experiencia por cada otro jugador del grupo (ver el reparto en finalizeSession)
+const GROUP_XP_BONUS = 0.1;
 // clases cuyo ataque básico es mágico (clase base; las evoluciones heredan) y cuánto maná devuelve
 // el ataque básico (fracción del máximo)
 const MAGIC_BASIC_CLASSES = ['MAGO', 'SACERDOTE'];
@@ -1549,7 +1556,8 @@ async function rollMonsterDrops(enemies, dropRateBonusPct = 0, partyClasses = []
   const ownScroll = (itemCode) => /^SCROLL_/.test(itemCode ?? '') && partyClasses.some((c) => itemCode.endsWith(`_${c}`));
 
   const dropsResult = await db.query(
-    `SELECT m.code AS monster_code, md.item_id, i.code AS item_code, i.name AS item_name, md.drop_chance_percent, md.min_quantity, md.max_quantity
+    `SELECT m.code AS monster_code, md.item_id, i.code AS item_code, i.name AS item_name, i.rarity AS item_rarity,
+            md.drop_chance_percent, md.min_quantity, md.max_quantity
      FROM monster_drops md
      JOIN monsters m ON m.id = md.monster_id
      JOIN items i ON i.id = md.item_id
@@ -1564,6 +1572,23 @@ async function rollMonsterDrops(enemies, dropRateBonusPct = 0, partyClasses = []
     dropsByCode.get(row.monster_code).push(row);
   }
 
+  // Piezas de set de jefe: además del pergamino (la receta del set), cada fila de pergamino tira
+  // aparte una pieza al azar de ese set y clase, con PIECE_CHANCE según la rareza del set (y el doble
+  // para tu clase, igual que el pergamino). La pieza enseña a fabricarse a sí misma (lib/recetas.js).
+  const scrollIds = [...new Set(dropsResult.rows.filter((d) => /^SCROLL_/.test(d.item_code)).map((d) => d.item_id))];
+  const piecesOf = new Map();
+  if (scrollIds.length) {
+    const pr = await db.query(
+      `SELECT cr.scroll_item_id, i.id, i.name FROM crafting_recipes cr JOIN items i ON i.id = cr.result_item_id
+       WHERE cr.scroll_item_id = ANY($1::int[]) AND i.item_type = 'EQUIPMENT'`,
+      [scrollIds]
+    );
+    for (const p of pr.rows) {
+      if (!piecesOf.has(p.scroll_item_id)) piecesOf.set(p.scroll_item_id, []);
+      piecesOf.get(p.scroll_item_id).push(p);
+    }
+  }
+
   const dropped = [];
   for (const enemy of enemies) {
     const drops = dropsByCode.get(enemy.monster_code);
@@ -1571,6 +1596,13 @@ async function rollMonsterDrops(enemies, dropRateBonusPct = 0, partyClasses = []
     for (const drop of drops) {
     const classMult = ownScroll(drop.item_code) ? OWN_CLASS_SCROLL_MULT : 1;
     const effectiveChance = Math.min(100, Number(drop.drop_chance_percent) * classMult * (1 + dropRateBonusPct / 100));
+    // la pieza del set, en su propia tirada
+    const pieces = piecesOf.get(drop.item_id);
+    const pieceChance = Math.min(100, pieceChanceOf(drop.item_rarity) * classMult * (1 + dropRateBonusPct / 100));
+    if (pieces?.length && Math.random() * 100 < pieceChance) {
+      const piece = pieces[Math.floor(Math.random() * pieces.length)];
+      dropped.push({ itemId: piece.id, itemName: piece.name, quantity: 1 });
+    }
     if (Math.random() * 100 >= effectiveChance) continue;
 
     const quantity = drop.min_quantity + Math.floor(Math.random() * (drop.max_quantity - drop.min_quantity + 1));
@@ -2022,7 +2054,10 @@ async function finalizeSession(sessionId, status, participants) {
       }
 
       const partySize = heroPs.length + npcPs.length;
-      const splitXp = Math.floor(rewards.xp / partySize);
+      // Bono de grupo: +10% por cada otro JUGADOR del grupo (los compañeros contratados no cuentan),
+      // así jugar juntos rinde más y no solo va más rápido. Se reparte entre todos, como antes.
+      const groupXpMult = 1 + GROUP_XP_BONUS * Math.max(0, heroPs.length - 1);
+      const splitXp = Math.floor((rewards.xp * groupXpMult) / partySize);
 
       // Nivel promedio de los enemigos de ESTA pelea, para penalizar el XP si el jugador ya los
       // superó de nivel (ver leveling.underLevelXpMult) — sin esto volver a pisos bajos de la
@@ -3076,8 +3111,14 @@ router.post('/sessions', async (req, res, next) => {
   if (dungeonOf) {
     return res.status(400).json({ error: `Esos guardianes solo se enfrentan en ${dungeonOf.texts.name}` });
   }
-  if (monsters.some((m) => m?.code === mythic.MINION_CODE) && !(await mythic.activeHunt())) {
-    return res.status(400).json({ error: 'Los lobos espectrales ya se desvanecieron' });
+  const minionCode = monsters.map((m) => m?.code).find((c) => mythic.MINION_CODES.has(c));
+  if (minionCode) {
+    // solo los del jefe que está suelto ahora
+    const hunt = await mythic.activeHunt();
+    const minion = Object.values(mythic.MITICOS).find((d) => d.minion.code === minionCode)?.minion;
+    if (!hunt || mythic.minionOf(hunt.zone_id)?.code !== minionCode) {
+      return res.status(400).json({ error: `Las ${minion?.plural ?? 'criaturas del jefe mítico'} ya se fueron` });
+    }
   }
 
   try {
@@ -3088,10 +3129,25 @@ router.post('/sessions', async (req, res, next) => {
       return res.status(400).json({ error: 'Todavía tienes un combate sin terminar. Termínalo antes de iniciar otro.' });
     }
 
+    // El nivel lo decide el servidor, no el cliente. Nunca baja del piso natural del monstruo: por
+    // debajo, hydrateMonsters lo achica (belowFloorRatio) y un nivel 1 peleaba contra un Titán o
+    // un Rey de la Montaña de juguete, sin la penalización por diferencia de nivel. Los esbirros
+    // del jefe mítico salen a tu nivel, dentro del rango de su zona (como su jefe).
+    const playerLevel = Number((await db.query('SELECT level FROM players WHERE id = $1', [req.playerId])).rows[0]?.level) || 1;
+    const floors = new Map((await db.query(
+      'SELECT code, min_spawn_level FROM monsters WHERE code = ANY($1::text[])',
+      [monsters.map((m) => String(m?.code ?? ''))]
+    )).rows.map((r) => [r.code, Number(r.min_spawn_level) || 1]));
+    const specs = monsters.map((m) => {
+      const def = Object.values(mythic.MITICOS).find((d) => d.minion.code === m?.code);
+      if (def) return { ...m, level: mythic.cloneLevel(def, playerLevel) };
+      return { ...m, level: Math.max(Number(m?.level) || 0, floors.get(m?.code) ?? 1) };
+    });
+
     const [playerCombatants, npcCombatants, enemyCombatants] = await Promise.all([
       hydratePlayers(playerIds),
       hydratePartyNpcs(req.playerId),
-      hydrateMonsters(monsters),
+      hydrateMonsters(specs),
     ]);
 
     if (playerCombatants.length !== playerIds.length) {

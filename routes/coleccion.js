@@ -45,9 +45,9 @@ router.get('/bestiario', async (req, res, next) => {
       db.query('SELECT id, name, min_level, max_level FROM monster_zones WHERE is_tower_zone = FALSE ORDER BY min_level'),
       db.query(
         `SELECT m.*, e.name AS element FROM monsters m LEFT JOIN elements e ON e.id = m.element_id
-         WHERE m.zone_id IN (SELECT id FROM monster_zones WHERE is_tower_zone = FALSE) OR m.code LIKE $1 OR m.code = $2 OR m.code = ANY($3::text[])
+         WHERE m.zone_id IN (SELECT id FROM monster_zones WHERE is_tower_zone = FALSE) OR m.code LIKE $1 OR m.code = ANY($2::text[]) OR m.code = ANY($3::text[])
          ORDER BY m.base_level, m.id`,
-        [`${col.MYTHIC_PREFIX}%`, mythic.MINION_CODE, mazmorras.ALL.flatMap((m) => m.CODES)]
+        [`${col.MYTHIC_PREFIX}%`, [...mythic.MINION_CODES], mazmorras.ALL.flatMap((m) => m.CODES)]
       ),
       db.query('SELECT monster_id, kills, completed FROM player_bestiary WHERE player_id = $1', [pid]),
       db.query('SELECT monster_id FROM player_monster_encounters WHERE player_id = $1', [pid]),
@@ -67,7 +67,7 @@ router.get('/bestiario', async (req, res, next) => {
       dropsBy.get(d.monster_id).push({ name: d.name, rarity: d.rarity, type: d.item_type, chance: Number(d.drop_chance_percent), min: d.min_quantity, max: d.max_quantity });
     }
     const cardQty = new Map(cards.rows.map((r) => [r.monster_id, r.quantity]));
-    const mythicZone = Object.fromEntries(Object.values(mythic.MITICOS).flatMap((d) => [[d.code, d.zoneId], [mythic.MINION_CODE, d.zoneId]]));
+    const mythicZone = Object.fromEntries(Object.values(mythic.MITICOS).flatMap((d) => [[d.code, d.zoneId], [d.minion.code, d.zoneId]]));
     // los de las mazmorras (sin zona en la base) se ven con la zona donde está su mazmorra
     for (const m of mazmorras.ALL) for (const c of m.CODES) mythicZone[c] = m.ZONE_ID;
 
@@ -222,7 +222,8 @@ router.post('/mitico/enter', async (req, res, next) => {
     ]);
     const alive = [...heroes, ...npcs].filter((p) => p.hp > 0);
     if (!alive.length) return res.status(400).json({ error: 'Toda la formación está derrotada.' });
-    const enemies = await combatEngine.hydrateMonsters([{ code: hunt.monster_code, level }]);
+    // el clon nunca baja del nivel recomendado de su zona (mythic.cloneLevel)
+    const enemies = await combatEngine.hydrateMonsters([{ code: hunt.monster_code, level: mythic.cloneLevel(def, level) }]);
     if (!enemies.length) return res.status(500).json({ error: 'No se pudo cargar al jefe mítico' });
     const sess = await combatEngine.createCombatSessionWithClaim(
       (client) => client.query('INSERT INTO combat_sessions (mythic_hunt_id) VALUES ($1) RETURNING *', [hunt.id]),
