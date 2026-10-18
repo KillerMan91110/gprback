@@ -1974,6 +1974,9 @@ router.get('/:playerId/craft/available', async (req, res, next) => {
         // los accesorios de jefe no tienen clase: la dice su pergamino (…_MAGO), así salen en esa pestaña
         className: recipe.required_class_name ?? SCROLL_CLASS_NAME[scrollClassOf(recipe)] ?? null,
         classCode: recipe.required_class_code ?? scrollClassOf(recipe),
+        // equipo de otra clase: se puede fabricar (para venderlo o regalarlo), pero tú no te lo puedes equipar
+        otherClass: recipe.result_item_type === 'EQUIPMENT' && !!(recipe.required_class_code ?? scrollClassOf(recipe))
+          && !heroClassCodes.has(recipe.required_class_code ?? scrollClassOf(recipe)),
         canCraft: canCraft && !locked,
         ingredients: ingredientStatus,
         // libro de recetas: "NUEVO" hasta que la abre (también las de set de jefe recién aprendidas);

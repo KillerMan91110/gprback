@@ -8,6 +8,10 @@ Este documento tiene **dos partes**:
   con la que se hicieron la Pradera, las Montañas y el Volcán. Las próximas zonas (Costas Muertas,
   Tundra Eterna, Catacumbas, Ruinas, Sylvaren…) se hacen **igual**.
 - **Parte B — El estado del Volcán Rojo (zona 3).** Qué está hecho, qué falta y cómo seguir.
+- **Parte C — Las mecánicas del juego, por dentro.** Cómo funciona de verdad el combate (fórmulas,
+  turnos, elementos, escudos, estados, la IA de los monstruos), el grupo, el botín, la economía, las
+  misiones con fases y los jefes míticos, con los números y los archivos reales. **Léela antes de
+  tocar el combate o el equilibrio.**
 
 > **⚠️ Antes de empezar: este documento puede estar atrasado.** El usuario sigue trabajando y no
 > siempre lo actualiza. **Si el código y este documento no coinciden, manda el código.** No
@@ -210,6 +214,16 @@ Para que la página `/editor` pinte los terrenos nuevos de la zona, hay que agre
 - `GROUND_NAME` y `terrainOfName`;
 - los `case` de `groundGid`.
 
+**Puentes con bordes automáticos (v7).** Los 4 puentes (madera `puente` sobre `agua`, piedra
+`puentep` sobre `canal`, colgante `colgante` sobre `abismo` y basalto `puentev` sobre `lava`) tienen
+16 piezas cada uno, `<puente>_<máscara>` (`puente_0…15`, `puente_piedra_0…15`, `colgante_0…15`,
+`puente_basalto_0…15`). En `groundGid` la máscara marca los lados por donde el puente **sigue** (todo
+lo que no es su líquido: otro puente o tierra); por los demás lados va la baranda. Así salen tramos
+rectos, curvas, cruces, puentes anchos y plataformas. Los viejos `_h` / `_v` siguen en el tileset (no
+se pueden mover los ids) y solo se usan si faltan los nuevos. Un puente ya pintado con la pieza vieja
+se actualiza al repintarlo con el pincel. Consejo de diseño: puentes de **2 casillas de ancho** en
+los ríos grandes y que **toquen tierra en las dos puntas**.
+
 ## A4. El arte (concepto y técnica)
 
 ### Estilo
@@ -239,6 +253,13 @@ Para que la página `/editor` pinte los terrenos nuevos de la zona, hay que agre
 - Cada tile lleva `colision` y `encima` en el JSON.
 - En los objetos de varias casillas (`nombre_fila_col`), la fila de arriba es `encima` y las de abajo chocan.
 - Copia el script a `D:/Sprites/mundo/crear_mundo.lua`, como se hizo con los anteriores.
+- Para regenerar sin pisar las hojas de caminar, corre el script con `dir=` apuntando a una carpeta
+  temporal y copia solo `tileset_pradera.aseprite` / `.json`; el PNG se exporta con
+  `aseprite -b tileset_pradera.aseprite --save-as tileset_pradera.png`. Revisa los puentes y bordes
+  nuevos **armando una escena de prueba** (un Lua que pega tiles según un mapa chico), no solo la hoja.
+- Versión actual: **v7, 956 tiles** (los 64 últimos son los puentes con bordes automáticos). Los
+  chunks viejos dicen `tilecount` menor en su tileset: no importa, Phaser calcula los tiles por el
+  tamaño de la imagen.
 
 ### Enemigos
 
@@ -279,7 +300,8 @@ Para que la página `/editor` pinte los terrenos nuevos de la zona, hay que agre
 
 - Multiplicadores: `hp`, `atk`, `def`, `magic_def`, `spd`.
 - Extras: `evasion`, `crit_chance`, `elemental_damage`.
-- `magic: true` si pega con magia.
+- `magic: true` si su fuerza es la magia (MAG alta, ATK baja). **Ojo:** su golpe básico igual es
+  físico; su daño mágico sale de sus hechizos (ver C2 y C5).
 - Ejemplos: un gólem lleva `{ hp: 1.15, def: 1.35, spd: 0.7 }`; un diablillo, `{ hp: 0.85, spd: 1.35, evasion: 5 }`.
 - Los perfiles de cada zona van en `PERFILES`, dentro de `scripts/equilibrio/generar.js`.
 
@@ -312,7 +334,15 @@ Copia `gen_volcan.js`. Por cada monstruo define:
 - `elem` y `res`: resistencias por elemento, en positivo y negativo. Tienen que tener sentido: el fuego resiste fuego y es débil al agua y al hielo;
 - `desc`: 1-2 frases con lore;
 - `drops`: `[ítem, %, mín, máx]`. **Su material propio al 30%**, un material secundario al 8-12% y a veces un huevo de mascota al 3%;
-- `skills`: `[código, % de uso]`.
+- `skills`: `[código, % de uso]`. **Todo monstruo lleva habilidades** (ninguno queda sin ellas) y su
+  efecto en el front (`BattleScene.js`, búsqueda por código de la habilidad). Reglas:
+  - **Un monstruo de magia (MAG > ATK) necesita al menos un hechizo de daño de un solo objetivo de
+    su elemento** (`ATAQUE`, `MAGICO`, `ENEMY`): Llamarada, Toque Gélido, Rezo Oscuro, Cadena de
+    Rayo, Piedrazo de Azufre… Sin eso, con el básico físico queda flojo (ver C5).
+  - Los hechizos de área (`ALL_ENEMIES`) pegan menos por objetivo (0.7-0.9 de MAG): sirven contra
+    grupos, no como hechizo principal.
+  - La `category` y el elemento deciden sus **inmunidades a estados** (C4): un elemental de fuego no
+    se quema, un gólem no sangra.
 
 Las filas de `monster_level_scalings` se calculan con `monsterRow`.
 
@@ -346,7 +376,7 @@ Sobre ese poder:
 
 - **El arma lleva TODO el daño.** El resto del equipo es supervivencia: defensa, vida, maná, regeneración.
 - **Cada arma pega más que la anterior a su nivel**: +7% las comunes, +8% las de mazmorra y +9% las de jefe. Se encadena con las armas finales de la zona anterior.
-- **El Mago pega lo mismo que el Guerrero** en cada escalón (crecimiento de MAG 7.6). El Sacerdote pega un poco menos y cura más.
+- **El Mago pega lo mismo que el Guerrero** en cada escalón (crecimiento de MAG 7.6), pero **con sus hechizos**: su golpe básico es físico y flojo (C2). El Sacerdote pega un poco menos y cura más.
 - **La mano izquierda define el estilo de juego**:
 
 | Pieza | Para quién | Qué da |
@@ -594,7 +624,11 @@ Así funciona hoy (`gprback/lib/recetas.js`, `routes/players.js` `/craft/availab
 - Los drops se guardan en `monster_drops` (`monster_id`, `item_id`, `drop_chance_percent`, `min_quantity`, `max_quantity`).
 - **Cada enemigo tira sus drops por separado** (2 lobos son 2 tiradas) y cada entrada de drop se tira independiente.
 - La probabilidad real es `drop_chance_percent × (1 + bono de drop %)`, con tope de 100.
-- Los **pergaminos de tu propia clase** salen al **doble** (`OWN_CLASS_SCROLL_MULT = 2`), así a cada uno le cae el suyo más seguido.
+- Los **pergaminos de tu propia clase** salen al **doble** (`OWN_CLASS_SCROLL_MULT = 2`), así a cada uno le cae el suyo más seguido. Cuenta la clase base de cualquiera de los héroes del combate.
+- **Jefes con set (minijefes y legendarios):** cada victoria tira **dos cosas por separado**, por cada clase:
+  - **una pieza al azar del set**: `PIECE_CHANCE` 22,5% si el set es legendario y 27,5% si es épico o raro; para tu clase el doble: **45% / 55%**. La pieza **te enseña a fabricarse solo a sí misma** (`lib/recetas.js`);
+  - **el pergamino del set**, que enseña **todas** las recetas del set de esa clase: 12,5% / 17,5% en `monster_drops`; para tu clase, **25% / 35%**.
+  - Las recetas de set de jefe piden **la mitad de materiales** que antes, para que fabricar las piezas que faltan sea razonable.
 
 **Valores de referencia de `drop_chance_percent`:**
 
@@ -628,6 +662,10 @@ Así funciona hoy (`gprback/lib/recetas.js`, `routes/players.js` `/craft/availab
 - [ ] el costo de cada receta, calculado con esos %, caiga en la tabla de esfuerzo.
 
 Un script de chequeo útil: recorrer todas las recetas de la zona y calcular sus combates esperados con `monster_drops` y `NODE_TYPES`.
+
+### Venta a los NPCs según la zona
+
+`items.sell_zone_mult` (la columna la crea `lib/npcSell.js` al arrancar): lo que se consigue en zonas altas vale más al venderlo a un NPC. Montañas ×1,5 y Volcán ×2,5; la Pradera ×1. **Zona nueva:** ponle su multiplicador a sus materiales y equipo (sube con la zona).
 
 ### Comidas
 
@@ -848,7 +886,24 @@ El mundo cambia con la historia, pero solo para quien la vivió. Dos jugadores p
 
 - `requiere: 'CODIGO_MISION'`: el NPC **no está hasta que completas esa misión**. Ejemplo: Dora y Kili están perdidos en las minas hasta que los rescatas.
 - `oculto_tras: 'CODIGO_MISION'`: el NPC **se va cuando la completas**. Ejemplo: Ren y Tilo se van de la Aldea al terminar «Hacia las montañas».
+- **`fase`: la forma completa** (`src/game/story.js`, `enFase`). Varias condiciones separadas por coma se cumplen todas:
+
+| Expresión | Se cumple si… |
+|---|---|
+| `CODE` | completaste la misión |
+| `!CODE` | no la completaste (puedes tenerla en curso) |
+| `CODE@no` | ni la empezaste ni la completaste |
+| `CODE@activa` | la tienes en curso (cualquier paso) |
+| `CODE@2` / `CODE@2+` / `CODE@2-` | la tienes en curso y vas en el paso 2 / en el 2 o más / en el 2 o menos |
+| `CODE@lista` | la tienes en curso con todo cumplido (falta entregarla) |
+| `CODE@empezada` | la tienes en curso o ya la completaste |
+| `!…` | lo contrario de cualquiera (`!CODE@2`: Ren no está en su puesto mientras lo escoltas) |
+
+  Ejemplo real: Gaspar aparece en el Volcán con `VOLCAN_HISTORIA_01_PASO@empezada`.
 - Mientras no se sabe qué misiones hizo el jugador, los NPCs con condición no se muestran.
+- **Un NPC no puede estar en dos lugares.** Si la historia lo lleva a otra zona, alguien lo reemplaza en su puesto: Lucio maneja la diligencia de Gaspar cuando Gaspar baja al Volcán.
+- **Escenario por fase** (`src/game/world/escena.js`): un punto `escena` del mapa dibuja un objeto (escombros que tapan un camino, un puente arreglado, un campamento) solo mientras se cumple su `fase`. Propiedades: `sprite` (`assets/mundo/escena/<sprite>.png`), `fase`, `ancho` / `alto`, `cuadros` (2 o más se anima), `solido` (bloquea el paso) y `encima`. En el editor es el tipo de punto «Escenario por fase».
+- **Diálogos:** `hecho(ctx, CODE)`, `enCurso` y `enFase(ctx.story, expr)` para que nadie agradezca ni comente algo que el jugador no hizo.
 
 **Reemplazos** (`STAND_INS` en `src/game/questGivers.js`):
 
@@ -870,7 +925,7 @@ Con `requiere` aparece en el lugar nuevo después de la misión que lo lleva ah�
 - un campamento enemigo que desaparece al vencer a su jefe;
 - la cría de dragón (Brasita) que aparece junto a Chispa al terminar «¡Crac!».
 
-Para esto, los **objetos del mapa** necesitan la misma condición `requiere` / `oculto_tras` que ya tienen los NPCs. Hoy solo la tienen los NPCs: está pendiente.
+Para esto están los puntos `escena` (arriba): objetos del mapa con su `fase`, igual que los NPCs.
 
 **Los NPCs no se tiran sueltos por el mapa.** Cada uno vive donde tiene sentido según su historia:
 
@@ -905,6 +960,9 @@ Tipos de objetivo:
 | `AMBUSH` | `monsters` |
 | `DEFEAT_BOSS` | jefe |
 | `VISIT` | lugar |
+| `ESCORT` | alguien te sigue hasta un lugar (`escort { sprite, name, lines }`) |
+
+**Escoltas** (`src/game/world/escolta.js`, objetivo `ESCORT` en `lib/questSteps.js`): el escoltado camina detrás del héroe por el mismo camino que hiciste (nunca atraviesa paredes), un poco más lento, y charla cada tanto. Si te alejas más de 9 casillas se queda quieto y te pide que lo esperes; a 4 vuelve a seguirte; si viajaste lejos (diligencia, vagoneta) viajó contigo. El paso solo se cumple si llegas con él a 3 casillas o menos. Mientras lo escoltas no está en su puesto (`fase: '!CODE@N'`). Escoltas hechas: Ren, Tilo y Trueno.
 
 - Los puntos se corren solos a la casilla libre más cercana (`freeNear`, usando `mapa_<zona>.js`).
 - Los **ítems de misión** van en `QUEST_ITEMS`, con descripción con lore.
@@ -917,6 +975,7 @@ Tipos de objetivo:
   - la última es el jefe legendario y llevar el Fragmento a Elenya.
 - **Unas 16 secundarias**, en cadenas de 2 a 4: rivalidades (Brokk contra Ignar), amistad, ternura (el huevo de dragón), humor (Trueno) y recolección/fabricación.
 - **3 diarias nuevas**, más las diarias viejas de esa zona reasignadas a sus NPCs.
+- **Ritmo de las secundarias (lo pidió el usuario):** pueden ser varias en total, pero el jugador **nunca tiene más de 3 abiertas a la vez**. Cada secundaria pide una misión de la historia (`requires_quest_id`) y cada principal abre **como mucho 2 secundarias nuevas**. 20 o 30 misiones abiertas es demasiado.
 
 ### Las marcas sobre los NPCs (`!` y `?`)
 
@@ -1067,7 +1126,7 @@ Resumen rápido:
 |---|---|---|
 | 1 | Bestiario, amuletos y cartas | casi solo (revisar la categoría de los monstruos) |
 | 2 | Mascotas y huevos | hay que poner huevos en los drops; idealmente, mascotas nuevas |
-| 3 | Jefe mítico | sí: Ignivora, la Madre Salamandra (ver B3) |
+| 3 | Jefe mítico | **sí**: una entrada en `MITICOS` (hay uno por zona: Aullaluna, Truenocuerno, Ignivora) |
 | 4 | Eventos del calendario | no hace falta, salvo que la zona tenga uno propio |
 | 5 | Encantamiento | solo (las piedras salen de desmantelar y de recompensas) |
 | 6 | Reputación y rangos | solo (las misiones dan `rep`) |
@@ -1174,21 +1233,16 @@ Resumen rápido:
 
 Su sprite tiene `rank: 'mitico'` en `enemigos.json`.
 
-**⚠️ Hoy solo existe en la Pradera** (`MITICOS[1]`: Aullaluna, el Lobo Espectral). Las Montañas y el Volcán no tienen.
+**Hay uno por zona** en `MITICOS[zoneId]`: Aullaluna (Pradera), Truenocuerno, el Carnero de la Tormenta (Montañas, esbirro Cabra Tronadora, 15.000 de vida) e Ignivora, la Madre Salamandra (Volcán, esbirro Cría de Ignivora, 25.000 de vida). **Solo uno ronda Etheria a la vez**; cada zona lleva su propia cuenta. Los monstruos los crea `ensureTables` al arrancar (no hay SQL). El detalle de los intentos en grupo, el nivel del clon, la vida que escala y el ataque anunciado está en **C9**.
 
 **En una zona nueva:** agrega una entrada en `MITICOS[zoneId]` con:
 
-- `code` (`MITICO_*`), `name`, `killsNeeded`, `maxHp` (escalado al nivel de la zona), `minLevel`;
-- `spots` (casillas de la zona) y `rumors`;
-- su monstruo y su esbirro con `monsterRow(…, 'LEGENDARY', perfil)`;
-- su sprite de 64x64 y su carta.
-
-Ideas:
-
-- **Montañas:** «Thrym, el Coloso de Escarcha».
-- **Volcán:** «Ignivora, la Madre Salamandra». Aparece en una noche de lluvia de brasas y sus esbirros son salamandras.
-
-Revisar que el código no suponga una sola zona (algunas constantes, como `MINION`, son únicas hoy). Habría que llevarlas dentro de cada entrada de `MITICOS`.
+- `code` (`MITICO_*`), `name`, `killsNeeded`, `maxHp` (escalado al nivel de la zona), `minLevel` (recomendado: solo se muestra);
+- `spots` (casillas de la zona), `rumors` y los textos de sus fases;
+- `goldMul` / `xpMul` del botín (lo que valen los monstruos de su zona comparado con la Pradera);
+- su monstruo y su esbirro (con su curva de niveles) y sus `skills`;
+- `telegraph`: los textos de su ataque anunciado (`charge`, `hit`, `guard`);
+- su sprite de 64x64 (`crear_miticos.lua`), su carta, y sus colores y textos en el front (`game/world/mythic.js` → `THEMES`, `MythicHunt.js` → `PHASES`).
 
 ### 4. Eventos del calendario
 
@@ -1509,6 +1563,157 @@ El Volcán ya está corregido: zona 3 con `dir: 'volcan'`, al sur de las Montañ
 
 ---
 
+# PARTE C — Las mecánicas del juego, por dentro
+
+Referencia de cómo funciona de verdad cada sistema del mundo 2D, con los números del código. Si
+cambias algo de esto, **mide antes y después** (ver C12) y actualiza esta parte.
+
+## C1. Las estadísticas de un héroe
+
+- **Base por clase y nivel:** `classes` (base) + `class_growths` (por nivel), sumados en `lib/leveling.js` (`computeStatsAtLevel`). Ejemplos por nivel: Guerrero ATK +8, DEF +6, vida +22; Mago MAG +7,6, ATK +1,5, defensa mágica +6.
+- **En combate** (`routes/combat.js`, `hydratePlayers`): base × (1 + % de pasivas de clase de toda su cadena de evolución) + equipo (`lib/equipment.js`, con encantamiento +5% por nivel y la calidad) + mascota + comida activa (`lib/comida.js`) + cartas.
+- **Crítico:** `crit` del personaje + pasivas + equipo + suerte × 0,5 + mascota. El daño crítico parte de `classes.base_crit_damage` (50%).
+- **Evasión** de los héroes: 0 de base; solo la suben pasivas, equipo y mascotas.
+- **La vida** guarda el valor con el bono de equipo ya incluido (`applyHpBonusDelta`, al equipar o sacarse una pieza). El resto de las estadísticas se recalcula en cada lectura.
+
+## C2. El daño (`gprback/lib/combat.js`)
+
+**Golpe básico (`resolveAttack`) — FÍSICO PARA TODOS** (jugadores, compañeros contratados y monstruos):
+
+```
+daño = max(ATK × 1,2 × 0,35 ,  ATK × 1,2 − DEF_objetivo × 0,5)
+```
+
+- `DAMAGE_FLOOR = 0.35`: la defensa resta, pero el golpe nunca baja del 35%.
+- El Mago y el Sacerdote también pegan su básico con ATK (pegan poco con él). Su daño sale de los hechizos. Lo pidió el usuario: «si pega básicos es físico; cuando usa magia, usa MAG».
+- El básico **devuelve el 8% del maná máximo** (`BASIC_ATTACK_MANA_PCT`) a jugadores y compañeros: así un mago sin maná pega 1 o 2 básicos y vuelve a sus hechizos. Además, el maná sube con `MANA_REGEN` del equipo (orbes) cada ronda.
+- La innata `basic_attack_extra_mag_percent` y el arma imbuida pueden sumar MAG o elemento al básico de un héroe. Con el arma imbuida el elemento afecta **a todo** el golpe.
+
+**Golpe básico de un monstruo con elemento: daño mixto.** Al golpe físico se le suma una parte de su elemento:
+
+```
+parte_elemental = 0,3 × max(MAG × 1,2 × 0,35 ,  MAG × 1,2 − DEF_MAG_objetivo × 0,5) × (1 + bono elemental) × max(0, 1 − resistencia/100)
+```
+
+- `MONSTER_ELEMENT_SHARE = 0.3`. **Solo esa parte depende de la resistencia del objetivo**: si resiste 50%, entra la mitad; si es inmune (100%), nada; si es débil (resistencia negativa), entra con más daño. La parte física no cambia.
+- En el registro se lee: «Salamandra Roja ataca a X: 64 de daño + 56 de fuego» (`ELEMENT_WORD`).
+- El elemento del monstruo se guarda en `combat_participants.element_id` al armar el combate. **Antes no se guardaba** y el básico de los monstruos nunca llevaba elemento; también por eso el front ahora muestra el ícono de elemento de cada enemigo.
+
+**Habilidades (`resolveSkillHit`):**
+
+```
+poder = base_value + estadística × scaling_multiplier     (ATK, MAG, o HÍBRIDO = (ATK+MAG)/2)
+daño  = max(poder × 0,35 ,  poder − mitigación × 0,5)
+```
+
+- La mitigación sale de `damage_school`: `FISICO` → DEF, `MAGICO` → DEF MAG, `HIBRIDO` → el promedio.
+- Si la habilidad tiene elemento, se multiplica por (1 + bono elemental) × (1 − resistencia). Las habilidades `hits > 1` repiten el golpe.
+- Encima, en este orden: bono de daño mágico, bonos por categoría del monstruo, `damage_taken_bonus` (p. ej. roto), `damage_reduction` (cartas de Aguante), diferencia de nivel y crítico.
+
+**Diferencia de nivel** (`levelGapMultiplier`): si el monstruo te pasa por más de 2 niveles (`LEVEL_GAP_FREE`), cada nivel de más es un 10% (`LEVEL_GAP_STEP`): tú le haces −10% y él te hace +10%, con tope de 7 pasos (le haces −70%, te hace +70%). Ir por debajo no da bonus.
+
+**Defender:** el próximo golpe que recibes se reduce a la mitad (y un extra si tienes `defend_bonus_reduction`); se consume con ese golpe.
+
+**Evasión:** `evasion` del objetivo + `blind_miss` (ceguera) del que ataca = % de fallar.
+
+## C3. Turnos
+
+- Cada ronda empieza el lado con **mayor velocidad media** (de los vivos). Después los turnos **se alternan** entre lados: actúa el más rápido de los que faltan del lado que toca.
+- Máximo **3 por lado** (`COMBAT_SIDE_MAX`): 3 jugadores, 1 jugador y 2 compañeros contratados, o 2 jugadores y 1 compañero.
+- En grupo, si un compañero no actúa en 30 s (`IDLE_TURN_MS`) se le puede saltar el turno (se defiende).
+
+## C4. Escudos (romper), furia, estados e inmunidades
+
+**Escudo y rotura** (estilo Octopath, `routes/combat.js`):
+
+- Cada monstruo tiene escudo según su rareza (`SHIELD_BY_RARITY`): común 3, raro 4, minijefe 5, legendario 7.
+- Cada golpe de un jugador le quita: **0 si resiste ese elemento, 1 si es neutro, 2 si es su debilidad** (las habilidades de varios golpes quitan por golpe).
+- En 0 queda **ROTO**: pierde su turno en esa ronda y la siguiente y recibe **+50% de daño**; después se le restaura el escudo.
+- **Furia:** los minijefes y legendarios, una vez, al bajar de la mitad de la vida: +30% de ataque.
+
+**Estados** (quemadura, sangrado, veneno, parálisis, lentitud, ceguera…) salen de `skill_effects` (`DOT`, `PARALYZE`, `BLIND`, `STAT_MOD`) con su probabilidad y duración. El daño por turno de una habilidad de estado es quemadura si es de fuego y veneno si no.
+
+**Inmunidades con lógica** (`immuneToStatus`):
+
+| Estado | No lo sufren |
+|---|---|
+| Sangrado, veneno | categorías ELEMENTAL, ESPECTRO, MUERTO_VIVIENTE (gólems, espectros, no muertos) |
+| Quemadura | los de elemento fuego, o con 40% o más de resistencia al fuego |
+| Parálisis | los de rayo (o 40%+ de resistencia al rayo) |
+| Lentitud | los de hielo (o 40%+ de resistencia al hielo) |
+
+El registro dice «X es inmune a la quemadura».
+
+**Afinidades por descubrir** (`lib/afinidades.js`, tabla `player_known_affinities`, la crea el back al arrancar): las debilidades y resistencias de cada **tipo** de monstruo se descubren golpeándolo con ese elemento y quedan sabidas para siempre (también lo neutro). Completar su entrada del Bestiario lo revela todo. En grupo se ve lo que sepa cualquiera. En el front, lo que no sabes se ve como «?» junto al enemigo.
+
+## C5. La IA de los monstruos
+
+En su turno (`routes/combat.js`, «IA de skills de monstruo»):
+
+1. Ordena sus habilidades por prioridad según la situación: curarse si está por debajo del 25%, revivir a un aliado caído, debuffs en las 3 primeras rondas, área si hay 2 o más héroes, buffs en las 2 primeras, ataques y el resto.
+2. Recorre esa lista: cada habilidad necesita maná (`mana_cost`; los monstruos tienen nivel × 10 de maná) y pasar su tirada de `use_chance_percent`. La primera que pasa, la usa.
+3. Si ninguna pasa, **golpe básico** (físico, con su parte elemental si tiene elemento).
+
+**Monstruos de magia (MAG > ATK)** — `monsterForcedSkill` en `lib/combat.js`: como su básico es físico y flojo, **lanzan sus hechizos en el 75% de sus turnos** (`CASTER_CAST_RATE`). Si con sus probabilidades normales lanzarían menos, un sorteo previo elige un hechizo (de daño de un solo objetivo si tiene; si no, mágico de área) para completar ese 75%. Los que ya lanzaban más (los jefes) quedan igual. Si se quedan sin maná, pegan el básico.
+
+**Ataques especiales de jefes:** los de mazmorra tienen su `bossTurn` (`lib/mazmorras.js`: escudo que cambia de debilidad, rayo marcado que se esquiva defendiéndose). Los míticos tienen el ataque anunciado (C9).
+
+## C6. Combate en grupo en el mundo
+
+- **Quién entra** (`worldGroupPartners`): los de tu grupo (`player_coop_groups`) que estén en tu zona, a menos de unas 3 casillas (`WORLD_GROUP_PX`), sin otro combate y sin estar mirando el de otro. Como mucho 2.
+- Los que no entran reciben un aviso (`coop:battle-missed`, `why`): `lejos`, `observando`, `ocupado`, y en el mítico también `lleno` y `aliento`. Los textos están en `WorldSocial.js` (`onMissed`).
+- Los que entran reciben `coop:battle` y se meten al combate al instante.
+- **Experiencia en grupo:** +10% por cada otro jugador del grupo (`GROUP_XP_BONUS`): con 3 jugadores, cada uno gana un 20% más. Así jugar en grupo no castiga.
+- **Mirar un combate:** se puede observar el de otro (estado `observando`); el espectador es intangible.
+
+## C7. El botín
+
+- `rollMonsterDrops`: cada enemigo tira cada uno de sus drops por separado (2 lobos son 2 tiradas). Probabilidad real = `drop_chance_percent` × (1 + bono de botín %), tope 100. Valores de referencia y pergaminos y piezas de set de jefe: ver A6 («Dónde se consigue cada cosa»).
+- **Cartas, huevos, bestiario:** A12.1 y A12.2.
+- **Venta a NPCs:** precio según rareza y `buy_price`, con tope, × `sell_zone_mult` de su zona (A6).
+
+## C8. Misiones con fases
+
+- Qué ve cada jugador depende de **su** historia: NPCs, objetos del mapa (`escena`) y líneas de diálogo, con las expresiones de `story.js` (A8).
+- Escoltas (A9), marcas `!` rojo / amarillo / gris y `?` verde (A9), ritmo de secundarias: máximo 3 abiertas (A9).
+- El rastreador y las flechas saben de dónde sale cada objeto y marcan el lugar (A12.12).
+
+## C9. Jefes míticos: intentos, nivel, vida y ataque anunciado
+
+Lo general (cuándo aparece, fases, esbirros, botín por aporte) está en A12.3. Lo que se agregó después:
+
+- **Nivel del clon** (`cloneLevel`): el de quien pelea, pero nunca por debajo del recomendado de la zona ni por encima de su máximo. El servidor decide el nivel del jefe y de sus esbirros (el front no lo manda).
+- **Intento en grupo** (`POST /coleccion/mitico/enter` en `routes/coleccion.js`, el front manda `worldGroup: true`):
+  1. Entran primero tú y **todos** tus compañeros contratados.
+  2. En los lugares que sobren (máximo 3 por lado) entran los jugadores de tu grupo que estén cerca. Si tu formación ya está completa, no entran: reciben el aviso `lleno` y pueden hacer su propio intento.
+  3. Cada uno respeta su espera de 30 s entre intentos (si no, aviso `aliento`).
+  4. El clon sale al **nivel más alto** de los que entran. El aporte de cada uno se cuenta por su daño.
+- **Vida que escala con los cazadores** (`joinHunters` en `lib/mythic.js`): con 3 cazadores o menos tiene su vida base; cada cazador nuevo que lo ataca por primera vez le suma un 30% de la base (`HP_PER_HUNTER`), también a la que le queda, hasta 6 veces la base (`HP_CAP_MULT`). Así dura parecido con 3 o con 30 jugadores. Ejemplo: Ignivora con 5 cazadores pasa de 25.000 a 40.000.
+- **Ataque anunciado** (`bossTurn` en `lib/mythic.js`, como el faro del Vigía pero a todo el grupo): cada 3 turnos el mítico anuncia su gran golpe («¡Defiéndete en tu próximo turno!»). Los héroes tienen un turno para Defender; en su siguiente turno pega el **35% de la vida máxima** a quien no se cubrió y el **8%** a quien sí. Se guarda en `combat_participant_buffs` del jefe (`MYTH_N`, `MYTH_CHARGE`). Cada mítico tiene sus textos (`telegraph`).
+
+## C10. El Taller
+
+- Las recetas se ordenan **nuevas arriba** y después **por nivel ascendente**.
+- «¿Dónde?» en cada material que falta (`lib/fuentes.js`): monstruos que lo sueltan con su %, recursos del mapa, si se fabrica y si se compra; no nombra zonas que el jugador no abrió.
+- Las recetas de set de jefe muestran su pieza y su pergamino.
+
+## C11. El mapa y el editor
+
+- Puentes con bordes automáticos (A3), escenario por fase (`escena`, A8), recursos del editor que se guardan en `gprback/lib/worldNodes.zonas.json` (por eso al guardar en el editor cambia un archivo del back).
+- El editor guarda la zona entera desde la memoria del navegador (`setupProxy.js`, `POST /__editor/guardar/:dir`): **no edites chunks a mano mientras el usuario tiene el editor abierto**, o su próximo guardado los pisa.
+
+## C12. Cómo se mide un cambio de combate o de equilibrio
+
+No alcanza con mirar la fórmula: hay que simular con personajes y monstruos reales.
+
+- **Héroes temporales:** clones de Brisa (player 11) con `INSERT … SELECT` de todas sus columnas, nivel y estadísticas de `computeStatsAtLevel`, y el equipo del tramo en `player_equipment`. Se arman con `hydratePlayers` para que cuenten pasivas, equipo y mascota. **Se borran al final.**
+- **Monstruos:** `hydrateMonsters([{ code, level }])` al nivel medio de su zona.
+- **Repetir la IA** (prioridades, `use_chance_percent`, maná, `monsterForcedSkill`) y llamar a `resolveAttack` / `resolveSkill` miles de veces. Comparar el daño medio por turno **antes y después**, por monstruo y por zona.
+- Modelos en `gpr/_respaldo_claude/`: `test_mago_guerrero.js` (golpe básico por clase), `test_golpe_monstruos.js` + `ver_golpe.js` (daño de cada monstruo de las 3 zonas, antes y después), `test_combate_elemental.js` (un combate real contra el back temporal 5098, leyendo el registro).
+- **Objetivo al cambiar reglas:** que el total por zona no se mueva más de un ±10% salvo que se busque. Con el golpe físico para todos quedó Pradera +3/+7%, Montañas +2/+3%, Volcán +5/+7%.
+
+---
+
 # PARTE B — Estado del Volcán Rojo (zona 3, nivel 31-45)
 
 **Historia de la zona:** *"El fuego que forja cadenas"*.
@@ -1597,7 +1802,7 @@ Están en **`D:\vscode\gpr\_respaldo_claude\volcan\`** (sin seguimiento de git).
 
 ### Front
 
-- **Tileset compartido v6:** 892 tiles; los 668 viejos quedaron idénticos.
+- **Tileset compartido v6:** 892 tiles; los 668 viejos quedaron idénticos. **v7** (después): 956 tiles, con los 64 puentes con bordes automáticos (A3).
 - **Recursos:** `recursos5.png`.
 - **Mapa del Volcán:** `generar_volcan.js` → `public/assets/mundo/volcan/`. Tiene los 17 arcos de basalto que sirven de refugio, el puesto de Marga en la plaza y `musica: 'volcan'`. Está en `etheria.json` en (160, 210).
 - **Paso del Humo** abierto en los chunks de las Montañas.
@@ -1635,7 +1840,8 @@ Están en **`D:\vscode\gpr\_respaldo_claude\volcan\`** (sin seguimiento de git).
 3. **Pilar menor y Estatua del Viajero en Ascuaria** (A12.14).
 4. ~~**Tienda propia de Ascuaria**~~ **Hecho:** Marga es la artesana `MERCADER_ASCUARIA` (especialidad `FUEGO`, `zone_id` 3) con 7 productos del volcán. Los artesanos con `zone_id` solo aparecen (primero) y solo venden cuando estás en su zona (`/artisan-shop`). SQL al final de `schema.sql` y de `pendiente_supabase.sql`.
 5. ~~En el Taller, mostrar de dónde sale un material que te falta~~ **Hecho:** botón «¿Dónde?» en cada material que falta (`MaterialSources.js` → `GET /craft/fuentes/:itemId` → `lib/fuentes.js`).
-6. **Objetos del mapa con `requiere` / `oculto_tras`**, como los NPCs (A8, phasing).
+6. ~~**Objetos del mapa con `requiere` / `oculto_tras`**~~ **Hecho:** puntos `escena` con su `fase` (A8).
+8. **Zona 4 (Costas Muertas)**, una etiqueta en el Taller para recetas de otra clase y limpieza de datos viejos sin uso: propuestas que el usuario todavía no eligió.
 7. ~~Colores de equipo propios para la Obsidiana y la Forja Negra.~~ **Hecho:** sets `obsidiana`
    (vidrio negro con reflejo violeta) y `forja_negra` (hierro ennegrecido con vetas al rojo) al final
    de `crear_equipo.lua` y de `SETS`, con su sufijo en `SET_BY_CODE`. **Esto se hace con cada tier
@@ -1675,4 +1881,10 @@ Lo que le queda para probar en el juego:
 
 - Primera parte del Volcán: front `de56449`, back `0642b7b`.
 - Segunda parte (la Fisura, Marga, música, `!` rojo, atlas, misiones regeneradas y el SQL en `schema.sql`): front `2fc9088`, back `247ba7f`. **El usuario ya corrió el SQL del Volcán en Supabase.**
+- Después (todo en la parte C y en las secciones de la parte A que se actualizaron):
+  - misiones con fases, escoltas, míticos por zona, Taller ordenado y equilibrio de las 3 zonas: front `76c6cb5`, back `37fe299`;
+  - habilidades de todos los monstruos, inmunidades, afinidades por descubrir y ataque anunciado de los míticos: front `b17d190`, back `d933847`;
+  - míticos en grupo y vida que escala: front `7ac8cd0`, back `9fc2e33`;
+  - puentes con bordes automáticos: front `7e88fd3`; sitios de recolección del editor: back `353a120`;
+  - golpe básico físico para todos, golpe mixto de los monstruos con elemento y monstruos de magia que lanzan más (con 9 hechizos nuevos): back `b3b4557`. **SQL para Supabase:** el bloque «Golpe básico físico para todos» al final de `db/schema.sql` (líneas 14318 a 14340); preguntar al usuario si ya lo corrió.
 - Para ver qué se hizo después, revisa `git log` en los dos repos desde esos commits.
