@@ -80,6 +80,24 @@ const PERFILES = {
   CAPITAN_PIRATA: { atk: 1.15, def: 0.95, magic_def: 1.1, spd: 1.1 },
   ALMIRANTE_AHOGADO: { magic_def: 0.95 },
   BESTIA_PROFUNDIDADES: { magic: true },
+  // Tundra Eterna (zona 5, nivel 61-75). Como en las Costas, más vida cuanto más alta la subzona
+  FOCA_COLMILLO: { hp: 1.62, def: 1.1, magic_def: 0.9, spd: 0.85 },
+  JABALI_HELADO: { hp: 1.62, atk: 1.1, def: 1.15, magic_def: 0.85, spd: 0.95 },
+  LOBO_HIELO: { hp: 1.35, atk: 1.05, def: 0.9, spd: 1.35, evasion: 3 },
+  BUHO_NIVEO: { hp: 1.28, atk: 1.05, def: 0.8, spd: 1.45, evasion: 6 },
+  ESPIRITU_CONGELADO: { magic: true, hp: 1.38, def: 0.8, magic_def: 1.25, spd: 1.1, evasion: 4 },
+  ELEMENTAL_ESCARCHA: { magic: true, hp: 1.56, def: 1.1, magic_def: 1.3, spd: 0.9 },
+  CAZADOR_HIELO: { hp: 1.5, atk: 1.15, def: 1.0, magic_def: 0.9, spd: 1.1, crit_chance: 3 },
+  OSO_NIEVES: { hp: 1.74, atk: 1.2, def: 1.2, magic_def: 0.85, spd: 0.85 },
+  GIGANTE_NIEVE: { hp: 1.86, atk: 1.2, def: 1.25, magic_def: 0.9, spd: 0.7 },
+  CULTISTA_HELADO: { magic: true, hp: 1.49, def: 0.85, magic_def: 1.25 },
+  CABALLERO_ESCARCHA: { hp: 1.78, atk: 1.15, def: 1.35, magic_def: 1.0, spd: 0.85 },
+  SIERPE_GLACIAL: { magic: true, hp: 1.84, def: 1.0, magic_def: 1.15, spd: 1.05 },
+  MAMUT_LANUDO: { hp: 1.3, def: 1.3, spd: 0.75 },
+  LOBO_AURORA: { magic: true, hp: 1.1, spd: 1.3, evasion: 4 },
+  GUARDIAN_HIELO: { hp: 1.05, def: 1.25, magic_def: 1.1, spd: 0.85 },
+  REY_HIELO: { magic: true, magic_def: 1.1 },
+  BRUJA_CONGELADA: { magic: true, hp: 1.1, def: 0.85, magic_def: 1.2, spd: 1.1 },
 };
 
 const SIM_LEVELS = [1, 3, 5, 8, 10, 12, 14, 15];
@@ -180,6 +198,7 @@ async function simulate({ classes, gear, monsters }) {
   await simulateMina(classes);
   await simulateVolcan(classes);
   await simulateCostas(classes);
+  await simulateTundra(classes);
   // jefes y raros contra un grupo de 3 héroes promedio de su nivel
   console.log('\nRaros y jefes (nivel típico): vida / ataque / defensa');
   for (const m of monsters.filter((x) => x.rarity !== 'COMMON')) {
@@ -187,6 +206,64 @@ async function simulate({ classes, gear, monsters }) {
     const row = EQ.monsterRow(lv, m.rarity, PERFILES[m.code]);
     console.log(`${m.name} (${m.rarity}, nv ${lv}): ${row.hp} / ${Math.max(row.atk, row.magic_atk)} / ${row.def}`);
   }
+}
+
+// Tundra Eterna (zona 5, nivel 61-75): cada clase con el set de su tramo (de la Tundra _TUNDRA 61, Glaciar 66, armas
+// de la Reina 67, del Guardián _GUARDIAN 70, del Rey del Hielo _REY_HIELO 75) contra el peor común que vive a su nivel. Mientras un
+// set no exista todavía, usa el mejor que haya antes (al principio, el de la Bestia de las Profundidades).
+async function simulateTundra(classes) {
+  const DETALLE = process.argv.includes('--detalle');
+  const TIERS = ['PROFU', 'TUNDRA', 'GLACIAR', 'REINA', 'GUARDIAN', 'REY_HIELO'];
+  const rows = (await db.query(`SELECT i.id, i.code, i.class_id, i.slot, b.stat_code, b.amount
+    FROM items i JOIN item_stat_bonuses b ON b.item_id = i.id
+    WHERE i.item_type = 'EQUIPMENT' AND i.class_id <= 5 AND i.code ~ '_(${TIERS.join('|')})$'
+      AND i.code !~ '(WEAPON2H|OFFHAND_CRYSTAL|ACCESSORY)' AND i.required_level >= 60`)).rows;
+  const sets = {};
+  for (const r of rows) {
+    const set = r.code.match(new RegExp(`_(${TIERS.join('|')})$`))[1];
+    const g = ((sets[r.class_id] ??= {})[set] ??= { slots: {} });
+    (g.slots[r.slot] ??= {})[r.stat_code] = ((g.slots[r.slot] ?? {})[r.stat_code] || 0) + Number(r.amount);
+  }
+  const used = new Set();
+  const gearAt = (classId, lv) => {
+    const want = lv >= 75 ? 'REY_HIELO' : lv >= 70 ? 'GUARDIAN' : lv >= 66 ? 'GLACIAR' : lv >= 61 ? 'TUNDRA' : 'PROFU';
+    const has = (t) => sets[classId]?.[t];
+    const set = [...TIERS.slice(0, TIERS.indexOf(want) + 1)].reverse().find((t) => t !== 'REINA' && has(t)) ?? 'PROFU';
+    used.add(set);
+    const slots = { ...(sets[classId]?.[set]?.slots ?? {}) };
+    if (lv >= 67 && lv < 70 && has('REINA')) { slots.WEAPON = sets[classId].REINA.slots.WEAPON; used.add('REINA'); }
+    const e = {};
+    for (const st of Object.values(slots)) for (const [k, v] of Object.entries(st ?? {})) e[k] = (e[k] || 0) + v;
+    return e;
+  };
+  const mons = (await db.query(`SELECT code, min_spawn_level mn, max_spawn_level mx FROM monsters WHERE zone_id = 5 AND rarity = 'COMMON'`)).rows;
+  const lines = [];
+  const sk = EQ.skillTier(10);
+  for (const c of classes) {
+    const cells = [61, 63, 65, 66, 67, 69, 70, 72, 74, 75].map((lv) => {
+      const g = EQ.CLASS_GROWTH[c.code]; const k = lv - 1; const e = gearAt(c.id, lv);
+      const h = {
+        hp: Number(c.base_hp) + g.hp * k + (e.HP || 0), atk: Number(c.base_atk) + g.atk * k + (e.ATK || 0), mag: Number(c.base_mag) + g.mag * k + (e.MAG || 0),
+        def: Number(c.base_def) + g.def * k + (e.DEF || 0), magic_def: Number(c.base_magic_def) + g.magic_def * k + (e.MAGIC_DEF || 0),
+        crit: 10 + (PASSIVE_CRIT[c.code] || 0) + (e.CRIT_CHANCE || 0), critDmg: 50 + (e.CRIT_DAMAGE || 0),
+      };
+      const magic = EQ.MAIN_STAT[c.code] === 'mag';
+      let ttk = 0; let ttd = 99; let ttkRaw = 0;
+      for (const m of mons.filter((x) => x.mn <= lv && x.mx >= lv && PERFILES[x.code])) {
+        const row = EQ.monsterRow(lv, 'COMMON', PERFILES[m.code]);
+        const raw = sk.base + sk.mult * h[EQ.MAIN_STAT[c.code]];
+        const dmg = Math.max(raw * DAMAGE_FLOOR, raw - 0.5 * (magic ? row.magic_def : row.def)) * (1 + Math.min(100, h.crit) / 100 * h.critDmg / 100);
+        const mm = row.magic_atk > row.atk;
+        const rh = 1.2 * (mm ? row.magic_atk : row.atk);
+        const hit = Math.max(rh * DAMAGE_FLOOR, rh - 0.5 * (mm ? h.magic_def : h.def)) * (1 + row.crit_chance / 100 * 0.5);
+        ttk = Math.max(ttk, Math.ceil(row.hp / dmg)); ttkRaw = Math.max(ttkRaw, row.hp / dmg); ttd = Math.min(ttd, Math.ceil(h.hp / hit));
+      }
+      return `nv${lv} ${ttk}/${ttd}${DETALLE ? ` (${ttkRaw.toFixed(2)})` : ''}`;
+    });
+    lines.push(`  ${c.code.padEnd(10)} ${cells.join('  ')}`);
+  }
+  console.log(`\nTundra Eterna · turnos para matar / golpes que aguanta (peor común que vive a ese nivel). Meta: 4 → 5-6, nunca perder. Sets usados: ${[...used].join(', ')}`);
+  console.log(lines.join('\n'));
 }
 
 // Montañas Grises (zona 2, nivel 16-30) con el equipo de la base: llega con el set del Titán (o sin él,

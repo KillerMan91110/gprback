@@ -399,5 +399,95 @@
    "tipo": "cofre_costas",
    "sitios": 1
   }
+ },
+ "5": {
+  "restos_costa": {
+   "tipo": "restos_trineo",
+   "sitios": 2
+  },
+  "cofre_costa": {
+   "tipo": "cofre_tundra",
+   "sitios": 1
+  },
+  "restos_aldea": {
+   "tipo": "restos_trineo",
+   "sitios": 2
+  },
+  "flor_aldea": {
+   "tipo": "flor_escarcha",
+   "sitios": 2
+  },
+  "pino_bosque": {
+   "tipo": "pino_blanco",
+   "sitios": 6
+  },
+  "flor_bosque": {
+   "tipo": "flor_escarcha",
+   "sitios": 2
+  },
+  "cofre_bosque": {
+   "tipo": "cofre_tundra",
+   "sitios": 1
+  },
+  "flor_estepa": {
+   "tipo": "flor_escarcha",
+   "sitios": 6
+  },
+  "menhir_estepa": {
+   "tipo": "menhir_runas",
+   "sitios": 3
+  },
+  "pesca_lago": {
+   "tipo": "agujero_pesca",
+   "sitios": 4
+  },
+  "flor_lago": {
+   "tipo": "flor_escarcha",
+   "sitios": 2
+  },
+  "restos_cazadores": {
+   "tipo": "restos_trineo",
+   "sitios": 2
+  },
+  "pino_cazadores": {
+   "tipo": "pino_blanco",
+   "sitios": 2
+  },
+  "veta_torre": {
+   "tipo": "veta_hielo",
+   "sitios": 6
+  },
+  "cofre_torre": {
+   "tipo": "cofre_tundra",
+   "sitios": 1
+  },
+  "veta_grieta": {
+   "tipo": "veta_hielo",
+   "sitios": 6
+  },
+  "veta_valle": {
+   "tipo": "veta_hielo",
+   "sitios": 2
+  },
+  "restos_valle": {
+   "tipo": "restos_trineo",
+   "sitios": 1
+  },
+  "menhir_santuario": {
+   "tipo": "menhir_runas",
+   "sitios": 2
+  },
+  "menhir_cementerio": {
+   "tipo": "menhir_runas",
+   "sitios": 6
+  },
+  "cofre_cementerio": {
+   "tipo": "cofre_tundra",
+   "sitios": 1
+  },
+  "cofre_palacio": {
+   "tipo": "cofre_tundra",
+   "sitios": 1
+  }
  }
 }

@@ -53,18 +53,17 @@ Cada zona nueva mide como la Pradera: 4×4 trozos (160×120 casillas). Coordenad
 | Aurelia | capital | 20, 120 | 3×3 trozos | hecha |
 | Pradera Dorada | 1-15 | 0, 210 | 4×4 | hecha |
 | Montañas Grises | 16-30 | 160, 210 | 4×4 | hecha |
-| Volcán Rojo | 31-45 | 160, 330 | 4×4 | hecho (hoy en 160, 210 de `etheria.json`) |
+| Volcán Rojo | 31-45 | 160, 330 | 4×4 | hecho |
 | Bosque de Sylvaren | ciudad élfica (sin nivel) | 0, 330 | 4×4 | por hacer |
-| Costas Muertas | 46-60 | 160, 450 (hoy en 160, 330 de `etheria.json`) | 4×4, debajo del Volcán (el oeste de la costa queda libre) | en construcción (`zona4_costas.md`) |
-| Tundra Eterna | 61-75 | 320, 90 | 4×4 | por hacer |
+| Costas Muertas | 46-60 | 160, 450 | 4×4, debajo del Volcán (el oeste de la costa queda libre) | en construcción (`zona4_costas.md`) |
+| Tundra Eterna | 61-75 | 320, 90 | 4×4 | en construcción (`zona5_tundra.md`) |
 | Catacumbas del Abismo | 76-85 | bajo tierra (mapa aparte, como las mazmorras) | 4×4 | por hacer |
 | Ruinas Ancestrales | 86-100 | 160, 90 | 4×4 | por hacer |
 
-**Ojo con el cambio de coordenadas.** Hoy (`etheria.json`) Aurelia está en (20, 0), la Pradera en (0, 90), las
-Montañas en (160, 90) y el Volcán en (160, 210): todo 120 casillas más arriba que en la tabla. Para que la fila norte (Ruinas y Tundra) no quede en coordenadas negativas,
-cuando se agregue se corre **todo el continente 120 casillas hacia abajo** en `etheria.json`. Es
-seguro: cada zona guarda sus posiciones en coordenadas propias (`toLocal`/`toGlobal` de
-`WorldScene.js`), así que no se toca ningún mapa ni ninguna partida guardada.
+**Coordenadas.** Con la Tundra (zona 5) se corrió **todo el continente 120 casillas hacia abajo** en
+`etheria.json`, así que las coordenadas de la tabla ya son las de verdad. Fue seguro: cada zona guarda
+sus posiciones en coordenadas propias (`toLocal`/`toGlobal` de `WorldScene.js`), así que no se tocó
+ningún mapa ni ninguna partida guardada.
 
 ---
 

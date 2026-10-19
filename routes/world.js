@@ -13,7 +13,10 @@ const guildContracts = require('../lib/guildContracts');
 const { lejosDe } = require('../lib/cercania');
 const tormenta = require('../lib/tormenta');
 const brasas = require('../lib/brasas');
+const frio = require('../lib/frio');
+const trineos = require('../lib/trineos');
 const botes = require('../lib/botes');
+const barco = require('../lib/barco');
 const marea = require('../lib/marea');
 
 // Mundo 2D: recursos que se recolectan caminando (ver lib/worldNodes.js)
@@ -332,6 +335,15 @@ router.post('/bote', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
+// POST /world/barco { destino } — La Gaviota Insolente de Rhaegar: Puerto Antiguo ↔ Fiordo Blanco (lib/barco.js)
+router.post('/barco', async (req, res, next) => {
+  try {
+    const r = await barco.viajar(req.playerId, String(req.body?.destino ?? ''));
+    if (r.error) return res.status(r.status ?? 400).json({ error: r.error, ...(r.lejos ? { lejos: true } : {}) });
+    res.json(r);
+  } catch (err) { next(err); }
+});
+
 // GET /world/marea — cómo está la marea de las Costas (lib/marea.js), para sincronizar el reloj del front
 router.get('/marea', (req, res) => res.json({ ...marea.estado(), ahora: Date.now() }));
 
@@ -339,6 +351,24 @@ router.get('/marea', (req, res) => res.json({ ...marea.estado(), ahora: Date.now
 router.post('/brasa', async (req, res, next) => {
   try {
     const r = await brasas.brasa(req.playerId);
+    if (r.error) return res.status(r.status ?? 400).json({ error: r.error });
+    res.json(r);
+  } catch (err) { next(err); }
+});
+
+// POST /world/trineo { destino } — los trineos de Skadi: Fiordo Blanco, la Aldea y el Campamento (lib/trineos.js)
+router.post('/trineo', async (req, res, next) => {
+  try {
+    const r = await trineos.viajar(req.playerId, String(req.body?.destino ?? ''));
+    if (r.error) return res.status(r.status ?? 400).json({ error: r.error, ...(r.lejos ? { lejos: true } : {}) });
+    res.json(r);
+  } catch (err) { next(err); }
+});
+
+// POST /world/frio — entumecido por el frío de la Tundra: te quita un poco de vida (lib/frio.js)
+router.post('/frio', async (req, res, next) => {
+  try {
+    const r = await frio.golpe(req.playerId);
     if (r.error) return res.status(r.status ?? 400).json({ error: r.error });
     res.json(r);
   } catch (err) { next(err); }

@@ -1596,13 +1596,14 @@ async function startNewRound(sessionId, participants) {
 // drop_chance_percent (COMMON 30%, RARE 15%, MINIBOSS 8%, LEGENDARY 100% garantizado) y una
 // cantidad min/max. Se rolea independiente por CADA enemigo de la sesion (no por codigo unico),
 // asi que matar 2 Lobos de Pradera en la misma pelea son 2 tiradas separadas de su drop.
-// partyClasses: clases base de los héroes del combate (GUERRERO, MAGO…). Los pergaminos de receta
-// de esas clases (SCROLL_<SET>_<CLASE>) tienen el doble de probabilidad: así a cada uno le cae más
-// seguido el suyo, y los de otras clases siguen saliendo para comerciarlos.
+// Pergaminos de receta de un jefe (SCROLL_<SET>_<CLASE>, uno por clase): cada jefe vencido da COMO
+// MUCHO UNO. Se tira una sola vez con el % de monster_drops por OWN_CLASS_SCROLL_MULT (35% en los
+// minijefes, 25% en los legendarios) y, si sale, la clase se elige con peso: las clases de los héroes
+// del combate (partyClasses) pesan el doble, así a cada uno le cae más seguido el suyo y los de otras
+// clases siguen saliendo para comerciarlos.
 const OWN_CLASS_SCROLL_MULT = 2;
-// Piezas de set de jefe (rollMonsterDrops): % base por victoria según la rareza del set; tu clase
-// sale el doble (45% legendario, 55% épico o raro). El pergamino, que enseña todo el set, es más
-// raro: su % está en monster_drops (25% / 35% para tu clase).
+// Piezas de set de jefe: también COMO MUCHO UNA por jefe, en su propia tirada (55% épico o raro, 45%
+// legendario) y con el mismo peso por clase que el pergamino. La pieza enseña a fabricarse a sí misma.
 const PIECE_CHANCE = { LEGENDARIO: 22.5, OTRO: 27.5 };
 const pieceChanceOf = (rarity) => (rarity === 'LEGENDARIO' ? PIECE_CHANCE.LEGENDARIO : PIECE_CHANCE.OTRO);
 // bono de experiencia por cada otro jugador del grupo (ver el reparto en finalizeSession)
@@ -1625,17 +1626,17 @@ async function rollMonsterDrops(enemies, dropRateBonusPct = 0, partyClasses = []
      WHERE m.code = ANY($1::text[])`,
     [codes]
   );
-  // Agrupa drops por monstruo: monstruos normales tienen 1 entrada, bosses con scrolls
-  // de clase tienen 6 (1 compartido + 5 de clase). Cada entrada se testea INDEPENDIENTEMENTE.
+  // Agrupa drops por monstruo. Cada drop normal se tira aparte; los pergaminos de clase de un jefe
+  // (5 filas, una por clase) se tiran juntos: como mucho uno (ver OWN_CLASS_SCROLL_MULT).
   const dropsByCode = new Map();
   for (const row of dropsResult.rows) {
     if (!dropsByCode.has(row.monster_code)) dropsByCode.set(row.monster_code, []);
     dropsByCode.get(row.monster_code).push(row);
   }
 
-  // Piezas de set de jefe: además del pergamino (la receta del set), cada fila de pergamino tira
-  // aparte una pieza al azar de ese set y clase, con PIECE_CHANCE según la rareza del set (y el doble
-  // para tu clase, igual que el pergamino). La pieza enseña a fabricarse a sí misma (lib/recetas.js).
+  // Piezas de set de jefe: además del pergamino (la receta del set), una tirada aparte por una pieza al
+  // azar del set de una clase (elegida con el mismo peso que el pergamino). La pieza enseña a
+  // fabricarse a sí misma (lib/recetas.js).
   const scrollIds = [...new Set(dropsResult.rows.filter((d) => /^SCROLL_/.test(d.item_code)).map((d) => d.item_id))];
   const piecesOf = new Map();
   if (scrollIds.length) {
@@ -1650,24 +1651,41 @@ async function rollMonsterDrops(enemies, dropRateBonusPct = 0, partyClasses = []
     }
   }
 
+  const bonus = 1 + dropRateBonusPct / 100;
+  // una fila de pergamino al azar, con las clases del grupo pesando el doble
+  const pickScrollRow = (rows) => {
+    const weights = rows.map((r) => (ownScroll(r.item_code) ? OWN_CLASS_SCROLL_MULT : 1));
+    let roll = Math.random() * weights.reduce((a, b) => a + b, 0);
+    return rows.find((_, i) => (roll -= weights[i]) < 0) ?? rows[rows.length - 1];
+  };
   const dropped = [];
   for (const enemy of enemies) {
     const drops = dropsByCode.get(enemy.monster_code);
     if (!drops) continue;
+    const scrolls = drops.filter((d) => /^SCROLL_/.test(d.item_code));
     for (const drop of drops) {
-    const classMult = ownScroll(drop.item_code) ? OWN_CLASS_SCROLL_MULT : 1;
-    const effectiveChance = Math.min(100, Number(drop.drop_chance_percent) * classMult * (1 + dropRateBonusPct / 100));
-    // la pieza del set, en su propia tirada
-    const pieces = piecesOf.get(drop.item_id);
-    const pieceChance = Math.min(100, pieceChanceOf(drop.item_rarity) * classMult * (1 + dropRateBonusPct / 100));
-    if (pieces?.length && Math.random() * 100 < pieceChance) {
-      const piece = pieces[Math.floor(Math.random() * pieces.length)];
-      dropped.push({ itemId: piece.id, itemName: piece.name, quantity: 1 });
+      if (scrolls.includes(drop)) continue;
+      if (Math.random() * 100 >= Math.min(100, Number(drop.drop_chance_percent) * bonus)) continue;
+      const quantity = drop.min_quantity + Math.floor(Math.random() * (drop.max_quantity - drop.min_quantity + 1));
+      dropped.push({ itemId: drop.item_id, itemName: drop.item_name, quantity });
     }
-    if (Math.random() * 100 >= effectiveChance) continue;
-
-    const quantity = drop.min_quantity + Math.floor(Math.random() * (drop.max_quantity - drop.min_quantity + 1));
-    dropped.push({ itemId: drop.item_id, itemName: drop.item_name, quantity });
+    if (!scrolls.length) continue;
+    // como mucho un pergamino…
+    const scrollChance = Math.min(100, Math.max(...scrolls.map((d) => Number(d.drop_chance_percent))) * OWN_CLASS_SCROLL_MULT * bonus);
+    if (Math.random() * 100 < scrollChance) {
+      const drop = pickScrollRow(scrolls);
+      const quantity = drop.min_quantity + Math.floor(Math.random() * (drop.max_quantity - drop.min_quantity + 1));
+      dropped.push({ itemId: drop.item_id, itemName: drop.item_name, quantity });
+    }
+    // …y como mucho una pieza de su set, en su propia tirada
+    const withPieces = scrolls.filter((d) => piecesOf.get(d.item_id)?.length);
+    if (withPieces.length) {
+      const pieceChance = Math.min(100, pieceChanceOf(withPieces[0].item_rarity) * OWN_CLASS_SCROLL_MULT * bonus);
+      if (Math.random() * 100 < pieceChance) {
+        const pieces = piecesOf.get(pickScrollRow(withPieces).item_id);
+        const piece = pieces[Math.floor(Math.random() * pieces.length)];
+        dropped.push({ itemId: piece.id, itemName: piece.name, quantity: 1 });
+      }
     }
   }
   return dropped;

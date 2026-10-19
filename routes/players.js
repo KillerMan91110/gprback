@@ -8,6 +8,7 @@ const questProgress = require('../lib/questProgress');
 const achievements = require('../lib/achievements');
 const { getEquipmentBonuses, applyHpBonusDelta, getNpcEquipmentBonuses, getNpcEquipmentBonusesBatch, applyNpcHpBonusDelta, QUALITY_TIER_MULTIPLIER: EQUIP_QUALITY_MULT } = require('../lib/equipment');
 const { getClassPassiveBonuses } = require('../lib/passives');
+const eleccion = require('../lib/eleccion');
 const evolution = require('../lib/evolution');
 const { fetchQuestDetail } = require('./quests');
 const questSteps = require('../lib/questSteps');
@@ -1291,7 +1292,7 @@ router.get('/:playerId/quests/available', async (req, res, next) => {
     const player = playerResult.rows[0];
     const classChain = await evolution.getClassAncestorChain(player.evolution_class_id || player.current_class_id);
 
-    const [questsResult, unlockedZoneIds] = await Promise.all([
+    const [questsResult, unlockedZoneIds, yaElegidas] = await Promise.all([
       db.query(
         `SELECT q.id, q.code, q.name, q.quest_type, q.zone_id, mz.name AS zone_name,
                 q.min_level, q.max_level, q.min_rank_code, q.is_repeatable, q.repeat_cooldown_hours,
@@ -1311,6 +1312,7 @@ router.get('/:playerId/quests/available', async (req, res, next) => {
         [playerId]
       ),
       getUnlockedZoneIds(playerId, player.level),
+      eleccion.elegidas(playerId),
     ]);
 
     const dailiesToday = dailyPickIds(questsResult.rows.filter((q) => q.quest_type === 'DIARIA'
@@ -1325,6 +1327,8 @@ router.get('/:playerId/quests/available', async (req, res, next) => {
       if (q.required_class_id && !classChain.includes(q.required_class_id)) return false;
       if (q.min_rank_code && !rankAtLeast(player.rank, q.min_rank_code)) return false;
       if (!q.prerequisite_met) return false;
+      // elecciones de la historia: si ya elegiste la otra, esta no se ofrece (lib/eleccion.js)
+      if (eleccion.tapada(q.code, yaElegidas)) return false;
       // Ya completada: si NO es repetible, no vuelve a aparecer nunca mas (es de 1 sola vez).
       // Si es repetible, se oculta solo mientras dure el cooldown desde la ultima entrega.
       if (q.times_completed) {
@@ -1401,6 +1405,10 @@ router.post('/:playerId/quests/:questId/accept', async (req, res, next) => {
       if (!prereq.rows.length) {
         return res.status(400).json({ error: 'Todavía no completaste la misión previa requerida' });
       }
+    }
+
+    if (eleccion.tapada(quest.code, await eleccion.elegidas(playerId))) {
+      return res.status(400).json({ error: 'Ya elegiste el otro camino: esta decisión es para siempre.' });
     }
 
     const completionResult = await db.query(
@@ -3669,7 +3677,7 @@ router.post('/:playerId/enchant/npc/:npcId', requireAuth, async (req, res, next)
 
 
 // zona del mapa → id de zona (artisans.zone_id): los mercaderes con zona solo venden en su tierra
-const ZONE_ID_OF_DIR = { pradera: 1, montanas: 2, volcan: 3, costas: 4 };
+const ZONE_ID_OF_DIR = { pradera: 1, montanas: 2, volcan: 3, costas: 4, tundra: 5 };
 const playerZoneId = (playerId) => ZONE_ID_OF_DIR[positionOf(Number(playerId))?.zone] ?? null;
 
 // GET /api/player/:playerId/artisan-shop
