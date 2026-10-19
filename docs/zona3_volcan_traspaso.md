@@ -221,7 +221,7 @@ Para que la página `/editor` pinte los terrenos nuevos de la zona, hay que agre
 lo que no es su líquido: otro puente o tierra); por los demás lados va la baranda. Así salen tramos
 rectos, curvas, cruces, puentes anchos y plataformas. Los viejos `_h` / `_v` siguen en el tileset (no
 se pueden mover los ids) y solo se usan si faltan los nuevos. Un puente ya pintado con la pieza vieja
-se actualiza al repintarlo con el pincel. Consejo de diseño: puentes de **2 casillas de ancho** en
+se actualiza al repintarlo con el pincel, o con el script `gpr/_respaldo_claude/tmp_puentes/convertir_puentes.mjs` (usa una copia de `rules.js` como `rules.mjs`; sin `--escribir` solo cuenta). En las 4 zonas ya no queda ninguna pieza vieja (octubre de 2026). Consejo de diseño: puentes de **2 casillas de ancho** en
 los ríos grandes y que **toquen tierra en las dos puntas**.
 
 ## A4. El arte (concepto y técnica)
@@ -257,7 +257,9 @@ los ríos grandes y que **toquen tierra en las dos puntas**.
   temporal y copia solo `tileset_pradera.aseprite` / `.json`; el PNG se exporta con
   `aseprite -b tileset_pradera.aseprite --save-as tileset_pradera.png`. Revisa los puentes y bordes
   nuevos **armando una escena de prueba** (un Lua que pega tiles según un mapa chico), no solo la hoja.
-- Versión actual: **v7, 956 tiles** (los 64 últimos son los puentes con bordes automáticos). Los
+- Versión actual: **v8, 1217 tiles** (v7 sumó los 64 puentes con bordes automáticos; v8, la costa:
+  arena, arena negra, pasto de duna, coral, barro, agua baja, mar, bancos de marea, muelles y los
+  objetos del puerto, Coralia, el faro y los naufragios). Los
   chunks viejos dicen `tilecount` menor en su tileset: no importa, Phaser calcula los tiles por el
   tamaño de la imagen.
 
@@ -1696,6 +1698,7 @@ Lo general (cuándo aparece, fases, esbirros, botín por aporte) está en A12.3.
 - Las recetas se ordenan **nuevas arriba** y después **por nivel ascendente**.
 - «¿Dónde?» en cada material que falta (`lib/fuentes.js`): monstruos que lo sueltan con su %, recursos del mapa, si se fabrica y si se compra; no nombra zonas que el jugador no abrió.
 - Las recetas de set de jefe muestran su pieza y su pergamino.
+- **Equipo de otra clase:** se puede fabricar (para venderlo o regalarlo), pero el héroe no se lo puede equipar (`Ese item no es de tu clase`). La receta trae `otherClass` (`routes/players.js`, `/craft/available`: el equipo cuya clase no está en la cadena de evolución del héroe) y el Taller le pone una etiqueta azul con el nombre de la clase en la lista y, en el detalle, «Es para X: tú no te la puedes equipar (sirve para venderla o regalarla)».
 
 ## C11. El mapa y el editor
 
@@ -1710,7 +1713,8 @@ No alcanza con mirar la fórmula: hay que simular con personajes y monstruos rea
 - **Monstruos:** `hydrateMonsters([{ code, level }])` al nivel medio de su zona.
 - **Repetir la IA** (prioridades, `use_chance_percent`, maná, `monsterForcedSkill`) y llamar a `resolveAttack` / `resolveSkill` miles de veces. Comparar el daño medio por turno **antes y después**, por monstruo y por zona.
 - Modelos en `gpr/_respaldo_claude/`: `test_mago_guerrero.js` (golpe básico por clase), `test_golpe_monstruos.js` + `ver_golpe.js` (daño de cada monstruo de las 3 zonas, antes y después), `test_combate_elemental.js` (un combate real contra el back temporal 5098, leyendo el registro).
-- **Objetivo al cambiar reglas:** que el total por zona no se mueva más de un ±10% salvo que se busque. Con el golpe físico para todos quedó Pradera +3/+7%, Montañas +2/+3%, Volcán +5/+7%.
+- `test_golpe_mazmorras.js`: lo mismo para las 3 mazmorras y los 3 míticos con sus esbirros, comparando las reglas viejas (básico mágico si MAG > ATK, sin elemento) con las de ahora.
+- **Objetivo al cambiar reglas:** que el total por zona no se mueva más de un ±10% salvo que se busque. Con el golpe físico para todos quedó Pradera +3/+7%, Montañas +2/+3%, Volcán +5/+7% (Guerrero / Mago). Mazmorras: Cripta +0/+2%, Mina y Fisura +0%. Míticos: Aullaluna +0%, Truenocuerno +5/+4% e Ignivora +7/+5% (sus golpes básicos ahora llevan su parte de rayo o de fuego; se dejó así porque su vida es compartida).
 
 ---
 
@@ -1841,7 +1845,10 @@ Están en **`D:\vscode\gpr\_respaldo_claude\volcan\`** (sin seguimiento de git).
 4. ~~**Tienda propia de Ascuaria**~~ **Hecho:** Marga es la artesana `MERCADER_ASCUARIA` (especialidad `FUEGO`, `zone_id` 3) con 7 productos del volcán. Los artesanos con `zone_id` solo aparecen (primero) y solo venden cuando estás en su zona (`/artisan-shop`). SQL al final de `schema.sql` y de `pendiente_supabase.sql`.
 5. ~~En el Taller, mostrar de dónde sale un material que te falta~~ **Hecho:** botón «¿Dónde?» en cada material que falta (`MaterialSources.js` → `GET /craft/fuentes/:itemId` → `lib/fuentes.js`).
 6. ~~**Objetos del mapa con `requiere` / `oculto_tras`**~~ **Hecho:** puntos `escena` con su `fase` (A8).
-8. **Zona 4 (Costas Muertas)**, una etiqueta en el Taller para recetas de otra clase y limpieza de datos viejos sin uso: propuestas que el usuario todavía no eligió.
+8. ~~Etiqueta en el Taller para las recetas de otra clase~~ **Hecho** (C10).
+9. **Zona 4 (Costas Muertas, 46-60)** y limpieza de datos viejos sin uso (Guardianes, monstruos de zonas que no se usan en el mundo 2D): propuestas que el usuario todavía no eligió.
+10. **Huevos de mascota por zona** (pendiente de decisión del usuario). Hoy es un gacha puro: el huevo solo tiene rareza y sale cualquier mascota de esa rareza (55 mascotas: 15 comunes y 10 de cada otra rareza). Propuesta: que el huevo recuerde su zona y se vea distinto (Pradera, Montañas, Volcán), y que al eclosionar salga una mascota de esa zona el ~85% de las veces y de cualquier zona el resto. Haría falta darle zona a cada mascota y quizás crear algunas. La opción simple es cambiar solo el dibujo del huevo.
+11. **Pilar menor y Estatua del Viajero en Ascuaria**, sobre de cartas por zona y evoluciones conectadas con las zonas: propuestas.
 7. ~~Colores de equipo propios para la Obsidiana y la Forja Negra.~~ **Hecho:** sets `obsidiana`
    (vidrio negro con reflejo violeta) y `forja_negra` (hierro ennegrecido con vetas al rojo) al final
    de `crear_equipo.lua` y de `SETS`, con su sufijo en `SET_BY_CODE`. **Esto se hace con cada tier
@@ -1887,4 +1894,5 @@ Lo que le queda para probar en el juego:
   - míticos en grupo y vida que escala: front `7ac8cd0`, back `9fc2e33`;
   - puentes con bordes automáticos: front `7e88fd3`; sitios de recolección del editor: back `353a120`;
   - golpe básico físico para todos, golpe mixto de los monstruos con elemento y monstruos de magia que lanzan más (con 9 hechizos nuevos): back `b3b4557`. **SQL para Supabase:** el bloque «Golpe básico físico para todos» al final de `db/schema.sql` (líneas 14318 a 14340); preguntar al usuario si ya lo corrió.
+  - etiqueta del Taller para el equipo de otra clase y puentes viejos convertidos: front `ae9eae9`, back `9056374` (sin SQL).
 - Para ver qué se hizo después, revisa `git log` en los dos repos desde esos commits.

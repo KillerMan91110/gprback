@@ -13,6 +13,8 @@ const guildContracts = require('../lib/guildContracts');
 const { lejosDe } = require('../lib/cercania');
 const tormenta = require('../lib/tormenta');
 const brasas = require('../lib/brasas');
+const botes = require('../lib/botes');
+const marea = require('../lib/marea');
 
 // Mundo 2D: recursos que se recolectan caminando (ver lib/worldNodes.js)
 const router = express.Router({ mergeParams: true });
@@ -61,6 +63,10 @@ router.post('/nodes/:nodeId/gather', async (req, res, next) => {
     await ensureTable();
     const node = findNode(req.params.nodeId);
     if (!node) return res.status(404).json({ error: 'Ese recurso no existe' });
+    // las pozas de marea quedan bajo el agua con la marea alta (lib/marea.js)
+    if (marea.SOLO_BAJA.has(node.type) && !marea.bajaConGracia()) {
+      return res.status(409).json({ error: 'La marea está alta: la poza está bajo el agua. Vuelve cuando baje.' });
+    }
 
     // reclamo atómico: solo pasa si nunca se recolectó o si ya reapareció
     const claim = await db.query(
@@ -316,6 +322,18 @@ router.post('/balsa', async (req, res, next) => {
     res.json(r);
   } catch (err) { next(err); }
 });
+
+// POST /world/bote { destino } — los botes de Marul entre Coralia, la Cala y el Cementerio (lib/botes.js)
+router.post('/bote', async (req, res, next) => {
+  try {
+    const r = await botes.viajar(req.playerId, String(req.body?.destino ?? ''));
+    if (r.error) return res.status(r.status ?? 400).json({ error: r.error, ...(r.lejos ? { lejos: true } : {}) });
+    res.json(r);
+  } catch (err) { next(err); }
+});
+
+// GET /world/marea — cómo está la marea de las Costas (lib/marea.js), para sincronizar el reloj del front
+router.get('/marea', (req, res) => res.json({ ...marea.estado(), ahora: Date.now() }));
 
 // POST /world/brasa — te alcanzó una brasa del volcán (Ríos, Grieta y Caldera): te quita vida
 router.post('/brasa', async (req, res, next) => {

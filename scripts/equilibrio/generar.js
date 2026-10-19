@@ -62,6 +62,24 @@ const PERFILES = {
   DRAGON_MENOR_CORRUPTO: { magic: true, hp: 1.15, magic_def: 1.1, spd: 1.05 },
   SENOR_CALDERA: { magic: true, magic_def: 1.05 },
   TITAN_FUEGO: { magic: true },
+  // Costas Muertas (zona 4, nivel 46-60). Más vida cuanto más alta la subzona: la escalera de armas
+  // de la zona (+7-9% por escalón) les ganaba a los de nivel 54-60 en menos de 3 turnos
+  CANGREJO_GIGANTE: { hp: 1.26, def: 1.35, magic_def: 0.85, spd: 0.75 },
+  GAVIOTA_CARRONERA: { hp: 0.84, atk: 1.05, def: 0.8, spd: 1.45, evasion: 6 },
+  PIRATA_SIN_NOMBRE: { hp: 1.05, atk: 1.1, def: 0.95, magic_def: 0.9, spd: 1.05 },
+  CANGREJO_VAPOR: { magic: true, hp: 1.1, def: 1.2, spd: 0.85 },
+  PIRANA_AGUA: { hp: 0.84, atk: 1.1, def: 0.8, spd: 1.4, evasion: 5, crit_chance: 3 },
+  COCODRILO_MANGLAR: { hp: 1.3, atk: 1.15, def: 1.15, magic_def: 0.85, spd: 0.8 },
+  MEDUSA_ABISAL: { magic: true, hp: 0.94, def: 0.75, magic_def: 1.25, spd: 1.1, evasion: 4 },
+  SIRENA_CORRUPTA: { magic: true, hp: 1.0, def: 0.8, magic_def: 1.25, spd: 1.1 },
+  GOLEM_CORAL: { hp: 1.38, def: 1.45, magic_def: 1.05, spd: 0.7 },
+  MARINERO_MALDITO: { hp: 1.38, atk: 1.1, def: 1.05, magic_def: 0.9, spd: 0.85 },
+  ACOLITO_MAREA: { magic: true, hp: 1.1, def: 0.8, magic_def: 1.2 },
+  CALAMAR_ABISMO: { hp: 1.5, atk: 1.1, def: 0.95, spd: 1.05 },
+  LEVIATAN_MENOR: { magic: true, hp: 1.15, magic_def: 1.1 },
+  CAPITAN_PIRATA: { atk: 1.15, def: 0.95, magic_def: 1.1, spd: 1.1 },
+  ALMIRANTE_AHOGADO: { magic_def: 0.95 },
+  BESTIA_PROFUNDIDADES: { magic: true },
 };
 
 const SIM_LEVELS = [1, 3, 5, 8, 10, 12, 14, 15];
@@ -161,6 +179,7 @@ async function simulate({ classes, gear, monsters }) {
   await simulateMontanas(classes);
   await simulateMina(classes);
   await simulateVolcan(classes);
+  await simulateCostas(classes);
   // jefes y raros contra un grupo de 3 héroes promedio de su nivel
   console.log('\nRaros y jefes (nivel típico): vida / ataque / defensa');
   for (const m of monsters.filter((x) => x.rarity !== 'COMMON')) {
@@ -220,6 +239,65 @@ async function simulateVolcan(classes) {
     });
     console.log(`  ${c.code.padEnd(10)} ${cells.join('  ')}`);
   }
+}
+
+// Costas Muertas (zona 4, nivel 46-60): cada clase con el set de su tramo (Marea _COSTAS 46, Coral 51, armas del
+// Abismo 52, Almirante _OCEANO 55, Bestia _PROFU 60) contra el peor común que vive a su nivel. Mientras un set no
+// exista todavía, usa el mejor que haya antes (al final, el del Titán de Fuego).
+async function simulateCostas(classes) {
+  // con --detalle muestra también los turnos para matar sin redondear
+  const DETALLE = process.argv.includes('--detalle');
+  const TIERS = ['TITAN_F', 'COSTAS', 'CORAL', 'ABISMO', 'OCEANO', 'PROFU'];
+  const rows = (await db.query(`SELECT i.id, i.code, i.class_id, i.slot, b.stat_code, b.amount
+    FROM items i JOIN item_stat_bonuses b ON b.item_id = i.id
+    WHERE i.item_type = 'EQUIPMENT' AND i.class_id <= 5 AND i.code ~ '_(${TIERS.join('|')})$'
+      AND i.code !~ '(WEAPON2H|OFFHAND_CRYSTAL|ACCESSORY)'`)).rows;
+  const sets = {};
+  for (const r of rows) {
+    const set = r.code.match(new RegExp(`_(${TIERS.join('|')})$`))[1];
+    const g = ((sets[r.class_id] ??= {})[set] ??= { slots: {} });
+    (g.slots[r.slot] ??= {})[r.stat_code] = ((g.slots[r.slot] ?? {})[r.stat_code] || 0) + Number(r.amount);
+  }
+  const used = new Set();
+  const gearAt = (classId, lv) => {
+    const want = lv >= 60 ? 'PROFU' : lv >= 55 ? 'OCEANO' : lv >= 51 ? 'CORAL' : lv >= 46 ? 'COSTAS' : 'TITAN_F';
+    const has = (t) => sets[classId]?.[t];
+    const set = [...TIERS.slice(0, TIERS.indexOf(want) + 1)].reverse().find((t) => t !== 'ABISMO' && has(t)) ?? 'TITAN_F';
+    used.add(set);
+    const slots = { ...(sets[classId]?.[set]?.slots ?? {}) };
+    if (lv >= 52 && lv < 55 && has('ABISMO')) { slots.WEAPON = sets[classId].ABISMO.slots.WEAPON; used.add('ABISMO'); }
+    const e = {};
+    for (const st of Object.values(slots)) for (const [k, v] of Object.entries(st ?? {})) e[k] = (e[k] || 0) + v;
+    return e;
+  };
+  const mons = (await db.query(`SELECT code, min_spawn_level mn, max_spawn_level mx FROM monsters WHERE zone_id = 4 AND rarity = 'COMMON'`)).rows;
+  const lines = [];
+  const sk = EQ.skillTier(10);
+  for (const c of classes) {
+    const cells = [46, 48, 50, 51, 52, 54, 55, 57, 59, 60].map((lv) => {
+      const g = EQ.CLASS_GROWTH[c.code]; const k = lv - 1; const e = gearAt(c.id, lv);
+      const h = {
+        hp: Number(c.base_hp) + g.hp * k + (e.HP || 0), atk: Number(c.base_atk) + g.atk * k + (e.ATK || 0), mag: Number(c.base_mag) + g.mag * k + (e.MAG || 0),
+        def: Number(c.base_def) + g.def * k + (e.DEF || 0), magic_def: Number(c.base_magic_def) + g.magic_def * k + (e.MAGIC_DEF || 0),
+        crit: 10 + (PASSIVE_CRIT[c.code] || 0) + (e.CRIT_CHANCE || 0), critDmg: 50 + (e.CRIT_DAMAGE || 0),
+      };
+      const magic = EQ.MAIN_STAT[c.code] === 'mag';
+      let ttk = 0; let ttd = 99; let ttkRaw = 0;
+      for (const m of mons.filter((x) => x.mn <= lv && x.mx >= lv && PERFILES[x.code])) {
+        const row = EQ.monsterRow(lv, 'COMMON', PERFILES[m.code]);
+        const raw = sk.base + sk.mult * h[EQ.MAIN_STAT[c.code]];
+        const dmg = Math.max(raw * DAMAGE_FLOOR, raw - 0.5 * (magic ? row.magic_def : row.def)) * (1 + Math.min(100, h.crit) / 100 * h.critDmg / 100);
+        const mm = row.magic_atk > row.atk;
+        const rh = 1.2 * (mm ? row.magic_atk : row.atk);
+        const hit = Math.max(rh * DAMAGE_FLOOR, rh - 0.5 * (mm ? h.magic_def : h.def)) * (1 + row.crit_chance / 100 * 0.5);
+        ttk = Math.max(ttk, Math.ceil(row.hp / dmg)); ttkRaw = Math.max(ttkRaw, row.hp / dmg); ttd = Math.min(ttd, Math.ceil(h.hp / hit));
+      }
+      return `nv${lv} ${ttk}/${ttd}${DETALLE ? ` (${ttkRaw.toFixed(2)})` : ""}`;
+    });
+    lines.push(`  ${c.code.padEnd(10)} ${cells.join('  ')}`);
+  }
+  console.log(`\nCostas Muertas · turnos para matar / golpes que aguanta (peor común que vive a ese nivel). Meta: 4 → 5-6, nunca perder. Sets usados: ${[...used].join(', ')}`);
+  console.log(lines.join('\n'));
 }
 
 async function simulateMontanas(classes) {

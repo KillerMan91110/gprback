@@ -2010,7 +2010,14 @@ async function handleTowerSessionEnd(sessionId, status) {
 }
 
 async function finalizeSession(sessionId, status, participants) {
-  await db.query('UPDATE combat_sessions SET status = $1, updated_at = now() WHERE id = $2', [status, sessionId]);
+  // un combate se cierra una sola vez: si ya terminó, no se vuelve a repartir nada. Antes, consultar
+  // un combate ya ganado (GET /sessions/:id llama a advanceEnemyTurns, que ve a los enemigos muertos)
+  // volvía a dar la experiencia, el oro y el botín en cada consulta.
+  const closed = await db.query(
+    "UPDATE combat_sessions SET status = $1, updated_at = now() WHERE id = $2 AND status = 'IN_PROGRESS' RETURNING id",
+    [status, sessionId]
+  );
+  if (!closed.rows.length) return null;
   await db.query('DELETE FROM combat_participant_buffs WHERE session_id = $1', [sessionId]);
 
   // World Boss (500.000 HP) es un ENEMY_WON garantizado para un grupo normal -- eso es a
@@ -2280,6 +2287,9 @@ async function resolveAbandonedPlayerTurn(sessionId, round, actor, participants)
 // Auto-resuelve turnos de ENEMY y de jugadores abandonados (IA básica), y transiciones de
 // ronda hasta que sea turno de un PLAYER activo o termine la pelea. Devuelve { ended, status }.
 async function advanceEnemyTurns(sessionId) {
+  // un combate que ya terminó no se sigue jugando (p. ej. al consultarlo otra vez después de ganar)
+  const cur = await db.query('SELECT status FROM combat_sessions WHERE id = $1', [sessionId]);
+  if (cur.rows[0] && cur.rows[0].status !== 'IN_PROGRESS') return { ended: true, status: cur.rows[0].status };
   for (let safety = 0; safety < 200; safety += 1) {
     const participants = await loadParticipants(sessionId);
     await applyLiveInnateModifiers(participants, await getCombatZoneName(participants));

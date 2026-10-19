@@ -14338,3 +14338,3985 @@ FROM (VALUES
 JOIN monsters m ON m.code = v.mon
 JOIN skills s ON s.code = v.skill
 WHERE NOT EXISTS (SELECT 1 FROM monster_skills ms WHERE ms.monster_id = m.id AND ms.skill_id = s.id);
+
+-- ############################################################################################
+-- COSTAS MUERTAS (zona 4) · tanda 2: monstruos, materiales y habilidades
+-- (generado por gpr/_respaldo_claude/costas/gen_costas.js; docs/zona4_costas.md)
+-- ############################################################################################
+
+-- ============================================================================================
+-- Monstruos de las Costas Muertas (repetible; sin ON CONFLICT). Zona 4, nivel 46-60: 12 comunes
+-- (los 5 que ya existían renovados y 7 nuevos: Gaviota Carroñera, Cangrejo de Vapor, Cocodrilo del
+-- Manglar, Medusa Abisal, Gólem de Coral, Acólito de la Marea y Calamar del Abismo), 2 raros
+-- (Leviatán Menor y la Capitana Velanegra) y los 2 jefes (Almirante Ahogado y la Bestia de las
+-- Profundidades). Stats por fórmula (lib/equilibrio.js, perfiles en scripts/equilibrio/generar.js).
+-- Cada uno suelta su material propio y tiene sus habilidades con su estado. Además los materiales que
+-- dan los recursos del mapa. Diseño: docs/zona4_costas.md.
+-- ============================================================================================
+
+-- materiales de la zona
+INSERT INTO items (code, name, item_type, rarity, obtain_method, description)
+SELECT 'CAPARAZON_CANGREJO_GIGANTE', 'Caparazón de Cangrejo Gigante', 'MATERIAL', 'COMUN', 'Drop de monstruo', 'Placa de caparazón gris verdoso con percebes pegados. La sueltan los Cangrejos Gigantes de la Playa de Ceniza Negra.'
+WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'CAPARAZON_CANGREJO_GIGANTE');
+UPDATE items SET name = 'Caparazón de Cangrejo Gigante', item_type = 'MATERIAL', rarity = 'COMUN', obtain_method = 'Drop de monstruo', description = 'Placa de caparazón gris verdoso con percebes pegados. La sueltan los Cangrejos Gigantes de la Playa de Ceniza Negra.' WHERE code = 'CAPARAZON_CANGREJO_GIGANTE';
+INSERT INTO items (code, name, item_type, rarity, obtain_method, description)
+SELECT 'PLUMA_SALADA', 'Pluma Salada', 'MATERIAL', 'COMUN', 'Drop de monstruo', 'Pluma blanca y tiesa de sal. La sueltan las Gaviotas Carroñeras de la Playa y el Delta de Vapor.'
+WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'PLUMA_SALADA');
+UPDATE items SET name = 'Pluma Salada', item_type = 'MATERIAL', rarity = 'COMUN', obtain_method = 'Drop de monstruo', description = 'Pluma blanca y tiesa de sal. La sueltan las Gaviotas Carroñeras de la Playa y el Delta de Vapor.' WHERE code = 'PLUMA_SALADA';
+INSERT INTO items (code, name, item_type, rarity, obtain_method, description)
+SELECT 'PARCHE_PIRATA_SIN_NOMBRE', 'Parche de Pirata', 'MATERIAL', 'COMUN', 'Drop de monstruo', 'Parche de cuero con una calavera cosida a mano. Lo sueltan los Piratas Sin Nombre de la Cala y el Cementerio de Barcos.'
+WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'PARCHE_PIRATA_SIN_NOMBRE');
+UPDATE items SET name = 'Parche de Pirata', item_type = 'MATERIAL', rarity = 'COMUN', obtain_method = 'Drop de monstruo', description = 'Parche de cuero con una calavera cosida a mano. Lo sueltan los Piratas Sin Nombre de la Cala y el Cementerio de Barcos.' WHERE code = 'PARCHE_PIRATA_SIN_NOMBRE';
+INSERT INTO items (code, name, item_type, rarity, obtain_method, description)
+SELECT 'CAPARAZON_HERVIDO', 'Caparazón Hervido', 'MATERIAL', 'COMUN', 'Drop de monstruo', 'Caparazón rojo que sigue caliente y huele a sopa. Lo sueltan los Cangrejos de Vapor de las pozas del Delta.'
+WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'CAPARAZON_HERVIDO');
+UPDATE items SET name = 'Caparazón Hervido', item_type = 'MATERIAL', rarity = 'COMUN', obtain_method = 'Drop de monstruo', description = 'Caparazón rojo que sigue caliente y huele a sopa. Lo sueltan los Cangrejos de Vapor de las pozas del Delta.' WHERE code = 'CAPARAZON_HERVIDO';
+INSERT INTO items (code, name, item_type, rarity, obtain_method, description)
+SELECT 'DIENTE_DE_PIRANA', 'Diente de Piraña', 'MATERIAL', 'COMUN', 'Drop de monstruo', 'Diente triangular, filoso como una sierra. Lo sueltan las Pirañas de los canales del Manglar.'
+WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'DIENTE_DE_PIRANA');
+UPDATE items SET name = 'Diente de Piraña', item_type = 'MATERIAL', rarity = 'COMUN', obtain_method = 'Drop de monstruo', description = 'Diente triangular, filoso como una sierra. Lo sueltan las Pirañas de los canales del Manglar.' WHERE code = 'DIENTE_DE_PIRANA';
+INSERT INTO items (code, name, item_type, rarity, obtain_method, description)
+SELECT 'CUERO_COCODRILO', 'Cuero de Cocodrilo', 'MATERIAL', 'COMUN', 'Drop de monstruo', 'Cuero grueso con escamas como piedras. Lo sueltan los Cocodrilos de los barrizales del Manglar.'
+WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'CUERO_COCODRILO');
+UPDATE items SET name = 'Cuero de Cocodrilo', item_type = 'MATERIAL', rarity = 'COMUN', obtain_method = 'Drop de monstruo', description = 'Cuero grueso con escamas como piedras. Lo sueltan los Cocodrilos de los barrizales del Manglar.' WHERE code = 'CUERO_COCODRILO';
+INSERT INTO items (code, name, item_type, rarity, obtain_method, description)
+SELECT 'GEL_MEDUSA', 'Gel de Medusa', 'MATERIAL', 'COMUN', 'Drop de monstruo', 'Gelatina azul que da calambre si la aprietas. La sueltan las Medusas Abisales de las Rocas de las Sirenas y el Arrecife.'
+WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'GEL_MEDUSA');
+UPDATE items SET name = 'Gel de Medusa', item_type = 'MATERIAL', rarity = 'COMUN', obtain_method = 'Drop de monstruo', description = 'Gelatina azul que da calambre si la aprietas. La sueltan las Medusas Abisales de las Rocas de las Sirenas y el Arrecife.' WHERE code = 'GEL_MEDUSA';
+INSERT INTO items (code, name, item_type, rarity, obtain_method, description)
+SELECT 'ESCAMA_SIRENA_CORRUPTA', 'Escama de Sirena', 'MATERIAL', 'COMUN', 'Drop de monstruo', 'Escama verde con un brillo morado, como de aceite. La sueltan las Sirenas Corruptas de las Rocas de las Sirenas.'
+WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'ESCAMA_SIRENA_CORRUPTA');
+UPDATE items SET name = 'Escama de Sirena', item_type = 'MATERIAL', rarity = 'COMUN', obtain_method = 'Drop de monstruo', description = 'Escama verde con un brillo morado, como de aceite. La sueltan las Sirenas Corruptas de las Rocas de las Sirenas.' WHERE code = 'ESCAMA_SIRENA_CORRUPTA';
+INSERT INTO items (code, name, item_type, rarity, obtain_method, description)
+SELECT 'FRAGMENTO_CORAL', 'Fragmento de Coral Vivo', 'MATERIAL', 'COMUN', 'Drop de monstruo', 'Rama de coral blanco que todavía crece despacio. La sueltan los Gólems de Coral del Arrecife Blanco.'
+WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'FRAGMENTO_CORAL');
+UPDATE items SET name = 'Fragmento de Coral Vivo', item_type = 'MATERIAL', rarity = 'COMUN', obtain_method = 'Drop de monstruo', description = 'Rama de coral blanco que todavía crece despacio. La sueltan los Gólems de Coral del Arrecife Blanco.' WHERE code = 'FRAGMENTO_CORAL';
+INSERT INTO items (code, name, item_type, rarity, obtain_method, description)
+SELECT 'CADENA_AHOGADA', 'Cadena Ahogada', 'MATERIAL', 'COMUN', 'Drop de monstruo', 'Eslabones oxidados cubiertos de algas, fríos como el fondo del mar. Los arrastran los Marineros Malditos del Cementerio de Barcos.'
+WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'CADENA_AHOGADA');
+UPDATE items SET name = 'Cadena Ahogada', item_type = 'MATERIAL', rarity = 'COMUN', obtain_method = 'Drop de monstruo', description = 'Eslabones oxidados cubiertos de algas, fríos como el fondo del mar. Los arrastran los Marineros Malditos del Cementerio de Barcos.' WHERE code = 'CADENA_AHOGADA';
+INSERT INTO items (code, name, item_type, rarity, obtain_method, description)
+SELECT 'SELLO_MAREA', 'Sello de la Marea', 'MATERIAL', 'COMUN', 'Drop de monstruo', 'Disco de nácar con el eclipse negro grabado. Lo llevan los Acólitos de la Marea del Faro Negro.'
+WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'SELLO_MAREA');
+UPDATE items SET name = 'Sello de la Marea', item_type = 'MATERIAL', rarity = 'COMUN', obtain_method = 'Drop de monstruo', description = 'Disco de nácar con el eclipse negro grabado. Lo llevan los Acólitos de la Marea del Faro Negro.' WHERE code = 'SELLO_MAREA';
+INSERT INTO items (code, name, item_type, rarity, obtain_method, description)
+SELECT 'TINTA_ABISAL', 'Tinta Abisal', 'MATERIAL', 'COMUN', 'Drop de monstruo', 'Tinta negra que no se seca nunca. La sueltan los Calamares del Abismo del Faro Negro y la Fosa.'
+WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'TINTA_ABISAL');
+UPDATE items SET name = 'Tinta Abisal', item_type = 'MATERIAL', rarity = 'COMUN', obtain_method = 'Drop de monstruo', description = 'Tinta negra que no se seca nunca. La sueltan los Calamares del Abismo del Faro Negro y la Fosa.' WHERE code = 'TINTA_ABISAL';
+INSERT INTO items (code, name, item_type, rarity, obtain_method, description)
+SELECT 'COLMILLO_LEVIATAN_MENOR', 'Colmillo de Leviatán', 'MATERIAL', 'POCO_COMUN', 'Drop de monstruo', 'Colmillo largo como un brazo, liso como el marfil. Lo suelta el Leviatán Menor que nada entre las Rocas de las Sirenas y el Arrecife. Con él se forja el set de Coral.'
+WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'COLMILLO_LEVIATAN_MENOR');
+UPDATE items SET name = 'Colmillo de Leviatán', item_type = 'MATERIAL', rarity = 'POCO_COMUN', obtain_method = 'Drop de monstruo', description = 'Colmillo largo como un brazo, liso como el marfil. Lo suelta el Leviatán Menor que nada entre las Rocas de las Sirenas y el Arrecife. Con él se forja el set de Coral.' WHERE code = 'COLMILLO_LEVIATAN_MENOR';
+INSERT INTO items (code, name, item_type, rarity, obtain_method, description)
+SELECT 'PERLA_MARINA', 'Perla Marina', 'MATERIAL', 'POCO_COMUN', 'Drop de monstruo, conchas gigantes', 'Perla grande y tornasolada. Sale de las conchas gigantes del Arrecife y de la Fosa; a veces la suelta una Sirena o el Leviatán. También sirve para forjar el set de Coral.'
+WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'PERLA_MARINA');
+UPDATE items SET name = 'Perla Marina', item_type = 'MATERIAL', rarity = 'POCO_COMUN', obtain_method = 'Drop de monstruo, conchas gigantes', description = 'Perla grande y tornasolada. Sale de las conchas gigantes del Arrecife y de la Fosa; a veces la suelta una Sirena o el Leviatán. También sirve para forjar el set de Coral.' WHERE code = 'PERLA_MARINA';
+INSERT INTO items (code, name, item_type, rarity, obtain_method, description)
+SELECT 'MAPA_CAPITAN_PIRATA', 'Carta de Velanegra', 'MATERIAL', 'POCO_COMUN', 'Drop de monstruo', 'Carta de navegación con el eclipse marcado en cada fondeadero. La suelta la Capitana Velanegra en el Cementerio de Barcos.'
+WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'MAPA_CAPITAN_PIRATA');
+UPDATE items SET name = 'Carta de Velanegra', item_type = 'MATERIAL', rarity = 'POCO_COMUN', obtain_method = 'Drop de monstruo', description = 'Carta de navegación con el eclipse marcado en cada fondeadero. La suelta la Capitana Velanegra en el Cementerio de Barcos.' WHERE code = 'MAPA_CAPITAN_PIRATA';
+INSERT INTO items (code, name, item_type, rarity, obtain_method, description)
+SELECT 'ANCLA_ALMIRANTE', 'Ancla del Almirante', 'MATERIAL', 'EPICO', 'Drop de jefe', 'Un ancla pequeña, de plata ennegrecida, que el Almirante Ahogado llevaba al cuello. Pesa más de lo que parece.'
+WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'ANCLA_ALMIRANTE');
+UPDATE items SET name = 'Ancla del Almirante', item_type = 'MATERIAL', rarity = 'EPICO', obtain_method = 'Drop de jefe', description = 'Un ancla pequeña, de plata ennegrecida, que el Almirante Ahogado llevaba al cuello. Pesa más de lo que parece.' WHERE code = 'ANCLA_ALMIRANTE';
+INSERT INTO items (code, name, item_type, rarity, obtain_method, description)
+SELECT 'NUCLEO_BESTIA_PROFUNDIDADES', 'Corazón Abisal', 'MATERIAL', 'EPICO', 'Drop de jefe', 'El corazón frío y azul de la Bestia de las Profundidades. Late con el ritmo de las olas. La Guardiana del Cuarto Sello lo suelta al volver en sí.'
+WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'NUCLEO_BESTIA_PROFUNDIDADES');
+UPDATE items SET name = 'Corazón Abisal', item_type = 'MATERIAL', rarity = 'EPICO', obtain_method = 'Drop de jefe', description = 'El corazón frío y azul de la Bestia de las Profundidades. Late con el ritmo de las olas. La Guardiana del Cuarto Sello lo suelta al volver en sí.' WHERE code = 'NUCLEO_BESTIA_PROFUNDIDADES';
+INSERT INTO items (code, name, item_type, rarity, obtain_method, description)
+SELECT 'ALGA_SALINA', 'Alga Salina', 'MATERIAL', 'COMUN', 'Recolección (algas)', 'Alga verde oscura que crece en la arena mojada de la Playa y en el Manglar. Se usa en pociones, tés y comidas.'
+WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'ALGA_SALINA');
+UPDATE items SET name = 'Alga Salina', item_type = 'MATERIAL', rarity = 'COMUN', obtain_method = 'Recolección (algas)', description = 'Alga verde oscura que crece en la arena mojada de la Playa y en el Manglar. Se usa en pociones, tés y comidas.' WHERE code = 'ALGA_SALINA';
+INSERT INTO items (code, name, item_type, rarity, obtain_method, description)
+SELECT 'CORAL_ROJO', 'Coral Rojo', 'MATERIAL', 'COMUN', 'Recolección (vetas de coral)', 'Coral duro como el hierro. Se saca de las vetas de coral del Arrecife Blanco y las Rocas de las Sirenas: es el metal de la costa.'
+WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'CORAL_ROJO');
+UPDATE items SET name = 'Coral Rojo', item_type = 'MATERIAL', rarity = 'COMUN', obtain_method = 'Recolección (vetas de coral)', description = 'Coral duro como el hierro. Se saca de las vetas de coral del Arrecife Blanco y las Rocas de las Sirenas: es el metal de la costa.' WHERE code = 'CORAL_ROJO';
+INSERT INTO items (code, name, item_type, rarity, obtain_method, description)
+SELECT 'CARNE_OSTRA', 'Carne de Ostra', 'MATERIAL', 'COMUN', 'Recolección (ostras)', 'Ostras frescas de las pozas del Delta y las Rocas. Doña Almeja las cocina de mil maneras.'
+WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'CARNE_OSTRA');
+UPDATE items SET name = 'Carne de Ostra', item_type = 'MATERIAL', rarity = 'COMUN', obtain_method = 'Recolección (ostras)', description = 'Ostras frescas de las pozas del Delta y las Rocas. Doña Almeja las cocina de mil maneras.' WHERE code = 'CARNE_OSTRA';
+INSERT INTO items (code, name, item_type, rarity, obtain_method, description)
+SELECT 'MADERA_NAUFRAGIO', 'Madera de Naufragio', 'MATERIAL', 'COMUN', 'Recolección (restos de naufragio)', 'Tablones curados por la sal, que no se pudren. Se juntan entre los restos de los barcos del Cementerio y la Playa.'
+WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'MADERA_NAUFRAGIO');
+UPDATE items SET name = 'Madera de Naufragio', item_type = 'MATERIAL', rarity = 'COMUN', obtain_method = 'Recolección (restos de naufragio)', description = 'Tablones curados por la sal, que no se pudren. Se juntan entre los restos de los barcos del Cementerio y la Playa.' WHERE code = 'MADERA_NAUFRAGIO';
+INSERT INTO items (code, name, item_type, rarity, obtain_method, description)
+SELECT 'CUERDA_ALQUITRAN', 'Cuerda con Alquitrán', 'MATERIAL', 'COMUN', 'Recolección (restos de naufragio)', 'Cabo de barco untado de brea, fuerte y negro. Sale de los restos de naufragio.'
+WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'CUERDA_ALQUITRAN');
+UPDATE items SET name = 'Cuerda con Alquitrán', item_type = 'MATERIAL', rarity = 'COMUN', obtain_method = 'Recolección (restos de naufragio)', description = 'Cabo de barco untado de brea, fuerte y negro. Sale de los restos de naufragio.' WHERE code = 'CUERDA_ALQUITRAN';
+INSERT INTO items (code, name, item_type, rarity, obtain_method, description)
+SELECT 'ESTRELLA_DE_MAR', 'Estrella de Mar', 'MATERIAL', 'COMUN', 'Recolección (pozas de marea)', 'Estrella de mar seca, de un naranja vivo. Aparece en las pozas de las Rocas de las Sirenas cuando baja la marea.'
+WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'ESTRELLA_DE_MAR');
+UPDATE items SET name = 'Estrella de Mar', item_type = 'MATERIAL', rarity = 'COMUN', obtain_method = 'Recolección (pozas de marea)', description = 'Estrella de mar seca, de un naranja vivo. Aparece en las pozas de las Rocas de las Sirenas cuando baja la marea.' WHERE code = 'ESTRELLA_DE_MAR';
+INSERT INTO items (code, name, item_type, rarity, obtain_method, description)
+SELECT 'SAL_DE_CRISTAL', 'Sal Marina', 'MATERIAL', 'COMUN', 'Recolección (pozas de marea)', 'Sal gruesa y limpia que queda en las pozas de marea al secarse. Para curtir cuero y para la alquimia.'
+WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'SAL_DE_CRISTAL');
+UPDATE items SET name = 'Sal Marina', item_type = 'MATERIAL', rarity = 'COMUN', obtain_method = 'Recolección (pozas de marea)', description = 'Sal gruesa y limpia que queda en las pozas de marea al secarse. Para curtir cuero y para la alquimia.' WHERE code = 'SAL_DE_CRISTAL';
+
+-- habilidades nuevas
+
+-- Tenaza
+INSERT INTO skills (code, name, skill_type, damage_school, element_id, target_type, base_value, scaling_stat, scaling_multiplier, hits, mana_cost, is_passive, learn_method, learn_level, learn_gold_cost, description)
+SELECT 'MONSTRUO_TENAZA', 'Tenaza', 'ATAQUE', 'FISICO', NULL, 'ENEMY', 5, 'ATK', 1.35, 1, 10, FALSE, 'LEVEL', 1, 0, 'Atrapa al objetivo con la pinza y aprieta. Puede dejarlo sangrando.'
+WHERE NOT EXISTS (SELECT 1 FROM skills WHERE code = 'MONSTRUO_TENAZA');
+UPDATE skills SET name = 'Tenaza', skill_type = 'ATAQUE', damage_school = 'FISICO', element_id = NULL, target_type = 'ENEMY', base_value = 5, scaling_stat = 'ATK', scaling_multiplier = 1.35, hits = 1, mana_cost = 10, is_passive = FALSE, learn_method = 'LEVEL', learn_level = 1, learn_gold_cost = 0, description = 'Atrapa al objetivo con la pinza y aprieta. Puede dejarlo sangrando.' WHERE code = 'MONSTRUO_TENAZA';
+DELETE FROM skill_effects WHERE skill_id = (SELECT id FROM skills WHERE code = 'MONSTRUO_TENAZA');
+INSERT INTO skill_effects (skill_id, effect_type, stat_code, percent_amount, duration_turns, chance_percent, status_code, description)
+SELECT (SELECT id FROM skills WHERE code = 'MONSTRUO_TENAZA'), v.* FROM (VALUES ('DOT', NULL, 4::numeric, 3, 30::numeric, 'BLEED', 'Sangrado: 4% del HP máximo por ronda durante 3 rondas.'))
+  AS v(effect_type, stat_code, percent_amount, duration_turns, chance_percent, status_code, description);
+
+-- Cerrar el Caparazón
+INSERT INTO skills (code, name, skill_type, damage_school, element_id, target_type, base_value, scaling_stat, scaling_multiplier, hits, mana_cost, is_passive, learn_method, learn_level, learn_gold_cost, description)
+SELECT 'MONSTRUO_CAPARAZON', 'Cerrar el Caparazón', 'BUFF', NULL, NULL, 'SELF', NULL, NULL, NULL, 1, 10, FALSE, 'LEVEL', 1, 0, 'Se esconde en su caparazón. +35% de defensa durante 2 rondas.'
+WHERE NOT EXISTS (SELECT 1 FROM skills WHERE code = 'MONSTRUO_CAPARAZON');
+UPDATE skills SET name = 'Cerrar el Caparazón', skill_type = 'BUFF', damage_school = NULL, element_id = NULL, target_type = 'SELF', base_value = NULL, scaling_stat = NULL, scaling_multiplier = NULL, hits = 1, mana_cost = 10, is_passive = FALSE, learn_method = 'LEVEL', learn_level = 1, learn_gold_cost = 0, description = 'Se esconde en su caparazón. +35% de defensa durante 2 rondas.' WHERE code = 'MONSTRUO_CAPARAZON';
+DELETE FROM skill_effects WHERE skill_id = (SELECT id FROM skills WHERE code = 'MONSTRUO_CAPARAZON');
+INSERT INTO skill_effects (skill_id, effect_type, stat_code, percent_amount, duration_turns, chance_percent, status_code, description)
+SELECT (SELECT id FROM skills WHERE code = 'MONSTRUO_CAPARAZON'), v.* FROM (VALUES ('STAT_MOD', 'DEF', 35::numeric, 2, NULL::numeric, NULL, '+35% de defensa durante 2 rondas.'))
+  AS v(effect_type, stat_code, percent_amount, duration_turns, chance_percent, status_code, description);
+
+-- Picotazo en Picada
+INSERT INTO skills (code, name, skill_type, damage_school, element_id, target_type, base_value, scaling_stat, scaling_multiplier, hits, mana_cost, is_passive, learn_method, learn_level, learn_gold_cost, description)
+SELECT 'MONSTRUO_PICOTAZO', 'Picotazo en Picada', 'ATAQUE', 'FISICO', (SELECT id FROM elements WHERE code = 'WIND'), 'ENEMY', 4, 'ATK', 1.3, 1, 10, FALSE, 'LEVEL', 1, 0, 'Se tira en picada y pica a la cara. Puede dejar al objetivo sin ver bien.'
+WHERE NOT EXISTS (SELECT 1 FROM skills WHERE code = 'MONSTRUO_PICOTAZO');
+UPDATE skills SET name = 'Picotazo en Picada', skill_type = 'ATAQUE', damage_school = 'FISICO', element_id = (SELECT id FROM elements WHERE code = 'WIND'), target_type = 'ENEMY', base_value = 4, scaling_stat = 'ATK', scaling_multiplier = 1.3, hits = 1, mana_cost = 10, is_passive = FALSE, learn_method = 'LEVEL', learn_level = 1, learn_gold_cost = 0, description = 'Se tira en picada y pica a la cara. Puede dejar al objetivo sin ver bien.' WHERE code = 'MONSTRUO_PICOTAZO';
+DELETE FROM skill_effects WHERE skill_id = (SELECT id FROM skills WHERE code = 'MONSTRUO_PICOTAZO');
+INSERT INTO skill_effects (skill_id, effect_type, stat_code, percent_amount, duration_turns, chance_percent, status_code, description)
+SELECT (SELECT id FROM skills WHERE code = 'MONSTRUO_PICOTAZO'), v.* FROM (VALUES ('BLIND', NULL, 20::numeric, 2, 30::numeric, 'BLIND', 'Picado en los ojos: 20% de fallar sus golpes durante 2 rondas.'))
+  AS v(effect_type, stat_code, percent_amount, duration_turns, chance_percent, status_code, description);
+
+-- Pistolón
+INSERT INTO skills (code, name, skill_type, damage_school, element_id, target_type, base_value, scaling_stat, scaling_multiplier, hits, mana_cost, is_passive, learn_method, learn_level, learn_gold_cost, description)
+SELECT 'MONSTRUO_PISTOLON', 'Pistolón', 'ATAQUE', 'FISICO', NULL, 'ENEMY', 6, 'ATK', 1.4, 1, 12, FALSE, 'LEVEL', 1, 0, 'Dispara su pistolón oxidado a quemarropa. Hace mucho ruido y bastante daño.'
+WHERE NOT EXISTS (SELECT 1 FROM skills WHERE code = 'MONSTRUO_PISTOLON');
+UPDATE skills SET name = 'Pistolón', skill_type = 'ATAQUE', damage_school = 'FISICO', element_id = NULL, target_type = 'ENEMY', base_value = 6, scaling_stat = 'ATK', scaling_multiplier = 1.4, hits = 1, mana_cost = 12, is_passive = FALSE, learn_method = 'LEVEL', learn_level = 1, learn_gold_cost = 0, description = 'Dispara su pistolón oxidado a quemarropa. Hace mucho ruido y bastante daño.' WHERE code = 'MONSTRUO_PISTOLON';
+DELETE FROM skill_effects WHERE skill_id = (SELECT id FROM skills WHERE code = 'MONSTRUO_PISTOLON');
+INSERT INTO skill_effects (skill_id, effect_type, stat_code, percent_amount, duration_turns, chance_percent, status_code, description)
+SELECT (SELECT id FROM skills WHERE code = 'MONSTRUO_PISTOLON'), v.* FROM (VALUES ('STAT_MOD', 'DEF', -10::numeric, 2, 25::numeric, 'WEAKEN', 'Aturdido por el disparo: -10% de defensa durante 2 rondas.'))
+  AS v(effect_type, stat_code, percent_amount, duration_turns, chance_percent, status_code, description);
+
+-- Botella Rota
+INSERT INTO skills (code, name, skill_type, damage_school, element_id, target_type, base_value, scaling_stat, scaling_multiplier, hits, mana_cost, is_passive, learn_method, learn_level, learn_gold_cost, description)
+SELECT 'MONSTRUO_BOTELLA_ROTA', 'Botella Rota', 'ATAQUE', 'FISICO', NULL, 'ENEMY', 4, 'ATK', 1.25, 1, 10, FALSE, 'LEVEL', 1, 0, 'Rompe una botella de ron y ataca con el pico. Puede dejar al objetivo sangrando.'
+WHERE NOT EXISTS (SELECT 1 FROM skills WHERE code = 'MONSTRUO_BOTELLA_ROTA');
+UPDATE skills SET name = 'Botella Rota', skill_type = 'ATAQUE', damage_school = 'FISICO', element_id = NULL, target_type = 'ENEMY', base_value = 4, scaling_stat = 'ATK', scaling_multiplier = 1.25, hits = 1, mana_cost = 10, is_passive = FALSE, learn_method = 'LEVEL', learn_level = 1, learn_gold_cost = 0, description = 'Rompe una botella de ron y ataca con el pico. Puede dejar al objetivo sangrando.' WHERE code = 'MONSTRUO_BOTELLA_ROTA';
+DELETE FROM skill_effects WHERE skill_id = (SELECT id FROM skills WHERE code = 'MONSTRUO_BOTELLA_ROTA');
+INSERT INTO skill_effects (skill_id, effect_type, stat_code, percent_amount, duration_turns, chance_percent, status_code, description)
+SELECT (SELECT id FROM skills WHERE code = 'MONSTRUO_BOTELLA_ROTA'), v.* FROM (VALUES ('DOT', NULL, 5::numeric, 3, 30::numeric, 'BLEED', 'Sangrado: 5% del HP máximo por ronda durante 3 rondas.'))
+  AS v(effect_type, stat_code, percent_amount, duration_turns, chance_percent, status_code, description);
+
+-- Chorro de Vapor
+INSERT INTO skills (code, name, skill_type, damage_school, element_id, target_type, base_value, scaling_stat, scaling_multiplier, hits, mana_cost, is_passive, learn_method, learn_level, learn_gold_cost, description)
+SELECT 'MONSTRUO_CHORRO_VAPOR', 'Chorro de Vapor', 'ATAQUE', 'MAGICO', (SELECT id FROM elements WHERE code = 'FIRE'), 'ENEMY', 5, 'MAG', 1.35, 1, 12, FALSE, 'LEVEL', 1, 0, 'Escupe un chorro de vapor hirviendo. Puede dejar al objetivo ardiendo.'
+WHERE NOT EXISTS (SELECT 1 FROM skills WHERE code = 'MONSTRUO_CHORRO_VAPOR');
+UPDATE skills SET name = 'Chorro de Vapor', skill_type = 'ATAQUE', damage_school = 'MAGICO', element_id = (SELECT id FROM elements WHERE code = 'FIRE'), target_type = 'ENEMY', base_value = 5, scaling_stat = 'MAG', scaling_multiplier = 1.35, hits = 1, mana_cost = 12, is_passive = FALSE, learn_method = 'LEVEL', learn_level = 1, learn_gold_cost = 0, description = 'Escupe un chorro de vapor hirviendo. Puede dejar al objetivo ardiendo.' WHERE code = 'MONSTRUO_CHORRO_VAPOR';
+DELETE FROM skill_effects WHERE skill_id = (SELECT id FROM skills WHERE code = 'MONSTRUO_CHORRO_VAPOR');
+INSERT INTO skill_effects (skill_id, effect_type, stat_code, percent_amount, duration_turns, chance_percent, status_code, description)
+SELECT (SELECT id FROM skills WHERE code = 'MONSTRUO_CHORRO_VAPOR'), v.* FROM (VALUES ('DOT', NULL, 5::numeric, 3, 30::numeric, 'BURN', 'Quemadura: 5% del HP máximo por ronda durante 3 rondas.'))
+  AS v(effect_type, stat_code, percent_amount, duration_turns, chance_percent, status_code, description);
+
+-- Frenesí
+INSERT INTO skills (code, name, skill_type, damage_school, element_id, target_type, base_value, scaling_stat, scaling_multiplier, hits, mana_cost, is_passive, learn_method, learn_level, learn_gold_cost, description)
+SELECT 'MONSTRUO_FRENESI', 'Frenesí', 'ATAQUE', 'FISICO', (SELECT id FROM elements WHERE code = 'WATER'), 'ENEMY', 2, 'ATK', 0.55, 3, 12, FALSE, 'LEVEL', 1, 0, 'Toda la bandada muerde a la vez: tres mordiscos seguidos.'
+WHERE NOT EXISTS (SELECT 1 FROM skills WHERE code = 'MONSTRUO_FRENESI');
+UPDATE skills SET name = 'Frenesí', skill_type = 'ATAQUE', damage_school = 'FISICO', element_id = (SELECT id FROM elements WHERE code = 'WATER'), target_type = 'ENEMY', base_value = 2, scaling_stat = 'ATK', scaling_multiplier = 0.55, hits = 3, mana_cost = 12, is_passive = FALSE, learn_method = 'LEVEL', learn_level = 1, learn_gold_cost = 0, description = 'Toda la bandada muerde a la vez: tres mordiscos seguidos.' WHERE code = 'MONSTRUO_FRENESI';
+DELETE FROM skill_effects WHERE skill_id = (SELECT id FROM skills WHERE code = 'MONSTRUO_FRENESI');
+INSERT INTO skill_effects (skill_id, effect_type, stat_code, percent_amount, duration_turns, chance_percent, status_code, description)
+SELECT (SELECT id FROM skills WHERE code = 'MONSTRUO_FRENESI'), v.* FROM (VALUES ('DOT', NULL, 3::numeric, 3, 25::numeric, 'BLEED', 'Sangrado: 3% del HP máximo por ronda durante 3 rondas.'))
+  AS v(effect_type, stat_code, percent_amount, duration_turns, chance_percent, status_code, description);
+
+-- Giro Mortal
+INSERT INTO skills (code, name, skill_type, damage_school, element_id, target_type, base_value, scaling_stat, scaling_multiplier, hits, mana_cost, is_passive, learn_method, learn_level, learn_gold_cost, description)
+SELECT 'MONSTRUO_GIRO_MORTAL', 'Giro Mortal', 'ATAQUE', 'FISICO', (SELECT id FROM elements WHERE code = 'WATER'), 'ENEMY', 6, 'ATK', 1.45, 1, 14, FALSE, 'LEVEL', 1, 0, 'Muerde y gira sobre sí mismo arrastrando al objetivo al barro. Puede dejarlo sangrando.'
+WHERE NOT EXISTS (SELECT 1 FROM skills WHERE code = 'MONSTRUO_GIRO_MORTAL');
+UPDATE skills SET name = 'Giro Mortal', skill_type = 'ATAQUE', damage_school = 'FISICO', element_id = (SELECT id FROM elements WHERE code = 'WATER'), target_type = 'ENEMY', base_value = 6, scaling_stat = 'ATK', scaling_multiplier = 1.45, hits = 1, mana_cost = 14, is_passive = FALSE, learn_method = 'LEVEL', learn_level = 1, learn_gold_cost = 0, description = 'Muerde y gira sobre sí mismo arrastrando al objetivo al barro. Puede dejarlo sangrando.' WHERE code = 'MONSTRUO_GIRO_MORTAL';
+DELETE FROM skill_effects WHERE skill_id = (SELECT id FROM skills WHERE code = 'MONSTRUO_GIRO_MORTAL');
+INSERT INTO skill_effects (skill_id, effect_type, stat_code, percent_amount, duration_turns, chance_percent, status_code, description)
+SELECT (SELECT id FROM skills WHERE code = 'MONSTRUO_GIRO_MORTAL'), v.* FROM (VALUES ('DOT', NULL, 6::numeric, 3, 35::numeric, 'BLEED', 'Sangrado: 6% del HP máximo por ronda durante 3 rondas.'))
+  AS v(effect_type, stat_code, percent_amount, duration_turns, chance_percent, status_code, description);
+
+-- Toque Urticante
+INSERT INTO skills (code, name, skill_type, damage_school, element_id, target_type, base_value, scaling_stat, scaling_multiplier, hits, mana_cost, is_passive, learn_method, learn_level, learn_gold_cost, description)
+SELECT 'MONSTRUO_TOQUE_URTICANTE', 'Toque Urticante', 'ATAQUE', 'MAGICO', (SELECT id FROM elements WHERE code = 'LIGHTNING'), 'ENEMY', 5, 'MAG', 1.35, 1, 12, FALSE, 'LEVEL', 1, 0, 'Lo envuelve con sus filamentos eléctricos. Puede dejarlo paralizado.'
+WHERE NOT EXISTS (SELECT 1 FROM skills WHERE code = 'MONSTRUO_TOQUE_URTICANTE');
+UPDATE skills SET name = 'Toque Urticante', skill_type = 'ATAQUE', damage_school = 'MAGICO', element_id = (SELECT id FROM elements WHERE code = 'LIGHTNING'), target_type = 'ENEMY', base_value = 5, scaling_stat = 'MAG', scaling_multiplier = 1.35, hits = 1, mana_cost = 12, is_passive = FALSE, learn_method = 'LEVEL', learn_level = 1, learn_gold_cost = 0, description = 'Lo envuelve con sus filamentos eléctricos. Puede dejarlo paralizado.' WHERE code = 'MONSTRUO_TOQUE_URTICANTE';
+DELETE FROM skill_effects WHERE skill_id = (SELECT id FROM skills WHERE code = 'MONSTRUO_TOQUE_URTICANTE');
+INSERT INTO skill_effects (skill_id, effect_type, stat_code, percent_amount, duration_turns, chance_percent, status_code, description)
+SELECT (SELECT id FROM skills WHERE code = 'MONSTRUO_TOQUE_URTICANTE'), v.* FROM (VALUES ('PARALYZE', NULL, NULL::numeric, 3, 20::numeric, 'PARALYZE', 'Paralizado por la descarga: puede perder el turno durante 3 rondas.'))
+  AS v(effect_type, stat_code, percent_amount, duration_turns, chance_percent, status_code, description);
+
+-- Destello Eléctrico
+INSERT INTO skills (code, name, skill_type, damage_school, element_id, target_type, base_value, scaling_stat, scaling_multiplier, hits, mana_cost, is_passive, learn_method, learn_level, learn_gold_cost, description)
+SELECT 'MONSTRUO_DESCARGA_MEDUSA', 'Destello Eléctrico', 'ATAQUE', 'MAGICO', (SELECT id FROM elements WHERE code = 'LIGHTNING'), 'ALL_ENEMIES', 3, 'MAG', 0.8, 1, 20, FALSE, 'LEVEL', 1, 0, 'Se enciende de golpe y la descarga corre por el agua hasta todos.'
+WHERE NOT EXISTS (SELECT 1 FROM skills WHERE code = 'MONSTRUO_DESCARGA_MEDUSA');
+UPDATE skills SET name = 'Destello Eléctrico', skill_type = 'ATAQUE', damage_school = 'MAGICO', element_id = (SELECT id FROM elements WHERE code = 'LIGHTNING'), target_type = 'ALL_ENEMIES', base_value = 3, scaling_stat = 'MAG', scaling_multiplier = 0.8, hits = 1, mana_cost = 20, is_passive = FALSE, learn_method = 'LEVEL', learn_level = 1, learn_gold_cost = 0, description = 'Se enciende de golpe y la descarga corre por el agua hasta todos.' WHERE code = 'MONSTRUO_DESCARGA_MEDUSA';
+DELETE FROM skill_effects WHERE skill_id = (SELECT id FROM skills WHERE code = 'MONSTRUO_DESCARGA_MEDUSA');
+INSERT INTO skill_effects (skill_id, effect_type, stat_code, percent_amount, duration_turns, chance_percent, status_code, description)
+SELECT (SELECT id FROM skills WHERE code = 'MONSTRUO_DESCARGA_MEDUSA'), v.* FROM (VALUES ('STAT_MOD', 'SPD', -20::numeric, 3, 25::numeric, 'SLOW', 'Entumecido: -20% de velocidad durante 3 rondas.'))
+  AS v(effect_type, stat_code, percent_amount, duration_turns, chance_percent, status_code, description);
+
+-- Lanza de Agua
+INSERT INTO skills (code, name, skill_type, damage_school, element_id, target_type, base_value, scaling_stat, scaling_multiplier, hits, mana_cost, is_passive, learn_method, learn_level, learn_gold_cost, description)
+SELECT 'MONSTRUO_LANZA_AGUA', 'Lanza de Agua', 'ATAQUE', 'MAGICO', (SELECT id FROM elements WHERE code = 'WATER'), 'ENEMY', 5, 'MAG', 1.4, 1, 12, FALSE, 'LEVEL', 1, 0, 'Lanza un chorro de agua tan fuerte que corta como una lanza.'
+WHERE NOT EXISTS (SELECT 1 FROM skills WHERE code = 'MONSTRUO_LANZA_AGUA');
+UPDATE skills SET name = 'Lanza de Agua', skill_type = 'ATAQUE', damage_school = 'MAGICO', element_id = (SELECT id FROM elements WHERE code = 'WATER'), target_type = 'ENEMY', base_value = 5, scaling_stat = 'MAG', scaling_multiplier = 1.4, hits = 1, mana_cost = 12, is_passive = FALSE, learn_method = 'LEVEL', learn_level = 1, learn_gold_cost = 0, description = 'Lanza un chorro de agua tan fuerte que corta como una lanza.' WHERE code = 'MONSTRUO_LANZA_AGUA';
+DELETE FROM skill_effects WHERE skill_id = (SELECT id FROM skills WHERE code = 'MONSTRUO_LANZA_AGUA');
+INSERT INTO skill_effects (skill_id, effect_type, stat_code, percent_amount, duration_turns, chance_percent, status_code, description)
+SELECT (SELECT id FROM skills WHERE code = 'MONSTRUO_LANZA_AGUA'), v.* FROM (VALUES ('STAT_MOD', 'DEF', -10::numeric, 2, 25::numeric, 'WEAKEN', 'Empapado: -10% de defensa durante 2 rondas.'))
+  AS v(effect_type, stat_code, percent_amount, duration_turns, chance_percent, status_code, description);
+
+-- Canto Hechizante
+INSERT INTO skills (code, name, skill_type, damage_school, element_id, target_type, base_value, scaling_stat, scaling_multiplier, hits, mana_cost, is_passive, learn_method, learn_level, learn_gold_cost, description)
+SELECT 'MONSTRUO_CANTO_HECHIZANTE', 'Canto Hechizante', 'ATAQUE', 'MAGICO', (SELECT id FROM elements WHERE code = 'WATER'), 'ALL_ENEMIES', 2, 'MAG', 0.6, 1, 18, FALSE, 'LEVEL', 1, 0, 'Canta una canción tan triste que a todos les pesan los brazos.'
+WHERE NOT EXISTS (SELECT 1 FROM skills WHERE code = 'MONSTRUO_CANTO_HECHIZANTE');
+UPDATE skills SET name = 'Canto Hechizante', skill_type = 'ATAQUE', damage_school = 'MAGICO', element_id = (SELECT id FROM elements WHERE code = 'WATER'), target_type = 'ALL_ENEMIES', base_value = 2, scaling_stat = 'MAG', scaling_multiplier = 0.6, hits = 1, mana_cost = 18, is_passive = FALSE, learn_method = 'LEVEL', learn_level = 1, learn_gold_cost = 0, description = 'Canta una canción tan triste que a todos les pesan los brazos.' WHERE code = 'MONSTRUO_CANTO_HECHIZANTE';
+DELETE FROM skill_effects WHERE skill_id = (SELECT id FROM skills WHERE code = 'MONSTRUO_CANTO_HECHIZANTE');
+INSERT INTO skill_effects (skill_id, effect_type, stat_code, percent_amount, duration_turns, chance_percent, status_code, description)
+SELECT (SELECT id FROM skills WHERE code = 'MONSTRUO_CANTO_HECHIZANTE'), v.* FROM (VALUES ('STAT_MOD', 'SPD', -25::numeric, 3, 35::numeric, 'SLOW', 'Hechizado por el canto: -25% de velocidad durante 3 rondas.'))
+  AS v(effect_type, stat_code, percent_amount, duration_turns, chance_percent, status_code, description);
+
+-- Piel de Coral
+INSERT INTO skills (code, name, skill_type, damage_school, element_id, target_type, base_value, scaling_stat, scaling_multiplier, hits, mana_cost, is_passive, learn_method, learn_level, learn_gold_cost, description)
+SELECT 'MONSTRUO_PIEL_CORAL', 'Piel de Coral', 'BUFF', NULL, NULL, 'SELF', NULL, NULL, NULL, 1, 10, FALSE, 'LEVEL', 1, 0, 'Le crece coral nuevo encima. +35% de defensa y +20% de defensa mágica durante 2 rondas.'
+WHERE NOT EXISTS (SELECT 1 FROM skills WHERE code = 'MONSTRUO_PIEL_CORAL');
+UPDATE skills SET name = 'Piel de Coral', skill_type = 'BUFF', damage_school = NULL, element_id = NULL, target_type = 'SELF', base_value = NULL, scaling_stat = NULL, scaling_multiplier = NULL, hits = 1, mana_cost = 10, is_passive = FALSE, learn_method = 'LEVEL', learn_level = 1, learn_gold_cost = 0, description = 'Le crece coral nuevo encima. +35% de defensa y +20% de defensa mágica durante 2 rondas.' WHERE code = 'MONSTRUO_PIEL_CORAL';
+DELETE FROM skill_effects WHERE skill_id = (SELECT id FROM skills WHERE code = 'MONSTRUO_PIEL_CORAL');
+INSERT INTO skill_effects (skill_id, effect_type, stat_code, percent_amount, duration_turns, chance_percent, status_code, description)
+SELECT (SELECT id FROM skills WHERE code = 'MONSTRUO_PIEL_CORAL'), v.* FROM (VALUES ('STAT_MOD', 'DEF', 35::numeric, 2, NULL::numeric, NULL, '+35% de defensa durante 2 rondas.'), ('STAT_MOD', 'MAGIC_DEF', 20::numeric, 2, NULL::numeric, NULL, '+20% de defensa mágica durante 2 rondas.'))
+  AS v(effect_type, stat_code, percent_amount, duration_turns, chance_percent, status_code, description);
+
+-- Coral Cortante
+INSERT INTO skills (code, name, skill_type, damage_school, element_id, target_type, base_value, scaling_stat, scaling_multiplier, hits, mana_cost, is_passive, learn_method, learn_level, learn_gold_cost, description)
+SELECT 'MONSTRUO_CORAL_CORTANTE', 'Coral Cortante', 'ATAQUE', 'FISICO', (SELECT id FROM elements WHERE code = 'EARTH'), 'ALL_ENEMIES', 3, 'ATK', 0.75, 1, 15, FALSE, 'LEVEL', 1, 0, 'Se sacude y lanza ramas de coral filoso a todos. Pueden dejar sangrando.'
+WHERE NOT EXISTS (SELECT 1 FROM skills WHERE code = 'MONSTRUO_CORAL_CORTANTE');
+UPDATE skills SET name = 'Coral Cortante', skill_type = 'ATAQUE', damage_school = 'FISICO', element_id = (SELECT id FROM elements WHERE code = 'EARTH'), target_type = 'ALL_ENEMIES', base_value = 3, scaling_stat = 'ATK', scaling_multiplier = 0.75, hits = 1, mana_cost = 15, is_passive = FALSE, learn_method = 'LEVEL', learn_level = 1, learn_gold_cost = 0, description = 'Se sacude y lanza ramas de coral filoso a todos. Pueden dejar sangrando.' WHERE code = 'MONSTRUO_CORAL_CORTANTE';
+DELETE FROM skill_effects WHERE skill_id = (SELECT id FROM skills WHERE code = 'MONSTRUO_CORAL_CORTANTE');
+INSERT INTO skill_effects (skill_id, effect_type, stat_code, percent_amount, duration_turns, chance_percent, status_code, description)
+SELECT (SELECT id FROM skills WHERE code = 'MONSTRUO_CORAL_CORTANTE'), v.* FROM (VALUES ('DOT', NULL, 4::numeric, 3, 30::numeric, 'BLEED', 'Sangrado: 4% del HP máximo por ronda durante 3 rondas.'))
+  AS v(effect_type, stat_code, percent_amount, duration_turns, chance_percent, status_code, description);
+
+-- Abrazo del Ahogado
+INSERT INTO skills (code, name, skill_type, damage_school, element_id, target_type, base_value, scaling_stat, scaling_multiplier, hits, mana_cost, is_passive, learn_method, learn_level, learn_gold_cost, description)
+SELECT 'MONSTRUO_ABRAZO_AHOGADO', 'Abrazo del Ahogado', 'ATAQUE', 'FISICO', (SELECT id FROM elements WHERE code = 'WATER'), 'ENEMY', 5, 'ATK', 1.35, 1, 12, FALSE, 'LEVEL', 1, 0, 'Abraza al objetivo con sus brazos fríos y empapados, como si quisiera llevarlo al fondo.'
+WHERE NOT EXISTS (SELECT 1 FROM skills WHERE code = 'MONSTRUO_ABRAZO_AHOGADO');
+UPDATE skills SET name = 'Abrazo del Ahogado', skill_type = 'ATAQUE', damage_school = 'FISICO', element_id = (SELECT id FROM elements WHERE code = 'WATER'), target_type = 'ENEMY', base_value = 5, scaling_stat = 'ATK', scaling_multiplier = 1.35, hits = 1, mana_cost = 12, is_passive = FALSE, learn_method = 'LEVEL', learn_level = 1, learn_gold_cost = 0, description = 'Abraza al objetivo con sus brazos fríos y empapados, como si quisiera llevarlo al fondo.' WHERE code = 'MONSTRUO_ABRAZO_AHOGADO';
+DELETE FROM skill_effects WHERE skill_id = (SELECT id FROM skills WHERE code = 'MONSTRUO_ABRAZO_AHOGADO');
+INSERT INTO skill_effects (skill_id, effect_type, stat_code, percent_amount, duration_turns, chance_percent, status_code, description)
+SELECT (SELECT id FROM skills WHERE code = 'MONSTRUO_ABRAZO_AHOGADO'), v.* FROM (VALUES ('STAT_MOD', 'SPD', -25::numeric, 3, 35::numeric, 'SLOW', 'Frío del fondo: -25% de velocidad durante 3 rondas.'))
+  AS v(effect_type, stat_code, percent_amount, duration_turns, chance_percent, status_code, description);
+
+-- Rezo Abisal
+INSERT INTO skills (code, name, skill_type, damage_school, element_id, target_type, base_value, scaling_stat, scaling_multiplier, hits, mana_cost, is_passive, learn_method, learn_level, learn_gold_cost, description)
+SELECT 'MONSTRUO_REZO_ABISAL', 'Rezo Abisal', 'ATAQUE', 'MAGICO', (SELECT id FROM elements WHERE code = 'DARK'), 'ENEMY', 5, 'MAG', 1.35, 1, 12, FALSE, 'LEVEL', 1, 0, 'Reza al eclipse y el agua negra muerde al objetivo. Puede dejarlo maldito.'
+WHERE NOT EXISTS (SELECT 1 FROM skills WHERE code = 'MONSTRUO_REZO_ABISAL');
+UPDATE skills SET name = 'Rezo Abisal', skill_type = 'ATAQUE', damage_school = 'MAGICO', element_id = (SELECT id FROM elements WHERE code = 'DARK'), target_type = 'ENEMY', base_value = 5, scaling_stat = 'MAG', scaling_multiplier = 1.35, hits = 1, mana_cost = 12, is_passive = FALSE, learn_method = 'LEVEL', learn_level = 1, learn_gold_cost = 0, description = 'Reza al eclipse y el agua negra muerde al objetivo. Puede dejarlo maldito.' WHERE code = 'MONSTRUO_REZO_ABISAL';
+DELETE FROM skill_effects WHERE skill_id = (SELECT id FROM skills WHERE code = 'MONSTRUO_REZO_ABISAL');
+INSERT INTO skill_effects (skill_id, effect_type, stat_code, percent_amount, duration_turns, chance_percent, status_code, description)
+SELECT (SELECT id FROM skills WHERE code = 'MONSTRUO_REZO_ABISAL'), v.* FROM (VALUES ('STAT_MOD', 'ATK', -15::numeric, 3, 35::numeric, 'WEAKEN', 'Maldición de la marea: -15% de ataque durante 3 rondas.'))
+  AS v(effect_type, stat_code, percent_amount, duration_turns, chance_percent, status_code, description);
+
+-- Marea Negra
+INSERT INTO skills (code, name, skill_type, damage_school, element_id, target_type, base_value, scaling_stat, scaling_multiplier, hits, mana_cost, is_passive, learn_method, learn_level, learn_gold_cost, description)
+SELECT 'MONSTRUO_MAREA_NEGRA', 'Marea Negra', 'ATAQUE', 'MAGICO', (SELECT id FROM elements WHERE code = 'DARK'), 'ALL_ENEMIES', 3, 'MAG', 0.8, 1, 20, FALSE, 'LEVEL', 1, 0, 'Una ola de agua negra y espesa pasa sobre todos y les nubla la vista.'
+WHERE NOT EXISTS (SELECT 1 FROM skills WHERE code = 'MONSTRUO_MAREA_NEGRA');
+UPDATE skills SET name = 'Marea Negra', skill_type = 'ATAQUE', damage_school = 'MAGICO', element_id = (SELECT id FROM elements WHERE code = 'DARK'), target_type = 'ALL_ENEMIES', base_value = 3, scaling_stat = 'MAG', scaling_multiplier = 0.8, hits = 1, mana_cost = 20, is_passive = FALSE, learn_method = 'LEVEL', learn_level = 1, learn_gold_cost = 0, description = 'Una ola de agua negra y espesa pasa sobre todos y les nubla la vista.' WHERE code = 'MONSTRUO_MAREA_NEGRA';
+DELETE FROM skill_effects WHERE skill_id = (SELECT id FROM skills WHERE code = 'MONSTRUO_MAREA_NEGRA');
+INSERT INTO skill_effects (skill_id, effect_type, stat_code, percent_amount, duration_turns, chance_percent, status_code, description)
+SELECT (SELECT id FROM skills WHERE code = 'MONSTRUO_MAREA_NEGRA'), v.* FROM (VALUES ('BLIND', NULL, 20::numeric, 2, 30::numeric, 'BLIND', 'Agua negra en los ojos: 20% de fallar sus golpes durante 2 rondas.'))
+  AS v(effect_type, stat_code, percent_amount, duration_turns, chance_percent, status_code, description);
+
+-- Tentáculos
+INSERT INTO skills (code, name, skill_type, damage_school, element_id, target_type, base_value, scaling_stat, scaling_multiplier, hits, mana_cost, is_passive, learn_method, learn_level, learn_gold_cost, description)
+SELECT 'MONSTRUO_TENTACULOS', 'Tentáculos', 'ATAQUE', 'FISICO', (SELECT id FROM elements WHERE code = 'WATER'), 'ENEMY', 3, 'ATK', 0.75, 2, 12, FALSE, 'LEVEL', 1, 0, 'Dos tentáculos golpean al objetivo, uno detrás del otro.'
+WHERE NOT EXISTS (SELECT 1 FROM skills WHERE code = 'MONSTRUO_TENTACULOS');
+UPDATE skills SET name = 'Tentáculos', skill_type = 'ATAQUE', damage_school = 'FISICO', element_id = (SELECT id FROM elements WHERE code = 'WATER'), target_type = 'ENEMY', base_value = 3, scaling_stat = 'ATK', scaling_multiplier = 0.75, hits = 2, mana_cost = 12, is_passive = FALSE, learn_method = 'LEVEL', learn_level = 1, learn_gold_cost = 0, description = 'Dos tentáculos golpean al objetivo, uno detrás del otro.' WHERE code = 'MONSTRUO_TENTACULOS';
+DELETE FROM skill_effects WHERE skill_id = (SELECT id FROM skills WHERE code = 'MONSTRUO_TENTACULOS');
+INSERT INTO skill_effects (skill_id, effect_type, stat_code, percent_amount, duration_turns, chance_percent, status_code, description)
+SELECT (SELECT id FROM skills WHERE code = 'MONSTRUO_TENTACULOS'), v.* FROM (VALUES ('STAT_MOD', 'SPD', -20::numeric, 3, 25::numeric, 'SLOW', 'Atrapado: -20% de velocidad durante 3 rondas.'))
+  AS v(effect_type, stat_code, percent_amount, duration_turns, chance_percent, status_code, description);
+
+-- Chorro de Tinta
+INSERT INTO skills (code, name, skill_type, damage_school, element_id, target_type, base_value, scaling_stat, scaling_multiplier, hits, mana_cost, is_passive, learn_method, learn_level, learn_gold_cost, description)
+SELECT 'MONSTRUO_CHORRO_TINTA', 'Chorro de Tinta', 'ATAQUE', 'MAGICO', (SELECT id FROM elements WHERE code = 'DARK'), 'ALL_ENEMIES', 2, 'MAG', 0.6, 1, 18, FALSE, 'LEVEL', 1, 0, 'Escupe una nube de tinta negra sobre todos.'
+WHERE NOT EXISTS (SELECT 1 FROM skills WHERE code = 'MONSTRUO_CHORRO_TINTA');
+UPDATE skills SET name = 'Chorro de Tinta', skill_type = 'ATAQUE', damage_school = 'MAGICO', element_id = (SELECT id FROM elements WHERE code = 'DARK'), target_type = 'ALL_ENEMIES', base_value = 2, scaling_stat = 'MAG', scaling_multiplier = 0.6, hits = 1, mana_cost = 18, is_passive = FALSE, learn_method = 'LEVEL', learn_level = 1, learn_gold_cost = 0, description = 'Escupe una nube de tinta negra sobre todos.' WHERE code = 'MONSTRUO_CHORRO_TINTA';
+DELETE FROM skill_effects WHERE skill_id = (SELECT id FROM skills WHERE code = 'MONSTRUO_CHORRO_TINTA');
+INSERT INTO skill_effects (skill_id, effect_type, stat_code, percent_amount, duration_turns, chance_percent, status_code, description)
+SELECT (SELECT id FROM skills WHERE code = 'MONSTRUO_CHORRO_TINTA'), v.* FROM (VALUES ('BLIND', NULL, 25::numeric, 2, 35::numeric, 'BLIND', 'Cegado por la tinta: 25% de fallar sus golpes durante 2 rondas.'))
+  AS v(effect_type, stat_code, percent_amount, duration_turns, chance_percent, status_code, description);
+
+-- Coletazo
+INSERT INTO skills (code, name, skill_type, damage_school, element_id, target_type, base_value, scaling_stat, scaling_multiplier, hits, mana_cost, is_passive, learn_method, learn_level, learn_gold_cost, description)
+SELECT 'MONSTRUO_COLETAZO_OLA', 'Coletazo', 'ATAQUE', 'MAGICO', (SELECT id FROM elements WHERE code = 'WATER'), 'ALL_ENEMIES', 4, 'MAG', 0.85, 1, 20, FALSE, 'LEVEL', 1, 0, 'Golpea el agua con la cola y levanta una ola sobre todos.'
+WHERE NOT EXISTS (SELECT 1 FROM skills WHERE code = 'MONSTRUO_COLETAZO_OLA');
+UPDATE skills SET name = 'Coletazo', skill_type = 'ATAQUE', damage_school = 'MAGICO', element_id = (SELECT id FROM elements WHERE code = 'WATER'), target_type = 'ALL_ENEMIES', base_value = 4, scaling_stat = 'MAG', scaling_multiplier = 0.85, hits = 1, mana_cost = 20, is_passive = FALSE, learn_method = 'LEVEL', learn_level = 1, learn_gold_cost = 0, description = 'Golpea el agua con la cola y levanta una ola sobre todos.' WHERE code = 'MONSTRUO_COLETAZO_OLA';
+DELETE FROM skill_effects WHERE skill_id = (SELECT id FROM skills WHERE code = 'MONSTRUO_COLETAZO_OLA');
+INSERT INTO skill_effects (skill_id, effect_type, stat_code, percent_amount, duration_turns, chance_percent, status_code, description)
+SELECT (SELECT id FROM skills WHERE code = 'MONSTRUO_COLETAZO_OLA'), v.* FROM (VALUES ('STAT_MOD', 'SPD', -20::numeric, 3, 30::numeric, 'SLOW', 'Revolcado por la ola: -20% de velocidad durante 3 rondas.'))
+  AS v(effect_type, stat_code, percent_amount, duration_turns, chance_percent, status_code, description);
+
+-- Andanada
+INSERT INTO skills (code, name, skill_type, damage_school, element_id, target_type, base_value, scaling_stat, scaling_multiplier, hits, mana_cost, is_passive, learn_method, learn_level, learn_gold_cost, description)
+SELECT 'MONSTRUO_ANDANADA', 'Andanada', 'ATAQUE', 'FISICO', NULL, 'ALL_ENEMIES', 4, 'ATK', 0.85, 1, 22, FALSE, 'LEVEL', 1, 0, '«¡Fuego!»: los cañones de su barco disparan sobre todos.'
+WHERE NOT EXISTS (SELECT 1 FROM skills WHERE code = 'MONSTRUO_ANDANADA');
+UPDATE skills SET name = 'Andanada', skill_type = 'ATAQUE', damage_school = 'FISICO', element_id = NULL, target_type = 'ALL_ENEMIES', base_value = 4, scaling_stat = 'ATK', scaling_multiplier = 0.85, hits = 1, mana_cost = 22, is_passive = FALSE, learn_method = 'LEVEL', learn_level = 1, learn_gold_cost = 0, description = '«¡Fuego!»: los cañones de su barco disparan sobre todos.' WHERE code = 'MONSTRUO_ANDANADA';
+DELETE FROM skill_effects WHERE skill_id = (SELECT id FROM skills WHERE code = 'MONSTRUO_ANDANADA');
+INSERT INTO skill_effects (skill_id, effect_type, stat_code, percent_amount, duration_turns, chance_percent, status_code, description)
+SELECT (SELECT id FROM skills WHERE code = 'MONSTRUO_ANDANADA'), v.* FROM (VALUES ('STAT_MOD', 'DEF', -10::numeric, 2, 30::numeric, 'WEAKEN', 'Aturdido por el cañonazo: -10% de defensa durante 2 rondas.'))
+  AS v(effect_type, stat_code, percent_amount, duration_turns, chance_percent, status_code, description);
+
+-- Ancla Giratoria
+INSERT INTO skills (code, name, skill_type, damage_school, element_id, target_type, base_value, scaling_stat, scaling_multiplier, hits, mana_cost, is_passive, learn_method, learn_level, learn_gold_cost, description)
+SELECT 'MONSTRUO_ANCLA_GIRATORIA', 'Ancla Giratoria', 'ATAQUE', 'FISICO', (SELECT id FROM elements WHERE code = 'WATER'), 'ALL_ENEMIES', 5, 'ATK', 0.9, 1, 25, FALSE, 'LEVEL', 1, 0, 'Hace girar el ancla de su barco con la cadena y barre a todos.'
+WHERE NOT EXISTS (SELECT 1 FROM skills WHERE code = 'MONSTRUO_ANCLA_GIRATORIA');
+UPDATE skills SET name = 'Ancla Giratoria', skill_type = 'ATAQUE', damage_school = 'FISICO', element_id = (SELECT id FROM elements WHERE code = 'WATER'), target_type = 'ALL_ENEMIES', base_value = 5, scaling_stat = 'ATK', scaling_multiplier = 0.9, hits = 1, mana_cost = 25, is_passive = FALSE, learn_method = 'LEVEL', learn_level = 1, learn_gold_cost = 0, description = 'Hace girar el ancla de su barco con la cadena y barre a todos.' WHERE code = 'MONSTRUO_ANCLA_GIRATORIA';
+DELETE FROM skill_effects WHERE skill_id = (SELECT id FROM skills WHERE code = 'MONSTRUO_ANCLA_GIRATORIA');
+INSERT INTO skill_effects (skill_id, effect_type, stat_code, percent_amount, duration_turns, chance_percent, status_code, description)
+SELECT (SELECT id FROM skills WHERE code = 'MONSTRUO_ANCLA_GIRATORIA'), v.* FROM (VALUES ('DOT', NULL, 5::numeric, 3, 30::numeric, 'BLEED', 'Sangrado: 5% del HP máximo por ronda durante 3 rondas.'))
+  AS v(effect_type, stat_code, percent_amount, duration_turns, chance_percent, status_code, description);
+
+-- Maremoto
+INSERT INTO skills (code, name, skill_type, damage_school, element_id, target_type, base_value, scaling_stat, scaling_multiplier, hits, mana_cost, is_passive, learn_method, learn_level, learn_gold_cost, description)
+SELECT 'MONSTRUO_MAREMOTO', 'Maremoto', 'ATAQUE', 'MAGICO', (SELECT id FROM elements WHERE code = 'WATER'), 'ALL_ENEMIES', 5, 'MAG', 0.9, 1, 25, FALSE, 'LEVEL', 1, 0, 'Se hunde en la Fosa y el mar entero se levanta sobre todos.'
+WHERE NOT EXISTS (SELECT 1 FROM skills WHERE code = 'MONSTRUO_MAREMOTO');
+UPDATE skills SET name = 'Maremoto', skill_type = 'ATAQUE', damage_school = 'MAGICO', element_id = (SELECT id FROM elements WHERE code = 'WATER'), target_type = 'ALL_ENEMIES', base_value = 5, scaling_stat = 'MAG', scaling_multiplier = 0.9, hits = 1, mana_cost = 25, is_passive = FALSE, learn_method = 'LEVEL', learn_level = 1, learn_gold_cost = 0, description = 'Se hunde en la Fosa y el mar entero se levanta sobre todos.' WHERE code = 'MONSTRUO_MAREMOTO';
+DELETE FROM skill_effects WHERE skill_id = (SELECT id FROM skills WHERE code = 'MONSTRUO_MAREMOTO');
+INSERT INTO skill_effects (skill_id, effect_type, stat_code, percent_amount, duration_turns, chance_percent, status_code, description)
+SELECT (SELECT id FROM skills WHERE code = 'MONSTRUO_MAREMOTO'), v.* FROM (VALUES ('STAT_MOD', 'SPD', -25::numeric, 3, 35::numeric, 'SLOW', 'Arrastrado por el maremoto: -25% de velocidad durante 3 rondas.'))
+  AS v(effect_type, stat_code, percent_amount, duration_turns, chance_percent, status_code, description);
+
+-- Escamas Abisales
+INSERT INTO skills (code, name, skill_type, damage_school, element_id, target_type, base_value, scaling_stat, scaling_multiplier, hits, mana_cost, is_passive, learn_method, learn_level, learn_gold_cost, description)
+SELECT 'MONSTRUO_ESCAMAS_ABISALES', 'Escamas Abisales', 'BUFF', NULL, NULL, 'SELF', NULL, NULL, NULL, 1, 15, FALSE, 'LEVEL', 1, 0, 'Se cierran sus escamas como una armadura. +30% de defensa y +30% de defensa mágica durante 2 rondas.'
+WHERE NOT EXISTS (SELECT 1 FROM skills WHERE code = 'MONSTRUO_ESCAMAS_ABISALES');
+UPDATE skills SET name = 'Escamas Abisales', skill_type = 'BUFF', damage_school = NULL, element_id = NULL, target_type = 'SELF', base_value = NULL, scaling_stat = NULL, scaling_multiplier = NULL, hits = 1, mana_cost = 15, is_passive = FALSE, learn_method = 'LEVEL', learn_level = 1, learn_gold_cost = 0, description = 'Se cierran sus escamas como una armadura. +30% de defensa y +30% de defensa mágica durante 2 rondas.' WHERE code = 'MONSTRUO_ESCAMAS_ABISALES';
+DELETE FROM skill_effects WHERE skill_id = (SELECT id FROM skills WHERE code = 'MONSTRUO_ESCAMAS_ABISALES');
+INSERT INTO skill_effects (skill_id, effect_type, stat_code, percent_amount, duration_turns, chance_percent, status_code, description)
+SELECT (SELECT id FROM skills WHERE code = 'MONSTRUO_ESCAMAS_ABISALES'), v.* FROM (VALUES ('STAT_MOD', 'DEF', 30::numeric, 2, NULL::numeric, NULL, '+30% de defensa durante 2 rondas.'), ('STAT_MOD', 'MAGIC_DEF', 30::numeric, 2, NULL::numeric, NULL, '+30% de defensa mágica durante 2 rondas.'))
+  AS v(effect_type, stat_code, percent_amount, duration_turns, chance_percent, status_code, description);
+
+-- Cangrejo Gigante
+INSERT INTO monsters (code, name, zone_id, rarity, base_level, min_spawn_level, max_spawn_level, base_hp, base_atk, base_def, base_magic_atk, base_magic_def, base_spd, base_evasion, base_crit_chance, base_crit_damage, xp_reward, gold_reward, description, category, element_id)
+SELECT 'CANGREJO_GIGANTE', 'Cangrejo Gigante', 4, 'COMMON', 46, 46, 49, 4316, 194, 347, 97, 197, 75, 18.5, 15, 50, 1250, 325, 'Cangrejo del tamaño de una carreta que vive en colonias sobre la arena negra. Sus pinzas parten remos.', 'ACUATICO', (SELECT id FROM elements WHERE code = 'WATER')
+WHERE NOT EXISTS (SELECT 1 FROM monsters WHERE code = 'CANGREJO_GIGANTE');
+UPDATE monsters SET name = 'Cangrejo Gigante', zone_id = 4, rarity = 'COMMON', base_level = 46, min_spawn_level = 46, max_spawn_level = 49, base_hp = 4316, base_atk = 194, base_def = 347, base_magic_atk = 97, base_magic_def = 197, base_spd = 75, base_evasion = 18.5, base_crit_chance = 15, base_crit_damage = 50, xp_reward = 1250, gold_reward = 325, description = 'Cangrejo del tamaño de una carreta que vive en colonias sobre la arena negra. Sus pinzas parten remos.', category = 'ACUATICO', element_id = (SELECT id FROM elements WHERE code = 'WATER') WHERE code = 'CANGREJO_GIGANTE';
+DELETE FROM monster_level_scalings WHERE monster_id = (SELECT id FROM monsters WHERE code = 'CANGREJO_GIGANTE');
+INSERT INTO monster_level_scalings (monster_id, level, hp, atk, def, magic_atk, magic_def, spd, evasion, crit_chance, crit_damage, elemental_damage)
+SELECT (SELECT id FROM monsters WHERE code = 'CANGREJO_GIGANTE'), v.* FROM (VALUES
+  (46, 4316, 194, 347, 97, 197, 75, 18.5, 15, 50, 0),
+  (49, 4599, 206, 367, 103, 209, 80, 19.4, 15.6, 50, 0),
+  (60, 5639, 250, 441, 125, 251, 96, 22.7, 17.8, 50, 0)
+) AS v(level, hp, atk, def, magic_atk, magic_def, spd, evasion, crit_chance, crit_damage, elemental_damage);
+DELETE FROM monster_element_resistances WHERE monster_id = (SELECT id FROM monsters WHERE code = 'CANGREJO_GIGANTE');
+INSERT INTO monster_element_resistances (monster_id, element_id, resistance_percent)
+SELECT (SELECT id FROM monsters WHERE code = 'CANGREJO_GIGANTE'), e.id, COALESCE(v.pct, 0) FROM elements e LEFT JOIN (VALUES ('WATER', 40), ('FIRE', 20), ('LIGHTNING', -40)) AS v(code, pct) ON v.code = e.code;
+DELETE FROM monster_drops WHERE monster_id = (SELECT id FROM monsters WHERE code = 'CANGREJO_GIGANTE');
+INSERT INTO monster_drops (monster_id, item_id, drop_chance_percent, min_quantity, max_quantity)
+SELECT (SELECT id FROM monsters WHERE code = 'CANGREJO_GIGANTE'), i.id, v.pct, v.mn, v.mx FROM (VALUES ('CAPARAZON_CANGREJO_GIGANTE', 30, 1, 2), ('CARNE_OSTRA', 10, 1, 2), ('HUEVO_POCO_COMUN', 3, 1, 1)) AS v(code, pct, mn, mx)
+JOIN items i ON i.code = v.code;
+DELETE FROM monster_skills WHERE monster_id = (SELECT id FROM monsters WHERE code = 'CANGREJO_GIGANTE');
+INSERT INTO monster_skills (monster_id, skill_id, use_chance_percent)
+SELECT (SELECT id FROM monsters WHERE code = 'CANGREJO_GIGANTE'), s.id, v.pct FROM (VALUES ('MONSTRUO_TENAZA', 30), ('MONSTRUO_CAPARAZON', 20)) AS v(code, pct) JOIN skills s ON s.code = v.code;
+
+-- Gaviota Carroñera
+INSERT INTO monsters (code, name, zone_id, rarity, base_level, min_spawn_level, max_spawn_level, base_hp, base_atk, base_def, base_magic_atk, base_magic_def, base_spd, base_evasion, base_crit_chance, base_crit_damage, xp_reward, gold_reward, description, category, element_id)
+SELECT 'GAVIOTA_CARRONERA', 'Gaviota Carroñera', 4, 'COMMON', 46, 46, 50, 2877, 204, 206, 102, 232, 145, 24.5, 15, 50, 1250, 325, 'Gaviota enorme y descarada que roba pescado, sombreros y ojos si te descuidas. Chilla como una puerta vieja.', 'BESTIA', (SELECT id FROM elements WHERE code = 'WIND')
+WHERE NOT EXISTS (SELECT 1 FROM monsters WHERE code = 'GAVIOTA_CARRONERA');
+UPDATE monsters SET name = 'Gaviota Carroñera', zone_id = 4, rarity = 'COMMON', base_level = 46, min_spawn_level = 46, max_spawn_level = 50, base_hp = 2877, base_atk = 204, base_def = 206, base_magic_atk = 102, base_magic_def = 232, base_spd = 145, base_evasion = 24.5, base_crit_chance = 15, base_crit_damage = 50, xp_reward = 1250, gold_reward = 325, description = 'Gaviota enorme y descarada que roba pescado, sombreros y ojos si te descuidas. Chilla como una puerta vieja.', category = 'BESTIA', element_id = (SELECT id FROM elements WHERE code = 'WIND') WHERE code = 'GAVIOTA_CARRONERA';
+DELETE FROM monster_level_scalings WHERE monster_id = (SELECT id FROM monsters WHERE code = 'GAVIOTA_CARRONERA');
+INSERT INTO monster_level_scalings (monster_id, level, hp, atk, def, magic_atk, magic_def, spd, evasion, crit_chance, crit_damage, elemental_damage)
+SELECT (SELECT id FROM monsters WHERE code = 'GAVIOTA_CARRONERA'), v.* FROM (VALUES
+  (46, 2877, 204, 206, 102, 232, 145, 24.5, 15, 50, 0),
+  (50, 3129, 221, 222, 110, 250, 157, 25.7, 15.8, 50, 0),
+  (60, 3759, 263, 262, 131, 295, 186, 28.7, 17.8, 50, 0)
+) AS v(level, hp, atk, def, magic_atk, magic_def, spd, evasion, crit_chance, crit_damage, elemental_damage);
+DELETE FROM monster_element_resistances WHERE monster_id = (SELECT id FROM monsters WHERE code = 'GAVIOTA_CARRONERA');
+INSERT INTO monster_element_resistances (monster_id, element_id, resistance_percent)
+SELECT (SELECT id FROM monsters WHERE code = 'GAVIOTA_CARRONERA'), e.id, COALESCE(v.pct, 0) FROM elements e LEFT JOIN (VALUES ('WIND', 30), ('LIGHTNING', -30), ('ICE', -20)) AS v(code, pct) ON v.code = e.code;
+DELETE FROM monster_drops WHERE monster_id = (SELECT id FROM monsters WHERE code = 'GAVIOTA_CARRONERA');
+INSERT INTO monster_drops (monster_id, item_id, drop_chance_percent, min_quantity, max_quantity)
+SELECT (SELECT id FROM monsters WHERE code = 'GAVIOTA_CARRONERA'), i.id, v.pct, v.mn, v.mx FROM (VALUES ('PLUMA_SALADA', 30, 1, 2), ('ALGA_SALINA', 8, 1, 2), ('HUEVO_POCO_COMUN', 3, 1, 1)) AS v(code, pct, mn, mx)
+JOIN items i ON i.code = v.code;
+DELETE FROM monster_skills WHERE monster_id = (SELECT id FROM monsters WHERE code = 'GAVIOTA_CARRONERA');
+INSERT INTO monster_skills (monster_id, skill_id, use_chance_percent)
+SELECT (SELECT id FROM monsters WHERE code = 'GAVIOTA_CARRONERA'), s.id, v.pct FROM (VALUES ('MONSTRUO_PICOTAZO', 30), ('MONSTRUO_CHILLIDO', 15)) AS v(code, pct) JOIN skills s ON s.code = v.code;
+
+-- Pirata Sin Nombre
+INSERT INTO monsters (code, name, zone_id, rarity, base_level, min_spawn_level, max_spawn_level, base_hp, base_atk, base_def, base_magic_atk, base_magic_def, base_spd, base_evasion, base_crit_chance, base_crit_damage, xp_reward, gold_reward, description, category, element_id)
+SELECT 'PIRATA_SIN_NOMBRE', 'Pirata Sin Nombre', 4, 'COMMON', 47, 47, 51, 3675, 218, 249, 109, 213, 107, 18.8, 15.2, 50, 1275, 330, 'Pirata de la tripulación que nadie recuerda. Asalta a quien se acerque a la Cala con un pistolón oxidado.', 'HUMANOIDE', NULL
+WHERE NOT EXISTS (SELECT 1 FROM monsters WHERE code = 'PIRATA_SIN_NOMBRE');
+UPDATE monsters SET name = 'Pirata Sin Nombre', zone_id = 4, rarity = 'COMMON', base_level = 47, min_spawn_level = 47, max_spawn_level = 51, base_hp = 3675, base_atk = 218, base_def = 249, base_magic_atk = 109, base_magic_def = 213, base_spd = 107, base_evasion = 18.8, base_crit_chance = 15.2, base_crit_damage = 50, xp_reward = 1275, gold_reward = 330, description = 'Pirata de la tripulación que nadie recuerda. Asalta a quien se acerque a la Cala con un pistolón oxidado.', category = 'HUMANOIDE', element_id = NULL WHERE code = 'PIRATA_SIN_NOMBRE';
+DELETE FROM monster_level_scalings WHERE monster_id = (SELECT id FROM monsters WHERE code = 'PIRATA_SIN_NOMBRE');
+INSERT INTO monster_level_scalings (monster_id, level, hp, atk, def, magic_atk, magic_def, spd, evasion, crit_chance, crit_damage, elemental_damage)
+SELECT (SELECT id FROM monsters WHERE code = 'PIRATA_SIN_NOMBRE'), v.* FROM (VALUES
+  (47, 3675, 218, 249, 109, 213, 107, 18.8, 15.2, 50, 0),
+  (51, 3990, 235, 268, 118, 229, 116, 20, 16, 50, 0),
+  (60, 4699, 275, 311, 138, 266, 134, 22.7, 17.8, 50, 0)
+) AS v(level, hp, atk, def, magic_atk, magic_def, spd, evasion, crit_chance, crit_damage, elemental_damage);
+DELETE FROM monster_element_resistances WHERE monster_id = (SELECT id FROM monsters WHERE code = 'PIRATA_SIN_NOMBRE');
+INSERT INTO monster_element_resistances (monster_id, element_id, resistance_percent)
+SELECT (SELECT id FROM monsters WHERE code = 'PIRATA_SIN_NOMBRE'), e.id, COALESCE(v.pct, 0) FROM elements e LEFT JOIN (VALUES ('WATER', 10), ('DARK', -10)) AS v(code, pct) ON v.code = e.code;
+DELETE FROM monster_drops WHERE monster_id = (SELECT id FROM monsters WHERE code = 'PIRATA_SIN_NOMBRE');
+INSERT INTO monster_drops (monster_id, item_id, drop_chance_percent, min_quantity, max_quantity)
+SELECT (SELECT id FROM monsters WHERE code = 'PIRATA_SIN_NOMBRE'), i.id, v.pct, v.mn, v.mx FROM (VALUES ('PARCHE_PIRATA_SIN_NOMBRE', 30, 1, 2), ('CUERDA_ALQUITRAN', 10, 1, 2), ('ACEITE_DE_COCINA', 6, 1, 1)) AS v(code, pct, mn, mx)
+JOIN items i ON i.code = v.code;
+DELETE FROM monster_skills WHERE monster_id = (SELECT id FROM monsters WHERE code = 'PIRATA_SIN_NOMBRE');
+INSERT INTO monster_skills (monster_id, skill_id, use_chance_percent)
+SELECT (SELECT id FROM monsters WHERE code = 'PIRATA_SIN_NOMBRE'), s.id, v.pct FROM (VALUES ('MONSTRUO_PISTOLON', 30), ('MONSTRUO_BOTELLA_ROTA', 20)) AS v(code, pct) JOIN skills s ON s.code = v.code;
+
+-- Cangrejo de Vapor
+INSERT INTO monsters (code, name, zone_id, rarity, base_level, min_spawn_level, max_spawn_level, base_hp, base_atk, base_def, base_magic_atk, base_magic_def, base_spd, base_evasion, base_crit_chance, base_crit_damage, xp_reward, gold_reward, description, category, element_id)
+SELECT 'CANGREJO_VAPOR', 'Cangrejo de Vapor', 4, 'COMMON', 47, 47, 50, 3850, 79, 314, 208, 237, 87, 18.8, 15.2, 50, 1275, 330, 'Cangrejo rojo que vive en las pozas tibias donde la lava toca el mar. Escupe chorros de vapor hirviendo.', 'ACUATICO', (SELECT id FROM elements WHERE code = 'FIRE')
+WHERE NOT EXISTS (SELECT 1 FROM monsters WHERE code = 'CANGREJO_VAPOR');
+UPDATE monsters SET name = 'Cangrejo de Vapor', zone_id = 4, rarity = 'COMMON', base_level = 47, min_spawn_level = 47, max_spawn_level = 50, base_hp = 3850, base_atk = 79, base_def = 314, base_magic_atk = 208, base_magic_def = 237, base_spd = 87, base_evasion = 18.8, base_crit_chance = 15.2, base_crit_damage = 50, xp_reward = 1275, gold_reward = 330, description = 'Cangrejo rojo que vive en las pozas tibias donde la lava toca el mar. Escupe chorros de vapor hirviendo.', category = 'ACUATICO', element_id = (SELECT id FROM elements WHERE code = 'FIRE') WHERE code = 'CANGREJO_VAPOR';
+DELETE FROM monster_level_scalings WHERE monster_id = (SELECT id FROM monsters WHERE code = 'CANGREJO_VAPOR');
+INSERT INTO monster_level_scalings (monster_id, level, hp, atk, def, magic_atk, magic_def, spd, evasion, crit_chance, crit_damage, elemental_damage)
+SELECT (SELECT id FROM monsters WHERE code = 'CANGREJO_VAPOR'), v.* FROM (VALUES
+  (47, 3850, 79, 314, 208, 237, 87, 18.8, 15.2, 50, 0),
+  (50, 4098, 84, 332, 221, 250, 92, 19.7, 15.8, 50, 0),
+  (60, 4923, 100, 392, 263, 295, 109, 22.7, 17.8, 50, 0)
+) AS v(level, hp, atk, def, magic_atk, magic_def, spd, evasion, crit_chance, crit_damage, elemental_damage);
+DELETE FROM monster_element_resistances WHERE monster_id = (SELECT id FROM monsters WHERE code = 'CANGREJO_VAPOR');
+INSERT INTO monster_element_resistances (monster_id, element_id, resistance_percent)
+SELECT (SELECT id FROM monsters WHERE code = 'CANGREJO_VAPOR'), e.id, COALESCE(v.pct, 0) FROM elements e LEFT JOIN (VALUES ('FIRE', 50), ('WATER', 30), ('ICE', -40), ('LIGHTNING', -20)) AS v(code, pct) ON v.code = e.code;
+DELETE FROM monster_drops WHERE monster_id = (SELECT id FROM monsters WHERE code = 'CANGREJO_VAPOR');
+INSERT INTO monster_drops (monster_id, item_id, drop_chance_percent, min_quantity, max_quantity)
+SELECT (SELECT id FROM monsters WHERE code = 'CANGREJO_VAPOR'), i.id, v.pct, v.mn, v.mx FROM (VALUES ('CAPARAZON_HERVIDO', 30, 1, 2), ('CARNE_OSTRA', 10, 1, 2), ('HUEVO_POCO_COMUN', 3, 1, 1)) AS v(code, pct, mn, mx)
+JOIN items i ON i.code = v.code;
+DELETE FROM monster_skills WHERE monster_id = (SELECT id FROM monsters WHERE code = 'CANGREJO_VAPOR');
+INSERT INTO monster_skills (monster_id, skill_id, use_chance_percent)
+SELECT (SELECT id FROM monsters WHERE code = 'CANGREJO_VAPOR'), s.id, v.pct FROM (VALUES ('MONSTRUO_CHORRO_VAPOR', 35), ('MONSTRUO_TENAZA', 20)) AS v(code, pct) JOIN skills s ON s.code = v.code;
+
+-- Piraña del Manglar
+INSERT INTO monsters (code, name, zone_id, rarity, base_level, min_spawn_level, max_spawn_level, base_hp, base_atk, base_def, base_magic_atk, base_magic_def, base_spd, base_evasion, base_crit_chance, base_crit_damage, xp_reward, gold_reward, description, category, element_id)
+SELECT 'PIRANA_AGUA', 'Piraña del Manglar', 4, 'COMMON', 48, 48, 52, 3003, 222, 214, 111, 241, 146, 24.1, 18.4, 50, 1300, 340, 'Pez de dientes de sierra que salta de los canales del Manglar en bandadas. Si ves burbujas, no metas la pierna.', 'ACUATICO', (SELECT id FROM elements WHERE code = 'WATER')
+WHERE NOT EXISTS (SELECT 1 FROM monsters WHERE code = 'PIRANA_AGUA');
+UPDATE monsters SET name = 'Piraña del Manglar', zone_id = 4, rarity = 'COMMON', base_level = 48, min_spawn_level = 48, max_spawn_level = 52, base_hp = 3003, base_atk = 222, base_def = 214, base_magic_atk = 111, base_magic_def = 241, base_spd = 146, base_evasion = 24.1, base_crit_chance = 18.4, base_crit_damage = 50, xp_reward = 1300, gold_reward = 340, description = 'Pez de dientes de sierra que salta de los canales del Manglar en bandadas. Si ves burbujas, no metas la pierna.', category = 'ACUATICO', element_id = (SELECT id FROM elements WHERE code = 'WATER') WHERE code = 'PIRANA_AGUA';
+DELETE FROM monster_level_scalings WHERE monster_id = (SELECT id FROM monsters WHERE code = 'PIRANA_AGUA');
+INSERT INTO monster_level_scalings (monster_id, level, hp, atk, def, magic_atk, magic_def, spd, evasion, crit_chance, crit_damage, elemental_damage)
+SELECT (SELECT id FROM monsters WHERE code = 'PIRANA_AGUA'), v.* FROM (VALUES
+  (48, 3003, 222, 214, 111, 241, 146, 24.1, 18.4, 50, 0),
+  (52, 3255, 240, 230, 120, 259, 157, 25.3, 19.2, 50, 0),
+  (60, 3759, 275, 262, 138, 295, 179, 27.7, 20.8, 50, 0)
+) AS v(level, hp, atk, def, magic_atk, magic_def, spd, evasion, crit_chance, crit_damage, elemental_damage);
+DELETE FROM monster_element_resistances WHERE monster_id = (SELECT id FROM monsters WHERE code = 'PIRANA_AGUA');
+INSERT INTO monster_element_resistances (monster_id, element_id, resistance_percent)
+SELECT (SELECT id FROM monsters WHERE code = 'PIRANA_AGUA'), e.id, COALESCE(v.pct, 0) FROM elements e LEFT JOIN (VALUES ('WATER', 50), ('LIGHTNING', -40)) AS v(code, pct) ON v.code = e.code;
+DELETE FROM monster_drops WHERE monster_id = (SELECT id FROM monsters WHERE code = 'PIRANA_AGUA');
+INSERT INTO monster_drops (monster_id, item_id, drop_chance_percent, min_quantity, max_quantity)
+SELECT (SELECT id FROM monsters WHERE code = 'PIRANA_AGUA'), i.id, v.pct, v.mn, v.mx FROM (VALUES ('DIENTE_DE_PIRANA', 30, 1, 2), ('ALGA_SALINA', 10, 1, 2), ('HUEVO_POCO_COMUN', 3, 1, 1)) AS v(code, pct, mn, mx)
+JOIN items i ON i.code = v.code;
+DELETE FROM monster_skills WHERE monster_id = (SELECT id FROM monsters WHERE code = 'PIRANA_AGUA');
+INSERT INTO monster_skills (monster_id, skill_id, use_chance_percent)
+SELECT (SELECT id FROM monsters WHERE code = 'PIRANA_AGUA'), s.id, v.pct FROM (VALUES ('MONSTRUO_FRENESI', 30)) AS v(code, pct) JOIN skills s ON s.code = v.code;
+
+-- Cocodrilo del Manglar
+INSERT INTO monsters (code, name, zone_id, rarity, base_level, min_spawn_level, max_spawn_level, base_hp, base_atk, base_def, base_magic_atk, base_magic_def, base_spd, base_evasion, base_crit_chance, base_crit_damage, xp_reward, gold_reward, description, category, element_id)
+SELECT 'COCODRILO_MANGLAR', 'Cocodrilo del Manglar', 4, 'COMMON', 49, 49, 53, 4745, 237, 313, 118, 209, 85, 19.4, 15.6, 50, 1325, 345, 'Cocodrilo viejo que parece un tronco hasta que abre la boca. Le roba la pesca a Cieno todas las mañanas.', 'BESTIA', (SELECT id FROM elements WHERE code = 'WATER')
+WHERE NOT EXISTS (SELECT 1 FROM monsters WHERE code = 'COCODRILO_MANGLAR');
+UPDATE monsters SET name = 'Cocodrilo del Manglar', zone_id = 4, rarity = 'COMMON', base_level = 49, min_spawn_level = 49, max_spawn_level = 53, base_hp = 4745, base_atk = 237, base_def = 313, base_magic_atk = 118, base_magic_def = 209, base_spd = 85, base_evasion = 19.4, base_crit_chance = 15.6, base_crit_damage = 50, xp_reward = 1325, gold_reward = 345, description = 'Cocodrilo viejo que parece un tronco hasta que abre la boca. Le roba la pesca a Cieno todas las mañanas.', category = 'BESTIA', element_id = (SELECT id FROM elements WHERE code = 'WATER') WHERE code = 'COCODRILO_MANGLAR';
+DELETE FROM monster_level_scalings WHERE monster_id = (SELECT id FROM monsters WHERE code = 'COCODRILO_MANGLAR');
+INSERT INTO monster_level_scalings (monster_id, level, hp, atk, def, magic_atk, magic_def, spd, evasion, crit_chance, crit_damage, elemental_damage)
+SELECT (SELECT id FROM monsters WHERE code = 'COCODRILO_MANGLAR'), v.* FROM (VALUES
+  (49, 4745, 237, 313, 118, 209, 85, 19.4, 15.6, 50, 0),
+  (53, 5135, 255, 336, 128, 224, 91, 20.6, 16.4, 50, 0),
+  (60, 5818, 288, 376, 144, 251, 102, 22.7, 17.8, 50, 0)
+) AS v(level, hp, atk, def, magic_atk, magic_def, spd, evasion, crit_chance, crit_damage, elemental_damage);
+DELETE FROM monster_element_resistances WHERE monster_id = (SELECT id FROM monsters WHERE code = 'COCODRILO_MANGLAR');
+INSERT INTO monster_element_resistances (monster_id, element_id, resistance_percent)
+SELECT (SELECT id FROM monsters WHERE code = 'COCODRILO_MANGLAR'), e.id, COALESCE(v.pct, 0) FROM elements e LEFT JOIN (VALUES ('WATER', 30), ('EARTH', 20), ('ICE', -30), ('LIGHTNING', -20)) AS v(code, pct) ON v.code = e.code;
+DELETE FROM monster_drops WHERE monster_id = (SELECT id FROM monsters WHERE code = 'COCODRILO_MANGLAR');
+INSERT INTO monster_drops (monster_id, item_id, drop_chance_percent, min_quantity, max_quantity)
+SELECT (SELECT id FROM monsters WHERE code = 'COCODRILO_MANGLAR'), i.id, v.pct, v.mn, v.mx FROM (VALUES ('CUERO_COCODRILO', 30, 1, 2), ('ALGA_SALINA', 8, 1, 2), ('HUEVO_POCO_COMUN', 3, 1, 1)) AS v(code, pct, mn, mx)
+JOIN items i ON i.code = v.code;
+DELETE FROM monster_skills WHERE monster_id = (SELECT id FROM monsters WHERE code = 'COCODRILO_MANGLAR');
+INSERT INTO monster_skills (monster_id, skill_id, use_chance_percent)
+SELECT (SELECT id FROM monsters WHERE code = 'COCODRILO_MANGLAR'), s.id, v.pct FROM (VALUES ('MONSTRUO_GIRO_MORTAL', 30), ('MONSTRUO_MORDIDA_DESGARRADORA', 15)) AS v(code, pct) JOIN skills s ON s.code = v.code;
+
+-- Medusa Abisal
+INSERT INTO monsters (code, name, zone_id, rarity, base_level, min_spawn_level, max_spawn_level, base_hp, base_atk, base_def, base_magic_atk, base_magic_def, base_spd, base_evasion, base_crit_chance, base_crit_damage, xp_reward, gold_reward, description, category, element_id)
+SELECT 'MEDUSA_ABISAL', 'Medusa Abisal', 4, 'COMMON', 50, 50, 54, 3502, 84, 208, 221, 313, 119, 23.7, 15.8, 50, 1350, 350, 'Medusa que brilla de morado y flota sobre el agua baja. Sus filamentos dan descargas que dejan duro a un hombre.', 'ELEMENTAL', (SELECT id FROM elements WHERE code = 'LIGHTNING')
+WHERE NOT EXISTS (SELECT 1 FROM monsters WHERE code = 'MEDUSA_ABISAL');
+UPDATE monsters SET name = 'Medusa Abisal', zone_id = 4, rarity = 'COMMON', base_level = 50, min_spawn_level = 50, max_spawn_level = 54, base_hp = 3502, base_atk = 84, base_def = 208, base_magic_atk = 221, base_magic_def = 313, base_spd = 119, base_evasion = 23.7, base_crit_chance = 15.8, base_crit_damage = 50, xp_reward = 1350, gold_reward = 350, description = 'Medusa que brilla de morado y flota sobre el agua baja. Sus filamentos dan descargas que dejan duro a un hombre.', category = 'ELEMENTAL', element_id = (SELECT id FROM elements WHERE code = 'LIGHTNING') WHERE code = 'MEDUSA_ABISAL';
+DELETE FROM monster_level_scalings WHERE monster_id = (SELECT id FROM monsters WHERE code = 'MEDUSA_ABISAL');
+INSERT INTO monster_level_scalings (monster_id, level, hp, atk, def, magic_atk, magic_def, spd, evasion, crit_chance, crit_damage, elemental_damage)
+SELECT (SELECT id FROM monsters WHERE code = 'MEDUSA_ABISAL'), v.* FROM (VALUES
+  (50, 3502, 84, 208, 221, 313, 119, 23.7, 15.8, 50, 0),
+  (54, 3784, 90, 223, 237, 335, 128, 24.9, 16.6, 50, 0),
+  (60, 4207, 100, 245, 263, 369, 141, 26.7, 17.8, 50, 0)
+) AS v(level, hp, atk, def, magic_atk, magic_def, spd, evasion, crit_chance, crit_damage, elemental_damage);
+DELETE FROM monster_element_resistances WHERE monster_id = (SELECT id FROM monsters WHERE code = 'MEDUSA_ABISAL');
+INSERT INTO monster_element_resistances (monster_id, element_id, resistance_percent)
+SELECT (SELECT id FROM monsters WHERE code = 'MEDUSA_ABISAL'), e.id, COALESCE(v.pct, 0) FROM elements e LEFT JOIN (VALUES ('LIGHTNING', 60), ('WATER', 40), ('EARTH', -40), ('FIRE', -20)) AS v(code, pct) ON v.code = e.code;
+DELETE FROM monster_drops WHERE monster_id = (SELECT id FROM monsters WHERE code = 'MEDUSA_ABISAL');
+INSERT INTO monster_drops (monster_id, item_id, drop_chance_percent, min_quantity, max_quantity)
+SELECT (SELECT id FROM monsters WHERE code = 'MEDUSA_ABISAL'), i.id, v.pct, v.mn, v.mx FROM (VALUES ('GEL_MEDUSA', 30, 1, 2), ('SAL_DE_CRISTAL', 10, 1, 2), ('POLVO_ARCANO', 6, 1, 1)) AS v(code, pct, mn, mx)
+JOIN items i ON i.code = v.code;
+DELETE FROM monster_skills WHERE monster_id = (SELECT id FROM monsters WHERE code = 'MEDUSA_ABISAL');
+INSERT INTO monster_skills (monster_id, skill_id, use_chance_percent)
+SELECT (SELECT id FROM monsters WHERE code = 'MEDUSA_ABISAL'), s.id, v.pct FROM (VALUES ('MONSTRUO_TOQUE_URTICANTE', 35), ('MONSTRUO_DESCARGA_MEDUSA', 20)) AS v(code, pct) JOIN skills s ON s.code = v.code;
+
+-- Sirena Corrupta
+INSERT INTO monsters (code, name, zone_id, rarity, base_level, min_spawn_level, max_spawn_level, base_hp, base_atk, base_def, base_magic_atk, base_magic_def, base_spd, base_evasion, base_crit_chance, base_crit_damage, xp_reward, gold_reward, description, category, element_id)
+SELECT 'SIRENA_CORRUPTA', 'Sirena Corrupta', 4, 'COMMON', 51, 51, 55, 3800, 86, 226, 225, 318, 121, 20, 16, 50, 1375, 355, 'Sirena de ojos morados que canta sobre las rocas. Antes guiaba a los barcos; desde que llegó el eclipse los hunde.', 'ACUATICO', (SELECT id FROM elements WHERE code = 'WATER')
+WHERE NOT EXISTS (SELECT 1 FROM monsters WHERE code = 'SIRENA_CORRUPTA');
+UPDATE monsters SET name = 'Sirena Corrupta', zone_id = 4, rarity = 'COMMON', base_level = 51, min_spawn_level = 51, max_spawn_level = 55, base_hp = 3800, base_atk = 86, base_def = 226, base_magic_atk = 225, base_magic_def = 318, base_spd = 121, base_evasion = 20, base_crit_chance = 16, base_crit_damage = 50, xp_reward = 1375, gold_reward = 355, description = 'Sirena de ojos morados que canta sobre las rocas. Antes guiaba a los barcos; desde que llegó el eclipse los hunde.', category = 'ACUATICO', element_id = (SELECT id FROM elements WHERE code = 'WATER') WHERE code = 'SIRENA_CORRUPTA';
+DELETE FROM monster_level_scalings WHERE monster_id = (SELECT id FROM monsters WHERE code = 'SIRENA_CORRUPTA');
+INSERT INTO monster_level_scalings (monster_id, level, hp, atk, def, magic_atk, magic_def, spd, evasion, crit_chance, crit_damage, elemental_damage)
+SELECT (SELECT id FROM monsters WHERE code = 'SIRENA_CORRUPTA'), v.* FROM (VALUES
+  (51, 3800, 86, 226, 225, 318, 121, 20, 16, 50, 0),
+  (55, 4100, 92, 242, 242, 341, 130, 21.2, 16.8, 50, 0),
+  (60, 4475, 100, 262, 263, 369, 141, 22.7, 17.8, 50, 0)
+) AS v(level, hp, atk, def, magic_atk, magic_def, spd, evasion, crit_chance, crit_damage, elemental_damage);
+DELETE FROM monster_element_resistances WHERE monster_id = (SELECT id FROM monsters WHERE code = 'SIRENA_CORRUPTA');
+INSERT INTO monster_element_resistances (monster_id, element_id, resistance_percent)
+SELECT (SELECT id FROM monsters WHERE code = 'SIRENA_CORRUPTA'), e.id, COALESCE(v.pct, 0) FROM elements e LEFT JOIN (VALUES ('WATER', 50), ('DARK', 20), ('LIGHTNING', -40), ('LIGHT', -20)) AS v(code, pct) ON v.code = e.code;
+DELETE FROM monster_drops WHERE monster_id = (SELECT id FROM monsters WHERE code = 'SIRENA_CORRUPTA');
+INSERT INTO monster_drops (monster_id, item_id, drop_chance_percent, min_quantity, max_quantity)
+SELECT (SELECT id FROM monsters WHERE code = 'SIRENA_CORRUPTA'), i.id, v.pct, v.mn, v.mx FROM (VALUES ('ESCAMA_SIRENA_CORRUPTA', 30, 1, 2), ('PERLA_MARINA', 6, 1, 1), ('ESTRELLA_DE_MAR', 10, 1, 2)) AS v(code, pct, mn, mx)
+JOIN items i ON i.code = v.code;
+DELETE FROM monster_skills WHERE monster_id = (SELECT id FROM monsters WHERE code = 'SIRENA_CORRUPTA');
+INSERT INTO monster_skills (monster_id, skill_id, use_chance_percent)
+SELECT (SELECT id FROM monsters WHERE code = 'SIRENA_CORRUPTA'), s.id, v.pct FROM (VALUES ('MONSTRUO_LANZA_AGUA', 35), ('MONSTRUO_CANTO_HECHIZANTE', 20)) AS v(code, pct) JOIN skills s ON s.code = v.code;
+
+-- Gólem de Coral
+INSERT INTO monsters (code, name, zone_id, rarity, base_level, min_spawn_level, max_spawn_level, base_hp, base_atk, base_def, base_magic_atk, base_magic_def, base_spd, base_evasion, base_crit_chance, base_crit_damage, xp_reward, gold_reward, description, category, element_id)
+SELECT 'GOLEM_CORAL', 'Gólem de Coral', 4, 'COMMON', 53, 53, 57, 5451, 222, 423, 111, 277, 80, 20.6, 16.4, 50, 1425, 370, 'El arrecife se levantó y echó a andar: un gólem de coral blanco con peces viviendo entre sus ramas.', 'ELEMENTAL', (SELECT id FROM elements WHERE code = 'EARTH')
+WHERE NOT EXISTS (SELECT 1 FROM monsters WHERE code = 'GOLEM_CORAL');
+UPDATE monsters SET name = 'Gólem de Coral', zone_id = 4, rarity = 'COMMON', base_level = 53, min_spawn_level = 53, max_spawn_level = 57, base_hp = 5451, base_atk = 222, base_def = 423, base_magic_atk = 111, base_magic_def = 277, base_spd = 80, base_evasion = 20.6, base_crit_chance = 16.4, base_crit_damage = 50, xp_reward = 1425, gold_reward = 370, description = 'El arrecife se levantó y echó a andar: un gólem de coral blanco con peces viviendo entre sus ramas.', category = 'ELEMENTAL', element_id = (SELECT id FROM elements WHERE code = 'EARTH') WHERE code = 'GOLEM_CORAL';
+DELETE FROM monster_level_scalings WHERE monster_id = (SELECT id FROM monsters WHERE code = 'GOLEM_CORAL');
+INSERT INTO monster_level_scalings (monster_id, level, hp, atk, def, magic_atk, magic_def, spd, evasion, crit_chance, crit_damage, elemental_damage)
+SELECT (SELECT id FROM monsters WHERE code = 'GOLEM_CORAL'), v.* FROM (VALUES
+  (53, 5451, 222, 423, 111, 277, 80, 20.6, 16.4, 50, 0),
+  (57, 5865, 238, 452, 119, 296, 85, 21.8, 17.2, 50, 0),
+  (60, 6175, 250, 474, 125, 310, 90, 22.7, 17.8, 50, 0)
+) AS v(level, hp, atk, def, magic_atk, magic_def, spd, evasion, crit_chance, crit_damage, elemental_damage);
+DELETE FROM monster_element_resistances WHERE monster_id = (SELECT id FROM monsters WHERE code = 'GOLEM_CORAL');
+INSERT INTO monster_element_resistances (monster_id, element_id, resistance_percent)
+SELECT (SELECT id FROM monsters WHERE code = 'GOLEM_CORAL'), e.id, COALESCE(v.pct, 0) FROM elements e LEFT JOIN (VALUES ('EARTH', 35), ('WATER', 40), ('LIGHTNING', -35), ('FIRE', -10)) AS v(code, pct) ON v.code = e.code;
+DELETE FROM monster_drops WHERE monster_id = (SELECT id FROM monsters WHERE code = 'GOLEM_CORAL');
+INSERT INTO monster_drops (monster_id, item_id, drop_chance_percent, min_quantity, max_quantity)
+SELECT (SELECT id FROM monsters WHERE code = 'GOLEM_CORAL'), i.id, v.pct, v.mn, v.mx FROM (VALUES ('FRAGMENTO_CORAL', 30, 1, 2), ('CORAL_ROJO', 12, 1, 2), ('GEMA_COMUN', 5, 1, 1)) AS v(code, pct, mn, mx)
+JOIN items i ON i.code = v.code;
+DELETE FROM monster_skills WHERE monster_id = (SELECT id FROM monsters WHERE code = 'GOLEM_CORAL');
+INSERT INTO monster_skills (monster_id, skill_id, use_chance_percent)
+SELECT (SELECT id FROM monsters WHERE code = 'GOLEM_CORAL'), s.id, v.pct FROM (VALUES ('MONSTRUO_PIEL_CORAL', 25), ('MONSTRUO_CORAL_CORTANTE', 25)) AS v(code, pct) JOIN skills s ON s.code = v.code;
+
+-- Marinero Maldito
+INSERT INTO monsters (code, name, zone_id, rarity, base_level, min_spawn_level, max_spawn_level, base_hp, base_atk, base_def, base_magic_atk, base_magic_def, base_spd, base_evasion, base_crit_chance, base_crit_damage, xp_reward, gold_reward, description, category, element_id)
+SELECT 'MARINERO_MALDITO', 'Marinero Maldito', 4, 'COMMON', 54, 54, 58, 5555, 249, 312, 124, 241, 99, 20.9, 16.6, 50, 1450, 375, 'Un ahogado que la marea negra de los Ocultos levantó del fondo. Arrastra las cadenas de su barco y no sabe dónde está su casa.', 'MUERTO_VIVIENTE', (SELECT id FROM elements WHERE code = 'DARK')
+WHERE NOT EXISTS (SELECT 1 FROM monsters WHERE code = 'MARINERO_MALDITO');
+UPDATE monsters SET name = 'Marinero Maldito', zone_id = 4, rarity = 'COMMON', base_level = 54, min_spawn_level = 54, max_spawn_level = 58, base_hp = 5555, base_atk = 249, base_def = 312, base_magic_atk = 124, base_magic_def = 241, base_spd = 99, base_evasion = 20.9, base_crit_chance = 16.6, base_crit_damage = 50, xp_reward = 1450, gold_reward = 375, description = 'Un ahogado que la marea negra de los Ocultos levantó del fondo. Arrastra las cadenas de su barco y no sabe dónde está su casa.', category = 'MUERTO_VIVIENTE', element_id = (SELECT id FROM elements WHERE code = 'DARK') WHERE code = 'MARINERO_MALDITO';
+DELETE FROM monster_level_scalings WHERE monster_id = (SELECT id FROM monsters WHERE code = 'MARINERO_MALDITO');
+INSERT INTO monster_level_scalings (monster_id, level, hp, atk, def, magic_atk, magic_def, spd, evasion, crit_chance, crit_damage, elemental_damage)
+SELECT (SELECT id FROM monsters WHERE code = 'MARINERO_MALDITO'), v.* FROM (VALUES
+  (54, 5555, 249, 312, 124, 241, 99, 20.9, 16.6, 50, 0),
+  (58, 5968, 266, 333, 133, 257, 105, 22.1, 17.4, 50, 0),
+  (60, 6175, 275, 343, 138, 266, 109, 22.7, 17.8, 50, 0)
+) AS v(level, hp, atk, def, magic_atk, magic_def, spd, evasion, crit_chance, crit_damage, elemental_damage);
+DELETE FROM monster_element_resistances WHERE monster_id = (SELECT id FROM monsters WHERE code = 'MARINERO_MALDITO');
+INSERT INTO monster_element_resistances (monster_id, element_id, resistance_percent)
+SELECT (SELECT id FROM monsters WHERE code = 'MARINERO_MALDITO'), e.id, COALESCE(v.pct, 0) FROM elements e LEFT JOIN (VALUES ('DARK', 40), ('WATER', 30), ('LIGHT', -50), ('FIRE', -20)) AS v(code, pct) ON v.code = e.code;
+DELETE FROM monster_drops WHERE monster_id = (SELECT id FROM monsters WHERE code = 'MARINERO_MALDITO');
+INSERT INTO monster_drops (monster_id, item_id, drop_chance_percent, min_quantity, max_quantity)
+SELECT (SELECT id FROM monsters WHERE code = 'MARINERO_MALDITO'), i.id, v.pct, v.mn, v.mx FROM (VALUES ('CADENA_AHOGADA', 30, 1, 2), ('MADERA_NAUFRAGIO', 10, 1, 2), ('HUEVO_POCO_COMUN', 3, 1, 1)) AS v(code, pct, mn, mx)
+JOIN items i ON i.code = v.code;
+DELETE FROM monster_skills WHERE monster_id = (SELECT id FROM monsters WHERE code = 'MARINERO_MALDITO');
+INSERT INTO monster_skills (monster_id, skill_id, use_chance_percent)
+SELECT (SELECT id FROM monsters WHERE code = 'MARINERO_MALDITO'), s.id, v.pct FROM (VALUES ('MONSTRUO_ABRAZO_AHOGADO', 30), ('MONSTRUO_GOLPE_BAJO', 15)) AS v(code, pct) JOIN skills s ON s.code = v.code;
+
+-- Acólito de la Marea
+INSERT INTO monsters (code, name, zone_id, rarity, base_level, min_spawn_level, max_spawn_level, base_hp, base_atk, base_def, base_magic_atk, base_magic_def, base_spd, base_evasion, base_crit_chance, base_crit_damage, xp_reward, gold_reward, description, category, element_id)
+SELECT 'ACOLITO_MAREA', 'Acólito de la Marea', 4, 'COMMON', 55, 55, 59, 4510, 92, 242, 242, 327, 118, 21.2, 16.8, 50, 1475, 380, 'Seguidor de los Ocultos con la túnica empapada y el eclipse pintado en la frente. Cuida las cadenas de la Bestia desde el Faro Negro.', 'HUMANOIDE', (SELECT id FROM elements WHERE code = 'DARK')
+WHERE NOT EXISTS (SELECT 1 FROM monsters WHERE code = 'ACOLITO_MAREA');
+UPDATE monsters SET name = 'Acólito de la Marea', zone_id = 4, rarity = 'COMMON', base_level = 55, min_spawn_level = 55, max_spawn_level = 59, base_hp = 4510, base_atk = 92, base_def = 242, base_magic_atk = 242, base_magic_def = 327, base_spd = 118, base_evasion = 21.2, base_crit_chance = 16.8, base_crit_damage = 50, xp_reward = 1475, gold_reward = 380, description = 'Seguidor de los Ocultos con la túnica empapada y el eclipse pintado en la frente. Cuida las cadenas de la Bestia desde el Faro Negro.', category = 'HUMANOIDE', element_id = (SELECT id FROM elements WHERE code = 'DARK') WHERE code = 'ACOLITO_MAREA';
+DELETE FROM monster_level_scalings WHERE monster_id = (SELECT id FROM monsters WHERE code = 'ACOLITO_MAREA');
+INSERT INTO monster_level_scalings (monster_id, level, hp, atk, def, magic_atk, magic_def, spd, evasion, crit_chance, crit_damage, elemental_damage)
+SELECT (SELECT id FROM monsters WHERE code = 'ACOLITO_MAREA'), v.* FROM (VALUES
+  (55, 4510, 92, 242, 242, 327, 118, 21.2, 16.8, 50, 0),
+  (59, 4840, 98, 258, 258, 349, 126, 22.4, 17.6, 50, 0),
+  (60, 4923, 100, 262, 263, 354, 128, 22.7, 17.8, 50, 0)
+) AS v(level, hp, atk, def, magic_atk, magic_def, spd, evasion, crit_chance, crit_damage, elemental_damage);
+DELETE FROM monster_element_resistances WHERE monster_id = (SELECT id FROM monsters WHERE code = 'ACOLITO_MAREA');
+INSERT INTO monster_element_resistances (monster_id, element_id, resistance_percent)
+SELECT (SELECT id FROM monsters WHERE code = 'ACOLITO_MAREA'), e.id, COALESCE(v.pct, 0) FROM elements e LEFT JOIN (VALUES ('DARK', 40), ('WATER', 20), ('LIGHT', -40)) AS v(code, pct) ON v.code = e.code;
+DELETE FROM monster_drops WHERE monster_id = (SELECT id FROM monsters WHERE code = 'ACOLITO_MAREA');
+INSERT INTO monster_drops (monster_id, item_id, drop_chance_percent, min_quantity, max_quantity)
+SELECT (SELECT id FROM monsters WHERE code = 'ACOLITO_MAREA'), i.id, v.pct, v.mn, v.mx FROM (VALUES ('SELLO_MAREA', 30, 1, 2), ('POLVO_ARCANO', 12, 1, 1), ('FRAGMENTO_ECLIPSE', 4, 1, 1)) AS v(code, pct, mn, mx)
+JOIN items i ON i.code = v.code;
+DELETE FROM monster_skills WHERE monster_id = (SELECT id FROM monsters WHERE code = 'ACOLITO_MAREA');
+INSERT INTO monster_skills (monster_id, skill_id, use_chance_percent)
+SELECT (SELECT id FROM monsters WHERE code = 'ACOLITO_MAREA'), s.id, v.pct FROM (VALUES ('MONSTRUO_REZO_ABISAL', 35), ('MONSTRUO_MAREA_NEGRA', 20)) AS v(code, pct) JOIN skills s ON s.code = v.code;
+
+-- Calamar del Abismo
+INSERT INTO monsters (code, name, zone_id, rarity, base_level, min_spawn_level, max_spawn_level, base_hp, base_atk, base_def, base_magic_atk, base_magic_def, base_spd, base_evasion, base_crit_chance, base_crit_damage, xp_reward, gold_reward, description, category, element_id)
+SELECT 'CALAMAR_ABISMO', 'Calamar del Abismo', 4, 'COMMON', 57, 57, 60, 6375, 262, 296, 131, 282, 128, 21.8, 17.2, 50, 1525, 390, 'Calamar gigante que sube de la Fosa cuando cae la noche. Agarra con ocho brazos y escupe tinta que ciega.', 'ACUATICO', (SELECT id FROM elements WHERE code = 'WATER')
+WHERE NOT EXISTS (SELECT 1 FROM monsters WHERE code = 'CALAMAR_ABISMO');
+UPDATE monsters SET name = 'Calamar del Abismo', zone_id = 4, rarity = 'COMMON', base_level = 57, min_spawn_level = 57, max_spawn_level = 60, base_hp = 6375, base_atk = 262, base_def = 296, base_magic_atk = 131, base_magic_def = 282, base_spd = 128, base_evasion = 21.8, base_crit_chance = 17.2, base_crit_damage = 50, xp_reward = 1525, gold_reward = 390, description = 'Calamar gigante que sube de la Fosa cuando cae la noche. Agarra con ocho brazos y escupe tinta que ciega.', category = 'ACUATICO', element_id = (SELECT id FROM elements WHERE code = 'WATER') WHERE code = 'CALAMAR_ABISMO';
+DELETE FROM monster_level_scalings WHERE monster_id = (SELECT id FROM monsters WHERE code = 'CALAMAR_ABISMO');
+INSERT INTO monster_level_scalings (monster_id, level, hp, atk, def, magic_atk, magic_def, spd, evasion, crit_chance, crit_damage, elemental_damage)
+SELECT (SELECT id FROM monsters WHERE code = 'CALAMAR_ABISMO'), v.* FROM (VALUES
+  (57, 6375, 262, 296, 131, 282, 128, 21.8, 17.2, 50, 0),
+  (60, 6713, 275, 311, 138, 295, 134, 22.7, 17.8, 50, 0)
+) AS v(level, hp, atk, def, magic_atk, magic_def, spd, evasion, crit_chance, crit_damage, elemental_damage);
+DELETE FROM monster_element_resistances WHERE monster_id = (SELECT id FROM monsters WHERE code = 'CALAMAR_ABISMO');
+INSERT INTO monster_element_resistances (monster_id, element_id, resistance_percent)
+SELECT (SELECT id FROM monsters WHERE code = 'CALAMAR_ABISMO'), e.id, COALESCE(v.pct, 0) FROM elements e LEFT JOIN (VALUES ('WATER', 50), ('DARK', 20), ('LIGHTNING', -40)) AS v(code, pct) ON v.code = e.code;
+DELETE FROM monster_drops WHERE monster_id = (SELECT id FROM monsters WHERE code = 'CALAMAR_ABISMO');
+INSERT INTO monster_drops (monster_id, item_id, drop_chance_percent, min_quantity, max_quantity)
+SELECT (SELECT id FROM monsters WHERE code = 'CALAMAR_ABISMO'), i.id, v.pct, v.mn, v.mx FROM (VALUES ('TINTA_ABISAL', 30, 1, 2), ('PERLA_MARINA', 4, 1, 1), ('HUEVO_POCO_COMUN', 3, 1, 1)) AS v(code, pct, mn, mx)
+JOIN items i ON i.code = v.code;
+DELETE FROM monster_skills WHERE monster_id = (SELECT id FROM monsters WHERE code = 'CALAMAR_ABISMO');
+INSERT INTO monster_skills (monster_id, skill_id, use_chance_percent)
+SELECT (SELECT id FROM monsters WHERE code = 'CALAMAR_ABISMO'), s.id, v.pct FROM (VALUES ('MONSTRUO_TENTACULOS', 30), ('MONSTRUO_CHORRO_TINTA', 20)) AS v(code, pct) JOIN skills s ON s.code = v.code;
+
+-- Leviatán Menor
+INSERT INTO monsters (code, name, zone_id, rarity, base_level, min_spawn_level, max_spawn_level, base_hp, base_atk, base_def, base_magic_atk, base_magic_def, base_spd, base_evasion, base_crit_chance, base_crit_damage, xp_reward, gold_reward, description, category, element_id)
+SELECT 'LEVIATAN_MENOR', 'Leviatán Menor', 4, 'RARE', 53, 53, 56, 8176, 107, 321, 280, 319, 120, 20.6, 16.4, 50, 3420, 735, 'Una serpiente marina larga como tres barcos. Es cría todavía: su madre duerme en la Fosa, encadenada.', 'ACUATICO', (SELECT id FROM elements WHERE code = 'WATER')
+WHERE NOT EXISTS (SELECT 1 FROM monsters WHERE code = 'LEVIATAN_MENOR');
+UPDATE monsters SET name = 'Leviatán Menor', zone_id = 4, rarity = 'RARE', base_level = 53, min_spawn_level = 53, max_spawn_level = 56, base_hp = 8176, base_atk = 107, base_def = 321, base_magic_atk = 280, base_magic_def = 319, base_spd = 120, base_evasion = 20.6, base_crit_chance = 16.4, base_crit_damage = 50, xp_reward = 3420, gold_reward = 735, description = 'Una serpiente marina larga como tres barcos. Es cría todavía: su madre duerme en la Fosa, encadenada.', category = 'ACUATICO', element_id = (SELECT id FROM elements WHERE code = 'WATER') WHERE code = 'LEVIATAN_MENOR';
+DELETE FROM monster_level_scalings WHERE monster_id = (SELECT id FROM monsters WHERE code = 'LEVIATAN_MENOR');
+INSERT INTO monster_level_scalings (monster_id, level, hp, atk, def, magic_atk, magic_def, spd, evasion, crit_chance, crit_damage, elemental_damage)
+SELECT (SELECT id FROM monsters WHERE code = 'LEVIATAN_MENOR'), v.* FROM (VALUES
+  (53, 8176, 107, 321, 280, 319, 120, 20.6, 16.4, 50, 0),
+  (56, 8642, 112, 338, 295, 335, 126, 21.5, 17, 50, 0),
+  (60, 9263, 120, 360, 315, 357, 134, 22.7, 17.8, 50, 0)
+) AS v(level, hp, atk, def, magic_atk, magic_def, spd, evasion, crit_chance, crit_damage, elemental_damage);
+DELETE FROM monster_element_resistances WHERE monster_id = (SELECT id FROM monsters WHERE code = 'LEVIATAN_MENOR');
+INSERT INTO monster_element_resistances (monster_id, element_id, resistance_percent)
+SELECT (SELECT id FROM monsters WHERE code = 'LEVIATAN_MENOR'), e.id, COALESCE(v.pct, 0) FROM elements e LEFT JOIN (VALUES ('WATER', 60), ('LIGHTNING', -40), ('EARTH', -20)) AS v(code, pct) ON v.code = e.code;
+DELETE FROM monster_drops WHERE monster_id = (SELECT id FROM monsters WHERE code = 'LEVIATAN_MENOR');
+INSERT INTO monster_drops (monster_id, item_id, drop_chance_percent, min_quantity, max_quantity)
+SELECT (SELECT id FROM monsters WHERE code = 'LEVIATAN_MENOR'), i.id, v.pct, v.mn, v.mx FROM (VALUES ('COLMILLO_LEVIATAN_MENOR', 30, 1, 1), ('PERLA_MARINA', 15, 1, 1), ('PIEDRA_ENCANT_MAYOR', 6, 1, 1), ('HUEVO_RARO', 4, 1, 1)) AS v(code, pct, mn, mx)
+JOIN items i ON i.code = v.code;
+DELETE FROM monster_skills WHERE monster_id = (SELECT id FROM monsters WHERE code = 'LEVIATAN_MENOR');
+INSERT INTO monster_skills (monster_id, skill_id, use_chance_percent)
+SELECT (SELECT id FROM monsters WHERE code = 'LEVIATAN_MENOR'), s.id, v.pct FROM (VALUES ('MONSTRUO_COLETAZO_OLA', 30), ('MONSTRUO_LANZA_AGUA', 25), ('MONSTRUO_MORDIDA_DESGARRADORA', 20)) AS v(code, pct) JOIN skills s ON s.code = v.code;
+
+-- Capitana Velanegra
+INSERT INTO monsters (code, name, zone_id, rarity, base_level, min_spawn_level, max_spawn_level, base_hp, base_atk, base_def, base_magic_atk, base_magic_def, base_spd, base_evasion, base_crit_chance, base_crit_damage, xp_reward, gold_reward, description, category, element_id)
+SELECT 'CAPITAN_PIRATA', 'Capitana Velanegra', 4, 'RARE', 54, 54, 57, 7245, 312, 310, 156, 324, 134, 20.9, 16.6, 50, 3480, 750, 'La capitana del barco sin bandera, agente de los Ocultos. Levanta a los ahogados con una brújula que marca el eclipse en vez del norte.', 'HUMANOIDE', (SELECT id FROM elements WHERE code = 'DARK')
+WHERE NOT EXISTS (SELECT 1 FROM monsters WHERE code = 'CAPITAN_PIRATA');
+UPDATE monsters SET name = 'Capitana Velanegra', zone_id = 4, rarity = 'RARE', base_level = 54, min_spawn_level = 54, max_spawn_level = 57, base_hp = 7245, base_atk = 312, base_def = 310, base_magic_atk = 156, base_magic_def = 324, base_spd = 134, base_evasion = 20.9, base_crit_chance = 16.6, base_crit_damage = 50, xp_reward = 3480, gold_reward = 750, description = 'La capitana del barco sin bandera, agente de los Ocultos. Levanta a los ahogados con una brújula que marca el eclipse en vez del norte.', category = 'HUMANOIDE', element_id = (SELECT id FROM elements WHERE code = 'DARK') WHERE code = 'CAPITAN_PIRATA';
+DELETE FROM monster_level_scalings WHERE monster_id = (SELECT id FROM monsters WHERE code = 'CAPITAN_PIRATA');
+INSERT INTO monster_level_scalings (monster_id, level, hp, atk, def, magic_atk, magic_def, spd, evasion, crit_chance, crit_damage, elemental_damage)
+SELECT (SELECT id FROM monsters WHERE code = 'CAPITAN_PIRATA'), v.* FROM (VALUES
+  (54, 7245, 312, 310, 156, 324, 134, 20.9, 16.6, 50, 0),
+  (57, 7650, 328, 326, 164, 341, 141, 21.8, 17.2, 50, 0),
+  (60, 8055, 345, 342, 173, 357, 148, 22.7, 17.8, 50, 0)
+) AS v(level, hp, atk, def, magic_atk, magic_def, spd, evasion, crit_chance, crit_damage, elemental_damage);
+DELETE FROM monster_element_resistances WHERE monster_id = (SELECT id FROM monsters WHERE code = 'CAPITAN_PIRATA');
+INSERT INTO monster_element_resistances (monster_id, element_id, resistance_percent)
+SELECT (SELECT id FROM monsters WHERE code = 'CAPITAN_PIRATA'), e.id, COALESCE(v.pct, 0) FROM elements e LEFT JOIN (VALUES ('DARK', 30), ('WATER', 20), ('LIGHT', -30), ('LIGHTNING', -20)) AS v(code, pct) ON v.code = e.code;
+DELETE FROM monster_drops WHERE monster_id = (SELECT id FROM monsters WHERE code = 'CAPITAN_PIRATA');
+INSERT INTO monster_drops (monster_id, item_id, drop_chance_percent, min_quantity, max_quantity)
+SELECT (SELECT id FROM monsters WHERE code = 'CAPITAN_PIRATA'), i.id, v.pct, v.mn, v.mx FROM (VALUES ('MAPA_CAPITAN_PIRATA', 30, 1, 1), ('PERLA_MARINA', 10, 1, 1), ('PIEDRA_ENCANT_MAYOR', 8, 1, 1), ('HUEVO_RARO', 4, 1, 1)) AS v(code, pct, mn, mx)
+JOIN items i ON i.code = v.code;
+DELETE FROM monster_skills WHERE monster_id = (SELECT id FROM monsters WHERE code = 'CAPITAN_PIRATA');
+INSERT INTO monster_skills (monster_id, skill_id, use_chance_percent)
+SELECT (SELECT id FROM monsters WHERE code = 'CAPITAN_PIRATA'), s.id, v.pct FROM (VALUES ('MONSTRUO_ANDANADA', 30), ('MONSTRUO_MAREA_NEGRA', 25), ('MONSTRUO_PISTOLON', 20)) AS v(code, pct) JOIN skills s ON s.code = v.code;
+
+-- Almirante Ahogado
+INSERT INTO monsters (code, name, zone_id, rarity, base_level, min_spawn_level, max_spawn_level, base_hp, base_atk, base_def, base_magic_atk, base_magic_def, base_spd, base_evasion, base_crit_chance, base_crit_damage, xp_reward, gold_reward, description, category, element_id)
+SELECT 'ALMIRANTE_AHOGADO', 'Almirante Ahogado', 4, 'MINIBOSS', 57, 57, 57, 14875, 333, 374, 167, 321, 159, 21.8, 17.2, 50, 5300, 975, 'El almirante de la flota real que se hundió hace cien años frente al Faro. Velanegra lo levantó para que gobierne su barco sin bandera.', 'MUERTO_VIVIENTE', (SELECT id FROM elements WHERE code = 'WATER')
+WHERE NOT EXISTS (SELECT 1 FROM monsters WHERE code = 'ALMIRANTE_AHOGADO');
+UPDATE monsters SET name = 'Almirante Ahogado', zone_id = 4, rarity = 'MINIBOSS', base_level = 57, min_spawn_level = 57, max_spawn_level = 57, base_hp = 14875, base_atk = 333, base_def = 374, base_magic_atk = 167, base_magic_def = 321, base_spd = 159, base_evasion = 21.8, base_crit_chance = 17.2, base_crit_damage = 50, xp_reward = 5300, gold_reward = 975, description = 'El almirante de la flota real que se hundió hace cien años frente al Faro. Velanegra lo levantó para que gobierne su barco sin bandera.', category = 'MUERTO_VIVIENTE', element_id = (SELECT id FROM elements WHERE code = 'WATER') WHERE code = 'ALMIRANTE_AHOGADO';
+DELETE FROM monster_level_scalings WHERE monster_id = (SELECT id FROM monsters WHERE code = 'ALMIRANTE_AHOGADO');
+INSERT INTO monster_level_scalings (monster_id, level, hp, atk, def, magic_atk, magic_def, spd, evasion, crit_chance, crit_damage, elemental_damage)
+SELECT (SELECT id FROM monsters WHERE code = 'ALMIRANTE_AHOGADO'), v.* FROM (VALUES
+  (57, 14875, 333, 374, 167, 321, 159, 21.8, 17.2, 50, 0),
+  (60, 15663, 350, 392, 175, 336, 166, 22.7, 17.8, 50, 0)
+) AS v(level, hp, atk, def, magic_atk, magic_def, spd, evasion, crit_chance, crit_damage, elemental_damage);
+DELETE FROM monster_element_resistances WHERE monster_id = (SELECT id FROM monsters WHERE code = 'ALMIRANTE_AHOGADO');
+INSERT INTO monster_element_resistances (monster_id, element_id, resistance_percent)
+SELECT (SELECT id FROM monsters WHERE code = 'ALMIRANTE_AHOGADO'), e.id, COALESCE(v.pct, 0) FROM elements e LEFT JOIN (VALUES ('WATER', 50), ('DARK', 30), ('LIGHT', -40), ('LIGHTNING', -25)) AS v(code, pct) ON v.code = e.code;
+DELETE FROM monster_drops WHERE monster_id = (SELECT id FROM monsters WHERE code = 'ALMIRANTE_AHOGADO') AND item_id IN (SELECT id FROM items WHERE code IN ('ANCLA_ALMIRANTE', 'CADENA_AHOGADA', 'PIEDRA_ENCANT_MAYOR'));
+INSERT INTO monster_drops (monster_id, item_id, drop_chance_percent, min_quantity, max_quantity)
+SELECT (SELECT id FROM monsters WHERE code = 'ALMIRANTE_AHOGADO'), i.id, v.pct, v.mn, v.mx FROM (VALUES ('ANCLA_ALMIRANTE', 100, 1, 1), ('CADENA_AHOGADA', 60, 2, 3), ('PIEDRA_ENCANT_MAYOR', 20, 1, 1)) AS v(code, pct, mn, mx)
+JOIN items i ON i.code = v.code;
+DELETE FROM monster_skills WHERE monster_id = (SELECT id FROM monsters WHERE code = 'ALMIRANTE_AHOGADO');
+INSERT INTO monster_skills (monster_id, skill_id, use_chance_percent)
+SELECT (SELECT id FROM monsters WHERE code = 'ALMIRANTE_AHOGADO'), s.id, v.pct FROM (VALUES ('MONSTRUO_ANCLA_GIRATORIA', 30), ('MONSTRUO_ABRAZO_AHOGADO', 30), ('MONSTRUO_AULLIDO_GUERRA', 20)) AS v(code, pct) JOIN skills s ON s.code = v.code;
+
+-- Bestia de las Profundidades
+INSERT INTO monsters (code, name, zone_id, rarity, base_level, min_spawn_level, max_spawn_level, base_hp, base_atk, base_def, base_magic_atk, base_magic_def, base_spd, base_evasion, base_crit_chance, base_crit_damage, xp_reward, gold_reward, description, category, element_id)
+SELECT 'BESTIA_PROFUNDIDADES', 'Bestia de las Profundidades', 4, 'LEGENDARY', 60, 60, 60, 26850, 160, 425, 420, 384, 154, 22.7, 17.8, 50, 17000, 6900, 'La Guardiana del Cuarto Sello, madre de todos los leviatanes. Los Ocultos la encadenaron en la Fosa y la Marea Negra la está enloqueciendo.', 'ACUATICO', (SELECT id FROM elements WHERE code = 'WATER')
+WHERE NOT EXISTS (SELECT 1 FROM monsters WHERE code = 'BESTIA_PROFUNDIDADES');
+UPDATE monsters SET name = 'Bestia de las Profundidades', zone_id = 4, rarity = 'LEGENDARY', base_level = 60, min_spawn_level = 60, max_spawn_level = 60, base_hp = 26850, base_atk = 160, base_def = 425, base_magic_atk = 420, base_magic_def = 384, base_spd = 154, base_evasion = 22.7, base_crit_chance = 17.8, base_crit_damage = 50, xp_reward = 17000, gold_reward = 6900, description = 'La Guardiana del Cuarto Sello, madre de todos los leviatanes. Los Ocultos la encadenaron en la Fosa y la Marea Negra la está enloqueciendo.', category = 'ACUATICO', element_id = (SELECT id FROM elements WHERE code = 'WATER') WHERE code = 'BESTIA_PROFUNDIDADES';
+DELETE FROM monster_level_scalings WHERE monster_id = (SELECT id FROM monsters WHERE code = 'BESTIA_PROFUNDIDADES');
+INSERT INTO monster_level_scalings (monster_id, level, hp, atk, def, magic_atk, magic_def, spd, evasion, crit_chance, crit_damage, elemental_damage)
+SELECT (SELECT id FROM monsters WHERE code = 'BESTIA_PROFUNDIDADES'), v.* FROM (VALUES
+  (60, 26850, 160, 425, 420, 384, 154, 22.7, 17.8, 50, 0)
+) AS v(level, hp, atk, def, magic_atk, magic_def, spd, evasion, crit_chance, crit_damage, elemental_damage);
+DELETE FROM monster_element_resistances WHERE monster_id = (SELECT id FROM monsters WHERE code = 'BESTIA_PROFUNDIDADES');
+INSERT INTO monster_element_resistances (monster_id, element_id, resistance_percent)
+SELECT (SELECT id FROM monsters WHERE code = 'BESTIA_PROFUNDIDADES'), e.id, COALESCE(v.pct, 0) FROM elements e LEFT JOIN (VALUES ('WATER', 70), ('DARK', 20), ('LIGHTNING', -30), ('EARTH', -20)) AS v(code, pct) ON v.code = e.code;
+DELETE FROM monster_skills WHERE monster_id = (SELECT id FROM monsters WHERE code = 'BESTIA_PROFUNDIDADES');
+INSERT INTO monster_skills (monster_id, skill_id, use_chance_percent)
+SELECT (SELECT id FROM monsters WHERE code = 'BESTIA_PROFUNDIDADES'), s.id, v.pct FROM (VALUES ('MONSTRUO_MAREMOTO', 30), ('MONSTRUO_LANZA_AGUA', 30), ('MONSTRUO_TENTACULOS', 25), ('MONSTRUO_ESCAMAS_ABISALES', 20)) AS v(code, pct) JOIN skills s ON s.code = v.code;
+
+-- el Señor del Océano pasa a la mazmorra (sin zona)
+UPDATE monsters SET zone_id = NULL WHERE code = 'SENOR_OCEANO';
+
+-- ############################################################################################
+-- COSTAS MUERTAS (zona 4) · tanda 3, paso 1: equipo y crafteo de los 5 tiers (gen_equipo_costas.js)
+-- ############################################################################################
+
+-- ============================================================================================
+-- Equipo y crafteo de las Costas Muertas (repetible; sin ON CONFLICT). Cinco escalones para las 5
+-- clases base, paso 1: stats por fórmula (lib/equilibrio.itemStats) y recetas con materiales de la zona.
+--   Marea nv 46 raro (las piezas viejas «de las Costas»: Playa, Delta, Cala y Manglar)
+--   Coral nv 51 épico (NUEVO: Rocas y Arrecife, + Colmillo de Leviatán o Perla Marina)
+--   armas del Abismo nv 52 legendarias (NUEVAS: Perla del Abismo, del Arrecife Hundido)
+--   Almirante nv 55 épico (las piezas viejas «del Océano»: pergamino y Ancla del Almirante)
+--   Bestia nv 60 legendario (las piezas viejas «de las Profundidades»: pergamino y Corazón Abisal)
+-- Se fabrica en el Astillero del Puerto Antiguo, con Brea (lib/cercania.js). El paso 2 (bloque
+-- «Equipo de las Costas: escalera») ajusta armas, guantes, manos izquierdas y pechos (equipo v2/v3).
+-- ============================================================================================
+INSERT INTO items (code, name, item_type, rarity, obtain_method, description)
+SELECT v.code, v.name, 'MATERIAL', v.rarity, 'El Arrecife Hundido', v.descr FROM (VALUES
+  ('ARENA_ABISAL', 'Arena Abisal', 'POCO_COMUN', 'Arena negra del fondo del Arrecife Hundido, que brilla como si tuviera estrellas. La sueltan los guardianes de la ciudad de los tritones.'),
+  ('PERLA_DEL_ABISMO', 'Perla del Abismo', 'EPICO', 'La perla negra de la corona del Señor del Océano. Con ella se forjan las armas del Abismo.')
+) AS v(code, name, rarity, descr) WHERE NOT EXISTS (SELECT 1 FROM items i WHERE i.code = v.code);
+
+-- ---------------------------------------------------------------- marea (nv 46, RARO)
+-- Espada de la Marea
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'GUERRERO_WEAPON_COSTAS', 'Espada de la Marea', 'EQUIPMENT', 'WEAPON', FALSE, 'RARO', 1, 46, TRUE, 'CRAFT', 'Hecha en el Astillero del Puerto Antiguo con lo que dejan los monstruos de la Playa de Ceniza Negra, el Delta de Vapor, la Cala y el Manglar.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'GUERRERO_WEAPON_COSTAS');
+UPDATE items SET name = 'Espada de la Marea', item_type = 'EQUIPMENT', slot = 'WEAPON', is_two_handed = FALSE, rarity = 'RARO', class_id = 1, required_level = 46, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Hecha en el Astillero del Puerto Antiguo con lo que dejan los monstruos de la Playa de Ceniza Negra, el Delta de Vapor, la Cala y el Manglar.' WHERE code = 'GUERRERO_WEAPON_COSTAS';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'GUERRERO_WEAPON_COSTAS');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'GUERRERO_WEAPON_COSTAS'), v.* FROM (VALUES ('ATK', 98, FALSE), ('CRIT_CHANCE', 5.3, TRUE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station, scroll_item_id)
+SELECT 'RECIPE_GUERRERO_WEAPON_COSTAS', (SELECT id FROM items WHERE code = 'GUERRERO_WEAPON_COSTAS'), 1, 'RARO', 46, 1, 90, 1, 'Brea, en el Astillero del Puerto Antiguo', 4, 'forja', NULL WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_GUERRERO_WEAPON_COSTAS');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'GUERRERO_WEAPON_COSTAS'), result_quantity = 1, rarity = 'RARO', required_level = 46, required_class_id = 1, success_rate_percent = 90, craft_time_minutes = 1, artisan_name = 'Brea, en el Astillero del Puerto Antiguo', zone_id = 4, station = 'forja', scroll_item_id = NULL WHERE code = 'RECIPE_GUERRERO_WEAPON_COSTAS';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_GUERRERO_WEAPON_COSTAS');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_GUERRERO_WEAPON_COSTAS'), i.id, v.n FROM (VALUES ('CAPARAZON_CANGREJO_GIGANTE', 3), ('ACERO_REFINADO', 2), ('PARCHE_PIRATA_SIN_NOMBRE', 2)) AS v(code, n) JOIN items i ON i.code = v.code;
+-- Escudo de la Marea
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'GUERRERO_OFFHAND_COSTAS', 'Escudo de la Marea', 'EQUIPMENT', 'OFFHAND', FALSE, 'RARO', 1, 46, TRUE, 'CRAFT', 'Hecha en el Astillero del Puerto Antiguo con lo que dejan los monstruos de la Playa de Ceniza Negra, el Delta de Vapor, la Cala y el Manglar.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'GUERRERO_OFFHAND_COSTAS');
+UPDATE items SET name = 'Escudo de la Marea', item_type = 'EQUIPMENT', slot = 'OFFHAND', is_two_handed = FALSE, rarity = 'RARO', class_id = 1, required_level = 46, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Hecha en el Astillero del Puerto Antiguo con lo que dejan los monstruos de la Playa de Ceniza Negra, el Delta de Vapor, la Cala y el Manglar.' WHERE code = 'GUERRERO_OFFHAND_COSTAS';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'GUERRERO_OFFHAND_COSTAS');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'GUERRERO_OFFHAND_COSTAS'), v.* FROM (VALUES ('DEF', 22, FALSE), ('HP', 28, FALSE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station, scroll_item_id)
+SELECT 'RECIPE_GUERRERO_OFFHAND_COSTAS', (SELECT id FROM items WHERE code = 'GUERRERO_OFFHAND_COSTAS'), 1, 'RARO', 46, 1, 90, 1, 'Brea, en el Astillero del Puerto Antiguo', 4, 'forja', NULL WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_GUERRERO_OFFHAND_COSTAS');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'GUERRERO_OFFHAND_COSTAS'), result_quantity = 1, rarity = 'RARO', required_level = 46, required_class_id = 1, success_rate_percent = 90, craft_time_minutes = 1, artisan_name = 'Brea, en el Astillero del Puerto Antiguo', zone_id = 4, station = 'forja', scroll_item_id = NULL WHERE code = 'RECIPE_GUERRERO_OFFHAND_COSTAS';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_GUERRERO_OFFHAND_COSTAS');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_GUERRERO_OFFHAND_COSTAS'), i.id, v.n FROM (VALUES ('CAPARAZON_CANGREJO_GIGANTE', 2), ('ACERO_REFINADO', 1)) AS v(code, n) JOIN items i ON i.code = v.code;
+-- Yelmo de la Marea
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'GUERRERO_HELMET_COSTAS', 'Yelmo de la Marea', 'EQUIPMENT', 'HELMET', FALSE, 'RARO', 1, 46, TRUE, 'CRAFT', 'Hecha en el Astillero del Puerto Antiguo con lo que dejan los monstruos de la Playa de Ceniza Negra, el Delta de Vapor, la Cala y el Manglar.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'GUERRERO_HELMET_COSTAS');
+UPDATE items SET name = 'Yelmo de la Marea', item_type = 'EQUIPMENT', slot = 'HELMET', is_two_handed = FALSE, rarity = 'RARO', class_id = 1, required_level = 46, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Hecha en el Astillero del Puerto Antiguo con lo que dejan los monstruos de la Playa de Ceniza Negra, el Delta de Vapor, la Cala y el Manglar.' WHERE code = 'GUERRERO_HELMET_COSTAS';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'GUERRERO_HELMET_COSTAS');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'GUERRERO_HELMET_COSTAS'), v.* FROM (VALUES ('DEF', 18, FALSE), ('MAGIC_DEF', 5, FALSE), ('HP', 18, FALSE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station, scroll_item_id)
+SELECT 'RECIPE_GUERRERO_HELMET_COSTAS', (SELECT id FROM items WHERE code = 'GUERRERO_HELMET_COSTAS'), 1, 'RARO', 46, 1, 90, 1, 'Brea, en el Astillero del Puerto Antiguo', 4, 'forja', NULL WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_GUERRERO_HELMET_COSTAS');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'GUERRERO_HELMET_COSTAS'), result_quantity = 1, rarity = 'RARO', required_level = 46, required_class_id = 1, success_rate_percent = 90, craft_time_minutes = 1, artisan_name = 'Brea, en el Astillero del Puerto Antiguo', zone_id = 4, station = 'forja', scroll_item_id = NULL WHERE code = 'RECIPE_GUERRERO_HELMET_COSTAS';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_GUERRERO_HELMET_COSTAS');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_GUERRERO_HELMET_COSTAS'), i.id, v.n FROM (VALUES ('CAPARAZON_CANGREJO_GIGANTE', 2), ('ACERO_REFINADO', 1)) AS v(code, n) JOIN items i ON i.code = v.code;
+-- Armadura de la Marea
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'GUERRERO_ARMOR_COSTAS', 'Armadura de la Marea', 'EQUIPMENT', 'ARMOR', FALSE, 'RARO', 1, 46, TRUE, 'CRAFT', 'Hecha en el Astillero del Puerto Antiguo con lo que dejan los monstruos de la Playa de Ceniza Negra, el Delta de Vapor, la Cala y el Manglar.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'GUERRERO_ARMOR_COSTAS');
+UPDATE items SET name = 'Armadura de la Marea', item_type = 'EQUIPMENT', slot = 'ARMOR', is_two_handed = FALSE, rarity = 'RARO', class_id = 1, required_level = 46, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Hecha en el Astillero del Puerto Antiguo con lo que dejan los monstruos de la Playa de Ceniza Negra, el Delta de Vapor, la Cala y el Manglar.' WHERE code = 'GUERRERO_ARMOR_COSTAS';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'GUERRERO_ARMOR_COSTAS');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'GUERRERO_ARMOR_COSTAS'), v.* FROM (VALUES ('DEF', 35, FALSE), ('MAGIC_DEF', 11, FALSE), ('HP', 56, FALSE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station, scroll_item_id)
+SELECT 'RECIPE_GUERRERO_ARMOR_COSTAS', (SELECT id FROM items WHERE code = 'GUERRERO_ARMOR_COSTAS'), 1, 'RARO', 46, 1, 90, 1, 'Brea, en el Astillero del Puerto Antiguo', 4, 'forja', NULL WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_GUERRERO_ARMOR_COSTAS');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'GUERRERO_ARMOR_COSTAS'), result_quantity = 1, rarity = 'RARO', required_level = 46, required_class_id = 1, success_rate_percent = 90, craft_time_minutes = 1, artisan_name = 'Brea, en el Astillero del Puerto Antiguo', zone_id = 4, station = 'forja', scroll_item_id = NULL WHERE code = 'RECIPE_GUERRERO_ARMOR_COSTAS';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_GUERRERO_ARMOR_COSTAS');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_GUERRERO_ARMOR_COSTAS'), i.id, v.n FROM (VALUES ('CAPARAZON_CANGREJO_GIGANTE', 3), ('ACERO_REFINADO', 2), ('PARCHE_PIRATA_SIN_NOMBRE', 2)) AS v(code, n) JOIN items i ON i.code = v.code;
+-- Guanteletes de la Marea
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'GUERRERO_GLOVES_COSTAS', 'Guanteletes de la Marea', 'EQUIPMENT', 'GLOVES', FALSE, 'RARO', 1, 46, TRUE, 'CRAFT', 'Hecha en el Astillero del Puerto Antiguo con lo que dejan los monstruos de la Playa de Ceniza Negra, el Delta de Vapor, la Cala y el Manglar.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'GUERRERO_GLOVES_COSTAS');
+UPDATE items SET name = 'Guanteletes de la Marea', item_type = 'EQUIPMENT', slot = 'GLOVES', is_two_handed = FALSE, rarity = 'RARO', class_id = 1, required_level = 46, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Hecha en el Astillero del Puerto Antiguo con lo que dejan los monstruos de la Playa de Ceniza Negra, el Delta de Vapor, la Cala y el Manglar.' WHERE code = 'GUERRERO_GLOVES_COSTAS';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'GUERRERO_GLOVES_COSTAS');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'GUERRERO_GLOVES_COSTAS'), v.* FROM (VALUES ('DEF', 18, FALSE), ('MAGIC_DEF', 5, FALSE), ('HP', 29, FALSE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station, scroll_item_id)
+SELECT 'RECIPE_GUERRERO_GLOVES_COSTAS', (SELECT id FROM items WHERE code = 'GUERRERO_GLOVES_COSTAS'), 1, 'RARO', 46, 1, 90, 1, 'Brea, en el Astillero del Puerto Antiguo', 4, 'forja', NULL WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_GUERRERO_GLOVES_COSTAS');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'GUERRERO_GLOVES_COSTAS'), result_quantity = 1, rarity = 'RARO', required_level = 46, required_class_id = 1, success_rate_percent = 90, craft_time_minutes = 1, artisan_name = 'Brea, en el Astillero del Puerto Antiguo', zone_id = 4, station = 'forja', scroll_item_id = NULL WHERE code = 'RECIPE_GUERRERO_GLOVES_COSTAS';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_GUERRERO_GLOVES_COSTAS');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_GUERRERO_GLOVES_COSTAS'), i.id, v.n FROM (VALUES ('CAPARAZON_CANGREJO_GIGANTE', 2), ('ACERO_REFINADO', 1)) AS v(code, n) JOIN items i ON i.code = v.code;
+-- Botas de la Marea
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'GUERRERO_BOOTS_COSTAS', 'Botas de la Marea', 'EQUIPMENT', 'BOOTS', FALSE, 'RARO', 1, 46, TRUE, 'CRAFT', 'Hecha en el Astillero del Puerto Antiguo con lo que dejan los monstruos de la Playa de Ceniza Negra, el Delta de Vapor, la Cala y el Manglar.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'GUERRERO_BOOTS_COSTAS');
+UPDATE items SET name = 'Botas de la Marea', item_type = 'EQUIPMENT', slot = 'BOOTS', is_two_handed = FALSE, rarity = 'RARO', class_id = 1, required_level = 46, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Hecha en el Astillero del Puerto Antiguo con lo que dejan los monstruos de la Playa de Ceniza Negra, el Delta de Vapor, la Cala y el Manglar.' WHERE code = 'GUERRERO_BOOTS_COSTAS';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'GUERRERO_BOOTS_COSTAS');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'GUERRERO_BOOTS_COSTAS'), v.* FROM (VALUES ('DEF', 7, FALSE), ('HP', 7, FALSE), ('SPD', 27, FALSE), ('EVASION', 2, TRUE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station, scroll_item_id)
+SELECT 'RECIPE_GUERRERO_BOOTS_COSTAS', (SELECT id FROM items WHERE code = 'GUERRERO_BOOTS_COSTAS'), 1, 'RARO', 46, 1, 90, 1, 'Brea, en el Astillero del Puerto Antiguo', 4, 'forja', NULL WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_GUERRERO_BOOTS_COSTAS');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'GUERRERO_BOOTS_COSTAS'), result_quantity = 1, rarity = 'RARO', required_level = 46, required_class_id = 1, success_rate_percent = 90, craft_time_minutes = 1, artisan_name = 'Brea, en el Astillero del Puerto Antiguo', zone_id = 4, station = 'forja', scroll_item_id = NULL WHERE code = 'RECIPE_GUERRERO_BOOTS_COSTAS';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_GUERRERO_BOOTS_COSTAS');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_GUERRERO_BOOTS_COSTAS'), i.id, v.n FROM (VALUES ('CAPARAZON_CANGREJO_GIGANTE', 2), ('ACERO_REFINADO', 1)) AS v(code, n) JOIN items i ON i.code = v.code;
+-- Amuleto de la Marea
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'GUERRERO_ACCESSORY_COSTAS', 'Amuleto de la Marea', 'EQUIPMENT', 'ACCESSORY', FALSE, 'RARO', NULL, 46, TRUE, 'CRAFT', 'Hecha en el Astillero del Puerto Antiguo con lo que dejan los monstruos de la Playa de Ceniza Negra, el Delta de Vapor, la Cala y el Manglar.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'GUERRERO_ACCESSORY_COSTAS');
+UPDATE items SET name = 'Amuleto de la Marea', item_type = 'EQUIPMENT', slot = 'ACCESSORY', is_two_handed = FALSE, rarity = 'RARO', class_id = NULL, required_level = 46, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Hecha en el Astillero del Puerto Antiguo con lo que dejan los monstruos de la Playa de Ceniza Negra, el Delta de Vapor, la Cala y el Manglar.' WHERE code = 'GUERRERO_ACCESSORY_COSTAS';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'GUERRERO_ACCESSORY_COSTAS');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'GUERRERO_ACCESSORY_COSTAS'), v.* FROM (VALUES ('ATK', 39, FALSE), ('CRIT_CHANCE', 3.5, TRUE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station, scroll_item_id)
+SELECT 'RECIPE_GUERRERO_ACCESSORY_COSTAS', (SELECT id FROM items WHERE code = 'GUERRERO_ACCESSORY_COSTAS'), 1, 'RARO', 46, NULL, 90, 1, 'Brea, en el Astillero del Puerto Antiguo', 4, 'forja', NULL WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_GUERRERO_ACCESSORY_COSTAS');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'GUERRERO_ACCESSORY_COSTAS'), result_quantity = 1, rarity = 'RARO', required_level = 46, required_class_id = NULL, success_rate_percent = 90, craft_time_minutes = 1, artisan_name = 'Brea, en el Astillero del Puerto Antiguo', zone_id = 4, station = 'forja', scroll_item_id = NULL WHERE code = 'RECIPE_GUERRERO_ACCESSORY_COSTAS';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_GUERRERO_ACCESSORY_COSTAS');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_GUERRERO_ACCESSORY_COSTAS'), i.id, v.n FROM (VALUES ('CAPARAZON_HERVIDO', 2), ('CAPARAZON_CANGREJO_GIGANTE', 2), ('GEMA_COMUN', 1)) AS v(code, n) JOIN items i ON i.code = v.code;
+-- Arco de la Marea
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'ARQUERO_WEAPON_COSTAS', 'Arco de la Marea', 'EQUIPMENT', 'WEAPON', FALSE, 'RARO', 3, 46, TRUE, 'CRAFT', 'Hecha en el Astillero del Puerto Antiguo con lo que dejan los monstruos de la Playa de Ceniza Negra, el Delta de Vapor, la Cala y el Manglar.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'ARQUERO_WEAPON_COSTAS');
+UPDATE items SET name = 'Arco de la Marea', item_type = 'EQUIPMENT', slot = 'WEAPON', is_two_handed = FALSE, rarity = 'RARO', class_id = 3, required_level = 46, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Hecha en el Astillero del Puerto Antiguo con lo que dejan los monstruos de la Playa de Ceniza Negra, el Delta de Vapor, la Cala y el Manglar.' WHERE code = 'ARQUERO_WEAPON_COSTAS';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'ARQUERO_WEAPON_COSTAS');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'ARQUERO_WEAPON_COSTAS'), v.* FROM (VALUES ('ATK', 98, FALSE), ('CRIT_CHANCE', 5.3, TRUE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station, scroll_item_id)
+SELECT 'RECIPE_ARQUERO_WEAPON_COSTAS', (SELECT id FROM items WHERE code = 'ARQUERO_WEAPON_COSTAS'), 1, 'RARO', 46, 3, 90, 1, 'Brea, en el Astillero del Puerto Antiguo', 4, 'forja', NULL WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_ARQUERO_WEAPON_COSTAS');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'ARQUERO_WEAPON_COSTAS'), result_quantity = 1, rarity = 'RARO', required_level = 46, required_class_id = 3, success_rate_percent = 90, craft_time_minutes = 1, artisan_name = 'Brea, en el Astillero del Puerto Antiguo', zone_id = 4, station = 'forja', scroll_item_id = NULL WHERE code = 'RECIPE_ARQUERO_WEAPON_COSTAS';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_ARQUERO_WEAPON_COSTAS');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_ARQUERO_WEAPON_COSTAS'), i.id, v.n FROM (VALUES ('PLUMA_SALADA', 3), ('MADERA_NAUFRAGIO', 2), ('CUERDA_ALQUITRAN', 2)) AS v(code, n) JOIN items i ON i.code = v.code;
+-- Carcaj de la Marea
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'ARQUERO_OFFHAND_COSTAS', 'Carcaj de la Marea', 'EQUIPMENT', 'OFFHAND', FALSE, 'RARO', 3, 46, TRUE, 'CRAFT', 'Hecha en el Astillero del Puerto Antiguo con lo que dejan los monstruos de la Playa de Ceniza Negra, el Delta de Vapor, la Cala y el Manglar.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'ARQUERO_OFFHAND_COSTAS');
+UPDATE items SET name = 'Carcaj de la Marea', item_type = 'EQUIPMENT', slot = 'OFFHAND', is_two_handed = FALSE, rarity = 'RARO', class_id = 3, required_level = 46, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Hecha en el Astillero del Puerto Antiguo con lo que dejan los monstruos de la Playa de Ceniza Negra, el Delta de Vapor, la Cala y el Manglar.' WHERE code = 'ARQUERO_OFFHAND_COSTAS';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'ARQUERO_OFFHAND_COSTAS');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'ARQUERO_OFFHAND_COSTAS'), v.* FROM (VALUES ('ATK', 27, FALSE), ('CRIT_DAMAGE', 9, TRUE), ('SPD', 32, FALSE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station, scroll_item_id)
+SELECT 'RECIPE_ARQUERO_OFFHAND_COSTAS', (SELECT id FROM items WHERE code = 'ARQUERO_OFFHAND_COSTAS'), 1, 'RARO', 46, 3, 90, 1, 'Brea, en el Astillero del Puerto Antiguo', 4, 'forja', NULL WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_ARQUERO_OFFHAND_COSTAS');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'ARQUERO_OFFHAND_COSTAS'), result_quantity = 1, rarity = 'RARO', required_level = 46, required_class_id = 3, success_rate_percent = 90, craft_time_minutes = 1, artisan_name = 'Brea, en el Astillero del Puerto Antiguo', zone_id = 4, station = 'forja', scroll_item_id = NULL WHERE code = 'RECIPE_ARQUERO_OFFHAND_COSTAS';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_ARQUERO_OFFHAND_COSTAS');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_ARQUERO_OFFHAND_COSTAS'), i.id, v.n FROM (VALUES ('PLUMA_SALADA', 2), ('MADERA_NAUFRAGIO', 1)) AS v(code, n) JOIN items i ON i.code = v.code;
+-- Capucha de la Marea
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'ARQUERO_HELMET_COSTAS', 'Capucha de la Marea', 'EQUIPMENT', 'HELMET', FALSE, 'RARO', 3, 46, TRUE, 'CRAFT', 'Hecha en el Astillero del Puerto Antiguo con lo que dejan los monstruos de la Playa de Ceniza Negra, el Delta de Vapor, la Cala y el Manglar.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'ARQUERO_HELMET_COSTAS');
+UPDATE items SET name = 'Capucha de la Marea', item_type = 'EQUIPMENT', slot = 'HELMET', is_two_handed = FALSE, rarity = 'RARO', class_id = 3, required_level = 46, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Hecha en el Astillero del Puerto Antiguo con lo que dejan los monstruos de la Playa de Ceniza Negra, el Delta de Vapor, la Cala y el Manglar.' WHERE code = 'ARQUERO_HELMET_COSTAS';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'ARQUERO_HELMET_COSTAS');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'ARQUERO_HELMET_COSTAS'), v.* FROM (VALUES ('DEF', 18, FALSE), ('MAGIC_DEF', 5, FALSE), ('HP', 15, FALSE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station, scroll_item_id)
+SELECT 'RECIPE_ARQUERO_HELMET_COSTAS', (SELECT id FROM items WHERE code = 'ARQUERO_HELMET_COSTAS'), 1, 'RARO', 46, 3, 90, 1, 'Brea, en el Astillero del Puerto Antiguo', 4, 'forja', NULL WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_ARQUERO_HELMET_COSTAS');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'ARQUERO_HELMET_COSTAS'), result_quantity = 1, rarity = 'RARO', required_level = 46, required_class_id = 3, success_rate_percent = 90, craft_time_minutes = 1, artisan_name = 'Brea, en el Astillero del Puerto Antiguo', zone_id = 4, station = 'forja', scroll_item_id = NULL WHERE code = 'RECIPE_ARQUERO_HELMET_COSTAS';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_ARQUERO_HELMET_COSTAS');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_ARQUERO_HELMET_COSTAS'), i.id, v.n FROM (VALUES ('PLUMA_SALADA', 2), ('MADERA_NAUFRAGIO', 1)) AS v(code, n) JOIN items i ON i.code = v.code;
+-- Gabán de la Marea
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'ARQUERO_ARMOR_COSTAS', 'Gabán de la Marea', 'EQUIPMENT', 'ARMOR', FALSE, 'RARO', 3, 46, TRUE, 'CRAFT', 'Hecha en el Astillero del Puerto Antiguo con lo que dejan los monstruos de la Playa de Ceniza Negra, el Delta de Vapor, la Cala y el Manglar.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'ARQUERO_ARMOR_COSTAS');
+UPDATE items SET name = 'Gabán de la Marea', item_type = 'EQUIPMENT', slot = 'ARMOR', is_two_handed = FALSE, rarity = 'RARO', class_id = 3, required_level = 46, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Hecha en el Astillero del Puerto Antiguo con lo que dejan los monstruos de la Playa de Ceniza Negra, el Delta de Vapor, la Cala y el Manglar.' WHERE code = 'ARQUERO_ARMOR_COSTAS';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'ARQUERO_ARMOR_COSTAS');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'ARQUERO_ARMOR_COSTAS'), v.* FROM (VALUES ('DEF', 35, FALSE), ('MAGIC_DEF', 10, FALSE), ('HP', 63, FALSE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station, scroll_item_id)
+SELECT 'RECIPE_ARQUERO_ARMOR_COSTAS', (SELECT id FROM items WHERE code = 'ARQUERO_ARMOR_COSTAS'), 1, 'RARO', 46, 3, 90, 1, 'Brea, en el Astillero del Puerto Antiguo', 4, 'forja', NULL WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_ARQUERO_ARMOR_COSTAS');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'ARQUERO_ARMOR_COSTAS'), result_quantity = 1, rarity = 'RARO', required_level = 46, required_class_id = 3, success_rate_percent = 90, craft_time_minutes = 1, artisan_name = 'Brea, en el Astillero del Puerto Antiguo', zone_id = 4, station = 'forja', scroll_item_id = NULL WHERE code = 'RECIPE_ARQUERO_ARMOR_COSTAS';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_ARQUERO_ARMOR_COSTAS');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_ARQUERO_ARMOR_COSTAS'), i.id, v.n FROM (VALUES ('PLUMA_SALADA', 3), ('MADERA_NAUFRAGIO', 2), ('CUERDA_ALQUITRAN', 2)) AS v(code, n) JOIN items i ON i.code = v.code;
+-- Guantes de la Marea
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'ARQUERO_GLOVES_COSTAS', 'Guantes de la Marea', 'EQUIPMENT', 'GLOVES', FALSE, 'RARO', 3, 46, TRUE, 'CRAFT', 'Hecha en el Astillero del Puerto Antiguo con lo que dejan los monstruos de la Playa de Ceniza Negra, el Delta de Vapor, la Cala y el Manglar.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'ARQUERO_GLOVES_COSTAS');
+UPDATE items SET name = 'Guantes de la Marea', item_type = 'EQUIPMENT', slot = 'GLOVES', is_two_handed = FALSE, rarity = 'RARO', class_id = 3, required_level = 46, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Hecha en el Astillero del Puerto Antiguo con lo que dejan los monstruos de la Playa de Ceniza Negra, el Delta de Vapor, la Cala y el Manglar.' WHERE code = 'ARQUERO_GLOVES_COSTAS';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'ARQUERO_GLOVES_COSTAS');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'ARQUERO_GLOVES_COSTAS'), v.* FROM (VALUES ('DEF', 18, FALSE), ('MAGIC_DEF', 5, FALSE), ('HP', 31, FALSE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station, scroll_item_id)
+SELECT 'RECIPE_ARQUERO_GLOVES_COSTAS', (SELECT id FROM items WHERE code = 'ARQUERO_GLOVES_COSTAS'), 1, 'RARO', 46, 3, 90, 1, 'Brea, en el Astillero del Puerto Antiguo', 4, 'forja', NULL WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_ARQUERO_GLOVES_COSTAS');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'ARQUERO_GLOVES_COSTAS'), result_quantity = 1, rarity = 'RARO', required_level = 46, required_class_id = 3, success_rate_percent = 90, craft_time_minutes = 1, artisan_name = 'Brea, en el Astillero del Puerto Antiguo', zone_id = 4, station = 'forja', scroll_item_id = NULL WHERE code = 'RECIPE_ARQUERO_GLOVES_COSTAS';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_ARQUERO_GLOVES_COSTAS');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_ARQUERO_GLOVES_COSTAS'), i.id, v.n FROM (VALUES ('PLUMA_SALADA', 2), ('MADERA_NAUFRAGIO', 1)) AS v(code, n) JOIN items i ON i.code = v.code;
+-- Botas de la Marea
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'ARQUERO_BOOTS_COSTAS', 'Botas de la Marea', 'EQUIPMENT', 'BOOTS', FALSE, 'RARO', 3, 46, TRUE, 'CRAFT', 'Hecha en el Astillero del Puerto Antiguo con lo que dejan los monstruos de la Playa de Ceniza Negra, el Delta de Vapor, la Cala y el Manglar.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'ARQUERO_BOOTS_COSTAS');
+UPDATE items SET name = 'Botas de la Marea', item_type = 'EQUIPMENT', slot = 'BOOTS', is_two_handed = FALSE, rarity = 'RARO', class_id = 3, required_level = 46, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Hecha en el Astillero del Puerto Antiguo con lo que dejan los monstruos de la Playa de Ceniza Negra, el Delta de Vapor, la Cala y el Manglar.' WHERE code = 'ARQUERO_BOOTS_COSTAS';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'ARQUERO_BOOTS_COSTAS');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'ARQUERO_BOOTS_COSTAS'), v.* FROM (VALUES ('DEF', 10, FALSE), ('HP', 7, FALSE), ('SPD', 27, FALSE), ('EVASION', 2, TRUE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station, scroll_item_id)
+SELECT 'RECIPE_ARQUERO_BOOTS_COSTAS', (SELECT id FROM items WHERE code = 'ARQUERO_BOOTS_COSTAS'), 1, 'RARO', 46, 3, 90, 1, 'Brea, en el Astillero del Puerto Antiguo', 4, 'forja', NULL WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_ARQUERO_BOOTS_COSTAS');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'ARQUERO_BOOTS_COSTAS'), result_quantity = 1, rarity = 'RARO', required_level = 46, required_class_id = 3, success_rate_percent = 90, craft_time_minutes = 1, artisan_name = 'Brea, en el Astillero del Puerto Antiguo', zone_id = 4, station = 'forja', scroll_item_id = NULL WHERE code = 'RECIPE_ARQUERO_BOOTS_COSTAS';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_ARQUERO_BOOTS_COSTAS');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_ARQUERO_BOOTS_COSTAS'), i.id, v.n FROM (VALUES ('PLUMA_SALADA', 2), ('MADERA_NAUFRAGIO', 1)) AS v(code, n) JOIN items i ON i.code = v.code;
+-- Brazalete de la Marea
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'ARQUERO_ACCESSORY_COSTAS', 'Brazalete de la Marea', 'EQUIPMENT', 'ACCESSORY', FALSE, 'RARO', NULL, 46, TRUE, 'CRAFT', 'Hecha en el Astillero del Puerto Antiguo con lo que dejan los monstruos de la Playa de Ceniza Negra, el Delta de Vapor, la Cala y el Manglar.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'ARQUERO_ACCESSORY_COSTAS');
+UPDATE items SET name = 'Brazalete de la Marea', item_type = 'EQUIPMENT', slot = 'ACCESSORY', is_two_handed = FALSE, rarity = 'RARO', class_id = NULL, required_level = 46, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Hecha en el Astillero del Puerto Antiguo con lo que dejan los monstruos de la Playa de Ceniza Negra, el Delta de Vapor, la Cala y el Manglar.' WHERE code = 'ARQUERO_ACCESSORY_COSTAS';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'ARQUERO_ACCESSORY_COSTAS');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'ARQUERO_ACCESSORY_COSTAS'), v.* FROM (VALUES ('ATK', 39, FALSE), ('CRIT_CHANCE', 3.5, TRUE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station, scroll_item_id)
+SELECT 'RECIPE_ARQUERO_ACCESSORY_COSTAS', (SELECT id FROM items WHERE code = 'ARQUERO_ACCESSORY_COSTAS'), 1, 'RARO', 46, NULL, 90, 1, 'Brea, en el Astillero del Puerto Antiguo', 4, 'forja', NULL WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_ARQUERO_ACCESSORY_COSTAS');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'ARQUERO_ACCESSORY_COSTAS'), result_quantity = 1, rarity = 'RARO', required_level = 46, required_class_id = NULL, success_rate_percent = 90, craft_time_minutes = 1, artisan_name = 'Brea, en el Astillero del Puerto Antiguo', zone_id = 4, station = 'forja', scroll_item_id = NULL WHERE code = 'RECIPE_ARQUERO_ACCESSORY_COSTAS';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_ARQUERO_ACCESSORY_COSTAS');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_ARQUERO_ACCESSORY_COSTAS'), i.id, v.n FROM (VALUES ('CAPARAZON_HERVIDO', 2), ('PLUMA_SALADA', 2), ('GEMA_COMUN', 1)) AS v(code, n) JOIN items i ON i.code = v.code;
+-- Daga de la Marea
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'PICARO_WEAPON_COSTAS', 'Daga de la Marea', 'EQUIPMENT', 'WEAPON', FALSE, 'RARO', 4, 46, TRUE, 'CRAFT', 'Hecha en el Astillero del Puerto Antiguo con lo que dejan los monstruos de la Playa de Ceniza Negra, el Delta de Vapor, la Cala y el Manglar.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'PICARO_WEAPON_COSTAS');
+UPDATE items SET name = 'Daga de la Marea', item_type = 'EQUIPMENT', slot = 'WEAPON', is_two_handed = FALSE, rarity = 'RARO', class_id = 4, required_level = 46, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Hecha en el Astillero del Puerto Antiguo con lo que dejan los monstruos de la Playa de Ceniza Negra, el Delta de Vapor, la Cala y el Manglar.' WHERE code = 'PICARO_WEAPON_COSTAS';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'PICARO_WEAPON_COSTAS');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'PICARO_WEAPON_COSTAS'), v.* FROM (VALUES ('ATK', 98, FALSE), ('CRIT_CHANCE', 5.3, TRUE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station, scroll_item_id)
+SELECT 'RECIPE_PICARO_WEAPON_COSTAS', (SELECT id FROM items WHERE code = 'PICARO_WEAPON_COSTAS'), 1, 'RARO', 46, 4, 90, 1, 'Brea, en el Astillero del Puerto Antiguo', 4, 'forja', NULL WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_PICARO_WEAPON_COSTAS');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'PICARO_WEAPON_COSTAS'), result_quantity = 1, rarity = 'RARO', required_level = 46, required_class_id = 4, success_rate_percent = 90, craft_time_minutes = 1, artisan_name = 'Brea, en el Astillero del Puerto Antiguo', zone_id = 4, station = 'forja', scroll_item_id = NULL WHERE code = 'RECIPE_PICARO_WEAPON_COSTAS';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_PICARO_WEAPON_COSTAS');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_PICARO_WEAPON_COSTAS'), i.id, v.n FROM (VALUES ('DIENTE_DE_PIRANA', 3), ('CAPARAZON_HERVIDO', 2), ('CUERDA_ALQUITRAN', 1)) AS v(code, n) JOIN items i ON i.code = v.code;
+-- Daga Gemela de la Marea
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'PICARO_OFFHAND_COSTAS', 'Daga Gemela de la Marea', 'EQUIPMENT', 'OFFHAND', FALSE, 'RARO', 4, 46, TRUE, 'CRAFT', 'Hecha en el Astillero del Puerto Antiguo con lo que dejan los monstruos de la Playa de Ceniza Negra, el Delta de Vapor, la Cala y el Manglar.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'PICARO_OFFHAND_COSTAS');
+UPDATE items SET name = 'Daga Gemela de la Marea', item_type = 'EQUIPMENT', slot = 'OFFHAND', is_two_handed = FALSE, rarity = 'RARO', class_id = 4, required_level = 46, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Hecha en el Astillero del Puerto Antiguo con lo que dejan los monstruos de la Playa de Ceniza Negra, el Delta de Vapor, la Cala y el Manglar.' WHERE code = 'PICARO_OFFHAND_COSTAS';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'PICARO_OFFHAND_COSTAS');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'PICARO_OFFHAND_COSTAS'), v.* FROM (VALUES ('ATK', 27, FALSE), ('CRIT_CHANCE', 3.5, TRUE), ('EVASION', 2, TRUE), ('SPD', 32, FALSE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station, scroll_item_id)
+SELECT 'RECIPE_PICARO_OFFHAND_COSTAS', (SELECT id FROM items WHERE code = 'PICARO_OFFHAND_COSTAS'), 1, 'RARO', 46, 4, 90, 1, 'Brea, en el Astillero del Puerto Antiguo', 4, 'forja', NULL WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_PICARO_OFFHAND_COSTAS');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'PICARO_OFFHAND_COSTAS'), result_quantity = 1, rarity = 'RARO', required_level = 46, required_class_id = 4, success_rate_percent = 90, craft_time_minutes = 1, artisan_name = 'Brea, en el Astillero del Puerto Antiguo', zone_id = 4, station = 'forja', scroll_item_id = NULL WHERE code = 'RECIPE_PICARO_OFFHAND_COSTAS';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_PICARO_OFFHAND_COSTAS');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_PICARO_OFFHAND_COSTAS'), i.id, v.n FROM (VALUES ('DIENTE_DE_PIRANA', 2), ('CAPARAZON_HERVIDO', 1)) AS v(code, n) JOIN items i ON i.code = v.code;
+-- Máscara de la Marea
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'PICARO_HELMET_COSTAS', 'Máscara de la Marea', 'EQUIPMENT', 'HELMET', FALSE, 'RARO', 4, 46, TRUE, 'CRAFT', 'Hecha en el Astillero del Puerto Antiguo con lo que dejan los monstruos de la Playa de Ceniza Negra, el Delta de Vapor, la Cala y el Manglar.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'PICARO_HELMET_COSTAS');
+UPDATE items SET name = 'Máscara de la Marea', item_type = 'EQUIPMENT', slot = 'HELMET', is_two_handed = FALSE, rarity = 'RARO', class_id = 4, required_level = 46, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Hecha en el Astillero del Puerto Antiguo con lo que dejan los monstruos de la Playa de Ceniza Negra, el Delta de Vapor, la Cala y el Manglar.' WHERE code = 'PICARO_HELMET_COSTAS';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'PICARO_HELMET_COSTAS');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'PICARO_HELMET_COSTAS'), v.* FROM (VALUES ('DEF', 18, FALSE), ('MAGIC_DEF', 5, FALSE), ('HP', 16, FALSE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station, scroll_item_id)
+SELECT 'RECIPE_PICARO_HELMET_COSTAS', (SELECT id FROM items WHERE code = 'PICARO_HELMET_COSTAS'), 1, 'RARO', 46, 4, 90, 1, 'Brea, en el Astillero del Puerto Antiguo', 4, 'forja', NULL WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_PICARO_HELMET_COSTAS');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'PICARO_HELMET_COSTAS'), result_quantity = 1, rarity = 'RARO', required_level = 46, required_class_id = 4, success_rate_percent = 90, craft_time_minutes = 1, artisan_name = 'Brea, en el Astillero del Puerto Antiguo', zone_id = 4, station = 'forja', scroll_item_id = NULL WHERE code = 'RECIPE_PICARO_HELMET_COSTAS';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_PICARO_HELMET_COSTAS');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_PICARO_HELMET_COSTAS'), i.id, v.n FROM (VALUES ('DIENTE_DE_PIRANA', 2), ('CAPARAZON_HERVIDO', 1)) AS v(code, n) JOIN items i ON i.code = v.code;
+-- Cuero de la Marea
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'PICARO_ARMOR_COSTAS', 'Cuero de la Marea', 'EQUIPMENT', 'ARMOR', FALSE, 'RARO', 4, 46, TRUE, 'CRAFT', 'Hecha en el Astillero del Puerto Antiguo con lo que dejan los monstruos de la Playa de Ceniza Negra, el Delta de Vapor, la Cala y el Manglar.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'PICARO_ARMOR_COSTAS');
+UPDATE items SET name = 'Cuero de la Marea', item_type = 'EQUIPMENT', slot = 'ARMOR', is_two_handed = FALSE, rarity = 'RARO', class_id = 4, required_level = 46, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Hecha en el Astillero del Puerto Antiguo con lo que dejan los monstruos de la Playa de Ceniza Negra, el Delta de Vapor, la Cala y el Manglar.' WHERE code = 'PICARO_ARMOR_COSTAS';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'PICARO_ARMOR_COSTAS');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'PICARO_ARMOR_COSTAS'), v.* FROM (VALUES ('DEF', 35, FALSE), ('MAGIC_DEF', 11, FALSE), ('HP', 68, FALSE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station, scroll_item_id)
+SELECT 'RECIPE_PICARO_ARMOR_COSTAS', (SELECT id FROM items WHERE code = 'PICARO_ARMOR_COSTAS'), 1, 'RARO', 46, 4, 90, 1, 'Brea, en el Astillero del Puerto Antiguo', 4, 'forja', NULL WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_PICARO_ARMOR_COSTAS');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'PICARO_ARMOR_COSTAS'), result_quantity = 1, rarity = 'RARO', required_level = 46, required_class_id = 4, success_rate_percent = 90, craft_time_minutes = 1, artisan_name = 'Brea, en el Astillero del Puerto Antiguo', zone_id = 4, station = 'forja', scroll_item_id = NULL WHERE code = 'RECIPE_PICARO_ARMOR_COSTAS';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_PICARO_ARMOR_COSTAS');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_PICARO_ARMOR_COSTAS'), i.id, v.n FROM (VALUES ('DIENTE_DE_PIRANA', 3), ('CAPARAZON_HERVIDO', 2), ('CUERDA_ALQUITRAN', 1)) AS v(code, n) JOIN items i ON i.code = v.code;
+-- Guantes de la Marea
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'PICARO_GLOVES_COSTAS', 'Guantes de la Marea', 'EQUIPMENT', 'GLOVES', FALSE, 'RARO', 4, 46, TRUE, 'CRAFT', 'Hecha en el Astillero del Puerto Antiguo con lo que dejan los monstruos de la Playa de Ceniza Negra, el Delta de Vapor, la Cala y el Manglar.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'PICARO_GLOVES_COSTAS');
+UPDATE items SET name = 'Guantes de la Marea', item_type = 'EQUIPMENT', slot = 'GLOVES', is_two_handed = FALSE, rarity = 'RARO', class_id = 4, required_level = 46, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Hecha en el Astillero del Puerto Antiguo con lo que dejan los monstruos de la Playa de Ceniza Negra, el Delta de Vapor, la Cala y el Manglar.' WHERE code = 'PICARO_GLOVES_COSTAS';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'PICARO_GLOVES_COSTAS');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'PICARO_GLOVES_COSTAS'), v.* FROM (VALUES ('DEF', 18, FALSE), ('MAGIC_DEF', 5, FALSE), ('HP', 34, FALSE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station, scroll_item_id)
+SELECT 'RECIPE_PICARO_GLOVES_COSTAS', (SELECT id FROM items WHERE code = 'PICARO_GLOVES_COSTAS'), 1, 'RARO', 46, 4, 90, 1, 'Brea, en el Astillero del Puerto Antiguo', 4, 'forja', NULL WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_PICARO_GLOVES_COSTAS');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'PICARO_GLOVES_COSTAS'), result_quantity = 1, rarity = 'RARO', required_level = 46, required_class_id = 4, success_rate_percent = 90, craft_time_minutes = 1, artisan_name = 'Brea, en el Astillero del Puerto Antiguo', zone_id = 4, station = 'forja', scroll_item_id = NULL WHERE code = 'RECIPE_PICARO_GLOVES_COSTAS';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_PICARO_GLOVES_COSTAS');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_PICARO_GLOVES_COSTAS'), i.id, v.n FROM (VALUES ('DIENTE_DE_PIRANA', 2), ('CAPARAZON_HERVIDO', 1)) AS v(code, n) JOIN items i ON i.code = v.code;
+-- Botas de la Marea
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'PICARO_BOOTS_COSTAS', 'Botas de la Marea', 'EQUIPMENT', 'BOOTS', FALSE, 'RARO', 4, 46, TRUE, 'CRAFT', 'Hecha en el Astillero del Puerto Antiguo con lo que dejan los monstruos de la Playa de Ceniza Negra, el Delta de Vapor, la Cala y el Manglar.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'PICARO_BOOTS_COSTAS');
+UPDATE items SET name = 'Botas de la Marea', item_type = 'EQUIPMENT', slot = 'BOOTS', is_two_handed = FALSE, rarity = 'RARO', class_id = 4, required_level = 46, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Hecha en el Astillero del Puerto Antiguo con lo que dejan los monstruos de la Playa de Ceniza Negra, el Delta de Vapor, la Cala y el Manglar.' WHERE code = 'PICARO_BOOTS_COSTAS';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'PICARO_BOOTS_COSTAS');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'PICARO_BOOTS_COSTAS'), v.* FROM (VALUES ('DEF', 10, FALSE), ('HP', 7, FALSE), ('SPD', 27, FALSE), ('EVASION', 2, TRUE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station, scroll_item_id)
+SELECT 'RECIPE_PICARO_BOOTS_COSTAS', (SELECT id FROM items WHERE code = 'PICARO_BOOTS_COSTAS'), 1, 'RARO', 46, 4, 90, 1, 'Brea, en el Astillero del Puerto Antiguo', 4, 'forja', NULL WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_PICARO_BOOTS_COSTAS');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'PICARO_BOOTS_COSTAS'), result_quantity = 1, rarity = 'RARO', required_level = 46, required_class_id = 4, success_rate_percent = 90, craft_time_minutes = 1, artisan_name = 'Brea, en el Astillero del Puerto Antiguo', zone_id = 4, station = 'forja', scroll_item_id = NULL WHERE code = 'RECIPE_PICARO_BOOTS_COSTAS';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_PICARO_BOOTS_COSTAS');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_PICARO_BOOTS_COSTAS'), i.id, v.n FROM (VALUES ('DIENTE_DE_PIRANA', 2), ('CAPARAZON_HERVIDO', 1)) AS v(code, n) JOIN items i ON i.code = v.code;
+-- Anillo de la Marea
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'PICARO_ACCESSORY_COSTAS', 'Anillo de la Marea', 'EQUIPMENT', 'ACCESSORY', FALSE, 'RARO', NULL, 46, TRUE, 'CRAFT', 'Hecha en el Astillero del Puerto Antiguo con lo que dejan los monstruos de la Playa de Ceniza Negra, el Delta de Vapor, la Cala y el Manglar.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'PICARO_ACCESSORY_COSTAS');
+UPDATE items SET name = 'Anillo de la Marea', item_type = 'EQUIPMENT', slot = 'ACCESSORY', is_two_handed = FALSE, rarity = 'RARO', class_id = NULL, required_level = 46, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Hecha en el Astillero del Puerto Antiguo con lo que dejan los monstruos de la Playa de Ceniza Negra, el Delta de Vapor, la Cala y el Manglar.' WHERE code = 'PICARO_ACCESSORY_COSTAS';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'PICARO_ACCESSORY_COSTAS');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'PICARO_ACCESSORY_COSTAS'), v.* FROM (VALUES ('ATK', 39, FALSE), ('CRIT_CHANCE', 3.5, TRUE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station, scroll_item_id)
+SELECT 'RECIPE_PICARO_ACCESSORY_COSTAS', (SELECT id FROM items WHERE code = 'PICARO_ACCESSORY_COSTAS'), 1, 'RARO', 46, NULL, 90, 1, 'Brea, en el Astillero del Puerto Antiguo', 4, 'forja', NULL WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_PICARO_ACCESSORY_COSTAS');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'PICARO_ACCESSORY_COSTAS'), result_quantity = 1, rarity = 'RARO', required_level = 46, required_class_id = NULL, success_rate_percent = 90, craft_time_minutes = 1, artisan_name = 'Brea, en el Astillero del Puerto Antiguo', zone_id = 4, station = 'forja', scroll_item_id = NULL WHERE code = 'RECIPE_PICARO_ACCESSORY_COSTAS';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_PICARO_ACCESSORY_COSTAS');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_PICARO_ACCESSORY_COSTAS'), i.id, v.n FROM (VALUES ('CAPARAZON_HERVIDO', 2), ('DIENTE_DE_PIRANA', 2), ('GEMA_COMUN', 1)) AS v(code, n) JOIN items i ON i.code = v.code;
+-- Báculo Arcano de la Marea
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'MAGO_WEAPON_COSTAS', 'Báculo Arcano de la Marea', 'EQUIPMENT', 'WEAPON', FALSE, 'RARO', 2, 46, TRUE, 'CRAFT', 'Hecha en el Astillero del Puerto Antiguo con lo que dejan los monstruos de la Playa de Ceniza Negra, el Delta de Vapor, la Cala y el Manglar.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'MAGO_WEAPON_COSTAS');
+UPDATE items SET name = 'Báculo Arcano de la Marea', item_type = 'EQUIPMENT', slot = 'WEAPON', is_two_handed = FALSE, rarity = 'RARO', class_id = 2, required_level = 46, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Hecha en el Astillero del Puerto Antiguo con lo que dejan los monstruos de la Playa de Ceniza Negra, el Delta de Vapor, la Cala y el Manglar.' WHERE code = 'MAGO_WEAPON_COSTAS';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'MAGO_WEAPON_COSTAS');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'MAGO_WEAPON_COSTAS'), v.* FROM (VALUES ('MAG', 98, FALSE), ('CRIT_CHANCE', 5.3, TRUE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station, scroll_item_id)
+SELECT 'RECIPE_MAGO_WEAPON_COSTAS', (SELECT id FROM items WHERE code = 'MAGO_WEAPON_COSTAS'), 1, 'RARO', 46, 2, 90, 1, 'Brea, en el Astillero del Puerto Antiguo', 4, 'forja', NULL WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_MAGO_WEAPON_COSTAS');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'MAGO_WEAPON_COSTAS'), result_quantity = 1, rarity = 'RARO', required_level = 46, required_class_id = 2, success_rate_percent = 90, craft_time_minutes = 1, artisan_name = 'Brea, en el Astillero del Puerto Antiguo', zone_id = 4, station = 'forja', scroll_item_id = NULL WHERE code = 'RECIPE_MAGO_WEAPON_COSTAS';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_MAGO_WEAPON_COSTAS');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_MAGO_WEAPON_COSTAS'), i.id, v.n FROM (VALUES ('CAPARAZON_HERVIDO', 3), ('ALGA_SALINA', 3), ('PLUMA_SALADA', 2)) AS v(code, n) JOIN items i ON i.code = v.code;
+-- Orbe de la Marea
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'MAGO_OFFHAND_COSTAS', 'Orbe de la Marea', 'EQUIPMENT', 'OFFHAND', FALSE, 'RARO', 2, 46, TRUE, 'CRAFT', 'Hecha en el Astillero del Puerto Antiguo con lo que dejan los monstruos de la Playa de Ceniza Negra, el Delta de Vapor, la Cala y el Manglar.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'MAGO_OFFHAND_COSTAS');
+UPDATE items SET name = 'Orbe de la Marea', item_type = 'EQUIPMENT', slot = 'OFFHAND', is_two_handed = FALSE, rarity = 'RARO', class_id = 2, required_level = 46, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Hecha en el Astillero del Puerto Antiguo con lo que dejan los monstruos de la Playa de Ceniza Negra, el Delta de Vapor, la Cala y el Manglar.' WHERE code = 'MAGO_OFFHAND_COSTAS';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'MAGO_OFFHAND_COSTAS');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'MAGO_OFFHAND_COSTAS'), v.* FROM (VALUES ('MAGIC_DEF', 14, FALSE), ('DEF', 4, FALSE), ('HP', 23, FALSE), ('MANA_REGEN', 4, TRUE), ('SPD', 32, FALSE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station, scroll_item_id)
+SELECT 'RECIPE_MAGO_OFFHAND_COSTAS', (SELECT id FROM items WHERE code = 'MAGO_OFFHAND_COSTAS'), 1, 'RARO', 46, 2, 90, 1, 'Brea, en el Astillero del Puerto Antiguo', 4, 'forja', NULL WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_MAGO_OFFHAND_COSTAS');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'MAGO_OFFHAND_COSTAS'), result_quantity = 1, rarity = 'RARO', required_level = 46, required_class_id = 2, success_rate_percent = 90, craft_time_minutes = 1, artisan_name = 'Brea, en el Astillero del Puerto Antiguo', zone_id = 4, station = 'forja', scroll_item_id = NULL WHERE code = 'RECIPE_MAGO_OFFHAND_COSTAS';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_MAGO_OFFHAND_COSTAS');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_MAGO_OFFHAND_COSTAS'), i.id, v.n FROM (VALUES ('CAPARAZON_HERVIDO', 2), ('ALGA_SALINA', 2)) AS v(code, n) JOIN items i ON i.code = v.code;
+-- Capirote de la Marea
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'MAGO_HELMET_COSTAS', 'Capirote de la Marea', 'EQUIPMENT', 'HELMET', FALSE, 'RARO', 2, 46, TRUE, 'CRAFT', 'Hecha en el Astillero del Puerto Antiguo con lo que dejan los monstruos de la Playa de Ceniza Negra, el Delta de Vapor, la Cala y el Manglar.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'MAGO_HELMET_COSTAS');
+UPDATE items SET name = 'Capirote de la Marea', item_type = 'EQUIPMENT', slot = 'HELMET', is_two_handed = FALSE, rarity = 'RARO', class_id = 2, required_level = 46, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Hecha en el Astillero del Puerto Antiguo con lo que dejan los monstruos de la Playa de Ceniza Negra, el Delta de Vapor, la Cala y el Manglar.' WHERE code = 'MAGO_HELMET_COSTAS';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'MAGO_HELMET_COSTAS');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'MAGO_HELMET_COSTAS'), v.* FROM (VALUES ('MAGIC_DEF', 18, FALSE), ('DEF', 5, FALSE), ('HP', 15, FALSE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station, scroll_item_id)
+SELECT 'RECIPE_MAGO_HELMET_COSTAS', (SELECT id FROM items WHERE code = 'MAGO_HELMET_COSTAS'), 1, 'RARO', 46, 2, 90, 1, 'Brea, en el Astillero del Puerto Antiguo', 4, 'forja', NULL WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_MAGO_HELMET_COSTAS');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'MAGO_HELMET_COSTAS'), result_quantity = 1, rarity = 'RARO', required_level = 46, required_class_id = 2, success_rate_percent = 90, craft_time_minutes = 1, artisan_name = 'Brea, en el Astillero del Puerto Antiguo', zone_id = 4, station = 'forja', scroll_item_id = NULL WHERE code = 'RECIPE_MAGO_HELMET_COSTAS';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_MAGO_HELMET_COSTAS');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_MAGO_HELMET_COSTAS'), i.id, v.n FROM (VALUES ('CAPARAZON_HERVIDO', 2), ('ALGA_SALINA', 2)) AS v(code, n) JOIN items i ON i.code = v.code;
+-- Túnica de la Marea
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'MAGO_ARMOR_COSTAS', 'Túnica de la Marea', 'EQUIPMENT', 'ARMOR', FALSE, 'RARO', 2, 46, TRUE, 'CRAFT', 'Hecha en el Astillero del Puerto Antiguo con lo que dejan los monstruos de la Playa de Ceniza Negra, el Delta de Vapor, la Cala y el Manglar.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'MAGO_ARMOR_COSTAS');
+UPDATE items SET name = 'Túnica de la Marea', item_type = 'EQUIPMENT', slot = 'ARMOR', is_two_handed = FALSE, rarity = 'RARO', class_id = 2, required_level = 46, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Hecha en el Astillero del Puerto Antiguo con lo que dejan los monstruos de la Playa de Ceniza Negra, el Delta de Vapor, la Cala y el Manglar.' WHERE code = 'MAGO_ARMOR_COSTAS';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'MAGO_ARMOR_COSTAS');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'MAGO_ARMOR_COSTAS'), v.* FROM (VALUES ('MAGIC_DEF', 35, FALSE), ('DEF', 10, FALSE), ('HP', 63, FALSE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station, scroll_item_id)
+SELECT 'RECIPE_MAGO_ARMOR_COSTAS', (SELECT id FROM items WHERE code = 'MAGO_ARMOR_COSTAS'), 1, 'RARO', 46, 2, 90, 1, 'Brea, en el Astillero del Puerto Antiguo', 4, 'forja', NULL WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_MAGO_ARMOR_COSTAS');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'MAGO_ARMOR_COSTAS'), result_quantity = 1, rarity = 'RARO', required_level = 46, required_class_id = 2, success_rate_percent = 90, craft_time_minutes = 1, artisan_name = 'Brea, en el Astillero del Puerto Antiguo', zone_id = 4, station = 'forja', scroll_item_id = NULL WHERE code = 'RECIPE_MAGO_ARMOR_COSTAS';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_MAGO_ARMOR_COSTAS');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_MAGO_ARMOR_COSTAS'), i.id, v.n FROM (VALUES ('CAPARAZON_HERVIDO', 3), ('ALGA_SALINA', 3), ('PLUMA_SALADA', 2)) AS v(code, n) JOIN items i ON i.code = v.code;
+-- Guantes de Tela de la Marea
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'MAGO_GLOVES_COSTAS', 'Guantes de Tela de la Marea', 'EQUIPMENT', 'GLOVES', FALSE, 'RARO', 2, 46, TRUE, 'CRAFT', 'Hecha en el Astillero del Puerto Antiguo con lo que dejan los monstruos de la Playa de Ceniza Negra, el Delta de Vapor, la Cala y el Manglar.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'MAGO_GLOVES_COSTAS');
+UPDATE items SET name = 'Guantes de Tela de la Marea', item_type = 'EQUIPMENT', slot = 'GLOVES', is_two_handed = FALSE, rarity = 'RARO', class_id = 2, required_level = 46, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Hecha en el Astillero del Puerto Antiguo con lo que dejan los monstruos de la Playa de Ceniza Negra, el Delta de Vapor, la Cala y el Manglar.' WHERE code = 'MAGO_GLOVES_COSTAS';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'MAGO_GLOVES_COSTAS');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'MAGO_GLOVES_COSTAS'), v.* FROM (VALUES ('MAGIC_DEF', 18, FALSE), ('DEF', 5, FALSE), ('HP', 31, FALSE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station, scroll_item_id)
+SELECT 'RECIPE_MAGO_GLOVES_COSTAS', (SELECT id FROM items WHERE code = 'MAGO_GLOVES_COSTAS'), 1, 'RARO', 46, 2, 90, 1, 'Brea, en el Astillero del Puerto Antiguo', 4, 'forja', NULL WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_MAGO_GLOVES_COSTAS');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'MAGO_GLOVES_COSTAS'), result_quantity = 1, rarity = 'RARO', required_level = 46, required_class_id = 2, success_rate_percent = 90, craft_time_minutes = 1, artisan_name = 'Brea, en el Astillero del Puerto Antiguo', zone_id = 4, station = 'forja', scroll_item_id = NULL WHERE code = 'RECIPE_MAGO_GLOVES_COSTAS';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_MAGO_GLOVES_COSTAS');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_MAGO_GLOVES_COSTAS'), i.id, v.n FROM (VALUES ('CAPARAZON_HERVIDO', 2), ('ALGA_SALINA', 2)) AS v(code, n) JOIN items i ON i.code = v.code;
+-- Sandalias de la Marea
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'MAGO_BOOTS_COSTAS', 'Sandalias de la Marea', 'EQUIPMENT', 'BOOTS', FALSE, 'RARO', 2, 46, TRUE, 'CRAFT', 'Hecha en el Astillero del Puerto Antiguo con lo que dejan los monstruos de la Playa de Ceniza Negra, el Delta de Vapor, la Cala y el Manglar.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'MAGO_BOOTS_COSTAS');
+UPDATE items SET name = 'Sandalias de la Marea', item_type = 'EQUIPMENT', slot = 'BOOTS', is_two_handed = FALSE, rarity = 'RARO', class_id = 2, required_level = 46, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Hecha en el Astillero del Puerto Antiguo con lo que dejan los monstruos de la Playa de Ceniza Negra, el Delta de Vapor, la Cala y el Manglar.' WHERE code = 'MAGO_BOOTS_COSTAS';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'MAGO_BOOTS_COSTAS');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'MAGO_BOOTS_COSTAS'), v.* FROM (VALUES ('MAGIC_DEF', 10, FALSE), ('HP', 7, FALSE), ('SPD', 27, FALSE), ('EVASION', 2, TRUE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station, scroll_item_id)
+SELECT 'RECIPE_MAGO_BOOTS_COSTAS', (SELECT id FROM items WHERE code = 'MAGO_BOOTS_COSTAS'), 1, 'RARO', 46, 2, 90, 1, 'Brea, en el Astillero del Puerto Antiguo', 4, 'forja', NULL WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_MAGO_BOOTS_COSTAS');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'MAGO_BOOTS_COSTAS'), result_quantity = 1, rarity = 'RARO', required_level = 46, required_class_id = 2, success_rate_percent = 90, craft_time_minutes = 1, artisan_name = 'Brea, en el Astillero del Puerto Antiguo', zone_id = 4, station = 'forja', scroll_item_id = NULL WHERE code = 'RECIPE_MAGO_BOOTS_COSTAS';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_MAGO_BOOTS_COSTAS');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_MAGO_BOOTS_COSTAS'), i.id, v.n FROM (VALUES ('CAPARAZON_HERVIDO', 2), ('ALGA_SALINA', 2)) AS v(code, n) JOIN items i ON i.code = v.code;
+-- Cristal de la Marea
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'MAGO_ACCESSORY_COSTAS', 'Cristal de la Marea', 'EQUIPMENT', 'OFFHAND', FALSE, 'RARO', 2, 46, TRUE, 'CRAFT', 'Hecha en el Astillero del Puerto Antiguo con lo que dejan los monstruos de la Playa de Ceniza Negra, el Delta de Vapor, la Cala y el Manglar.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'MAGO_ACCESSORY_COSTAS');
+UPDATE items SET name = 'Cristal de la Marea', item_type = 'EQUIPMENT', slot = 'OFFHAND', is_two_handed = FALSE, rarity = 'RARO', class_id = 2, required_level = 46, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Hecha en el Astillero del Puerto Antiguo con lo que dejan los monstruos de la Playa de Ceniza Negra, el Delta de Vapor, la Cala y el Manglar.' WHERE code = 'MAGO_ACCESSORY_COSTAS';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'MAGO_ACCESSORY_COSTAS');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'MAGO_ACCESSORY_COSTAS'), v.* FROM (VALUES ('MAG', 54, FALSE), ('CRIT_CHANCE', 3.5, TRUE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station, scroll_item_id)
+SELECT 'RECIPE_MAGO_ACCESSORY_COSTAS', (SELECT id FROM items WHERE code = 'MAGO_ACCESSORY_COSTAS'), 1, 'RARO', 46, 2, 90, 1, 'Brea, en el Astillero del Puerto Antiguo', 4, 'forja', NULL WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_MAGO_ACCESSORY_COSTAS');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'MAGO_ACCESSORY_COSTAS'), result_quantity = 1, rarity = 'RARO', required_level = 46, required_class_id = 2, success_rate_percent = 90, craft_time_minutes = 1, artisan_name = 'Brea, en el Astillero del Puerto Antiguo', zone_id = 4, station = 'forja', scroll_item_id = NULL WHERE code = 'RECIPE_MAGO_ACCESSORY_COSTAS';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_MAGO_ACCESSORY_COSTAS');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_MAGO_ACCESSORY_COSTAS'), i.id, v.n FROM (VALUES ('CAPARAZON_HERVIDO', 2), ('ALGA_SALINA', 2)) AS v(code, n) JOIN items i ON i.code = v.code;
+-- Báculo Sagrado de la Marea
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'SACERDOTE_WEAPON_COSTAS', 'Báculo Sagrado de la Marea', 'EQUIPMENT', 'WEAPON', FALSE, 'RARO', 5, 46, TRUE, 'CRAFT', 'Hecha en el Astillero del Puerto Antiguo con lo que dejan los monstruos de la Playa de Ceniza Negra, el Delta de Vapor, la Cala y el Manglar.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'SACERDOTE_WEAPON_COSTAS');
+UPDATE items SET name = 'Báculo Sagrado de la Marea', item_type = 'EQUIPMENT', slot = 'WEAPON', is_two_handed = FALSE, rarity = 'RARO', class_id = 5, required_level = 46, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Hecha en el Astillero del Puerto Antiguo con lo que dejan los monstruos de la Playa de Ceniza Negra, el Delta de Vapor, la Cala y el Manglar.' WHERE code = 'SACERDOTE_WEAPON_COSTAS';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'SACERDOTE_WEAPON_COSTAS');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'SACERDOTE_WEAPON_COSTAS'), v.* FROM (VALUES ('MAG', 98, FALSE), ('CRIT_CHANCE', 5.3, TRUE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station, scroll_item_id)
+SELECT 'RECIPE_SACERDOTE_WEAPON_COSTAS', (SELECT id FROM items WHERE code = 'SACERDOTE_WEAPON_COSTAS'), 1, 'RARO', 46, 5, 90, 1, 'Brea, en el Astillero del Puerto Antiguo', 4, 'forja', NULL WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_SACERDOTE_WEAPON_COSTAS');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'SACERDOTE_WEAPON_COSTAS'), result_quantity = 1, rarity = 'RARO', required_level = 46, required_class_id = 5, success_rate_percent = 90, craft_time_minutes = 1, artisan_name = 'Brea, en el Astillero del Puerto Antiguo', zone_id = 4, station = 'forja', scroll_item_id = NULL WHERE code = 'RECIPE_SACERDOTE_WEAPON_COSTAS';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_SACERDOTE_WEAPON_COSTAS');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_SACERDOTE_WEAPON_COSTAS'), i.id, v.n FROM (VALUES ('ALGA_SALINA', 3), ('PLUMA_SALADA', 2), ('CARNE_OSTRA', 1)) AS v(code, n) JOIN items i ON i.code = v.code;
+-- Símbolo Sagrado de la Marea
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'SACERDOTE_OFFHAND_COSTAS', 'Símbolo Sagrado de la Marea', 'EQUIPMENT', 'OFFHAND', FALSE, 'RARO', 5, 46, TRUE, 'CRAFT', 'Hecha en el Astillero del Puerto Antiguo con lo que dejan los monstruos de la Playa de Ceniza Negra, el Delta de Vapor, la Cala y el Manglar.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'SACERDOTE_OFFHAND_COSTAS');
+UPDATE items SET name = 'Símbolo Sagrado de la Marea', item_type = 'EQUIPMENT', slot = 'OFFHAND', is_two_handed = FALSE, rarity = 'RARO', class_id = 5, required_level = 46, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Hecha en el Astillero del Puerto Antiguo con lo que dejan los monstruos de la Playa de Ceniza Negra, el Delta de Vapor, la Cala y el Manglar.' WHERE code = 'SACERDOTE_OFFHAND_COSTAS';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'SACERDOTE_OFFHAND_COSTAS');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'SACERDOTE_OFFHAND_COSTAS'), v.* FROM (VALUES ('MAGIC_DEF', 22, FALSE), ('HP', 28, FALSE), ('HEALING', 4, TRUE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station, scroll_item_id)
+SELECT 'RECIPE_SACERDOTE_OFFHAND_COSTAS', (SELECT id FROM items WHERE code = 'SACERDOTE_OFFHAND_COSTAS'), 1, 'RARO', 46, 5, 90, 1, 'Brea, en el Astillero del Puerto Antiguo', 4, 'forja', NULL WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_SACERDOTE_OFFHAND_COSTAS');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'SACERDOTE_OFFHAND_COSTAS'), result_quantity = 1, rarity = 'RARO', required_level = 46, required_class_id = 5, success_rate_percent = 90, craft_time_minutes = 1, artisan_name = 'Brea, en el Astillero del Puerto Antiguo', zone_id = 4, station = 'forja', scroll_item_id = NULL WHERE code = 'RECIPE_SACERDOTE_OFFHAND_COSTAS';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_SACERDOTE_OFFHAND_COSTAS');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_SACERDOTE_OFFHAND_COSTAS'), i.id, v.n FROM (VALUES ('ALGA_SALINA', 2), ('PLUMA_SALADA', 1)) AS v(code, n) JOIN items i ON i.code = v.code;
+-- Diadema de la Marea
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'SACERDOTE_HELMET_COSTAS', 'Diadema de la Marea', 'EQUIPMENT', 'HELMET', FALSE, 'RARO', 5, 46, TRUE, 'CRAFT', 'Hecha en el Astillero del Puerto Antiguo con lo que dejan los monstruos de la Playa de Ceniza Negra, el Delta de Vapor, la Cala y el Manglar.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'SACERDOTE_HELMET_COSTAS');
+UPDATE items SET name = 'Diadema de la Marea', item_type = 'EQUIPMENT', slot = 'HELMET', is_two_handed = FALSE, rarity = 'RARO', class_id = 5, required_level = 46, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Hecha en el Astillero del Puerto Antiguo con lo que dejan los monstruos de la Playa de Ceniza Negra, el Delta de Vapor, la Cala y el Manglar.' WHERE code = 'SACERDOTE_HELMET_COSTAS';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'SACERDOTE_HELMET_COSTAS');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'SACERDOTE_HELMET_COSTAS'), v.* FROM (VALUES ('MAGIC_DEF', 18, FALSE), ('DEF', 5, FALSE), ('HP', 18, FALSE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station, scroll_item_id)
+SELECT 'RECIPE_SACERDOTE_HELMET_COSTAS', (SELECT id FROM items WHERE code = 'SACERDOTE_HELMET_COSTAS'), 1, 'RARO', 46, 5, 90, 1, 'Brea, en el Astillero del Puerto Antiguo', 4, 'forja', NULL WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_SACERDOTE_HELMET_COSTAS');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'SACERDOTE_HELMET_COSTAS'), result_quantity = 1, rarity = 'RARO', required_level = 46, required_class_id = 5, success_rate_percent = 90, craft_time_minutes = 1, artisan_name = 'Brea, en el Astillero del Puerto Antiguo', zone_id = 4, station = 'forja', scroll_item_id = NULL WHERE code = 'RECIPE_SACERDOTE_HELMET_COSTAS';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_SACERDOTE_HELMET_COSTAS');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_SACERDOTE_HELMET_COSTAS'), i.id, v.n FROM (VALUES ('ALGA_SALINA', 2), ('PLUMA_SALADA', 1)) AS v(code, n) JOIN items i ON i.code = v.code;
+-- Vestidura de la Marea
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'SACERDOTE_ARMOR_COSTAS', 'Vestidura de la Marea', 'EQUIPMENT', 'ARMOR', FALSE, 'RARO', 5, 46, TRUE, 'CRAFT', 'Hecha en el Astillero del Puerto Antiguo con lo que dejan los monstruos de la Playa de Ceniza Negra, el Delta de Vapor, la Cala y el Manglar.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'SACERDOTE_ARMOR_COSTAS');
+UPDATE items SET name = 'Vestidura de la Marea', item_type = 'EQUIPMENT', slot = 'ARMOR', is_two_handed = FALSE, rarity = 'RARO', class_id = 5, required_level = 46, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Hecha en el Astillero del Puerto Antiguo con lo que dejan los monstruos de la Playa de Ceniza Negra, el Delta de Vapor, la Cala y el Manglar.' WHERE code = 'SACERDOTE_ARMOR_COSTAS';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'SACERDOTE_ARMOR_COSTAS');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'SACERDOTE_ARMOR_COSTAS'), v.* FROM (VALUES ('MAGIC_DEF', 35, FALSE), ('DEF', 11, FALSE), ('HP', 56, FALSE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station, scroll_item_id)
+SELECT 'RECIPE_SACERDOTE_ARMOR_COSTAS', (SELECT id FROM items WHERE code = 'SACERDOTE_ARMOR_COSTAS'), 1, 'RARO', 46, 5, 90, 1, 'Brea, en el Astillero del Puerto Antiguo', 4, 'forja', NULL WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_SACERDOTE_ARMOR_COSTAS');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'SACERDOTE_ARMOR_COSTAS'), result_quantity = 1, rarity = 'RARO', required_level = 46, required_class_id = 5, success_rate_percent = 90, craft_time_minutes = 1, artisan_name = 'Brea, en el Astillero del Puerto Antiguo', zone_id = 4, station = 'forja', scroll_item_id = NULL WHERE code = 'RECIPE_SACERDOTE_ARMOR_COSTAS';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_SACERDOTE_ARMOR_COSTAS');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_SACERDOTE_ARMOR_COSTAS'), i.id, v.n FROM (VALUES ('ALGA_SALINA', 3), ('PLUMA_SALADA', 2), ('CARNE_OSTRA', 1)) AS v(code, n) JOIN items i ON i.code = v.code;
+-- Guantes Bendecidos de la Marea
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'SACERDOTE_GLOVES_COSTAS', 'Guantes Bendecidos de la Marea', 'EQUIPMENT', 'GLOVES', FALSE, 'RARO', 5, 46, TRUE, 'CRAFT', 'Hecha en el Astillero del Puerto Antiguo con lo que dejan los monstruos de la Playa de Ceniza Negra, el Delta de Vapor, la Cala y el Manglar.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'SACERDOTE_GLOVES_COSTAS');
+UPDATE items SET name = 'Guantes Bendecidos de la Marea', item_type = 'EQUIPMENT', slot = 'GLOVES', is_two_handed = FALSE, rarity = 'RARO', class_id = 5, required_level = 46, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Hecha en el Astillero del Puerto Antiguo con lo que dejan los monstruos de la Playa de Ceniza Negra, el Delta de Vapor, la Cala y el Manglar.' WHERE code = 'SACERDOTE_GLOVES_COSTAS';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'SACERDOTE_GLOVES_COSTAS');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'SACERDOTE_GLOVES_COSTAS'), v.* FROM (VALUES ('MAGIC_DEF', 18, FALSE), ('DEF', 5, FALSE), ('HP', 29, FALSE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station, scroll_item_id)
+SELECT 'RECIPE_SACERDOTE_GLOVES_COSTAS', (SELECT id FROM items WHERE code = 'SACERDOTE_GLOVES_COSTAS'), 1, 'RARO', 46, 5, 90, 1, 'Brea, en el Astillero del Puerto Antiguo', 4, 'forja', NULL WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_SACERDOTE_GLOVES_COSTAS');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'SACERDOTE_GLOVES_COSTAS'), result_quantity = 1, rarity = 'RARO', required_level = 46, required_class_id = 5, success_rate_percent = 90, craft_time_minutes = 1, artisan_name = 'Brea, en el Astillero del Puerto Antiguo', zone_id = 4, station = 'forja', scroll_item_id = NULL WHERE code = 'RECIPE_SACERDOTE_GLOVES_COSTAS';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_SACERDOTE_GLOVES_COSTAS');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_SACERDOTE_GLOVES_COSTAS'), i.id, v.n FROM (VALUES ('ALGA_SALINA', 2), ('PLUMA_SALADA', 1)) AS v(code, n) JOIN items i ON i.code = v.code;
+-- Sandalias de la Marea
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'SACERDOTE_BOOTS_COSTAS', 'Sandalias de la Marea', 'EQUIPMENT', 'BOOTS', FALSE, 'RARO', 5, 46, TRUE, 'CRAFT', 'Hecha en el Astillero del Puerto Antiguo con lo que dejan los monstruos de la Playa de Ceniza Negra, el Delta de Vapor, la Cala y el Manglar.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'SACERDOTE_BOOTS_COSTAS');
+UPDATE items SET name = 'Sandalias de la Marea', item_type = 'EQUIPMENT', slot = 'BOOTS', is_two_handed = FALSE, rarity = 'RARO', class_id = 5, required_level = 46, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Hecha en el Astillero del Puerto Antiguo con lo que dejan los monstruos de la Playa de Ceniza Negra, el Delta de Vapor, la Cala y el Manglar.' WHERE code = 'SACERDOTE_BOOTS_COSTAS';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'SACERDOTE_BOOTS_COSTAS');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'SACERDOTE_BOOTS_COSTAS'), v.* FROM (VALUES ('MAGIC_DEF', 7, FALSE), ('HP', 7, FALSE), ('SPD', 27, FALSE), ('EVASION', 2, TRUE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station, scroll_item_id)
+SELECT 'RECIPE_SACERDOTE_BOOTS_COSTAS', (SELECT id FROM items WHERE code = 'SACERDOTE_BOOTS_COSTAS'), 1, 'RARO', 46, 5, 90, 1, 'Brea, en el Astillero del Puerto Antiguo', 4, 'forja', NULL WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_SACERDOTE_BOOTS_COSTAS');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'SACERDOTE_BOOTS_COSTAS'), result_quantity = 1, rarity = 'RARO', required_level = 46, required_class_id = 5, success_rate_percent = 90, craft_time_minutes = 1, artisan_name = 'Brea, en el Astillero del Puerto Antiguo', zone_id = 4, station = 'forja', scroll_item_id = NULL WHERE code = 'RECIPE_SACERDOTE_BOOTS_COSTAS';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_SACERDOTE_BOOTS_COSTAS');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_SACERDOTE_BOOTS_COSTAS'), i.id, v.n FROM (VALUES ('ALGA_SALINA', 2), ('PLUMA_SALADA', 1)) AS v(code, n) JOIN items i ON i.code = v.code;
+-- Collar de la Marea
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'SACERDOTE_ACCESSORY_COSTAS', 'Collar de la Marea', 'EQUIPMENT', 'ACCESSORY', FALSE, 'RARO', NULL, 46, TRUE, 'CRAFT', 'Hecha en el Astillero del Puerto Antiguo con lo que dejan los monstruos de la Playa de Ceniza Negra, el Delta de Vapor, la Cala y el Manglar.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'SACERDOTE_ACCESSORY_COSTAS');
+UPDATE items SET name = 'Collar de la Marea', item_type = 'EQUIPMENT', slot = 'ACCESSORY', is_two_handed = FALSE, rarity = 'RARO', class_id = NULL, required_level = 46, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Hecha en el Astillero del Puerto Antiguo con lo que dejan los monstruos de la Playa de Ceniza Negra, el Delta de Vapor, la Cala y el Manglar.' WHERE code = 'SACERDOTE_ACCESSORY_COSTAS';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'SACERDOTE_ACCESSORY_COSTAS');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'SACERDOTE_ACCESSORY_COSTAS'), v.* FROM (VALUES ('MAG', 39, FALSE), ('CRIT_CHANCE', 3.5, TRUE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station, scroll_item_id)
+SELECT 'RECIPE_SACERDOTE_ACCESSORY_COSTAS', (SELECT id FROM items WHERE code = 'SACERDOTE_ACCESSORY_COSTAS'), 1, 'RARO', 46, NULL, 90, 1, 'Brea, en el Astillero del Puerto Antiguo', 4, 'forja', NULL WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_SACERDOTE_ACCESSORY_COSTAS');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'SACERDOTE_ACCESSORY_COSTAS'), result_quantity = 1, rarity = 'RARO', required_level = 46, required_class_id = NULL, success_rate_percent = 90, craft_time_minutes = 1, artisan_name = 'Brea, en el Astillero del Puerto Antiguo', zone_id = 4, station = 'forja', scroll_item_id = NULL WHERE code = 'RECIPE_SACERDOTE_ACCESSORY_COSTAS';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_SACERDOTE_ACCESSORY_COSTAS');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_SACERDOTE_ACCESSORY_COSTAS'), i.id, v.n FROM (VALUES ('CAPARAZON_HERVIDO', 2), ('ALGA_SALINA', 2), ('GEMA_COMUN', 1)) AS v(code, n) JOIN items i ON i.code = v.code;
+-- Gran Espada de la Marea
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'GUERRERO_WEAPON2H_COSTAS', 'Gran Espada de la Marea', 'EQUIPMENT', 'WEAPON', TRUE, 'RARO', 1, 46, TRUE, 'CRAFT', 'Hecha en el Astillero del Puerto Antiguo con lo que dejan los monstruos de la Playa de Ceniza Negra, el Delta de Vapor, la Cala y el Manglar.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'GUERRERO_WEAPON2H_COSTAS');
+UPDATE items SET name = 'Gran Espada de la Marea', item_type = 'EQUIPMENT', slot = 'WEAPON', is_two_handed = TRUE, rarity = 'RARO', class_id = 1, required_level = 46, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Hecha en el Astillero del Puerto Antiguo con lo que dejan los monstruos de la Playa de Ceniza Negra, el Delta de Vapor, la Cala y el Manglar.' WHERE code = 'GUERRERO_WEAPON2H_COSTAS';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'GUERRERO_WEAPON2H_COSTAS');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'GUERRERO_WEAPON2H_COSTAS'), v.* FROM (VALUES ('ATK', 148, FALSE), ('CRIT_CHANCE', 5.3, TRUE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station, scroll_item_id)
+SELECT 'RECIPE_GUERRERO_WEAPON2H_COSTAS', (SELECT id FROM items WHERE code = 'GUERRERO_WEAPON2H_COSTAS'), 1, 'RARO', 46, 1, 90, 1, 'Brea, en el Astillero del Puerto Antiguo', 4, 'forja', NULL WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_GUERRERO_WEAPON2H_COSTAS');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'GUERRERO_WEAPON2H_COSTAS'), result_quantity = 1, rarity = 'RARO', required_level = 46, required_class_id = 1, success_rate_percent = 90, craft_time_minutes = 1, artisan_name = 'Brea, en el Astillero del Puerto Antiguo', zone_id = 4, station = 'forja', scroll_item_id = NULL WHERE code = 'RECIPE_GUERRERO_WEAPON2H_COSTAS';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_GUERRERO_WEAPON2H_COSTAS');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_GUERRERO_WEAPON2H_COSTAS'), i.id, v.n FROM (VALUES ('CAPARAZON_CANGREJO_GIGANTE', 3), ('ACERO_REFINADO', 2), ('PARCHE_PIRATA_SIN_NOMBRE', 2)) AS v(code, n) JOIN items i ON i.code = v.code;
+
+-- ---------------------------------------------------------------- coral (nv 51, EPICO)
+-- Espada de Coral
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'GUERRERO_WEAPON_CORAL', 'Espada de Coral', 'EQUIPMENT', 'WEAPON', FALSE, 'EPICO', 1, 51, TRUE, 'CRAFT', 'Coral vivo del Arrecife Blanco y escamas de las Rocas de las Sirenas, templados en el astillero con un colmillo de Leviatán o una perla.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'GUERRERO_WEAPON_CORAL');
+UPDATE items SET name = 'Espada de Coral', item_type = 'EQUIPMENT', slot = 'WEAPON', is_two_handed = FALSE, rarity = 'EPICO', class_id = 1, required_level = 51, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Coral vivo del Arrecife Blanco y escamas de las Rocas de las Sirenas, templados en el astillero con un colmillo de Leviatán o una perla.' WHERE code = 'GUERRERO_WEAPON_CORAL';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'GUERRERO_WEAPON_CORAL');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'GUERRERO_WEAPON_CORAL'), v.* FROM (VALUES ('ATK', 116, FALSE), ('CRIT_CHANCE', 6.8, TRUE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station, scroll_item_id)
+SELECT 'RECIPE_GUERRERO_WEAPON_CORAL', (SELECT id FROM items WHERE code = 'GUERRERO_WEAPON_CORAL'), 1, 'EPICO', 51, 1, 80, 1, 'Brea, en el Astillero del Puerto Antiguo', 4, 'forja', NULL WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_GUERRERO_WEAPON_CORAL');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'GUERRERO_WEAPON_CORAL'), result_quantity = 1, rarity = 'EPICO', required_level = 51, required_class_id = 1, success_rate_percent = 80, craft_time_minutes = 1, artisan_name = 'Brea, en el Astillero del Puerto Antiguo', zone_id = 4, station = 'forja', scroll_item_id = NULL WHERE code = 'RECIPE_GUERRERO_WEAPON_CORAL';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_GUERRERO_WEAPON_CORAL');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_GUERRERO_WEAPON_CORAL'), i.id, v.n FROM (VALUES ('FRAGMENTO_CORAL', 3), ('CORAL_ROJO', 2), ('ACERO_REFINADO', 2), ('COLMILLO_LEVIATAN_MENOR', 1)) AS v(code, n) JOIN items i ON i.code = v.code;
+-- Gran Espada de Coral
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'GUERRERO_WEAPON2H_CORAL', 'Gran Espada de Coral', 'EQUIPMENT', 'WEAPON', TRUE, 'EPICO', 1, 51, TRUE, 'CRAFT', 'Coral vivo del Arrecife Blanco y escamas de las Rocas de las Sirenas, templados en el astillero con un colmillo de Leviatán o una perla.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'GUERRERO_WEAPON2H_CORAL');
+UPDATE items SET name = 'Gran Espada de Coral', item_type = 'EQUIPMENT', slot = 'WEAPON', is_two_handed = TRUE, rarity = 'EPICO', class_id = 1, required_level = 51, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Coral vivo del Arrecife Blanco y escamas de las Rocas de las Sirenas, templados en el astillero con un colmillo de Leviatán o una perla.' WHERE code = 'GUERRERO_WEAPON2H_CORAL';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'GUERRERO_WEAPON2H_CORAL');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'GUERRERO_WEAPON2H_CORAL'), v.* FROM (VALUES ('ATK', 175, FALSE), ('CRIT_CHANCE', 6.8, TRUE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station, scroll_item_id)
+SELECT 'RECIPE_GUERRERO_WEAPON2H_CORAL', (SELECT id FROM items WHERE code = 'GUERRERO_WEAPON2H_CORAL'), 1, 'EPICO', 51, 1, 80, 1, 'Brea, en el Astillero del Puerto Antiguo', 4, 'forja', NULL WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_GUERRERO_WEAPON2H_CORAL');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'GUERRERO_WEAPON2H_CORAL'), result_quantity = 1, rarity = 'EPICO', required_level = 51, required_class_id = 1, success_rate_percent = 80, craft_time_minutes = 1, artisan_name = 'Brea, en el Astillero del Puerto Antiguo', zone_id = 4, station = 'forja', scroll_item_id = NULL WHERE code = 'RECIPE_GUERRERO_WEAPON2H_CORAL';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_GUERRERO_WEAPON2H_CORAL');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_GUERRERO_WEAPON2H_CORAL'), i.id, v.n FROM (VALUES ('FRAGMENTO_CORAL', 3), ('CORAL_ROJO', 2), ('ACERO_REFINADO', 2), ('COLMILLO_LEVIATAN_MENOR', 1)) AS v(code, n) JOIN items i ON i.code = v.code;
+-- Escudo de Coral
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'GUERRERO_OFFHAND_CORAL', 'Escudo de Coral', 'EQUIPMENT', 'OFFHAND', FALSE, 'EPICO', 1, 51, TRUE, 'CRAFT', 'Coral vivo del Arrecife Blanco y escamas de las Rocas de las Sirenas, templados en el astillero con un colmillo de Leviatán o una perla.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'GUERRERO_OFFHAND_CORAL');
+UPDATE items SET name = 'Escudo de Coral', item_type = 'EQUIPMENT', slot = 'OFFHAND', is_two_handed = FALSE, rarity = 'EPICO', class_id = 1, required_level = 51, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Coral vivo del Arrecife Blanco y escamas de las Rocas de las Sirenas, templados en el astillero con un colmillo de Leviatán o una perla.' WHERE code = 'GUERRERO_OFFHAND_CORAL';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'GUERRERO_OFFHAND_CORAL');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'GUERRERO_OFFHAND_CORAL'), v.* FROM (VALUES ('DEF', 26, FALSE), ('HP', 34, FALSE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station, scroll_item_id)
+SELECT 'RECIPE_GUERRERO_OFFHAND_CORAL', (SELECT id FROM items WHERE code = 'GUERRERO_OFFHAND_CORAL'), 1, 'EPICO', 51, 1, 80, 1, 'Brea, en el Astillero del Puerto Antiguo', 4, 'forja', NULL WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_GUERRERO_OFFHAND_CORAL');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'GUERRERO_OFFHAND_CORAL'), result_quantity = 1, rarity = 'EPICO', required_level = 51, required_class_id = 1, success_rate_percent = 80, craft_time_minutes = 1, artisan_name = 'Brea, en el Astillero del Puerto Antiguo', zone_id = 4, station = 'forja', scroll_item_id = NULL WHERE code = 'RECIPE_GUERRERO_OFFHAND_CORAL';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_GUERRERO_OFFHAND_CORAL');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_GUERRERO_OFFHAND_CORAL'), i.id, v.n FROM (VALUES ('FRAGMENTO_CORAL', 2), ('CORAL_ROJO', 1)) AS v(code, n) JOIN items i ON i.code = v.code;
+-- Yelmo de Coral
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'GUERRERO_HELMET_CORAL', 'Yelmo de Coral', 'EQUIPMENT', 'HELMET', FALSE, 'EPICO', 1, 51, TRUE, 'CRAFT', 'Coral vivo del Arrecife Blanco y escamas de las Rocas de las Sirenas, templados en el astillero con un colmillo de Leviatán o una perla.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'GUERRERO_HELMET_CORAL');
+UPDATE items SET name = 'Yelmo de Coral', item_type = 'EQUIPMENT', slot = 'HELMET', is_two_handed = FALSE, rarity = 'EPICO', class_id = 1, required_level = 51, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Coral vivo del Arrecife Blanco y escamas de las Rocas de las Sirenas, templados en el astillero con un colmillo de Leviatán o una perla.' WHERE code = 'GUERRERO_HELMET_CORAL';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'GUERRERO_HELMET_CORAL');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'GUERRERO_HELMET_CORAL'), v.* FROM (VALUES ('DEF', 21, FALSE), ('HP', 20, FALSE), ('MAGIC_DEF', 7, FALSE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station, scroll_item_id)
+SELECT 'RECIPE_GUERRERO_HELMET_CORAL', (SELECT id FROM items WHERE code = 'GUERRERO_HELMET_CORAL'), 1, 'EPICO', 51, 1, 80, 1, 'Brea, en el Astillero del Puerto Antiguo', 4, 'forja', NULL WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_GUERRERO_HELMET_CORAL');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'GUERRERO_HELMET_CORAL'), result_quantity = 1, rarity = 'EPICO', required_level = 51, required_class_id = 1, success_rate_percent = 80, craft_time_minutes = 1, artisan_name = 'Brea, en el Astillero del Puerto Antiguo', zone_id = 4, station = 'forja', scroll_item_id = NULL WHERE code = 'RECIPE_GUERRERO_HELMET_CORAL';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_GUERRERO_HELMET_CORAL');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_GUERRERO_HELMET_CORAL'), i.id, v.n FROM (VALUES ('FRAGMENTO_CORAL', 2), ('CORAL_ROJO', 1)) AS v(code, n) JOIN items i ON i.code = v.code;
+-- Armadura de Coral
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'GUERRERO_ARMOR_CORAL', 'Armadura de Coral', 'EQUIPMENT', 'ARMOR', FALSE, 'EPICO', 1, 51, TRUE, 'CRAFT', 'Coral vivo del Arrecife Blanco y escamas de las Rocas de las Sirenas, templados en el astillero con un colmillo de Leviatán o una perla.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'GUERRERO_ARMOR_CORAL');
+UPDATE items SET name = 'Armadura de Coral', item_type = 'EQUIPMENT', slot = 'ARMOR', is_two_handed = FALSE, rarity = 'EPICO', class_id = 1, required_level = 51, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Coral vivo del Arrecife Blanco y escamas de las Rocas de las Sirenas, templados en el astillero con un colmillo de Leviatán o una perla.' WHERE code = 'GUERRERO_ARMOR_CORAL';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'GUERRERO_ARMOR_CORAL');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'GUERRERO_ARMOR_CORAL'), v.* FROM (VALUES ('DEF', 42, FALSE), ('HP', 66, FALSE), ('MAGIC_DEF', 12, FALSE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station, scroll_item_id)
+SELECT 'RECIPE_GUERRERO_ARMOR_CORAL', (SELECT id FROM items WHERE code = 'GUERRERO_ARMOR_CORAL'), 1, 'EPICO', 51, 1, 80, 1, 'Brea, en el Astillero del Puerto Antiguo', 4, 'forja', NULL WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_GUERRERO_ARMOR_CORAL');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'GUERRERO_ARMOR_CORAL'), result_quantity = 1, rarity = 'EPICO', required_level = 51, required_class_id = 1, success_rate_percent = 80, craft_time_minutes = 1, artisan_name = 'Brea, en el Astillero del Puerto Antiguo', zone_id = 4, station = 'forja', scroll_item_id = NULL WHERE code = 'RECIPE_GUERRERO_ARMOR_CORAL';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_GUERRERO_ARMOR_CORAL');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_GUERRERO_ARMOR_CORAL'), i.id, v.n FROM (VALUES ('FRAGMENTO_CORAL', 3), ('CORAL_ROJO', 2), ('ACERO_REFINADO', 2), ('COLMILLO_LEVIATAN_MENOR', 1)) AS v(code, n) JOIN items i ON i.code = v.code;
+-- Guanteletes de Coral
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'GUERRERO_GLOVES_CORAL', 'Guanteletes de Coral', 'EQUIPMENT', 'GLOVES', FALSE, 'EPICO', 1, 51, TRUE, 'CRAFT', 'Coral vivo del Arrecife Blanco y escamas de las Rocas de las Sirenas, templados en el astillero con un colmillo de Leviatán o una perla.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'GUERRERO_GLOVES_CORAL');
+UPDATE items SET name = 'Guanteletes de Coral', item_type = 'EQUIPMENT', slot = 'GLOVES', is_two_handed = FALSE, rarity = 'EPICO', class_id = 1, required_level = 51, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Coral vivo del Arrecife Blanco y escamas de las Rocas de las Sirenas, templados en el astillero con un colmillo de Leviatán o una perla.' WHERE code = 'GUERRERO_GLOVES_CORAL';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'GUERRERO_GLOVES_CORAL');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'GUERRERO_GLOVES_CORAL'), v.* FROM (VALUES ('DEF', 21, FALSE), ('HP', 33, FALSE), ('MAGIC_DEF', 7, FALSE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station, scroll_item_id)
+SELECT 'RECIPE_GUERRERO_GLOVES_CORAL', (SELECT id FROM items WHERE code = 'GUERRERO_GLOVES_CORAL'), 1, 'EPICO', 51, 1, 80, 1, 'Brea, en el Astillero del Puerto Antiguo', 4, 'forja', NULL WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_GUERRERO_GLOVES_CORAL');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'GUERRERO_GLOVES_CORAL'), result_quantity = 1, rarity = 'EPICO', required_level = 51, required_class_id = 1, success_rate_percent = 80, craft_time_minutes = 1, artisan_name = 'Brea, en el Astillero del Puerto Antiguo', zone_id = 4, station = 'forja', scroll_item_id = NULL WHERE code = 'RECIPE_GUERRERO_GLOVES_CORAL';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_GUERRERO_GLOVES_CORAL');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_GUERRERO_GLOVES_CORAL'), i.id, v.n FROM (VALUES ('FRAGMENTO_CORAL', 2), ('CORAL_ROJO', 1)) AS v(code, n) JOIN items i ON i.code = v.code;
+-- Botas de Coral
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'GUERRERO_BOOTS_CORAL', 'Botas de Coral', 'EQUIPMENT', 'BOOTS', FALSE, 'EPICO', 1, 51, TRUE, 'CRAFT', 'Coral vivo del Arrecife Blanco y escamas de las Rocas de las Sirenas, templados en el astillero con un colmillo de Leviatán o una perla.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'GUERRERO_BOOTS_CORAL');
+UPDATE items SET name = 'Botas de Coral', item_type = 'EQUIPMENT', slot = 'BOOTS', is_two_handed = FALSE, rarity = 'EPICO', class_id = 1, required_level = 51, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Coral vivo del Arrecife Blanco y escamas de las Rocas de las Sirenas, templados en el astillero con un colmillo de Leviatán o una perla.' WHERE code = 'GUERRERO_BOOTS_CORAL';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'GUERRERO_BOOTS_CORAL');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'GUERRERO_BOOTS_CORAL'), v.* FROM (VALUES ('SPD', 31, FALSE), ('HP', 8, FALSE), ('DEF', 9, FALSE), ('EVASION', 2.5, TRUE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station, scroll_item_id)
+SELECT 'RECIPE_GUERRERO_BOOTS_CORAL', (SELECT id FROM items WHERE code = 'GUERRERO_BOOTS_CORAL'), 1, 'EPICO', 51, 1, 80, 1, 'Brea, en el Astillero del Puerto Antiguo', 4, 'forja', NULL WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_GUERRERO_BOOTS_CORAL');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'GUERRERO_BOOTS_CORAL'), result_quantity = 1, rarity = 'EPICO', required_level = 51, required_class_id = 1, success_rate_percent = 80, craft_time_minutes = 1, artisan_name = 'Brea, en el Astillero del Puerto Antiguo', zone_id = 4, station = 'forja', scroll_item_id = NULL WHERE code = 'RECIPE_GUERRERO_BOOTS_CORAL';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_GUERRERO_BOOTS_CORAL');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_GUERRERO_BOOTS_CORAL'), i.id, v.n FROM (VALUES ('FRAGMENTO_CORAL', 2), ('CORAL_ROJO', 1)) AS v(code, n) JOIN items i ON i.code = v.code;
+-- Varita de Coral
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'MAGO_WEAPON_CORAL', 'Varita de Coral', 'EQUIPMENT', 'WEAPON', FALSE, 'EPICO', 2, 51, TRUE, 'CRAFT', 'Coral vivo del Arrecife Blanco y escamas de las Rocas de las Sirenas, templados en el astillero con un colmillo de Leviatán o una perla.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'MAGO_WEAPON_CORAL');
+UPDATE items SET name = 'Varita de Coral', item_type = 'EQUIPMENT', slot = 'WEAPON', is_two_handed = FALSE, rarity = 'EPICO', class_id = 2, required_level = 51, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Coral vivo del Arrecife Blanco y escamas de las Rocas de las Sirenas, templados en el astillero con un colmillo de Leviatán o una perla.' WHERE code = 'MAGO_WEAPON_CORAL';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'MAGO_WEAPON_CORAL');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'MAGO_WEAPON_CORAL'), v.* FROM (VALUES ('MAG', 116, FALSE), ('CRIT_CHANCE', 6.8, TRUE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station, scroll_item_id)
+SELECT 'RECIPE_MAGO_WEAPON_CORAL', (SELECT id FROM items WHERE code = 'MAGO_WEAPON_CORAL'), 1, 'EPICO', 51, 2, 80, 1, 'Brea, en el Astillero del Puerto Antiguo', 4, 'forja', NULL WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_MAGO_WEAPON_CORAL');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'MAGO_WEAPON_CORAL'), result_quantity = 1, rarity = 'EPICO', required_level = 51, required_class_id = 2, success_rate_percent = 80, craft_time_minutes = 1, artisan_name = 'Brea, en el Astillero del Puerto Antiguo', zone_id = 4, station = 'forja', scroll_item_id = NULL WHERE code = 'RECIPE_MAGO_WEAPON_CORAL';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_MAGO_WEAPON_CORAL');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_MAGO_WEAPON_CORAL'), i.id, v.n FROM (VALUES ('GEL_MEDUSA', 3), ('ESCAMA_SIRENA_CORRUPTA', 2), ('SAL_DE_CRISTAL', 2), ('PERLA_MARINA', 1)) AS v(code, n) JOIN items i ON i.code = v.code;
+-- Orbe de Coral
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'MAGO_OFFHAND_ORB_CORAL', 'Orbe de Coral', 'EQUIPMENT', 'OFFHAND', FALSE, 'EPICO', 2, 51, TRUE, 'CRAFT', 'Coral vivo del Arrecife Blanco y escamas de las Rocas de las Sirenas, templados en el astillero con un colmillo de Leviatán o una perla.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'MAGO_OFFHAND_ORB_CORAL');
+UPDATE items SET name = 'Orbe de Coral', item_type = 'EQUIPMENT', slot = 'OFFHAND', is_two_handed = FALSE, rarity = 'EPICO', class_id = 2, required_level = 51, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Coral vivo del Arrecife Blanco y escamas de las Rocas de las Sirenas, templados en el astillero con un colmillo de Leviatán o una perla.' WHERE code = 'MAGO_OFFHAND_ORB_CORAL';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'MAGO_OFFHAND_ORB_CORAL');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'MAGO_OFFHAND_ORB_CORAL'), v.* FROM (VALUES ('DEF', 5, FALSE), ('HP', 28, FALSE), ('MAGIC_DEF', 15, FALSE), ('MANA_REGEN', 4.5, TRUE), ('SPD', 38, FALSE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station, scroll_item_id)
+SELECT 'RECIPE_MAGO_OFFHAND_ORB_CORAL', (SELECT id FROM items WHERE code = 'MAGO_OFFHAND_ORB_CORAL'), 1, 'EPICO', 51, 2, 80, 1, 'Brea, en el Astillero del Puerto Antiguo', 4, 'forja', NULL WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_MAGO_OFFHAND_ORB_CORAL');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'MAGO_OFFHAND_ORB_CORAL'), result_quantity = 1, rarity = 'EPICO', required_level = 51, required_class_id = 2, success_rate_percent = 80, craft_time_minutes = 1, artisan_name = 'Brea, en el Astillero del Puerto Antiguo', zone_id = 4, station = 'forja', scroll_item_id = NULL WHERE code = 'RECIPE_MAGO_OFFHAND_ORB_CORAL';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_MAGO_OFFHAND_ORB_CORAL');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_MAGO_OFFHAND_ORB_CORAL'), i.id, v.n FROM (VALUES ('GEL_MEDUSA', 2), ('ESCAMA_SIRENA_CORRUPTA', 1)) AS v(code, n) JOIN items i ON i.code = v.code;
+-- Cristal de Coral
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'MAGO_OFFHAND_CRYSTAL_CORAL', 'Cristal de Coral', 'EQUIPMENT', 'OFFHAND', FALSE, 'EPICO', 2, 51, TRUE, 'CRAFT', 'Coral vivo del Arrecife Blanco y escamas de las Rocas de las Sirenas, templados en el astillero con un colmillo de Leviatán o una perla.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'MAGO_OFFHAND_CRYSTAL_CORAL');
+UPDATE items SET name = 'Cristal de Coral', item_type = 'EQUIPMENT', slot = 'OFFHAND', is_two_handed = FALSE, rarity = 'EPICO', class_id = 2, required_level = 51, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Coral vivo del Arrecife Blanco y escamas de las Rocas de las Sirenas, templados en el astillero con un colmillo de Leviatán o una perla.' WHERE code = 'MAGO_OFFHAND_CRYSTAL_CORAL';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'MAGO_OFFHAND_CRYSTAL_CORAL');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'MAGO_OFFHAND_CRYSTAL_CORAL'), v.* FROM (VALUES ('MAG', 64, FALSE), ('CRIT_CHANCE', 4.5, TRUE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station, scroll_item_id)
+SELECT 'RECIPE_MAGO_OFFHAND_CRYSTAL_CORAL', (SELECT id FROM items WHERE code = 'MAGO_OFFHAND_CRYSTAL_CORAL'), 1, 'EPICO', 51, 2, 80, 1, 'Brea, en el Astillero del Puerto Antiguo', 4, 'forja', NULL WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_MAGO_OFFHAND_CRYSTAL_CORAL');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'MAGO_OFFHAND_CRYSTAL_CORAL'), result_quantity = 1, rarity = 'EPICO', required_level = 51, required_class_id = 2, success_rate_percent = 80, craft_time_minutes = 1, artisan_name = 'Brea, en el Astillero del Puerto Antiguo', zone_id = 4, station = 'forja', scroll_item_id = NULL WHERE code = 'RECIPE_MAGO_OFFHAND_CRYSTAL_CORAL';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_MAGO_OFFHAND_CRYSTAL_CORAL');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_MAGO_OFFHAND_CRYSTAL_CORAL'), i.id, v.n FROM (VALUES ('GEL_MEDUSA', 2), ('ESCAMA_SIRENA_CORRUPTA', 1)) AS v(code, n) JOIN items i ON i.code = v.code;
+-- Capirote de Coral
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'MAGO_HELMET_CORAL', 'Capirote de Coral', 'EQUIPMENT', 'HELMET', FALSE, 'EPICO', 2, 51, TRUE, 'CRAFT', 'Coral vivo del Arrecife Blanco y escamas de las Rocas de las Sirenas, templados en el astillero con un colmillo de Leviatán o una perla.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'MAGO_HELMET_CORAL');
+UPDATE items SET name = 'Capirote de Coral', item_type = 'EQUIPMENT', slot = 'HELMET', is_two_handed = FALSE, rarity = 'EPICO', class_id = 2, required_level = 51, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Coral vivo del Arrecife Blanco y escamas de las Rocas de las Sirenas, templados en el astillero con un colmillo de Leviatán o una perla.' WHERE code = 'MAGO_HELMET_CORAL';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'MAGO_HELMET_CORAL');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'MAGO_HELMET_CORAL'), v.* FROM (VALUES ('DEF', 5, FALSE), ('HP', 14, FALSE), ('MAGIC_DEF', 21, FALSE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station, scroll_item_id)
+SELECT 'RECIPE_MAGO_HELMET_CORAL', (SELECT id FROM items WHERE code = 'MAGO_HELMET_CORAL'), 1, 'EPICO', 51, 2, 80, 1, 'Brea, en el Astillero del Puerto Antiguo', 4, 'forja', NULL WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_MAGO_HELMET_CORAL');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'MAGO_HELMET_CORAL'), result_quantity = 1, rarity = 'EPICO', required_level = 51, required_class_id = 2, success_rate_percent = 80, craft_time_minutes = 1, artisan_name = 'Brea, en el Astillero del Puerto Antiguo', zone_id = 4, station = 'forja', scroll_item_id = NULL WHERE code = 'RECIPE_MAGO_HELMET_CORAL';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_MAGO_HELMET_CORAL');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_MAGO_HELMET_CORAL'), i.id, v.n FROM (VALUES ('GEL_MEDUSA', 2), ('ESCAMA_SIRENA_CORRUPTA', 1)) AS v(code, n) JOIN items i ON i.code = v.code;
+-- Túnica de Coral
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'MAGO_ARMOR_CORAL', 'Túnica de Coral', 'EQUIPMENT', 'ARMOR', FALSE, 'EPICO', 2, 51, TRUE, 'CRAFT', 'Coral vivo del Arrecife Blanco y escamas de las Rocas de las Sirenas, templados en el astillero con un colmillo de Leviatán o una perla.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'MAGO_ARMOR_CORAL');
+UPDATE items SET name = 'Túnica de Coral', item_type = 'EQUIPMENT', slot = 'ARMOR', is_two_handed = FALSE, rarity = 'EPICO', class_id = 2, required_level = 51, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Coral vivo del Arrecife Blanco y escamas de las Rocas de las Sirenas, templados en el astillero con un colmillo de Leviatán o una perla.' WHERE code = 'MAGO_ARMOR_CORAL';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'MAGO_ARMOR_CORAL');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'MAGO_ARMOR_CORAL'), v.* FROM (VALUES ('DEF', 14, FALSE), ('HP', 77, FALSE), ('MAGIC_DEF', 42, FALSE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station, scroll_item_id)
+SELECT 'RECIPE_MAGO_ARMOR_CORAL', (SELECT id FROM items WHERE code = 'MAGO_ARMOR_CORAL'), 1, 'EPICO', 51, 2, 80, 1, 'Brea, en el Astillero del Puerto Antiguo', 4, 'forja', NULL WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_MAGO_ARMOR_CORAL');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'MAGO_ARMOR_CORAL'), result_quantity = 1, rarity = 'EPICO', required_level = 51, required_class_id = 2, success_rate_percent = 80, craft_time_minutes = 1, artisan_name = 'Brea, en el Astillero del Puerto Antiguo', zone_id = 4, station = 'forja', scroll_item_id = NULL WHERE code = 'RECIPE_MAGO_ARMOR_CORAL';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_MAGO_ARMOR_CORAL');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_MAGO_ARMOR_CORAL'), i.id, v.n FROM (VALUES ('GEL_MEDUSA', 3), ('ESCAMA_SIRENA_CORRUPTA', 2), ('SAL_DE_CRISTAL', 2), ('PERLA_MARINA', 1)) AS v(code, n) JOIN items i ON i.code = v.code;
+-- Guantes de Coral
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'MAGO_GLOVES_CORAL', 'Guantes de Coral', 'EQUIPMENT', 'GLOVES', FALSE, 'EPICO', 2, 51, TRUE, 'CRAFT', 'Coral vivo del Arrecife Blanco y escamas de las Rocas de las Sirenas, templados en el astillero con un colmillo de Leviatán o una perla.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'MAGO_GLOVES_CORAL');
+UPDATE items SET name = 'Guantes de Coral', item_type = 'EQUIPMENT', slot = 'GLOVES', is_two_handed = FALSE, rarity = 'EPICO', class_id = 2, required_level = 51, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Coral vivo del Arrecife Blanco y escamas de las Rocas de las Sirenas, templados en el astillero con un colmillo de Leviatán o una perla.' WHERE code = 'MAGO_GLOVES_CORAL';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'MAGO_GLOVES_CORAL');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'MAGO_GLOVES_CORAL'), v.* FROM (VALUES ('DEF', 7, FALSE), ('HP', 38, FALSE), ('MAGIC_DEF', 21, FALSE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station, scroll_item_id)
+SELECT 'RECIPE_MAGO_GLOVES_CORAL', (SELECT id FROM items WHERE code = 'MAGO_GLOVES_CORAL'), 1, 'EPICO', 51, 2, 80, 1, 'Brea, en el Astillero del Puerto Antiguo', 4, 'forja', NULL WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_MAGO_GLOVES_CORAL');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'MAGO_GLOVES_CORAL'), result_quantity = 1, rarity = 'EPICO', required_level = 51, required_class_id = 2, success_rate_percent = 80, craft_time_minutes = 1, artisan_name = 'Brea, en el Astillero del Puerto Antiguo', zone_id = 4, station = 'forja', scroll_item_id = NULL WHERE code = 'RECIPE_MAGO_GLOVES_CORAL';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_MAGO_GLOVES_CORAL');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_MAGO_GLOVES_CORAL'), i.id, v.n FROM (VALUES ('GEL_MEDUSA', 2), ('ESCAMA_SIRENA_CORRUPTA', 1)) AS v(code, n) JOIN items i ON i.code = v.code;
+-- Sandalias de Coral
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'MAGO_BOOTS_CORAL', 'Sandalias de Coral', 'EQUIPMENT', 'BOOTS', FALSE, 'EPICO', 2, 51, TRUE, 'CRAFT', 'Coral vivo del Arrecife Blanco y escamas de las Rocas de las Sirenas, templados en el astillero con un colmillo de Leviatán o una perla.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'MAGO_BOOTS_CORAL');
+UPDATE items SET name = 'Sandalias de Coral', item_type = 'EQUIPMENT', slot = 'BOOTS', is_two_handed = FALSE, rarity = 'EPICO', class_id = 2, required_level = 51, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Coral vivo del Arrecife Blanco y escamas de las Rocas de las Sirenas, templados en el astillero con un colmillo de Leviatán o una perla.' WHERE code = 'MAGO_BOOTS_CORAL';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'MAGO_BOOTS_CORAL');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'MAGO_BOOTS_CORAL'), v.* FROM (VALUES ('SPD', 31, FALSE), ('HP', 8, FALSE), ('MAGIC_DEF', 13, FALSE), ('EVASION', 2.5, TRUE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station, scroll_item_id)
+SELECT 'RECIPE_MAGO_BOOTS_CORAL', (SELECT id FROM items WHERE code = 'MAGO_BOOTS_CORAL'), 1, 'EPICO', 51, 2, 80, 1, 'Brea, en el Astillero del Puerto Antiguo', 4, 'forja', NULL WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_MAGO_BOOTS_CORAL');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'MAGO_BOOTS_CORAL'), result_quantity = 1, rarity = 'EPICO', required_level = 51, required_class_id = 2, success_rate_percent = 80, craft_time_minutes = 1, artisan_name = 'Brea, en el Astillero del Puerto Antiguo', zone_id = 4, station = 'forja', scroll_item_id = NULL WHERE code = 'RECIPE_MAGO_BOOTS_CORAL';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_MAGO_BOOTS_CORAL');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_MAGO_BOOTS_CORAL'), i.id, v.n FROM (VALUES ('GEL_MEDUSA', 2), ('ESCAMA_SIRENA_CORRUPTA', 1)) AS v(code, n) JOIN items i ON i.code = v.code;
+-- Arco de Coral
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'ARQUERO_WEAPON_CORAL', 'Arco de Coral', 'EQUIPMENT', 'WEAPON', FALSE, 'EPICO', 3, 51, TRUE, 'CRAFT', 'Coral vivo del Arrecife Blanco y escamas de las Rocas de las Sirenas, templados en el astillero con un colmillo de Leviatán o una perla.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'ARQUERO_WEAPON_CORAL');
+UPDATE items SET name = 'Arco de Coral', item_type = 'EQUIPMENT', slot = 'WEAPON', is_two_handed = FALSE, rarity = 'EPICO', class_id = 3, required_level = 51, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Coral vivo del Arrecife Blanco y escamas de las Rocas de las Sirenas, templados en el astillero con un colmillo de Leviatán o una perla.' WHERE code = 'ARQUERO_WEAPON_CORAL';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'ARQUERO_WEAPON_CORAL');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'ARQUERO_WEAPON_CORAL'), v.* FROM (VALUES ('ATK', 116, FALSE), ('CRIT_CHANCE', 6.8, TRUE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station, scroll_item_id)
+SELECT 'RECIPE_ARQUERO_WEAPON_CORAL', (SELECT id FROM items WHERE code = 'ARQUERO_WEAPON_CORAL'), 1, 'EPICO', 51, 3, 80, 1, 'Brea, en el Astillero del Puerto Antiguo', 4, 'forja', NULL WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_ARQUERO_WEAPON_CORAL');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'ARQUERO_WEAPON_CORAL'), result_quantity = 1, rarity = 'EPICO', required_level = 51, required_class_id = 3, success_rate_percent = 80, craft_time_minutes = 1, artisan_name = 'Brea, en el Astillero del Puerto Antiguo', zone_id = 4, station = 'forja', scroll_item_id = NULL WHERE code = 'RECIPE_ARQUERO_WEAPON_CORAL';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_ARQUERO_WEAPON_CORAL');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_ARQUERO_WEAPON_CORAL'), i.id, v.n FROM (VALUES ('CUERO_COCODRILO', 3), ('MADERA_NAUFRAGIO', 2), ('PLUMA_SALADA', 2), ('COLMILLO_LEVIATAN_MENOR', 1)) AS v(code, n) JOIN items i ON i.code = v.code;
+-- Carcaj de Coral
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'ARQUERO_OFFHAND_CORAL', 'Carcaj de Coral', 'EQUIPMENT', 'OFFHAND', FALSE, 'EPICO', 3, 51, TRUE, 'CRAFT', 'Coral vivo del Arrecife Blanco y escamas de las Rocas de las Sirenas, templados en el astillero con un colmillo de Leviatán o una perla.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'ARQUERO_OFFHAND_CORAL');
+UPDATE items SET name = 'Carcaj de Coral', item_type = 'EQUIPMENT', slot = 'OFFHAND', is_two_handed = FALSE, rarity = 'EPICO', class_id = 3, required_level = 51, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Coral vivo del Arrecife Blanco y escamas de las Rocas de las Sirenas, templados en el astillero con un colmillo de Leviatán o una perla.' WHERE code = 'ARQUERO_OFFHAND_CORAL';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'ARQUERO_OFFHAND_CORAL');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'ARQUERO_OFFHAND_CORAL'), v.* FROM (VALUES ('ATK', 32, FALSE), ('CRIT_DAMAGE', 11, TRUE), ('SPD', 38, FALSE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station, scroll_item_id)
+SELECT 'RECIPE_ARQUERO_OFFHAND_CORAL', (SELECT id FROM items WHERE code = 'ARQUERO_OFFHAND_CORAL'), 1, 'EPICO', 51, 3, 80, 1, 'Brea, en el Astillero del Puerto Antiguo', 4, 'forja', NULL WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_ARQUERO_OFFHAND_CORAL');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'ARQUERO_OFFHAND_CORAL'), result_quantity = 1, rarity = 'EPICO', required_level = 51, required_class_id = 3, success_rate_percent = 80, craft_time_minutes = 1, artisan_name = 'Brea, en el Astillero del Puerto Antiguo', zone_id = 4, station = 'forja', scroll_item_id = NULL WHERE code = 'RECIPE_ARQUERO_OFFHAND_CORAL';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_ARQUERO_OFFHAND_CORAL');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_ARQUERO_OFFHAND_CORAL'), i.id, v.n FROM (VALUES ('CUERO_COCODRILO', 2), ('MADERA_NAUFRAGIO', 1)) AS v(code, n) JOIN items i ON i.code = v.code;
+-- Capucha de Coral
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'ARQUERO_HELMET_CORAL', 'Capucha de Coral', 'EQUIPMENT', 'HELMET', FALSE, 'EPICO', 3, 51, TRUE, 'CRAFT', 'Coral vivo del Arrecife Blanco y escamas de las Rocas de las Sirenas, templados en el astillero con un colmillo de Leviatán o una perla.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'ARQUERO_HELMET_CORAL');
+UPDATE items SET name = 'Capucha de Coral', item_type = 'EQUIPMENT', slot = 'HELMET', is_two_handed = FALSE, rarity = 'EPICO', class_id = 3, required_level = 51, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Coral vivo del Arrecife Blanco y escamas de las Rocas de las Sirenas, templados en el astillero con un colmillo de Leviatán o una perla.' WHERE code = 'ARQUERO_HELMET_CORAL';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'ARQUERO_HELMET_CORAL');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'ARQUERO_HELMET_CORAL'), v.* FROM (VALUES ('DEF', 21, FALSE), ('HP', 16, FALSE), ('MAGIC_DEF', 8, FALSE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station, scroll_item_id)
+SELECT 'RECIPE_ARQUERO_HELMET_CORAL', (SELECT id FROM items WHERE code = 'ARQUERO_HELMET_CORAL'), 1, 'EPICO', 51, 3, 80, 1, 'Brea, en el Astillero del Puerto Antiguo', 4, 'forja', NULL WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_ARQUERO_HELMET_CORAL');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'ARQUERO_HELMET_CORAL'), result_quantity = 1, rarity = 'EPICO', required_level = 51, required_class_id = 3, success_rate_percent = 80, craft_time_minutes = 1, artisan_name = 'Brea, en el Astillero del Puerto Antiguo', zone_id = 4, station = 'forja', scroll_item_id = NULL WHERE code = 'RECIPE_ARQUERO_HELMET_CORAL';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_ARQUERO_HELMET_CORAL');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_ARQUERO_HELMET_CORAL'), i.id, v.n FROM (VALUES ('CUERO_COCODRILO', 2), ('MADERA_NAUFRAGIO', 1)) AS v(code, n) JOIN items i ON i.code = v.code;
+-- Gabán de Coral
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'ARQUERO_ARMOR_CORAL', 'Gabán de Coral', 'EQUIPMENT', 'ARMOR', FALSE, 'EPICO', 3, 51, TRUE, 'CRAFT', 'Coral vivo del Arrecife Blanco y escamas de las Rocas de las Sirenas, templados en el astillero con un colmillo de Leviatán o una perla.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'ARQUERO_ARMOR_CORAL');
+UPDATE items SET name = 'Gabán de Coral', item_type = 'EQUIPMENT', slot = 'ARMOR', is_two_handed = FALSE, rarity = 'EPICO', class_id = 3, required_level = 51, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Coral vivo del Arrecife Blanco y escamas de las Rocas de las Sirenas, templados en el astillero con un colmillo de Leviatán o una perla.' WHERE code = 'ARQUERO_ARMOR_CORAL';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'ARQUERO_ARMOR_CORAL');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'ARQUERO_ARMOR_CORAL'), v.* FROM (VALUES ('DEF', 42, FALSE), ('HP', 74, FALSE), ('MAGIC_DEF', 12, FALSE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station, scroll_item_id)
+SELECT 'RECIPE_ARQUERO_ARMOR_CORAL', (SELECT id FROM items WHERE code = 'ARQUERO_ARMOR_CORAL'), 1, 'EPICO', 51, 3, 80, 1, 'Brea, en el Astillero del Puerto Antiguo', 4, 'forja', NULL WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_ARQUERO_ARMOR_CORAL');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'ARQUERO_ARMOR_CORAL'), result_quantity = 1, rarity = 'EPICO', required_level = 51, required_class_id = 3, success_rate_percent = 80, craft_time_minutes = 1, artisan_name = 'Brea, en el Astillero del Puerto Antiguo', zone_id = 4, station = 'forja', scroll_item_id = NULL WHERE code = 'RECIPE_ARQUERO_ARMOR_CORAL';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_ARQUERO_ARMOR_CORAL');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_ARQUERO_ARMOR_CORAL'), i.id, v.n FROM (VALUES ('CUERO_COCODRILO', 3), ('MADERA_NAUFRAGIO', 2), ('PLUMA_SALADA', 2), ('COLMILLO_LEVIATAN_MENOR', 1)) AS v(code, n) JOIN items i ON i.code = v.code;
+-- Guantes de Coral
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'ARQUERO_GLOVES_CORAL', 'Guantes de Coral', 'EQUIPMENT', 'GLOVES', FALSE, 'EPICO', 3, 51, TRUE, 'CRAFT', 'Coral vivo del Arrecife Blanco y escamas de las Rocas de las Sirenas, templados en el astillero con un colmillo de Leviatán o una perla.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'ARQUERO_GLOVES_CORAL');
+UPDATE items SET name = 'Guantes de Coral', item_type = 'EQUIPMENT', slot = 'GLOVES', is_two_handed = FALSE, rarity = 'EPICO', class_id = 3, required_level = 51, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Coral vivo del Arrecife Blanco y escamas de las Rocas de las Sirenas, templados en el astillero con un colmillo de Leviatán o una perla.' WHERE code = 'ARQUERO_GLOVES_CORAL';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'ARQUERO_GLOVES_CORAL');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'ARQUERO_GLOVES_CORAL'), v.* FROM (VALUES ('DEF', 21, FALSE), ('HP', 37, FALSE), ('MAGIC_DEF', 7, FALSE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station, scroll_item_id)
+SELECT 'RECIPE_ARQUERO_GLOVES_CORAL', (SELECT id FROM items WHERE code = 'ARQUERO_GLOVES_CORAL'), 1, 'EPICO', 51, 3, 80, 1, 'Brea, en el Astillero del Puerto Antiguo', 4, 'forja', NULL WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_ARQUERO_GLOVES_CORAL');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'ARQUERO_GLOVES_CORAL'), result_quantity = 1, rarity = 'EPICO', required_level = 51, required_class_id = 3, success_rate_percent = 80, craft_time_minutes = 1, artisan_name = 'Brea, en el Astillero del Puerto Antiguo', zone_id = 4, station = 'forja', scroll_item_id = NULL WHERE code = 'RECIPE_ARQUERO_GLOVES_CORAL';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_ARQUERO_GLOVES_CORAL');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_ARQUERO_GLOVES_CORAL'), i.id, v.n FROM (VALUES ('CUERO_COCODRILO', 2), ('MADERA_NAUFRAGIO', 1)) AS v(code, n) JOIN items i ON i.code = v.code;
+-- Botas de Coral
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'ARQUERO_BOOTS_CORAL', 'Botas de Coral', 'EQUIPMENT', 'BOOTS', FALSE, 'EPICO', 3, 51, TRUE, 'CRAFT', 'Coral vivo del Arrecife Blanco y escamas de las Rocas de las Sirenas, templados en el astillero con un colmillo de Leviatán o una perla.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'ARQUERO_BOOTS_CORAL');
+UPDATE items SET name = 'Botas de Coral', item_type = 'EQUIPMENT', slot = 'BOOTS', is_two_handed = FALSE, rarity = 'EPICO', class_id = 3, required_level = 51, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Coral vivo del Arrecife Blanco y escamas de las Rocas de las Sirenas, templados en el astillero con un colmillo de Leviatán o una perla.' WHERE code = 'ARQUERO_BOOTS_CORAL';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'ARQUERO_BOOTS_CORAL');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'ARQUERO_BOOTS_CORAL'), v.* FROM (VALUES ('SPD', 31, FALSE), ('HP', 8, FALSE), ('DEF', 12, FALSE), ('EVASION', 2.5, TRUE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station, scroll_item_id)
+SELECT 'RECIPE_ARQUERO_BOOTS_CORAL', (SELECT id FROM items WHERE code = 'ARQUERO_BOOTS_CORAL'), 1, 'EPICO', 51, 3, 80, 1, 'Brea, en el Astillero del Puerto Antiguo', 4, 'forja', NULL WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_ARQUERO_BOOTS_CORAL');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'ARQUERO_BOOTS_CORAL'), result_quantity = 1, rarity = 'EPICO', required_level = 51, required_class_id = 3, success_rate_percent = 80, craft_time_minutes = 1, artisan_name = 'Brea, en el Astillero del Puerto Antiguo', zone_id = 4, station = 'forja', scroll_item_id = NULL WHERE code = 'RECIPE_ARQUERO_BOOTS_CORAL';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_ARQUERO_BOOTS_CORAL');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_ARQUERO_BOOTS_CORAL'), i.id, v.n FROM (VALUES ('CUERO_COCODRILO', 2), ('MADERA_NAUFRAGIO', 1)) AS v(code, n) JOIN items i ON i.code = v.code;
+-- Daga de Coral
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'PICARO_WEAPON_CORAL', 'Daga de Coral', 'EQUIPMENT', 'WEAPON', FALSE, 'EPICO', 4, 51, TRUE, 'CRAFT', 'Coral vivo del Arrecife Blanco y escamas de las Rocas de las Sirenas, templados en el astillero con un colmillo de Leviatán o una perla.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'PICARO_WEAPON_CORAL');
+UPDATE items SET name = 'Daga de Coral', item_type = 'EQUIPMENT', slot = 'WEAPON', is_two_handed = FALSE, rarity = 'EPICO', class_id = 4, required_level = 51, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Coral vivo del Arrecife Blanco y escamas de las Rocas de las Sirenas, templados en el astillero con un colmillo de Leviatán o una perla.' WHERE code = 'PICARO_WEAPON_CORAL';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'PICARO_WEAPON_CORAL');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'PICARO_WEAPON_CORAL'), v.* FROM (VALUES ('ATK', 116, FALSE), ('CRIT_CHANCE', 6.8, TRUE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station, scroll_item_id)
+SELECT 'RECIPE_PICARO_WEAPON_CORAL', (SELECT id FROM items WHERE code = 'PICARO_WEAPON_CORAL'), 1, 'EPICO', 51, 4, 80, 1, 'Brea, en el Astillero del Puerto Antiguo', 4, 'forja', NULL WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_PICARO_WEAPON_CORAL');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'PICARO_WEAPON_CORAL'), result_quantity = 1, rarity = 'EPICO', required_level = 51, required_class_id = 4, success_rate_percent = 80, craft_time_minutes = 1, artisan_name = 'Brea, en el Astillero del Puerto Antiguo', zone_id = 4, station = 'forja', scroll_item_id = NULL WHERE code = 'RECIPE_PICARO_WEAPON_CORAL';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_PICARO_WEAPON_CORAL');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_PICARO_WEAPON_CORAL'), i.id, v.n FROM (VALUES ('CUERO_COCODRILO', 3), ('DIENTE_DE_PIRANA', 2), ('CORAL_ROJO', 2), ('COLMILLO_LEVIATAN_MENOR', 1)) AS v(code, n) JOIN items i ON i.code = v.code;
+-- Daga Gemela de Coral
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'PICARO_OFFHAND_CORAL', 'Daga Gemela de Coral', 'EQUIPMENT', 'OFFHAND', FALSE, 'EPICO', 4, 51, TRUE, 'CRAFT', 'Coral vivo del Arrecife Blanco y escamas de las Rocas de las Sirenas, templados en el astillero con un colmillo de Leviatán o una perla.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'PICARO_OFFHAND_CORAL');
+UPDATE items SET name = 'Daga Gemela de Coral', item_type = 'EQUIPMENT', slot = 'OFFHAND', is_two_handed = FALSE, rarity = 'EPICO', class_id = 4, required_level = 51, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Coral vivo del Arrecife Blanco y escamas de las Rocas de las Sirenas, templados en el astillero con un colmillo de Leviatán o una perla.' WHERE code = 'PICARO_OFFHAND_CORAL';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'PICARO_OFFHAND_CORAL');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'PICARO_OFFHAND_CORAL'), v.* FROM (VALUES ('ATK', 32, FALSE), ('CRIT_CHANCE', 4.5, TRUE), ('EVASION', 2.5, TRUE), ('SPD', 38, FALSE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station, scroll_item_id)
+SELECT 'RECIPE_PICARO_OFFHAND_CORAL', (SELECT id FROM items WHERE code = 'PICARO_OFFHAND_CORAL'), 1, 'EPICO', 51, 4, 80, 1, 'Brea, en el Astillero del Puerto Antiguo', 4, 'forja', NULL WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_PICARO_OFFHAND_CORAL');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'PICARO_OFFHAND_CORAL'), result_quantity = 1, rarity = 'EPICO', required_level = 51, required_class_id = 4, success_rate_percent = 80, craft_time_minutes = 1, artisan_name = 'Brea, en el Astillero del Puerto Antiguo', zone_id = 4, station = 'forja', scroll_item_id = NULL WHERE code = 'RECIPE_PICARO_OFFHAND_CORAL';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_PICARO_OFFHAND_CORAL');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_PICARO_OFFHAND_CORAL'), i.id, v.n FROM (VALUES ('CUERO_COCODRILO', 2), ('DIENTE_DE_PIRANA', 1)) AS v(code, n) JOIN items i ON i.code = v.code;
+-- Máscara de Coral
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'PICARO_HELMET_CORAL', 'Máscara de Coral', 'EQUIPMENT', 'HELMET', FALSE, 'EPICO', 4, 51, TRUE, 'CRAFT', 'Coral vivo del Arrecife Blanco y escamas de las Rocas de las Sirenas, templados en el astillero con un colmillo de Leviatán o una perla.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'PICARO_HELMET_CORAL');
+UPDATE items SET name = 'Máscara de Coral', item_type = 'EQUIPMENT', slot = 'HELMET', is_two_handed = FALSE, rarity = 'EPICO', class_id = 4, required_level = 51, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Coral vivo del Arrecife Blanco y escamas de las Rocas de las Sirenas, templados en el astillero con un colmillo de Leviatán o una perla.' WHERE code = 'PICARO_HELMET_CORAL';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'PICARO_HELMET_CORAL');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'PICARO_HELMET_CORAL'), v.* FROM (VALUES ('DEF', 21, FALSE), ('HP', 17, FALSE), ('MAGIC_DEF', 7, FALSE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station, scroll_item_id)
+SELECT 'RECIPE_PICARO_HELMET_CORAL', (SELECT id FROM items WHERE code = 'PICARO_HELMET_CORAL'), 1, 'EPICO', 51, 4, 80, 1, 'Brea, en el Astillero del Puerto Antiguo', 4, 'forja', NULL WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_PICARO_HELMET_CORAL');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'PICARO_HELMET_CORAL'), result_quantity = 1, rarity = 'EPICO', required_level = 51, required_class_id = 4, success_rate_percent = 80, craft_time_minutes = 1, artisan_name = 'Brea, en el Astillero del Puerto Antiguo', zone_id = 4, station = 'forja', scroll_item_id = NULL WHERE code = 'RECIPE_PICARO_HELMET_CORAL';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_PICARO_HELMET_CORAL');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_PICARO_HELMET_CORAL'), i.id, v.n FROM (VALUES ('CUERO_COCODRILO', 2), ('DIENTE_DE_PIRANA', 1)) AS v(code, n) JOIN items i ON i.code = v.code;
+-- Cuero de Coral
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'PICARO_ARMOR_CORAL', 'Cuero de Coral', 'EQUIPMENT', 'ARMOR', FALSE, 'EPICO', 4, 51, TRUE, 'CRAFT', 'Coral vivo del Arrecife Blanco y escamas de las Rocas de las Sirenas, templados en el astillero con un colmillo de Leviatán o una perla.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'PICARO_ARMOR_CORAL');
+UPDATE items SET name = 'Cuero de Coral', item_type = 'EQUIPMENT', slot = 'ARMOR', is_two_handed = FALSE, rarity = 'EPICO', class_id = 4, required_level = 51, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Coral vivo del Arrecife Blanco y escamas de las Rocas de las Sirenas, templados en el astillero con un colmillo de Leviatán o una perla.' WHERE code = 'PICARO_ARMOR_CORAL';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'PICARO_ARMOR_CORAL');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'PICARO_ARMOR_CORAL'), v.* FROM (VALUES ('DEF', 42, FALSE), ('HP', 81, FALSE), ('MAGIC_DEF', 12, FALSE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station, scroll_item_id)
+SELECT 'RECIPE_PICARO_ARMOR_CORAL', (SELECT id FROM items WHERE code = 'PICARO_ARMOR_CORAL'), 1, 'EPICO', 51, 4, 80, 1, 'Brea, en el Astillero del Puerto Antiguo', 4, 'forja', NULL WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_PICARO_ARMOR_CORAL');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'PICARO_ARMOR_CORAL'), result_quantity = 1, rarity = 'EPICO', required_level = 51, required_class_id = 4, success_rate_percent = 80, craft_time_minutes = 1, artisan_name = 'Brea, en el Astillero del Puerto Antiguo', zone_id = 4, station = 'forja', scroll_item_id = NULL WHERE code = 'RECIPE_PICARO_ARMOR_CORAL';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_PICARO_ARMOR_CORAL');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_PICARO_ARMOR_CORAL'), i.id, v.n FROM (VALUES ('CUERO_COCODRILO', 3), ('DIENTE_DE_PIRANA', 2), ('CORAL_ROJO', 2), ('COLMILLO_LEVIATAN_MENOR', 1)) AS v(code, n) JOIN items i ON i.code = v.code;
+-- Guantes de Coral
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'PICARO_GLOVES_CORAL', 'Guantes de Coral', 'EQUIPMENT', 'GLOVES', FALSE, 'EPICO', 4, 51, TRUE, 'CRAFT', 'Coral vivo del Arrecife Blanco y escamas de las Rocas de las Sirenas, templados en el astillero con un colmillo de Leviatán o una perla.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'PICARO_GLOVES_CORAL');
+UPDATE items SET name = 'Guantes de Coral', item_type = 'EQUIPMENT', slot = 'GLOVES', is_two_handed = FALSE, rarity = 'EPICO', class_id = 4, required_level = 51, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Coral vivo del Arrecife Blanco y escamas de las Rocas de las Sirenas, templados en el astillero con un colmillo de Leviatán o una perla.' WHERE code = 'PICARO_GLOVES_CORAL';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'PICARO_GLOVES_CORAL');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'PICARO_GLOVES_CORAL'), v.* FROM (VALUES ('DEF', 21, FALSE), ('HP', 39, FALSE), ('MAGIC_DEF', 7, FALSE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station, scroll_item_id)
+SELECT 'RECIPE_PICARO_GLOVES_CORAL', (SELECT id FROM items WHERE code = 'PICARO_GLOVES_CORAL'), 1, 'EPICO', 51, 4, 80, 1, 'Brea, en el Astillero del Puerto Antiguo', 4, 'forja', NULL WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_PICARO_GLOVES_CORAL');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'PICARO_GLOVES_CORAL'), result_quantity = 1, rarity = 'EPICO', required_level = 51, required_class_id = 4, success_rate_percent = 80, craft_time_minutes = 1, artisan_name = 'Brea, en el Astillero del Puerto Antiguo', zone_id = 4, station = 'forja', scroll_item_id = NULL WHERE code = 'RECIPE_PICARO_GLOVES_CORAL';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_PICARO_GLOVES_CORAL');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_PICARO_GLOVES_CORAL'), i.id, v.n FROM (VALUES ('CUERO_COCODRILO', 2), ('DIENTE_DE_PIRANA', 1)) AS v(code, n) JOIN items i ON i.code = v.code;
+-- Botas de Coral
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'PICARO_BOOTS_CORAL', 'Botas de Coral', 'EQUIPMENT', 'BOOTS', FALSE, 'EPICO', 4, 51, TRUE, 'CRAFT', 'Coral vivo del Arrecife Blanco y escamas de las Rocas de las Sirenas, templados en el astillero con un colmillo de Leviatán o una perla.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'PICARO_BOOTS_CORAL');
+UPDATE items SET name = 'Botas de Coral', item_type = 'EQUIPMENT', slot = 'BOOTS', is_two_handed = FALSE, rarity = 'EPICO', class_id = 4, required_level = 51, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Coral vivo del Arrecife Blanco y escamas de las Rocas de las Sirenas, templados en el astillero con un colmillo de Leviatán o una perla.' WHERE code = 'PICARO_BOOTS_CORAL';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'PICARO_BOOTS_CORAL');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'PICARO_BOOTS_CORAL'), v.* FROM (VALUES ('SPD', 31, FALSE), ('HP', 8, FALSE), ('DEF', 12, FALSE), ('EVASION', 2.5, TRUE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station, scroll_item_id)
+SELECT 'RECIPE_PICARO_BOOTS_CORAL', (SELECT id FROM items WHERE code = 'PICARO_BOOTS_CORAL'), 1, 'EPICO', 51, 4, 80, 1, 'Brea, en el Astillero del Puerto Antiguo', 4, 'forja', NULL WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_PICARO_BOOTS_CORAL');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'PICARO_BOOTS_CORAL'), result_quantity = 1, rarity = 'EPICO', required_level = 51, required_class_id = 4, success_rate_percent = 80, craft_time_minutes = 1, artisan_name = 'Brea, en el Astillero del Puerto Antiguo', zone_id = 4, station = 'forja', scroll_item_id = NULL WHERE code = 'RECIPE_PICARO_BOOTS_CORAL';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_PICARO_BOOTS_CORAL');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_PICARO_BOOTS_CORAL'), i.id, v.n FROM (VALUES ('CUERO_COCODRILO', 2), ('DIENTE_DE_PIRANA', 1)) AS v(code, n) JOIN items i ON i.code = v.code;
+-- Báculo de Coral
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'SACERDOTE_WEAPON_CORAL', 'Báculo de Coral', 'EQUIPMENT', 'WEAPON', FALSE, 'EPICO', 5, 51, TRUE, 'CRAFT', 'Coral vivo del Arrecife Blanco y escamas de las Rocas de las Sirenas, templados en el astillero con un colmillo de Leviatán o una perla.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'SACERDOTE_WEAPON_CORAL');
+UPDATE items SET name = 'Báculo de Coral', item_type = 'EQUIPMENT', slot = 'WEAPON', is_two_handed = FALSE, rarity = 'EPICO', class_id = 5, required_level = 51, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Coral vivo del Arrecife Blanco y escamas de las Rocas de las Sirenas, templados en el astillero con un colmillo de Leviatán o una perla.' WHERE code = 'SACERDOTE_WEAPON_CORAL';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'SACERDOTE_WEAPON_CORAL');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'SACERDOTE_WEAPON_CORAL'), v.* FROM (VALUES ('MAG', 116, FALSE), ('CRIT_CHANCE', 6.8, TRUE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station, scroll_item_id)
+SELECT 'RECIPE_SACERDOTE_WEAPON_CORAL', (SELECT id FROM items WHERE code = 'SACERDOTE_WEAPON_CORAL'), 1, 'EPICO', 51, 5, 80, 1, 'Brea, en el Astillero del Puerto Antiguo', 4, 'forja', NULL WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_SACERDOTE_WEAPON_CORAL');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'SACERDOTE_WEAPON_CORAL'), result_quantity = 1, rarity = 'EPICO', required_level = 51, required_class_id = 5, success_rate_percent = 80, craft_time_minutes = 1, artisan_name = 'Brea, en el Astillero del Puerto Antiguo', zone_id = 4, station = 'forja', scroll_item_id = NULL WHERE code = 'RECIPE_SACERDOTE_WEAPON_CORAL';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_SACERDOTE_WEAPON_CORAL');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_SACERDOTE_WEAPON_CORAL'), i.id, v.n FROM (VALUES ('ESCAMA_SIRENA_CORRUPTA', 3), ('ALGA_SALINA', 2), ('GEL_MEDUSA', 2), ('PERLA_MARINA', 1)) AS v(code, n) JOIN items i ON i.code = v.code;
+-- Símbolo de Coral
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'SACERDOTE_OFFHAND_CORAL', 'Símbolo de Coral', 'EQUIPMENT', 'OFFHAND', FALSE, 'EPICO', 5, 51, TRUE, 'CRAFT', 'Coral vivo del Arrecife Blanco y escamas de las Rocas de las Sirenas, templados en el astillero con un colmillo de Leviatán o una perla.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'SACERDOTE_OFFHAND_CORAL');
+UPDATE items SET name = 'Símbolo de Coral', item_type = 'EQUIPMENT', slot = 'OFFHAND', is_two_handed = FALSE, rarity = 'EPICO', class_id = 5, required_level = 51, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Coral vivo del Arrecife Blanco y escamas de las Rocas de las Sirenas, templados en el astillero con un colmillo de Leviatán o una perla.' WHERE code = 'SACERDOTE_OFFHAND_CORAL';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'SACERDOTE_OFFHAND_CORAL');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'SACERDOTE_OFFHAND_CORAL'), v.* FROM (VALUES ('HP', 34, FALSE), ('MAGIC_DEF', 26, FALSE), ('HEALING', 4.5, TRUE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station, scroll_item_id)
+SELECT 'RECIPE_SACERDOTE_OFFHAND_CORAL', (SELECT id FROM items WHERE code = 'SACERDOTE_OFFHAND_CORAL'), 1, 'EPICO', 51, 5, 80, 1, 'Brea, en el Astillero del Puerto Antiguo', 4, 'forja', NULL WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_SACERDOTE_OFFHAND_CORAL');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'SACERDOTE_OFFHAND_CORAL'), result_quantity = 1, rarity = 'EPICO', required_level = 51, required_class_id = 5, success_rate_percent = 80, craft_time_minutes = 1, artisan_name = 'Brea, en el Astillero del Puerto Antiguo', zone_id = 4, station = 'forja', scroll_item_id = NULL WHERE code = 'RECIPE_SACERDOTE_OFFHAND_CORAL';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_SACERDOTE_OFFHAND_CORAL');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_SACERDOTE_OFFHAND_CORAL'), i.id, v.n FROM (VALUES ('ESCAMA_SIRENA_CORRUPTA', 2), ('ALGA_SALINA', 1)) AS v(code, n) JOIN items i ON i.code = v.code;
+-- Diadema de Coral
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'SACERDOTE_HELMET_CORAL', 'Diadema de Coral', 'EQUIPMENT', 'HELMET', FALSE, 'EPICO', 5, 51, TRUE, 'CRAFT', 'Coral vivo del Arrecife Blanco y escamas de las Rocas de las Sirenas, templados en el astillero con un colmillo de Leviatán o una perla.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'SACERDOTE_HELMET_CORAL');
+UPDATE items SET name = 'Diadema de Coral', item_type = 'EQUIPMENT', slot = 'HELMET', is_two_handed = FALSE, rarity = 'EPICO', class_id = 5, required_level = 51, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Coral vivo del Arrecife Blanco y escamas de las Rocas de las Sirenas, templados en el astillero con un colmillo de Leviatán o una perla.' WHERE code = 'SACERDOTE_HELMET_CORAL';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'SACERDOTE_HELMET_CORAL');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'SACERDOTE_HELMET_CORAL'), v.* FROM (VALUES ('DEF', 5, FALSE), ('HP', 17, FALSE), ('MAGIC_DEF', 21, FALSE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station, scroll_item_id)
+SELECT 'RECIPE_SACERDOTE_HELMET_CORAL', (SELECT id FROM items WHERE code = 'SACERDOTE_HELMET_CORAL'), 1, 'EPICO', 51, 5, 80, 1, 'Brea, en el Astillero del Puerto Antiguo', 4, 'forja', NULL WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_SACERDOTE_HELMET_CORAL');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'SACERDOTE_HELMET_CORAL'), result_quantity = 1, rarity = 'EPICO', required_level = 51, required_class_id = 5, success_rate_percent = 80, craft_time_minutes = 1, artisan_name = 'Brea, en el Astillero del Puerto Antiguo', zone_id = 4, station = 'forja', scroll_item_id = NULL WHERE code = 'RECIPE_SACERDOTE_HELMET_CORAL';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_SACERDOTE_HELMET_CORAL');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_SACERDOTE_HELMET_CORAL'), i.id, v.n FROM (VALUES ('ESCAMA_SIRENA_CORRUPTA', 2), ('ALGA_SALINA', 1)) AS v(code, n) JOIN items i ON i.code = v.code;
+-- Vestidura de Coral
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'SACERDOTE_ARMOR_CORAL', 'Vestidura de Coral', 'EQUIPMENT', 'ARMOR', FALSE, 'EPICO', 5, 51, TRUE, 'CRAFT', 'Coral vivo del Arrecife Blanco y escamas de las Rocas de las Sirenas, templados en el astillero con un colmillo de Leviatán o una perla.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'SACERDOTE_ARMOR_CORAL');
+UPDATE items SET name = 'Vestidura de Coral', item_type = 'EQUIPMENT', slot = 'ARMOR', is_two_handed = FALSE, rarity = 'EPICO', class_id = 5, required_level = 51, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Coral vivo del Arrecife Blanco y escamas de las Rocas de las Sirenas, templados en el astillero con un colmillo de Leviatán o una perla.' WHERE code = 'SACERDOTE_ARMOR_CORAL';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'SACERDOTE_ARMOR_CORAL');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'SACERDOTE_ARMOR_CORAL'), v.* FROM (VALUES ('DEF', 14, FALSE), ('HP', 69, FALSE), ('MAGIC_DEF', 42, FALSE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station, scroll_item_id)
+SELECT 'RECIPE_SACERDOTE_ARMOR_CORAL', (SELECT id FROM items WHERE code = 'SACERDOTE_ARMOR_CORAL'), 1, 'EPICO', 51, 5, 80, 1, 'Brea, en el Astillero del Puerto Antiguo', 4, 'forja', NULL WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_SACERDOTE_ARMOR_CORAL');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'SACERDOTE_ARMOR_CORAL'), result_quantity = 1, rarity = 'EPICO', required_level = 51, required_class_id = 5, success_rate_percent = 80, craft_time_minutes = 1, artisan_name = 'Brea, en el Astillero del Puerto Antiguo', zone_id = 4, station = 'forja', scroll_item_id = NULL WHERE code = 'RECIPE_SACERDOTE_ARMOR_CORAL';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_SACERDOTE_ARMOR_CORAL');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_SACERDOTE_ARMOR_CORAL'), i.id, v.n FROM (VALUES ('ESCAMA_SIRENA_CORRUPTA', 3), ('ALGA_SALINA', 2), ('GEL_MEDUSA', 2), ('PERLA_MARINA', 1)) AS v(code, n) JOIN items i ON i.code = v.code;
+-- Guantes de Coral
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'SACERDOTE_GLOVES_CORAL', 'Guantes de Coral', 'EQUIPMENT', 'GLOVES', FALSE, 'EPICO', 5, 51, TRUE, 'CRAFT', 'Coral vivo del Arrecife Blanco y escamas de las Rocas de las Sirenas, templados en el astillero con un colmillo de Leviatán o una perla.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'SACERDOTE_GLOVES_CORAL');
+UPDATE items SET name = 'Guantes de Coral', item_type = 'EQUIPMENT', slot = 'GLOVES', is_two_handed = FALSE, rarity = 'EPICO', class_id = 5, required_level = 51, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Coral vivo del Arrecife Blanco y escamas de las Rocas de las Sirenas, templados en el astillero con un colmillo de Leviatán o una perla.' WHERE code = 'SACERDOTE_GLOVES_CORAL';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'SACERDOTE_GLOVES_CORAL');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'SACERDOTE_GLOVES_CORAL'), v.* FROM (VALUES ('DEF', 7, FALSE), ('HP', 34, FALSE), ('MAGIC_DEF', 21, FALSE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station, scroll_item_id)
+SELECT 'RECIPE_SACERDOTE_GLOVES_CORAL', (SELECT id FROM items WHERE code = 'SACERDOTE_GLOVES_CORAL'), 1, 'EPICO', 51, 5, 80, 1, 'Brea, en el Astillero del Puerto Antiguo', 4, 'forja', NULL WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_SACERDOTE_GLOVES_CORAL');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'SACERDOTE_GLOVES_CORAL'), result_quantity = 1, rarity = 'EPICO', required_level = 51, required_class_id = 5, success_rate_percent = 80, craft_time_minutes = 1, artisan_name = 'Brea, en el Astillero del Puerto Antiguo', zone_id = 4, station = 'forja', scroll_item_id = NULL WHERE code = 'RECIPE_SACERDOTE_GLOVES_CORAL';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_SACERDOTE_GLOVES_CORAL');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_SACERDOTE_GLOVES_CORAL'), i.id, v.n FROM (VALUES ('ESCAMA_SIRENA_CORRUPTA', 2), ('ALGA_SALINA', 1)) AS v(code, n) JOIN items i ON i.code = v.code;
+-- Sandalias de Coral
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'SACERDOTE_BOOTS_CORAL', 'Sandalias de Coral', 'EQUIPMENT', 'BOOTS', FALSE, 'EPICO', 5, 51, TRUE, 'CRAFT', 'Coral vivo del Arrecife Blanco y escamas de las Rocas de las Sirenas, templados en el astillero con un colmillo de Leviatán o una perla.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'SACERDOTE_BOOTS_CORAL');
+UPDATE items SET name = 'Sandalias de Coral', item_type = 'EQUIPMENT', slot = 'BOOTS', is_two_handed = FALSE, rarity = 'EPICO', class_id = 5, required_level = 51, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Coral vivo del Arrecife Blanco y escamas de las Rocas de las Sirenas, templados en el astillero con un colmillo de Leviatán o una perla.' WHERE code = 'SACERDOTE_BOOTS_CORAL';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'SACERDOTE_BOOTS_CORAL');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'SACERDOTE_BOOTS_CORAL'), v.* FROM (VALUES ('SPD', 31, FALSE), ('HP', 8, FALSE), ('MAGIC_DEF', 9, FALSE), ('EVASION', 2.5, TRUE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station, scroll_item_id)
+SELECT 'RECIPE_SACERDOTE_BOOTS_CORAL', (SELECT id FROM items WHERE code = 'SACERDOTE_BOOTS_CORAL'), 1, 'EPICO', 51, 5, 80, 1, 'Brea, en el Astillero del Puerto Antiguo', 4, 'forja', NULL WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_SACERDOTE_BOOTS_CORAL');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'SACERDOTE_BOOTS_CORAL'), result_quantity = 1, rarity = 'EPICO', required_level = 51, required_class_id = 5, success_rate_percent = 80, craft_time_minutes = 1, artisan_name = 'Brea, en el Astillero del Puerto Antiguo', zone_id = 4, station = 'forja', scroll_item_id = NULL WHERE code = 'RECIPE_SACERDOTE_BOOTS_CORAL';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_SACERDOTE_BOOTS_CORAL');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_SACERDOTE_BOOTS_CORAL'), i.id, v.n FROM (VALUES ('ESCAMA_SIRENA_CORRUPTA', 2), ('ALGA_SALINA', 1)) AS v(code, n) JOIN items i ON i.code = v.code;
+
+-- ---------------------------------------------------------------- almirante (nv 55, EPICO)
+-- Espada del Almirante
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'GUERRERO_WEAPON_OCEANO', 'Espada del Almirante', 'EQUIPMENT', 'WEAPON', FALSE, 'EPICO', 1, 55, TRUE, 'CRAFT', 'Pieza del set del Almirante: cadenas del fondo y sellos de la marea, forjados con el ancla del Almirante Ahogado.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'GUERRERO_WEAPON_OCEANO');
+UPDATE items SET name = 'Espada del Almirante', item_type = 'EQUIPMENT', slot = 'WEAPON', is_two_handed = FALSE, rarity = 'EPICO', class_id = 1, required_level = 55, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Pieza del set del Almirante: cadenas del fondo y sellos de la marea, forjados con el ancla del Almirante Ahogado.' WHERE code = 'GUERRERO_WEAPON_OCEANO';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'GUERRERO_WEAPON_OCEANO');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'GUERRERO_WEAPON_OCEANO'), v.* FROM (VALUES ('ATK', 124, FALSE), ('CRIT_CHANCE', 6.8, TRUE), ('CRIT_DAMAGE', 11, TRUE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station, scroll_item_id)
+SELECT 'RECIPE_GUERRERO_WEAPON_OCEANO', (SELECT id FROM items WHERE code = 'GUERRERO_WEAPON_OCEANO'), 1, 'EPICO', 55, 1, 70, 1, 'Brea, en el Astillero del Puerto Antiguo', 4, 'forja', (SELECT id FROM items WHERE code = 'SCROLL_OCEANO_GUERRERO') WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_GUERRERO_WEAPON_OCEANO');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'GUERRERO_WEAPON_OCEANO'), result_quantity = 1, rarity = 'EPICO', required_level = 55, required_class_id = 1, success_rate_percent = 70, craft_time_minutes = 1, artisan_name = 'Brea, en el Astillero del Puerto Antiguo', zone_id = 4, station = 'forja', scroll_item_id = (SELECT id FROM items WHERE code = 'SCROLL_OCEANO_GUERRERO') WHERE code = 'RECIPE_GUERRERO_WEAPON_OCEANO';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_GUERRERO_WEAPON_OCEANO');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_GUERRERO_WEAPON_OCEANO'), i.id, v.n FROM (VALUES ('ANCLA_ALMIRANTE', 1), ('CADENA_AHOGADA', 2), ('SELLO_MAREA', 1), ('FRAGMENTO_CORAL', 2)) AS v(code, n) JOIN items i ON i.code = v.code;
+-- Gran Espada del Almirante
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'GUERRERO_WEAPON2H_OCEANO', 'Gran Espada del Almirante', 'EQUIPMENT', 'WEAPON', TRUE, 'EPICO', 1, 55, TRUE, 'CRAFT', 'Pieza del set del Almirante: cadenas del fondo y sellos de la marea, forjados con el ancla del Almirante Ahogado.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'GUERRERO_WEAPON2H_OCEANO');
+UPDATE items SET name = 'Gran Espada del Almirante', item_type = 'EQUIPMENT', slot = 'WEAPON', is_two_handed = TRUE, rarity = 'EPICO', class_id = 1, required_level = 55, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Pieza del set del Almirante: cadenas del fondo y sellos de la marea, forjados con el ancla del Almirante Ahogado.' WHERE code = 'GUERRERO_WEAPON2H_OCEANO';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'GUERRERO_WEAPON2H_OCEANO');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'GUERRERO_WEAPON2H_OCEANO'), v.* FROM (VALUES ('ATK', 186, FALSE), ('CRIT_CHANCE', 6.8, TRUE), ('CRIT_DAMAGE', 11, TRUE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station, scroll_item_id)
+SELECT 'RECIPE_GUERRERO_WEAPON2H_OCEANO', (SELECT id FROM items WHERE code = 'GUERRERO_WEAPON2H_OCEANO'), 1, 'EPICO', 55, 1, 70, 1, 'Brea, en el Astillero del Puerto Antiguo', 4, 'forja', (SELECT id FROM items WHERE code = 'SCROLL_OCEANO_GUERRERO') WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_GUERRERO_WEAPON2H_OCEANO');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'GUERRERO_WEAPON2H_OCEANO'), result_quantity = 1, rarity = 'EPICO', required_level = 55, required_class_id = 1, success_rate_percent = 70, craft_time_minutes = 1, artisan_name = 'Brea, en el Astillero del Puerto Antiguo', zone_id = 4, station = 'forja', scroll_item_id = (SELECT id FROM items WHERE code = 'SCROLL_OCEANO_GUERRERO') WHERE code = 'RECIPE_GUERRERO_WEAPON2H_OCEANO';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_GUERRERO_WEAPON2H_OCEANO');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_GUERRERO_WEAPON2H_OCEANO'), i.id, v.n FROM (VALUES ('ANCLA_ALMIRANTE', 1), ('CADENA_AHOGADA', 2), ('SELLO_MAREA', 1), ('FRAGMENTO_CORAL', 2)) AS v(code, n) JOIN items i ON i.code = v.code;
+-- Escudo del Almirante
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'GUERRERO_OFFHAND_OCEANO', 'Escudo del Almirante', 'EQUIPMENT', 'OFFHAND', FALSE, 'EPICO', 1, 55, TRUE, 'CRAFT', 'Pieza del set del Almirante: cadenas del fondo y sellos de la marea, forjados con el ancla del Almirante Ahogado.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'GUERRERO_OFFHAND_OCEANO');
+UPDATE items SET name = 'Escudo del Almirante', item_type = 'EQUIPMENT', slot = 'OFFHAND', is_two_handed = FALSE, rarity = 'EPICO', class_id = 1, required_level = 55, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Pieza del set del Almirante: cadenas del fondo y sellos de la marea, forjados con el ancla del Almirante Ahogado.' WHERE code = 'GUERRERO_OFFHAND_OCEANO';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'GUERRERO_OFFHAND_OCEANO');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'GUERRERO_OFFHAND_OCEANO'), v.* FROM (VALUES ('DEF', 27, FALSE), ('HP', 35, FALSE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station, scroll_item_id)
+SELECT 'RECIPE_GUERRERO_OFFHAND_OCEANO', (SELECT id FROM items WHERE code = 'GUERRERO_OFFHAND_OCEANO'), 1, 'EPICO', 55, 1, 70, 1, 'Brea, en el Astillero del Puerto Antiguo', 4, 'forja', (SELECT id FROM items WHERE code = 'SCROLL_OCEANO_GUERRERO') WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_GUERRERO_OFFHAND_OCEANO');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'GUERRERO_OFFHAND_OCEANO'), result_quantity = 1, rarity = 'EPICO', required_level = 55, required_class_id = 1, success_rate_percent = 70, craft_time_minutes = 1, artisan_name = 'Brea, en el Astillero del Puerto Antiguo', zone_id = 4, station = 'forja', scroll_item_id = (SELECT id FROM items WHERE code = 'SCROLL_OCEANO_GUERRERO') WHERE code = 'RECIPE_GUERRERO_OFFHAND_OCEANO';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_GUERRERO_OFFHAND_OCEANO');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_GUERRERO_OFFHAND_OCEANO'), i.id, v.n FROM (VALUES ('CADENA_AHOGADA', 1), ('SELLO_MAREA', 1), ('FRAGMENTO_CORAL', 1)) AS v(code, n) JOIN items i ON i.code = v.code;
+-- Yelmo del Almirante
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'GUERRERO_HELMET_OCEANO', 'Yelmo del Almirante', 'EQUIPMENT', 'HELMET', FALSE, 'EPICO', 1, 55, TRUE, 'CRAFT', 'Pieza del set del Almirante: cadenas del fondo y sellos de la marea, forjados con el ancla del Almirante Ahogado.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'GUERRERO_HELMET_OCEANO');
+UPDATE items SET name = 'Yelmo del Almirante', item_type = 'EQUIPMENT', slot = 'HELMET', is_two_handed = FALSE, rarity = 'EPICO', class_id = 1, required_level = 55, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Pieza del set del Almirante: cadenas del fondo y sellos de la marea, forjados con el ancla del Almirante Ahogado.' WHERE code = 'GUERRERO_HELMET_OCEANO';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'GUERRERO_HELMET_OCEANO');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'GUERRERO_HELMET_OCEANO'), v.* FROM (VALUES ('DEF', 22, FALSE), ('HP', 21, FALSE), ('MAGIC_DEF', 7, FALSE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station, scroll_item_id)
+SELECT 'RECIPE_GUERRERO_HELMET_OCEANO', (SELECT id FROM items WHERE code = 'GUERRERO_HELMET_OCEANO'), 1, 'EPICO', 55, 1, 70, 1, 'Brea, en el Astillero del Puerto Antiguo', 4, 'forja', (SELECT id FROM items WHERE code = 'SCROLL_OCEANO_GUERRERO') WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_GUERRERO_HELMET_OCEANO');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'GUERRERO_HELMET_OCEANO'), result_quantity = 1, rarity = 'EPICO', required_level = 55, required_class_id = 1, success_rate_percent = 70, craft_time_minutes = 1, artisan_name = 'Brea, en el Astillero del Puerto Antiguo', zone_id = 4, station = 'forja', scroll_item_id = (SELECT id FROM items WHERE code = 'SCROLL_OCEANO_GUERRERO') WHERE code = 'RECIPE_GUERRERO_HELMET_OCEANO';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_GUERRERO_HELMET_OCEANO');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_GUERRERO_HELMET_OCEANO'), i.id, v.n FROM (VALUES ('CADENA_AHOGADA', 1), ('SELLO_MAREA', 1), ('FRAGMENTO_CORAL', 1)) AS v(code, n) JOIN items i ON i.code = v.code;
+-- Armadura del Almirante
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'GUERRERO_ARMOR_OCEANO', 'Armadura del Almirante', 'EQUIPMENT', 'ARMOR', FALSE, 'EPICO', 1, 55, TRUE, 'CRAFT', 'Pieza del set del Almirante: cadenas del fondo y sellos de la marea, forjados con el ancla del Almirante Ahogado.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'GUERRERO_ARMOR_OCEANO');
+UPDATE items SET name = 'Armadura del Almirante', item_type = 'EQUIPMENT', slot = 'ARMOR', is_two_handed = FALSE, rarity = 'EPICO', class_id = 1, required_level = 55, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Pieza del set del Almirante: cadenas del fondo y sellos de la marea, forjados con el ancla del Almirante Ahogado.' WHERE code = 'GUERRERO_ARMOR_OCEANO';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'GUERRERO_ARMOR_OCEANO');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'GUERRERO_ARMOR_OCEANO'), v.* FROM (VALUES ('DEF', 45, FALSE), ('HP', 159, FALSE), ('MAGIC_DEF', 15, FALSE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station, scroll_item_id)
+SELECT 'RECIPE_GUERRERO_ARMOR_OCEANO', (SELECT id FROM items WHERE code = 'GUERRERO_ARMOR_OCEANO'), 1, 'EPICO', 55, 1, 70, 1, 'Brea, en el Astillero del Puerto Antiguo', 4, 'forja', (SELECT id FROM items WHERE code = 'SCROLL_OCEANO_GUERRERO') WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_GUERRERO_ARMOR_OCEANO');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'GUERRERO_ARMOR_OCEANO'), result_quantity = 1, rarity = 'EPICO', required_level = 55, required_class_id = 1, success_rate_percent = 70, craft_time_minutes = 1, artisan_name = 'Brea, en el Astillero del Puerto Antiguo', zone_id = 4, station = 'forja', scroll_item_id = (SELECT id FROM items WHERE code = 'SCROLL_OCEANO_GUERRERO') WHERE code = 'RECIPE_GUERRERO_ARMOR_OCEANO';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_GUERRERO_ARMOR_OCEANO');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_GUERRERO_ARMOR_OCEANO'), i.id, v.n FROM (VALUES ('ANCLA_ALMIRANTE', 1), ('CADENA_AHOGADA', 2), ('SELLO_MAREA', 1), ('FRAGMENTO_CORAL', 2)) AS v(code, n) JOIN items i ON i.code = v.code;
+-- Guanteletes del Almirante
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'GUERRERO_GLOVES_OCEANO', 'Guanteletes del Almirante', 'EQUIPMENT', 'GLOVES', FALSE, 'EPICO', 1, 55, TRUE, 'CRAFT', 'Pieza del set del Almirante: cadenas del fondo y sellos de la marea, forjados con el ancla del Almirante Ahogado.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'GUERRERO_GLOVES_OCEANO');
+UPDATE items SET name = 'Guanteletes del Almirante', item_type = 'EQUIPMENT', slot = 'GLOVES', is_two_handed = FALSE, rarity = 'EPICO', class_id = 1, required_level = 55, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Pieza del set del Almirante: cadenas del fondo y sellos de la marea, forjados con el ancla del Almirante Ahogado.' WHERE code = 'GUERRERO_GLOVES_OCEANO';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'GUERRERO_GLOVES_OCEANO');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'GUERRERO_GLOVES_OCEANO'), v.* FROM (VALUES ('DEF', 22, FALSE), ('HP', 35, FALSE), ('MAGIC_DEF', 7, FALSE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station, scroll_item_id)
+SELECT 'RECIPE_GUERRERO_GLOVES_OCEANO', (SELECT id FROM items WHERE code = 'GUERRERO_GLOVES_OCEANO'), 1, 'EPICO', 55, 1, 70, 1, 'Brea, en el Astillero del Puerto Antiguo', 4, 'forja', (SELECT id FROM items WHERE code = 'SCROLL_OCEANO_GUERRERO') WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_GUERRERO_GLOVES_OCEANO');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'GUERRERO_GLOVES_OCEANO'), result_quantity = 1, rarity = 'EPICO', required_level = 55, required_class_id = 1, success_rate_percent = 70, craft_time_minutes = 1, artisan_name = 'Brea, en el Astillero del Puerto Antiguo', zone_id = 4, station = 'forja', scroll_item_id = (SELECT id FROM items WHERE code = 'SCROLL_OCEANO_GUERRERO') WHERE code = 'RECIPE_GUERRERO_GLOVES_OCEANO';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_GUERRERO_GLOVES_OCEANO');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_GUERRERO_GLOVES_OCEANO'), i.id, v.n FROM (VALUES ('CADENA_AHOGADA', 1), ('SELLO_MAREA', 1), ('FRAGMENTO_CORAL', 1)) AS v(code, n) JOIN items i ON i.code = v.code;
+-- Botas del Almirante
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'GUERRERO_BOOTS_OCEANO', 'Botas del Almirante', 'EQUIPMENT', 'BOOTS', FALSE, 'EPICO', 1, 55, TRUE, 'CRAFT', 'Pieza del set del Almirante: cadenas del fondo y sellos de la marea, forjados con el ancla del Almirante Ahogado.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'GUERRERO_BOOTS_OCEANO');
+UPDATE items SET name = 'Botas del Almirante', item_type = 'EQUIPMENT', slot = 'BOOTS', is_two_handed = FALSE, rarity = 'EPICO', class_id = 1, required_level = 55, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Pieza del set del Almirante: cadenas del fondo y sellos de la marea, forjados con el ancla del Almirante Ahogado.' WHERE code = 'GUERRERO_BOOTS_OCEANO';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'GUERRERO_BOOTS_OCEANO');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'GUERRERO_BOOTS_OCEANO'), v.* FROM (VALUES ('SPD', 34, FALSE), ('HP', 9, FALSE), ('DEF', 10, FALSE), ('EVASION', 2.5, TRUE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station, scroll_item_id)
+SELECT 'RECIPE_GUERRERO_BOOTS_OCEANO', (SELECT id FROM items WHERE code = 'GUERRERO_BOOTS_OCEANO'), 1, 'EPICO', 55, 1, 70, 1, 'Brea, en el Astillero del Puerto Antiguo', 4, 'forja', (SELECT id FROM items WHERE code = 'SCROLL_OCEANO_GUERRERO') WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_GUERRERO_BOOTS_OCEANO');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'GUERRERO_BOOTS_OCEANO'), result_quantity = 1, rarity = 'EPICO', required_level = 55, required_class_id = 1, success_rate_percent = 70, craft_time_minutes = 1, artisan_name = 'Brea, en el Astillero del Puerto Antiguo', zone_id = 4, station = 'forja', scroll_item_id = (SELECT id FROM items WHERE code = 'SCROLL_OCEANO_GUERRERO') WHERE code = 'RECIPE_GUERRERO_BOOTS_OCEANO';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_GUERRERO_BOOTS_OCEANO');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_GUERRERO_BOOTS_OCEANO'), i.id, v.n FROM (VALUES ('CADENA_AHOGADA', 1), ('SELLO_MAREA', 1), ('FRAGMENTO_CORAL', 1)) AS v(code, n) JOIN items i ON i.code = v.code;
+-- Varita del Almirante
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'MAGO_WEAPON_OCEANO', 'Varita del Almirante', 'EQUIPMENT', 'WEAPON', FALSE, 'EPICO', 2, 55, TRUE, 'CRAFT', 'Pieza del set del Almirante: cadenas del fondo y sellos de la marea, forjados con el ancla del Almirante Ahogado.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'MAGO_WEAPON_OCEANO');
+UPDATE items SET name = 'Varita del Almirante', item_type = 'EQUIPMENT', slot = 'WEAPON', is_two_handed = FALSE, rarity = 'EPICO', class_id = 2, required_level = 55, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Pieza del set del Almirante: cadenas del fondo y sellos de la marea, forjados con el ancla del Almirante Ahogado.' WHERE code = 'MAGO_WEAPON_OCEANO';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'MAGO_WEAPON_OCEANO');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'MAGO_WEAPON_OCEANO'), v.* FROM (VALUES ('MAG', 124, FALSE), ('CRIT_CHANCE', 6.8, TRUE), ('CRIT_DAMAGE', 11, TRUE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station, scroll_item_id)
+SELECT 'RECIPE_MAGO_WEAPON_OCEANO', (SELECT id FROM items WHERE code = 'MAGO_WEAPON_OCEANO'), 1, 'EPICO', 55, 2, 70, 1, 'Brea, en el Astillero del Puerto Antiguo', 4, 'forja', (SELECT id FROM items WHERE code = 'SCROLL_OCEANO_MAGO') WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_MAGO_WEAPON_OCEANO');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'MAGO_WEAPON_OCEANO'), result_quantity = 1, rarity = 'EPICO', required_level = 55, required_class_id = 2, success_rate_percent = 70, craft_time_minutes = 1, artisan_name = 'Brea, en el Astillero del Puerto Antiguo', zone_id = 4, station = 'forja', scroll_item_id = (SELECT id FROM items WHERE code = 'SCROLL_OCEANO_MAGO') WHERE code = 'RECIPE_MAGO_WEAPON_OCEANO';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_MAGO_WEAPON_OCEANO');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_MAGO_WEAPON_OCEANO'), i.id, v.n FROM (VALUES ('ANCLA_ALMIRANTE', 1), ('CADENA_AHOGADA', 2), ('SELLO_MAREA', 1), ('GEL_MEDUSA', 2)) AS v(code, n) JOIN items i ON i.code = v.code;
+-- Orbe del Almirante
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'MAGO_OFFHAND_ORB_OCEANO', 'Orbe del Almirante', 'EQUIPMENT', 'OFFHAND', FALSE, 'EPICO', 2, 55, TRUE, 'CRAFT', 'Pieza del set del Almirante: cadenas del fondo y sellos de la marea, forjados con el ancla del Almirante Ahogado.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'MAGO_OFFHAND_ORB_OCEANO');
+UPDATE items SET name = 'Orbe del Almirante', item_type = 'EQUIPMENT', slot = 'OFFHAND', is_two_handed = FALSE, rarity = 'EPICO', class_id = 2, required_level = 55, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Pieza del set del Almirante: cadenas del fondo y sellos de la marea, forjados con el ancla del Almirante Ahogado.' WHERE code = 'MAGO_OFFHAND_ORB_OCEANO';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'MAGO_OFFHAND_ORB_OCEANO');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'MAGO_OFFHAND_ORB_OCEANO'), v.* FROM (VALUES ('DEF', 5, FALSE), ('HP', 30, FALSE), ('MAGIC_DEF', 16, FALSE), ('MANA_REGEN', 5, TRUE), ('SPD', 41, FALSE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station, scroll_item_id)
+SELECT 'RECIPE_MAGO_OFFHAND_ORB_OCEANO', (SELECT id FROM items WHERE code = 'MAGO_OFFHAND_ORB_OCEANO'), 1, 'EPICO', 55, 2, 70, 1, 'Brea, en el Astillero del Puerto Antiguo', 4, 'forja', (SELECT id FROM items WHERE code = 'SCROLL_OCEANO_MAGO') WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_MAGO_OFFHAND_ORB_OCEANO');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'MAGO_OFFHAND_ORB_OCEANO'), result_quantity = 1, rarity = 'EPICO', required_level = 55, required_class_id = 2, success_rate_percent = 70, craft_time_minutes = 1, artisan_name = 'Brea, en el Astillero del Puerto Antiguo', zone_id = 4, station = 'forja', scroll_item_id = (SELECT id FROM items WHERE code = 'SCROLL_OCEANO_MAGO') WHERE code = 'RECIPE_MAGO_OFFHAND_ORB_OCEANO';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_MAGO_OFFHAND_ORB_OCEANO');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_MAGO_OFFHAND_ORB_OCEANO'), i.id, v.n FROM (VALUES ('CADENA_AHOGADA', 1), ('SELLO_MAREA', 1), ('GEL_MEDUSA', 1)) AS v(code, n) JOIN items i ON i.code = v.code;
+-- Cristal del Almirante
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'MAGO_OFFHAND_CRYSTAL_OCEANO', 'Cristal del Almirante', 'EQUIPMENT', 'OFFHAND', FALSE, 'EPICO', 2, 55, TRUE, 'CRAFT', 'Pieza del set del Almirante: cadenas del fondo y sellos de la marea, forjados con el ancla del Almirante Ahogado.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'MAGO_OFFHAND_CRYSTAL_OCEANO');
+UPDATE items SET name = 'Cristal del Almirante', item_type = 'EQUIPMENT', slot = 'OFFHAND', is_two_handed = FALSE, rarity = 'EPICO', class_id = 2, required_level = 55, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Pieza del set del Almirante: cadenas del fondo y sellos de la marea, forjados con el ancla del Almirante Ahogado.' WHERE code = 'MAGO_OFFHAND_CRYSTAL_OCEANO';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'MAGO_OFFHAND_CRYSTAL_OCEANO');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'MAGO_OFFHAND_CRYSTAL_OCEANO'), v.* FROM (VALUES ('MAG', 68, FALSE), ('CRIT_CHANCE', 4.5, TRUE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station, scroll_item_id)
+SELECT 'RECIPE_MAGO_OFFHAND_CRYSTAL_OCEANO', (SELECT id FROM items WHERE code = 'MAGO_OFFHAND_CRYSTAL_OCEANO'), 1, 'EPICO', 55, 2, 70, 1, 'Brea, en el Astillero del Puerto Antiguo', 4, 'forja', (SELECT id FROM items WHERE code = 'SCROLL_OCEANO_MAGO') WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_MAGO_OFFHAND_CRYSTAL_OCEANO');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'MAGO_OFFHAND_CRYSTAL_OCEANO'), result_quantity = 1, rarity = 'EPICO', required_level = 55, required_class_id = 2, success_rate_percent = 70, craft_time_minutes = 1, artisan_name = 'Brea, en el Astillero del Puerto Antiguo', zone_id = 4, station = 'forja', scroll_item_id = (SELECT id FROM items WHERE code = 'SCROLL_OCEANO_MAGO') WHERE code = 'RECIPE_MAGO_OFFHAND_CRYSTAL_OCEANO';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_MAGO_OFFHAND_CRYSTAL_OCEANO');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_MAGO_OFFHAND_CRYSTAL_OCEANO'), i.id, v.n FROM (VALUES ('CADENA_AHOGADA', 1), ('SELLO_MAREA', 1), ('GEL_MEDUSA', 1)) AS v(code, n) JOIN items i ON i.code = v.code;
+-- Capirote del Almirante
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'MAGO_HELMET_OCEANO', 'Capirote del Almirante', 'EQUIPMENT', 'HELMET', FALSE, 'EPICO', 2, 55, TRUE, 'CRAFT', 'Pieza del set del Almirante: cadenas del fondo y sellos de la marea, forjados con el ancla del Almirante Ahogado.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'MAGO_HELMET_OCEANO');
+UPDATE items SET name = 'Capirote del Almirante', item_type = 'EQUIPMENT', slot = 'HELMET', is_two_handed = FALSE, rarity = 'EPICO', class_id = 2, required_level = 55, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Pieza del set del Almirante: cadenas del fondo y sellos de la marea, forjados con el ancla del Almirante Ahogado.' WHERE code = 'MAGO_HELMET_OCEANO';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'MAGO_HELMET_OCEANO');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'MAGO_HELMET_OCEANO'), v.* FROM (VALUES ('DEF', 7, FALSE), ('HP', 16, FALSE), ('MAGIC_DEF', 22, FALSE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station, scroll_item_id)
+SELECT 'RECIPE_MAGO_HELMET_OCEANO', (SELECT id FROM items WHERE code = 'MAGO_HELMET_OCEANO'), 1, 'EPICO', 55, 2, 70, 1, 'Brea, en el Astillero del Puerto Antiguo', 4, 'forja', (SELECT id FROM items WHERE code = 'SCROLL_OCEANO_MAGO') WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_MAGO_HELMET_OCEANO');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'MAGO_HELMET_OCEANO'), result_quantity = 1, rarity = 'EPICO', required_level = 55, required_class_id = 2, success_rate_percent = 70, craft_time_minutes = 1, artisan_name = 'Brea, en el Astillero del Puerto Antiguo', zone_id = 4, station = 'forja', scroll_item_id = (SELECT id FROM items WHERE code = 'SCROLL_OCEANO_MAGO') WHERE code = 'RECIPE_MAGO_HELMET_OCEANO';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_MAGO_HELMET_OCEANO');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_MAGO_HELMET_OCEANO'), i.id, v.n FROM (VALUES ('CADENA_AHOGADA', 1), ('SELLO_MAREA', 1), ('GEL_MEDUSA', 1)) AS v(code, n) JOIN items i ON i.code = v.code;
+-- Túnica del Almirante
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'MAGO_ARMOR_OCEANO', 'Túnica del Almirante', 'EQUIPMENT', 'ARMOR', FALSE, 'EPICO', 2, 55, TRUE, 'CRAFT', 'Pieza del set del Almirante: cadenas del fondo y sellos de la marea, forjados con el ancla del Almirante Ahogado.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'MAGO_ARMOR_OCEANO');
+UPDATE items SET name = 'Túnica del Almirante', item_type = 'EQUIPMENT', slot = 'ARMOR', is_two_handed = FALSE, rarity = 'EPICO', class_id = 2, required_level = 55, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Pieza del set del Almirante: cadenas del fondo y sellos de la marea, forjados con el ancla del Almirante Ahogado.' WHERE code = 'MAGO_ARMOR_OCEANO';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'MAGO_ARMOR_OCEANO');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'MAGO_ARMOR_OCEANO'), v.* FROM (VALUES ('DEF', 13, FALSE), ('HP', 81, FALSE), ('MAGIC_DEF', 45, FALSE), ('HP_REGEN', 3, TRUE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station, scroll_item_id)
+SELECT 'RECIPE_MAGO_ARMOR_OCEANO', (SELECT id FROM items WHERE code = 'MAGO_ARMOR_OCEANO'), 1, 'EPICO', 55, 2, 70, 1, 'Brea, en el Astillero del Puerto Antiguo', 4, 'forja', (SELECT id FROM items WHERE code = 'SCROLL_OCEANO_MAGO') WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_MAGO_ARMOR_OCEANO');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'MAGO_ARMOR_OCEANO'), result_quantity = 1, rarity = 'EPICO', required_level = 55, required_class_id = 2, success_rate_percent = 70, craft_time_minutes = 1, artisan_name = 'Brea, en el Astillero del Puerto Antiguo', zone_id = 4, station = 'forja', scroll_item_id = (SELECT id FROM items WHERE code = 'SCROLL_OCEANO_MAGO') WHERE code = 'RECIPE_MAGO_ARMOR_OCEANO';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_MAGO_ARMOR_OCEANO');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_MAGO_ARMOR_OCEANO'), i.id, v.n FROM (VALUES ('ANCLA_ALMIRANTE', 1), ('CADENA_AHOGADA', 2), ('SELLO_MAREA', 1), ('GEL_MEDUSA', 2)) AS v(code, n) JOIN items i ON i.code = v.code;
+-- Guantes del Almirante
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'MAGO_GLOVES_OCEANO', 'Guantes del Almirante', 'EQUIPMENT', 'GLOVES', FALSE, 'EPICO', 2, 55, TRUE, 'CRAFT', 'Pieza del set del Almirante: cadenas del fondo y sellos de la marea, forjados con el ancla del Almirante Ahogado.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'MAGO_GLOVES_OCEANO');
+UPDATE items SET name = 'Guantes del Almirante', item_type = 'EQUIPMENT', slot = 'GLOVES', is_two_handed = FALSE, rarity = 'EPICO', class_id = 2, required_level = 55, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Pieza del set del Almirante: cadenas del fondo y sellos de la marea, forjados con el ancla del Almirante Ahogado.' WHERE code = 'MAGO_GLOVES_OCEANO';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'MAGO_GLOVES_OCEANO');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'MAGO_GLOVES_OCEANO'), v.* FROM (VALUES ('DEF', 7, FALSE), ('HP', 41, FALSE), ('MAGIC_DEF', 22, FALSE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station, scroll_item_id)
+SELECT 'RECIPE_MAGO_GLOVES_OCEANO', (SELECT id FROM items WHERE code = 'MAGO_GLOVES_OCEANO'), 1, 'EPICO', 55, 2, 70, 1, 'Brea, en el Astillero del Puerto Antiguo', 4, 'forja', (SELECT id FROM items WHERE code = 'SCROLL_OCEANO_MAGO') WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_MAGO_GLOVES_OCEANO');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'MAGO_GLOVES_OCEANO'), result_quantity = 1, rarity = 'EPICO', required_level = 55, required_class_id = 2, success_rate_percent = 70, craft_time_minutes = 1, artisan_name = 'Brea, en el Astillero del Puerto Antiguo', zone_id = 4, station = 'forja', scroll_item_id = (SELECT id FROM items WHERE code = 'SCROLL_OCEANO_MAGO') WHERE code = 'RECIPE_MAGO_GLOVES_OCEANO';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_MAGO_GLOVES_OCEANO');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_MAGO_GLOVES_OCEANO'), i.id, v.n FROM (VALUES ('CADENA_AHOGADA', 1), ('SELLO_MAREA', 1), ('GEL_MEDUSA', 1)) AS v(code, n) JOIN items i ON i.code = v.code;
+-- Sandalias del Almirante
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'MAGO_BOOTS_OCEANO', 'Sandalias del Almirante', 'EQUIPMENT', 'BOOTS', FALSE, 'EPICO', 2, 55, TRUE, 'CRAFT', 'Pieza del set del Almirante: cadenas del fondo y sellos de la marea, forjados con el ancla del Almirante Ahogado.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'MAGO_BOOTS_OCEANO');
+UPDATE items SET name = 'Sandalias del Almirante', item_type = 'EQUIPMENT', slot = 'BOOTS', is_two_handed = FALSE, rarity = 'EPICO', class_id = 2, required_level = 55, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Pieza del set del Almirante: cadenas del fondo y sellos de la marea, forjados con el ancla del Almirante Ahogado.' WHERE code = 'MAGO_BOOTS_OCEANO';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'MAGO_BOOTS_OCEANO');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'MAGO_BOOTS_OCEANO'), v.* FROM (VALUES ('SPD', 34, FALSE), ('HP', 9, FALSE), ('MAGIC_DEF', 14, FALSE), ('EVASION', 2.5, TRUE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station, scroll_item_id)
+SELECT 'RECIPE_MAGO_BOOTS_OCEANO', (SELECT id FROM items WHERE code = 'MAGO_BOOTS_OCEANO'), 1, 'EPICO', 55, 2, 70, 1, 'Brea, en el Astillero del Puerto Antiguo', 4, 'forja', (SELECT id FROM items WHERE code = 'SCROLL_OCEANO_MAGO') WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_MAGO_BOOTS_OCEANO');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'MAGO_BOOTS_OCEANO'), result_quantity = 1, rarity = 'EPICO', required_level = 55, required_class_id = 2, success_rate_percent = 70, craft_time_minutes = 1, artisan_name = 'Brea, en el Astillero del Puerto Antiguo', zone_id = 4, station = 'forja', scroll_item_id = (SELECT id FROM items WHERE code = 'SCROLL_OCEANO_MAGO') WHERE code = 'RECIPE_MAGO_BOOTS_OCEANO';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_MAGO_BOOTS_OCEANO');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_MAGO_BOOTS_OCEANO'), i.id, v.n FROM (VALUES ('CADENA_AHOGADA', 1), ('SELLO_MAREA', 1), ('GEL_MEDUSA', 1)) AS v(code, n) JOIN items i ON i.code = v.code;
+-- Arco del Almirante
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'ARQUERO_WEAPON_OCEANO', 'Arco del Almirante', 'EQUIPMENT', 'WEAPON', FALSE, 'EPICO', 3, 55, TRUE, 'CRAFT', 'Pieza del set del Almirante: cadenas del fondo y sellos de la marea, forjados con el ancla del Almirante Ahogado.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'ARQUERO_WEAPON_OCEANO');
+UPDATE items SET name = 'Arco del Almirante', item_type = 'EQUIPMENT', slot = 'WEAPON', is_two_handed = FALSE, rarity = 'EPICO', class_id = 3, required_level = 55, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Pieza del set del Almirante: cadenas del fondo y sellos de la marea, forjados con el ancla del Almirante Ahogado.' WHERE code = 'ARQUERO_WEAPON_OCEANO';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'ARQUERO_WEAPON_OCEANO');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'ARQUERO_WEAPON_OCEANO'), v.* FROM (VALUES ('ATK', 124, FALSE), ('CRIT_CHANCE', 6.8, TRUE), ('CRIT_DAMAGE', 11, TRUE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station, scroll_item_id)
+SELECT 'RECIPE_ARQUERO_WEAPON_OCEANO', (SELECT id FROM items WHERE code = 'ARQUERO_WEAPON_OCEANO'), 1, 'EPICO', 55, 3, 70, 1, 'Brea, en el Astillero del Puerto Antiguo', 4, 'forja', (SELECT id FROM items WHERE code = 'SCROLL_OCEANO_ARQUERO') WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_ARQUERO_WEAPON_OCEANO');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'ARQUERO_WEAPON_OCEANO'), result_quantity = 1, rarity = 'EPICO', required_level = 55, required_class_id = 3, success_rate_percent = 70, craft_time_minutes = 1, artisan_name = 'Brea, en el Astillero del Puerto Antiguo', zone_id = 4, station = 'forja', scroll_item_id = (SELECT id FROM items WHERE code = 'SCROLL_OCEANO_ARQUERO') WHERE code = 'RECIPE_ARQUERO_WEAPON_OCEANO';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_ARQUERO_WEAPON_OCEANO');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_ARQUERO_WEAPON_OCEANO'), i.id, v.n FROM (VALUES ('ANCLA_ALMIRANTE', 1), ('CADENA_AHOGADA', 2), ('SELLO_MAREA', 1), ('CUERO_COCODRILO', 2)) AS v(code, n) JOIN items i ON i.code = v.code;
+-- Carcaj del Almirante
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'ARQUERO_OFFHAND_OCEANO', 'Carcaj del Almirante', 'EQUIPMENT', 'OFFHAND', FALSE, 'EPICO', 3, 55, TRUE, 'CRAFT', 'Pieza del set del Almirante: cadenas del fondo y sellos de la marea, forjados con el ancla del Almirante Ahogado.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'ARQUERO_OFFHAND_OCEANO');
+UPDATE items SET name = 'Carcaj del Almirante', item_type = 'EQUIPMENT', slot = 'OFFHAND', is_two_handed = FALSE, rarity = 'EPICO', class_id = 3, required_level = 55, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Pieza del set del Almirante: cadenas del fondo y sellos de la marea, forjados con el ancla del Almirante Ahogado.' WHERE code = 'ARQUERO_OFFHAND_OCEANO';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'ARQUERO_OFFHAND_OCEANO');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'ARQUERO_OFFHAND_OCEANO'), v.* FROM (VALUES ('ATK', 34, FALSE), ('CRIT_DAMAGE', 11, TRUE), ('SPD', 41, FALSE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station, scroll_item_id)
+SELECT 'RECIPE_ARQUERO_OFFHAND_OCEANO', (SELECT id FROM items WHERE code = 'ARQUERO_OFFHAND_OCEANO'), 1, 'EPICO', 55, 3, 70, 1, 'Brea, en el Astillero del Puerto Antiguo', 4, 'forja', (SELECT id FROM items WHERE code = 'SCROLL_OCEANO_ARQUERO') WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_ARQUERO_OFFHAND_OCEANO');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'ARQUERO_OFFHAND_OCEANO'), result_quantity = 1, rarity = 'EPICO', required_level = 55, required_class_id = 3, success_rate_percent = 70, craft_time_minutes = 1, artisan_name = 'Brea, en el Astillero del Puerto Antiguo', zone_id = 4, station = 'forja', scroll_item_id = (SELECT id FROM items WHERE code = 'SCROLL_OCEANO_ARQUERO') WHERE code = 'RECIPE_ARQUERO_OFFHAND_OCEANO';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_ARQUERO_OFFHAND_OCEANO');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_ARQUERO_OFFHAND_OCEANO'), i.id, v.n FROM (VALUES ('CADENA_AHOGADA', 1), ('SELLO_MAREA', 1), ('CUERO_COCODRILO', 1)) AS v(code, n) JOIN items i ON i.code = v.code;
+-- Capucha del Almirante
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'ARQUERO_HELMET_OCEANO', 'Capucha del Almirante', 'EQUIPMENT', 'HELMET', FALSE, 'EPICO', 3, 55, TRUE, 'CRAFT', 'Pieza del set del Almirante: cadenas del fondo y sellos de la marea, forjados con el ancla del Almirante Ahogado.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'ARQUERO_HELMET_OCEANO');
+UPDATE items SET name = 'Capucha del Almirante', item_type = 'EQUIPMENT', slot = 'HELMET', is_two_handed = FALSE, rarity = 'EPICO', class_id = 3, required_level = 55, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Pieza del set del Almirante: cadenas del fondo y sellos de la marea, forjados con el ancla del Almirante Ahogado.' WHERE code = 'ARQUERO_HELMET_OCEANO';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'ARQUERO_HELMET_OCEANO');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'ARQUERO_HELMET_OCEANO'), v.* FROM (VALUES ('DEF', 22, FALSE), ('HP', 17, FALSE), ('MAGIC_DEF', 8, FALSE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station, scroll_item_id)
+SELECT 'RECIPE_ARQUERO_HELMET_OCEANO', (SELECT id FROM items WHERE code = 'ARQUERO_HELMET_OCEANO'), 1, 'EPICO', 55, 3, 70, 1, 'Brea, en el Astillero del Puerto Antiguo', 4, 'forja', (SELECT id FROM items WHERE code = 'SCROLL_OCEANO_ARQUERO') WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_ARQUERO_HELMET_OCEANO');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'ARQUERO_HELMET_OCEANO'), result_quantity = 1, rarity = 'EPICO', required_level = 55, required_class_id = 3, success_rate_percent = 70, craft_time_minutes = 1, artisan_name = 'Brea, en el Astillero del Puerto Antiguo', zone_id = 4, station = 'forja', scroll_item_id = (SELECT id FROM items WHERE code = 'SCROLL_OCEANO_ARQUERO') WHERE code = 'RECIPE_ARQUERO_HELMET_OCEANO';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_ARQUERO_HELMET_OCEANO');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_ARQUERO_HELMET_OCEANO'), i.id, v.n FROM (VALUES ('CADENA_AHOGADA', 1), ('SELLO_MAREA', 1), ('CUERO_COCODRILO', 1)) AS v(code, n) JOIN items i ON i.code = v.code;
+-- Gabán del Almirante
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'ARQUERO_ARMOR_OCEANO', 'Gabán del Almirante', 'EQUIPMENT', 'ARMOR', FALSE, 'EPICO', 3, 55, TRUE, 'CRAFT', 'Pieza del set del Almirante: cadenas del fondo y sellos de la marea, forjados con el ancla del Almirante Ahogado.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'ARQUERO_ARMOR_OCEANO');
+UPDATE items SET name = 'Gabán del Almirante', item_type = 'EQUIPMENT', slot = 'ARMOR', is_two_handed = FALSE, rarity = 'EPICO', class_id = 3, required_level = 55, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Pieza del set del Almirante: cadenas del fondo y sellos de la marea, forjados con el ancla del Almirante Ahogado.' WHERE code = 'ARQUERO_ARMOR_OCEANO';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'ARQUERO_ARMOR_OCEANO');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'ARQUERO_ARMOR_OCEANO'), v.* FROM (VALUES ('DEF', 45, FALSE), ('HP', 78, FALSE), ('MAGIC_DEF', 13, FALSE), ('EVASION', 2.5, TRUE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station, scroll_item_id)
+SELECT 'RECIPE_ARQUERO_ARMOR_OCEANO', (SELECT id FROM items WHERE code = 'ARQUERO_ARMOR_OCEANO'), 1, 'EPICO', 55, 3, 70, 1, 'Brea, en el Astillero del Puerto Antiguo', 4, 'forja', (SELECT id FROM items WHERE code = 'SCROLL_OCEANO_ARQUERO') WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_ARQUERO_ARMOR_OCEANO');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'ARQUERO_ARMOR_OCEANO'), result_quantity = 1, rarity = 'EPICO', required_level = 55, required_class_id = 3, success_rate_percent = 70, craft_time_minutes = 1, artisan_name = 'Brea, en el Astillero del Puerto Antiguo', zone_id = 4, station = 'forja', scroll_item_id = (SELECT id FROM items WHERE code = 'SCROLL_OCEANO_ARQUERO') WHERE code = 'RECIPE_ARQUERO_ARMOR_OCEANO';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_ARQUERO_ARMOR_OCEANO');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_ARQUERO_ARMOR_OCEANO'), i.id, v.n FROM (VALUES ('ANCLA_ALMIRANTE', 1), ('CADENA_AHOGADA', 2), ('SELLO_MAREA', 1), ('CUERO_COCODRILO', 2)) AS v(code, n) JOIN items i ON i.code = v.code;
+-- Guantes del Almirante
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'ARQUERO_GLOVES_OCEANO', 'Guantes del Almirante', 'EQUIPMENT', 'GLOVES', FALSE, 'EPICO', 3, 55, TRUE, 'CRAFT', 'Pieza del set del Almirante: cadenas del fondo y sellos de la marea, forjados con el ancla del Almirante Ahogado.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'ARQUERO_GLOVES_OCEANO');
+UPDATE items SET name = 'Guantes del Almirante', item_type = 'EQUIPMENT', slot = 'GLOVES', is_two_handed = FALSE, rarity = 'EPICO', class_id = 3, required_level = 55, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Pieza del set del Almirante: cadenas del fondo y sellos de la marea, forjados con el ancla del Almirante Ahogado.' WHERE code = 'ARQUERO_GLOVES_OCEANO';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'ARQUERO_GLOVES_OCEANO');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'ARQUERO_GLOVES_OCEANO'), v.* FROM (VALUES ('DEF', 22, FALSE), ('HP', 39, FALSE), ('MAGIC_DEF', 7, FALSE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station, scroll_item_id)
+SELECT 'RECIPE_ARQUERO_GLOVES_OCEANO', (SELECT id FROM items WHERE code = 'ARQUERO_GLOVES_OCEANO'), 1, 'EPICO', 55, 3, 70, 1, 'Brea, en el Astillero del Puerto Antiguo', 4, 'forja', (SELECT id FROM items WHERE code = 'SCROLL_OCEANO_ARQUERO') WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_ARQUERO_GLOVES_OCEANO');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'ARQUERO_GLOVES_OCEANO'), result_quantity = 1, rarity = 'EPICO', required_level = 55, required_class_id = 3, success_rate_percent = 70, craft_time_minutes = 1, artisan_name = 'Brea, en el Astillero del Puerto Antiguo', zone_id = 4, station = 'forja', scroll_item_id = (SELECT id FROM items WHERE code = 'SCROLL_OCEANO_ARQUERO') WHERE code = 'RECIPE_ARQUERO_GLOVES_OCEANO';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_ARQUERO_GLOVES_OCEANO');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_ARQUERO_GLOVES_OCEANO'), i.id, v.n FROM (VALUES ('CADENA_AHOGADA', 1), ('SELLO_MAREA', 1), ('CUERO_COCODRILO', 1)) AS v(code, n) JOIN items i ON i.code = v.code;
+-- Botas del Almirante
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'ARQUERO_BOOTS_OCEANO', 'Botas del Almirante', 'EQUIPMENT', 'BOOTS', FALSE, 'EPICO', 3, 55, TRUE, 'CRAFT', 'Pieza del set del Almirante: cadenas del fondo y sellos de la marea, forjados con el ancla del Almirante Ahogado.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'ARQUERO_BOOTS_OCEANO');
+UPDATE items SET name = 'Botas del Almirante', item_type = 'EQUIPMENT', slot = 'BOOTS', is_two_handed = FALSE, rarity = 'EPICO', class_id = 3, required_level = 55, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Pieza del set del Almirante: cadenas del fondo y sellos de la marea, forjados con el ancla del Almirante Ahogado.' WHERE code = 'ARQUERO_BOOTS_OCEANO';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'ARQUERO_BOOTS_OCEANO');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'ARQUERO_BOOTS_OCEANO'), v.* FROM (VALUES ('SPD', 34, FALSE), ('HP', 9, FALSE), ('DEF', 13, FALSE), ('EVASION', 2.5, TRUE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station, scroll_item_id)
+SELECT 'RECIPE_ARQUERO_BOOTS_OCEANO', (SELECT id FROM items WHERE code = 'ARQUERO_BOOTS_OCEANO'), 1, 'EPICO', 55, 3, 70, 1, 'Brea, en el Astillero del Puerto Antiguo', 4, 'forja', (SELECT id FROM items WHERE code = 'SCROLL_OCEANO_ARQUERO') WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_ARQUERO_BOOTS_OCEANO');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'ARQUERO_BOOTS_OCEANO'), result_quantity = 1, rarity = 'EPICO', required_level = 55, required_class_id = 3, success_rate_percent = 70, craft_time_minutes = 1, artisan_name = 'Brea, en el Astillero del Puerto Antiguo', zone_id = 4, station = 'forja', scroll_item_id = (SELECT id FROM items WHERE code = 'SCROLL_OCEANO_ARQUERO') WHERE code = 'RECIPE_ARQUERO_BOOTS_OCEANO';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_ARQUERO_BOOTS_OCEANO');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_ARQUERO_BOOTS_OCEANO'), i.id, v.n FROM (VALUES ('CADENA_AHOGADA', 1), ('SELLO_MAREA', 1), ('CUERO_COCODRILO', 1)) AS v(code, n) JOIN items i ON i.code = v.code;
+-- Daga del Almirante
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'PICARO_WEAPON_OCEANO', 'Daga del Almirante', 'EQUIPMENT', 'WEAPON', FALSE, 'EPICO', 4, 55, TRUE, 'CRAFT', 'Pieza del set del Almirante: cadenas del fondo y sellos de la marea, forjados con el ancla del Almirante Ahogado.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'PICARO_WEAPON_OCEANO');
+UPDATE items SET name = 'Daga del Almirante', item_type = 'EQUIPMENT', slot = 'WEAPON', is_two_handed = FALSE, rarity = 'EPICO', class_id = 4, required_level = 55, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Pieza del set del Almirante: cadenas del fondo y sellos de la marea, forjados con el ancla del Almirante Ahogado.' WHERE code = 'PICARO_WEAPON_OCEANO';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'PICARO_WEAPON_OCEANO');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'PICARO_WEAPON_OCEANO'), v.* FROM (VALUES ('ATK', 124, FALSE), ('CRIT_CHANCE', 6.8, TRUE), ('CRIT_DAMAGE', 11, TRUE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station, scroll_item_id)
+SELECT 'RECIPE_PICARO_WEAPON_OCEANO', (SELECT id FROM items WHERE code = 'PICARO_WEAPON_OCEANO'), 1, 'EPICO', 55, 4, 70, 1, 'Brea, en el Astillero del Puerto Antiguo', 4, 'forja', (SELECT id FROM items WHERE code = 'SCROLL_OCEANO_PICARO') WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_PICARO_WEAPON_OCEANO');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'PICARO_WEAPON_OCEANO'), result_quantity = 1, rarity = 'EPICO', required_level = 55, required_class_id = 4, success_rate_percent = 70, craft_time_minutes = 1, artisan_name = 'Brea, en el Astillero del Puerto Antiguo', zone_id = 4, station = 'forja', scroll_item_id = (SELECT id FROM items WHERE code = 'SCROLL_OCEANO_PICARO') WHERE code = 'RECIPE_PICARO_WEAPON_OCEANO';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_PICARO_WEAPON_OCEANO');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_PICARO_WEAPON_OCEANO'), i.id, v.n FROM (VALUES ('ANCLA_ALMIRANTE', 1), ('CADENA_AHOGADA', 2), ('SELLO_MAREA', 1), ('DIENTE_DE_PIRANA', 2)) AS v(code, n) JOIN items i ON i.code = v.code;
+-- Daga Gemela del Almirante
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'PICARO_OFFHAND_OCEANO', 'Daga Gemela del Almirante', 'EQUIPMENT', 'OFFHAND', FALSE, 'EPICO', 4, 55, TRUE, 'CRAFT', 'Pieza del set del Almirante: cadenas del fondo y sellos de la marea, forjados con el ancla del Almirante Ahogado.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'PICARO_OFFHAND_OCEANO');
+UPDATE items SET name = 'Daga Gemela del Almirante', item_type = 'EQUIPMENT', slot = 'OFFHAND', is_two_handed = FALSE, rarity = 'EPICO', class_id = 4, required_level = 55, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Pieza del set del Almirante: cadenas del fondo y sellos de la marea, forjados con el ancla del Almirante Ahogado.' WHERE code = 'PICARO_OFFHAND_OCEANO';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'PICARO_OFFHAND_OCEANO');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'PICARO_OFFHAND_OCEANO'), v.* FROM (VALUES ('ATK', 34, FALSE), ('CRIT_CHANCE', 4.5, TRUE), ('EVASION', 2.5, TRUE), ('SPD', 41, FALSE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station, scroll_item_id)
+SELECT 'RECIPE_PICARO_OFFHAND_OCEANO', (SELECT id FROM items WHERE code = 'PICARO_OFFHAND_OCEANO'), 1, 'EPICO', 55, 4, 70, 1, 'Brea, en el Astillero del Puerto Antiguo', 4, 'forja', (SELECT id FROM items WHERE code = 'SCROLL_OCEANO_PICARO') WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_PICARO_OFFHAND_OCEANO');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'PICARO_OFFHAND_OCEANO'), result_quantity = 1, rarity = 'EPICO', required_level = 55, required_class_id = 4, success_rate_percent = 70, craft_time_minutes = 1, artisan_name = 'Brea, en el Astillero del Puerto Antiguo', zone_id = 4, station = 'forja', scroll_item_id = (SELECT id FROM items WHERE code = 'SCROLL_OCEANO_PICARO') WHERE code = 'RECIPE_PICARO_OFFHAND_OCEANO';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_PICARO_OFFHAND_OCEANO');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_PICARO_OFFHAND_OCEANO'), i.id, v.n FROM (VALUES ('CADENA_AHOGADA', 1), ('SELLO_MAREA', 1), ('DIENTE_DE_PIRANA', 1)) AS v(code, n) JOIN items i ON i.code = v.code;
+-- Máscara del Almirante
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'PICARO_HELMET_OCEANO', 'Máscara del Almirante', 'EQUIPMENT', 'HELMET', FALSE, 'EPICO', 4, 55, TRUE, 'CRAFT', 'Pieza del set del Almirante: cadenas del fondo y sellos de la marea, forjados con el ancla del Almirante Ahogado.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'PICARO_HELMET_OCEANO');
+UPDATE items SET name = 'Máscara del Almirante', item_type = 'EQUIPMENT', slot = 'HELMET', is_two_handed = FALSE, rarity = 'EPICO', class_id = 4, required_level = 55, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Pieza del set del Almirante: cadenas del fondo y sellos de la marea, forjados con el ancla del Almirante Ahogado.' WHERE code = 'PICARO_HELMET_OCEANO';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'PICARO_HELMET_OCEANO');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'PICARO_HELMET_OCEANO'), v.* FROM (VALUES ('DEF', 22, FALSE), ('HP', 18, FALSE), ('MAGIC_DEF', 8, FALSE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station, scroll_item_id)
+SELECT 'RECIPE_PICARO_HELMET_OCEANO', (SELECT id FROM items WHERE code = 'PICARO_HELMET_OCEANO'), 1, 'EPICO', 55, 4, 70, 1, 'Brea, en el Astillero del Puerto Antiguo', 4, 'forja', (SELECT id FROM items WHERE code = 'SCROLL_OCEANO_PICARO') WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_PICARO_HELMET_OCEANO');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'PICARO_HELMET_OCEANO'), result_quantity = 1, rarity = 'EPICO', required_level = 55, required_class_id = 4, success_rate_percent = 70, craft_time_minutes = 1, artisan_name = 'Brea, en el Astillero del Puerto Antiguo', zone_id = 4, station = 'forja', scroll_item_id = (SELECT id FROM items WHERE code = 'SCROLL_OCEANO_PICARO') WHERE code = 'RECIPE_PICARO_HELMET_OCEANO';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_PICARO_HELMET_OCEANO');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_PICARO_HELMET_OCEANO'), i.id, v.n FROM (VALUES ('CADENA_AHOGADA', 1), ('SELLO_MAREA', 1), ('DIENTE_DE_PIRANA', 1)) AS v(code, n) JOIN items i ON i.code = v.code;
+-- Cuero del Almirante
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'PICARO_ARMOR_OCEANO', 'Cuero del Almirante', 'EQUIPMENT', 'ARMOR', FALSE, 'EPICO', 4, 55, TRUE, 'CRAFT', 'Pieza del set del Almirante: cadenas del fondo y sellos de la marea, forjados con el ancla del Almirante Ahogado.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'PICARO_ARMOR_OCEANO');
+UPDATE items SET name = 'Cuero del Almirante', item_type = 'EQUIPMENT', slot = 'ARMOR', is_two_handed = FALSE, rarity = 'EPICO', class_id = 4, required_level = 55, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Pieza del set del Almirante: cadenas del fondo y sellos de la marea, forjados con el ancla del Almirante Ahogado.' WHERE code = 'PICARO_ARMOR_OCEANO';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'PICARO_ARMOR_OCEANO');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'PICARO_ARMOR_OCEANO'), v.* FROM (VALUES ('DEF', 45, FALSE), ('HP', 85, FALSE), ('MAGIC_DEF', 13, FALSE), ('EVASION', 2.5, TRUE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station, scroll_item_id)
+SELECT 'RECIPE_PICARO_ARMOR_OCEANO', (SELECT id FROM items WHERE code = 'PICARO_ARMOR_OCEANO'), 1, 'EPICO', 55, 4, 70, 1, 'Brea, en el Astillero del Puerto Antiguo', 4, 'forja', (SELECT id FROM items WHERE code = 'SCROLL_OCEANO_PICARO') WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_PICARO_ARMOR_OCEANO');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'PICARO_ARMOR_OCEANO'), result_quantity = 1, rarity = 'EPICO', required_level = 55, required_class_id = 4, success_rate_percent = 70, craft_time_minutes = 1, artisan_name = 'Brea, en el Astillero del Puerto Antiguo', zone_id = 4, station = 'forja', scroll_item_id = (SELECT id FROM items WHERE code = 'SCROLL_OCEANO_PICARO') WHERE code = 'RECIPE_PICARO_ARMOR_OCEANO';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_PICARO_ARMOR_OCEANO');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_PICARO_ARMOR_OCEANO'), i.id, v.n FROM (VALUES ('ANCLA_ALMIRANTE', 1), ('CADENA_AHOGADA', 2), ('SELLO_MAREA', 1), ('DIENTE_DE_PIRANA', 2)) AS v(code, n) JOIN items i ON i.code = v.code;
+-- Guantes del Almirante
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'PICARO_GLOVES_OCEANO', 'Guantes del Almirante', 'EQUIPMENT', 'GLOVES', FALSE, 'EPICO', 4, 55, TRUE, 'CRAFT', 'Pieza del set del Almirante: cadenas del fondo y sellos de la marea, forjados con el ancla del Almirante Ahogado.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'PICARO_GLOVES_OCEANO');
+UPDATE items SET name = 'Guantes del Almirante', item_type = 'EQUIPMENT', slot = 'GLOVES', is_two_handed = FALSE, rarity = 'EPICO', class_id = 4, required_level = 55, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Pieza del set del Almirante: cadenas del fondo y sellos de la marea, forjados con el ancla del Almirante Ahogado.' WHERE code = 'PICARO_GLOVES_OCEANO';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'PICARO_GLOVES_OCEANO');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'PICARO_GLOVES_OCEANO'), v.* FROM (VALUES ('DEF', 22, FALSE), ('HP', 43, FALSE), ('MAGIC_DEF', 7, FALSE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station, scroll_item_id)
+SELECT 'RECIPE_PICARO_GLOVES_OCEANO', (SELECT id FROM items WHERE code = 'PICARO_GLOVES_OCEANO'), 1, 'EPICO', 55, 4, 70, 1, 'Brea, en el Astillero del Puerto Antiguo', 4, 'forja', (SELECT id FROM items WHERE code = 'SCROLL_OCEANO_PICARO') WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_PICARO_GLOVES_OCEANO');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'PICARO_GLOVES_OCEANO'), result_quantity = 1, rarity = 'EPICO', required_level = 55, required_class_id = 4, success_rate_percent = 70, craft_time_minutes = 1, artisan_name = 'Brea, en el Astillero del Puerto Antiguo', zone_id = 4, station = 'forja', scroll_item_id = (SELECT id FROM items WHERE code = 'SCROLL_OCEANO_PICARO') WHERE code = 'RECIPE_PICARO_GLOVES_OCEANO';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_PICARO_GLOVES_OCEANO');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_PICARO_GLOVES_OCEANO'), i.id, v.n FROM (VALUES ('CADENA_AHOGADA', 1), ('SELLO_MAREA', 1), ('DIENTE_DE_PIRANA', 1)) AS v(code, n) JOIN items i ON i.code = v.code;
+-- Botas del Almirante
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'PICARO_BOOTS_OCEANO', 'Botas del Almirante', 'EQUIPMENT', 'BOOTS', FALSE, 'EPICO', 4, 55, TRUE, 'CRAFT', 'Pieza del set del Almirante: cadenas del fondo y sellos de la marea, forjados con el ancla del Almirante Ahogado.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'PICARO_BOOTS_OCEANO');
+UPDATE items SET name = 'Botas del Almirante', item_type = 'EQUIPMENT', slot = 'BOOTS', is_two_handed = FALSE, rarity = 'EPICO', class_id = 4, required_level = 55, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Pieza del set del Almirante: cadenas del fondo y sellos de la marea, forjados con el ancla del Almirante Ahogado.' WHERE code = 'PICARO_BOOTS_OCEANO';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'PICARO_BOOTS_OCEANO');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'PICARO_BOOTS_OCEANO'), v.* FROM (VALUES ('SPD', 34, FALSE), ('HP', 9, FALSE), ('DEF', 13, FALSE), ('EVASION', 2.5, TRUE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station, scroll_item_id)
+SELECT 'RECIPE_PICARO_BOOTS_OCEANO', (SELECT id FROM items WHERE code = 'PICARO_BOOTS_OCEANO'), 1, 'EPICO', 55, 4, 70, 1, 'Brea, en el Astillero del Puerto Antiguo', 4, 'forja', (SELECT id FROM items WHERE code = 'SCROLL_OCEANO_PICARO') WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_PICARO_BOOTS_OCEANO');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'PICARO_BOOTS_OCEANO'), result_quantity = 1, rarity = 'EPICO', required_level = 55, required_class_id = 4, success_rate_percent = 70, craft_time_minutes = 1, artisan_name = 'Brea, en el Astillero del Puerto Antiguo', zone_id = 4, station = 'forja', scroll_item_id = (SELECT id FROM items WHERE code = 'SCROLL_OCEANO_PICARO') WHERE code = 'RECIPE_PICARO_BOOTS_OCEANO';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_PICARO_BOOTS_OCEANO');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_PICARO_BOOTS_OCEANO'), i.id, v.n FROM (VALUES ('CADENA_AHOGADA', 1), ('SELLO_MAREA', 1), ('DIENTE_DE_PIRANA', 1)) AS v(code, n) JOIN items i ON i.code = v.code;
+-- Báculo del Almirante
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'SACERDOTE_WEAPON_OCEANO', 'Báculo del Almirante', 'EQUIPMENT', 'WEAPON', FALSE, 'EPICO', 5, 55, TRUE, 'CRAFT', 'Pieza del set del Almirante: cadenas del fondo y sellos de la marea, forjados con el ancla del Almirante Ahogado.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'SACERDOTE_WEAPON_OCEANO');
+UPDATE items SET name = 'Báculo del Almirante', item_type = 'EQUIPMENT', slot = 'WEAPON', is_two_handed = FALSE, rarity = 'EPICO', class_id = 5, required_level = 55, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Pieza del set del Almirante: cadenas del fondo y sellos de la marea, forjados con el ancla del Almirante Ahogado.' WHERE code = 'SACERDOTE_WEAPON_OCEANO';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'SACERDOTE_WEAPON_OCEANO');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'SACERDOTE_WEAPON_OCEANO'), v.* FROM (VALUES ('MAG', 124, FALSE), ('CRIT_CHANCE', 6.8, TRUE), ('CRIT_DAMAGE', 11, TRUE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station, scroll_item_id)
+SELECT 'RECIPE_SACERDOTE_WEAPON_OCEANO', (SELECT id FROM items WHERE code = 'SACERDOTE_WEAPON_OCEANO'), 1, 'EPICO', 55, 5, 70, 1, 'Brea, en el Astillero del Puerto Antiguo', 4, 'forja', (SELECT id FROM items WHERE code = 'SCROLL_OCEANO_SACERDOTE') WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_SACERDOTE_WEAPON_OCEANO');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'SACERDOTE_WEAPON_OCEANO'), result_quantity = 1, rarity = 'EPICO', required_level = 55, required_class_id = 5, success_rate_percent = 70, craft_time_minutes = 1, artisan_name = 'Brea, en el Astillero del Puerto Antiguo', zone_id = 4, station = 'forja', scroll_item_id = (SELECT id FROM items WHERE code = 'SCROLL_OCEANO_SACERDOTE') WHERE code = 'RECIPE_SACERDOTE_WEAPON_OCEANO';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_SACERDOTE_WEAPON_OCEANO');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_SACERDOTE_WEAPON_OCEANO'), i.id, v.n FROM (VALUES ('ANCLA_ALMIRANTE', 1), ('CADENA_AHOGADA', 2), ('SELLO_MAREA', 1), ('ESCAMA_SIRENA_CORRUPTA', 2)) AS v(code, n) JOIN items i ON i.code = v.code;
+-- Símbolo del Almirante
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'SACERDOTE_OFFHAND_OCEANO', 'Símbolo del Almirante', 'EQUIPMENT', 'OFFHAND', FALSE, 'EPICO', 5, 55, TRUE, 'CRAFT', 'Pieza del set del Almirante: cadenas del fondo y sellos de la marea, forjados con el ancla del Almirante Ahogado.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'SACERDOTE_OFFHAND_OCEANO');
+UPDATE items SET name = 'Símbolo del Almirante', item_type = 'EQUIPMENT', slot = 'OFFHAND', is_two_handed = FALSE, rarity = 'EPICO', class_id = 5, required_level = 55, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Pieza del set del Almirante: cadenas del fondo y sellos de la marea, forjados con el ancla del Almirante Ahogado.' WHERE code = 'SACERDOTE_OFFHAND_OCEANO';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'SACERDOTE_OFFHAND_OCEANO');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'SACERDOTE_OFFHAND_OCEANO'), v.* FROM (VALUES ('HP', 36, FALSE), ('MAGIC_DEF', 27, FALSE), ('HEALING', 5, TRUE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station, scroll_item_id)
+SELECT 'RECIPE_SACERDOTE_OFFHAND_OCEANO', (SELECT id FROM items WHERE code = 'SACERDOTE_OFFHAND_OCEANO'), 1, 'EPICO', 55, 5, 70, 1, 'Brea, en el Astillero del Puerto Antiguo', 4, 'forja', (SELECT id FROM items WHERE code = 'SCROLL_OCEANO_SACERDOTE') WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_SACERDOTE_OFFHAND_OCEANO');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'SACERDOTE_OFFHAND_OCEANO'), result_quantity = 1, rarity = 'EPICO', required_level = 55, required_class_id = 5, success_rate_percent = 70, craft_time_minutes = 1, artisan_name = 'Brea, en el Astillero del Puerto Antiguo', zone_id = 4, station = 'forja', scroll_item_id = (SELECT id FROM items WHERE code = 'SCROLL_OCEANO_SACERDOTE') WHERE code = 'RECIPE_SACERDOTE_OFFHAND_OCEANO';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_SACERDOTE_OFFHAND_OCEANO');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_SACERDOTE_OFFHAND_OCEANO'), i.id, v.n FROM (VALUES ('CADENA_AHOGADA', 1), ('SELLO_MAREA', 1), ('ESCAMA_SIRENA_CORRUPTA', 1)) AS v(code, n) JOIN items i ON i.code = v.code;
+-- Diadema del Almirante
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'SACERDOTE_HELMET_OCEANO', 'Diadema del Almirante', 'EQUIPMENT', 'HELMET', FALSE, 'EPICO', 5, 55, TRUE, 'CRAFT', 'Pieza del set del Almirante: cadenas del fondo y sellos de la marea, forjados con el ancla del Almirante Ahogado.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'SACERDOTE_HELMET_OCEANO');
+UPDATE items SET name = 'Diadema del Almirante', item_type = 'EQUIPMENT', slot = 'HELMET', is_two_handed = FALSE, rarity = 'EPICO', class_id = 5, required_level = 55, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Pieza del set del Almirante: cadenas del fondo y sellos de la marea, forjados con el ancla del Almirante Ahogado.' WHERE code = 'SACERDOTE_HELMET_OCEANO';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'SACERDOTE_HELMET_OCEANO');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'SACERDOTE_HELMET_OCEANO'), v.* FROM (VALUES ('DEF', 7, FALSE), ('HP', 18, FALSE), ('MAGIC_DEF', 22, FALSE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station, scroll_item_id)
+SELECT 'RECIPE_SACERDOTE_HELMET_OCEANO', (SELECT id FROM items WHERE code = 'SACERDOTE_HELMET_OCEANO'), 1, 'EPICO', 55, 5, 70, 1, 'Brea, en el Astillero del Puerto Antiguo', 4, 'forja', (SELECT id FROM items WHERE code = 'SCROLL_OCEANO_SACERDOTE') WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_SACERDOTE_HELMET_OCEANO');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'SACERDOTE_HELMET_OCEANO'), result_quantity = 1, rarity = 'EPICO', required_level = 55, required_class_id = 5, success_rate_percent = 70, craft_time_minutes = 1, artisan_name = 'Brea, en el Astillero del Puerto Antiguo', zone_id = 4, station = 'forja', scroll_item_id = (SELECT id FROM items WHERE code = 'SCROLL_OCEANO_SACERDOTE') WHERE code = 'RECIPE_SACERDOTE_HELMET_OCEANO';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_SACERDOTE_HELMET_OCEANO');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_SACERDOTE_HELMET_OCEANO'), i.id, v.n FROM (VALUES ('CADENA_AHOGADA', 1), ('SELLO_MAREA', 1), ('ESCAMA_SIRENA_CORRUPTA', 1)) AS v(code, n) JOIN items i ON i.code = v.code;
+-- Vestidura del Almirante
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'SACERDOTE_ARMOR_OCEANO', 'Vestidura del Almirante', 'EQUIPMENT', 'ARMOR', FALSE, 'EPICO', 5, 55, TRUE, 'CRAFT', 'Pieza del set del Almirante: cadenas del fondo y sellos de la marea, forjados con el ancla del Almirante Ahogado.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'SACERDOTE_ARMOR_OCEANO');
+UPDATE items SET name = 'Vestidura del Almirante', item_type = 'EQUIPMENT', slot = 'ARMOR', is_two_handed = FALSE, rarity = 'EPICO', class_id = 5, required_level = 55, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Pieza del set del Almirante: cadenas del fondo y sellos de la marea, forjados con el ancla del Almirante Ahogado.' WHERE code = 'SACERDOTE_ARMOR_OCEANO';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'SACERDOTE_ARMOR_OCEANO');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'SACERDOTE_ARMOR_OCEANO'), v.* FROM (VALUES ('DEF', 14, FALSE), ('HP', 72, FALSE), ('MAGIC_DEF', 45, FALSE), ('HEALING', 8, TRUE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station, scroll_item_id)
+SELECT 'RECIPE_SACERDOTE_ARMOR_OCEANO', (SELECT id FROM items WHERE code = 'SACERDOTE_ARMOR_OCEANO'), 1, 'EPICO', 55, 5, 70, 1, 'Brea, en el Astillero del Puerto Antiguo', 4, 'forja', (SELECT id FROM items WHERE code = 'SCROLL_OCEANO_SACERDOTE') WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_SACERDOTE_ARMOR_OCEANO');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'SACERDOTE_ARMOR_OCEANO'), result_quantity = 1, rarity = 'EPICO', required_level = 55, required_class_id = 5, success_rate_percent = 70, craft_time_minutes = 1, artisan_name = 'Brea, en el Astillero del Puerto Antiguo', zone_id = 4, station = 'forja', scroll_item_id = (SELECT id FROM items WHERE code = 'SCROLL_OCEANO_SACERDOTE') WHERE code = 'RECIPE_SACERDOTE_ARMOR_OCEANO';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_SACERDOTE_ARMOR_OCEANO');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_SACERDOTE_ARMOR_OCEANO'), i.id, v.n FROM (VALUES ('ANCLA_ALMIRANTE', 1), ('CADENA_AHOGADA', 2), ('SELLO_MAREA', 1), ('ESCAMA_SIRENA_CORRUPTA', 2)) AS v(code, n) JOIN items i ON i.code = v.code;
+-- Guantes del Almirante
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'SACERDOTE_GLOVES_OCEANO', 'Guantes del Almirante', 'EQUIPMENT', 'GLOVES', FALSE, 'EPICO', 5, 55, TRUE, 'CRAFT', 'Pieza del set del Almirante: cadenas del fondo y sellos de la marea, forjados con el ancla del Almirante Ahogado.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'SACERDOTE_GLOVES_OCEANO');
+UPDATE items SET name = 'Guantes del Almirante', item_type = 'EQUIPMENT', slot = 'GLOVES', is_two_handed = FALSE, rarity = 'EPICO', class_id = 5, required_level = 55, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Pieza del set del Almirante: cadenas del fondo y sellos de la marea, forjados con el ancla del Almirante Ahogado.' WHERE code = 'SACERDOTE_GLOVES_OCEANO';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'SACERDOTE_GLOVES_OCEANO');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'SACERDOTE_GLOVES_OCEANO'), v.* FROM (VALUES ('DEF', 8, FALSE), ('HP', 37, FALSE), ('MAGIC_DEF', 22, FALSE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station, scroll_item_id)
+SELECT 'RECIPE_SACERDOTE_GLOVES_OCEANO', (SELECT id FROM items WHERE code = 'SACERDOTE_GLOVES_OCEANO'), 1, 'EPICO', 55, 5, 70, 1, 'Brea, en el Astillero del Puerto Antiguo', 4, 'forja', (SELECT id FROM items WHERE code = 'SCROLL_OCEANO_SACERDOTE') WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_SACERDOTE_GLOVES_OCEANO');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'SACERDOTE_GLOVES_OCEANO'), result_quantity = 1, rarity = 'EPICO', required_level = 55, required_class_id = 5, success_rate_percent = 70, craft_time_minutes = 1, artisan_name = 'Brea, en el Astillero del Puerto Antiguo', zone_id = 4, station = 'forja', scroll_item_id = (SELECT id FROM items WHERE code = 'SCROLL_OCEANO_SACERDOTE') WHERE code = 'RECIPE_SACERDOTE_GLOVES_OCEANO';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_SACERDOTE_GLOVES_OCEANO');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_SACERDOTE_GLOVES_OCEANO'), i.id, v.n FROM (VALUES ('CADENA_AHOGADA', 1), ('SELLO_MAREA', 1), ('ESCAMA_SIRENA_CORRUPTA', 1)) AS v(code, n) JOIN items i ON i.code = v.code;
+-- Sandalias del Almirante
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'SACERDOTE_BOOTS_OCEANO', 'Sandalias del Almirante', 'EQUIPMENT', 'BOOTS', FALSE, 'EPICO', 5, 55, TRUE, 'CRAFT', 'Pieza del set del Almirante: cadenas del fondo y sellos de la marea, forjados con el ancla del Almirante Ahogado.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'SACERDOTE_BOOTS_OCEANO');
+UPDATE items SET name = 'Sandalias del Almirante', item_type = 'EQUIPMENT', slot = 'BOOTS', is_two_handed = FALSE, rarity = 'EPICO', class_id = 5, required_level = 55, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Pieza del set del Almirante: cadenas del fondo y sellos de la marea, forjados con el ancla del Almirante Ahogado.' WHERE code = 'SACERDOTE_BOOTS_OCEANO';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'SACERDOTE_BOOTS_OCEANO');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'SACERDOTE_BOOTS_OCEANO'), v.* FROM (VALUES ('SPD', 34, FALSE), ('HP', 9, FALSE), ('MAGIC_DEF', 10, FALSE), ('EVASION', 2.5, TRUE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station, scroll_item_id)
+SELECT 'RECIPE_SACERDOTE_BOOTS_OCEANO', (SELECT id FROM items WHERE code = 'SACERDOTE_BOOTS_OCEANO'), 1, 'EPICO', 55, 5, 70, 1, 'Brea, en el Astillero del Puerto Antiguo', 4, 'forja', (SELECT id FROM items WHERE code = 'SCROLL_OCEANO_SACERDOTE') WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_SACERDOTE_BOOTS_OCEANO');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'SACERDOTE_BOOTS_OCEANO'), result_quantity = 1, rarity = 'EPICO', required_level = 55, required_class_id = 5, success_rate_percent = 70, craft_time_minutes = 1, artisan_name = 'Brea, en el Astillero del Puerto Antiguo', zone_id = 4, station = 'forja', scroll_item_id = (SELECT id FROM items WHERE code = 'SCROLL_OCEANO_SACERDOTE') WHERE code = 'RECIPE_SACERDOTE_BOOTS_OCEANO';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_SACERDOTE_BOOTS_OCEANO');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_SACERDOTE_BOOTS_OCEANO'), i.id, v.n FROM (VALUES ('CADENA_AHOGADA', 1), ('SELLO_MAREA', 1), ('ESCAMA_SIRENA_CORRUPTA', 1)) AS v(code, n) JOIN items i ON i.code = v.code;
+
+-- ---------------------------------------------------------------- bestia (nv 60, LEGENDARIO)
+-- Espada de las Profundidades
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'GUERRERO_WEAPON_PROFU', 'Espada de las Profundidades', 'EQUIPMENT', 'WEAPON', FALSE, 'LEGENDARIO', 1, 60, TRUE, 'CRAFT', 'Pieza del set de la Bestia de las Profundidades, forjada con el corazón de la Guardiana del Cuarto Sello. Huele a mar abierto.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'GUERRERO_WEAPON_PROFU');
+UPDATE items SET name = 'Espada de las Profundidades', item_type = 'EQUIPMENT', slot = 'WEAPON', is_two_handed = FALSE, rarity = 'LEGENDARIO', class_id = 1, required_level = 60, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Pieza del set de la Bestia de las Profundidades, forjada con el corazón de la Guardiana del Cuarto Sello. Huele a mar abierto.' WHERE code = 'GUERRERO_WEAPON_PROFU';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'GUERRERO_WEAPON_PROFU');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'GUERRERO_WEAPON_PROFU'), v.* FROM (VALUES ('ATK', 149, FALSE), ('CRIT_CHANCE', 8.3, TRUE), ('CRIT_DAMAGE', 13, TRUE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station, scroll_item_id)
+SELECT 'RECIPE_GUERRERO_WEAPON_PROFU', (SELECT id FROM items WHERE code = 'GUERRERO_WEAPON_PROFU'), 1, 'LEGENDARIO', 60, 1, 55, 1, 'Brea, en el Astillero del Puerto Antiguo', 4, 'forja', (SELECT id FROM items WHERE code = 'SCROLL_BESTIA_GUERRERO') WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_GUERRERO_WEAPON_PROFU');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'GUERRERO_WEAPON_PROFU'), result_quantity = 1, rarity = 'LEGENDARIO', required_level = 60, required_class_id = 1, success_rate_percent = 55, craft_time_minutes = 1, artisan_name = 'Brea, en el Astillero del Puerto Antiguo', zone_id = 4, station = 'forja', scroll_item_id = (SELECT id FROM items WHERE code = 'SCROLL_BESTIA_GUERRERO') WHERE code = 'RECIPE_GUERRERO_WEAPON_PROFU';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_GUERRERO_WEAPON_PROFU');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_GUERRERO_WEAPON_PROFU'), i.id, v.n FROM (VALUES ('NUCLEO_BESTIA_PROFUNDIDADES', 1), ('ANCLA_ALMIRANTE', 1), ('TINTA_ABISAL', 2), ('COLMILLO_LEVIATAN_MENOR', 1), ('FRAGMENTO_CORAL', 2)) AS v(code, n) JOIN items i ON i.code = v.code;
+-- Gran Espada de las Profundidades
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'GUERRERO_WEAPON2H_PROFU', 'Gran Espada de las Profundidades', 'EQUIPMENT', 'WEAPON', TRUE, 'LEGENDARIO', 1, 60, TRUE, 'CRAFT', 'Pieza del set de la Bestia de las Profundidades, forjada con el corazón de la Guardiana del Cuarto Sello. Huele a mar abierto.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'GUERRERO_WEAPON2H_PROFU');
+UPDATE items SET name = 'Gran Espada de las Profundidades', item_type = 'EQUIPMENT', slot = 'WEAPON', is_two_handed = TRUE, rarity = 'LEGENDARIO', class_id = 1, required_level = 60, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Pieza del set de la Bestia de las Profundidades, forjada con el corazón de la Guardiana del Cuarto Sello. Huele a mar abierto.' WHERE code = 'GUERRERO_WEAPON2H_PROFU';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'GUERRERO_WEAPON2H_PROFU');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'GUERRERO_WEAPON2H_PROFU'), v.* FROM (VALUES ('ATK', 224, FALSE), ('CRIT_CHANCE', 8.3, TRUE), ('CRIT_DAMAGE', 13, TRUE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station, scroll_item_id)
+SELECT 'RECIPE_GUERRERO_WEAPON2H_PROFU', (SELECT id FROM items WHERE code = 'GUERRERO_WEAPON2H_PROFU'), 1, 'LEGENDARIO', 60, 1, 55, 1, 'Brea, en el Astillero del Puerto Antiguo', 4, 'forja', (SELECT id FROM items WHERE code = 'SCROLL_BESTIA_GUERRERO') WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_GUERRERO_WEAPON2H_PROFU');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'GUERRERO_WEAPON2H_PROFU'), result_quantity = 1, rarity = 'LEGENDARIO', required_level = 60, required_class_id = 1, success_rate_percent = 55, craft_time_minutes = 1, artisan_name = 'Brea, en el Astillero del Puerto Antiguo', zone_id = 4, station = 'forja', scroll_item_id = (SELECT id FROM items WHERE code = 'SCROLL_BESTIA_GUERRERO') WHERE code = 'RECIPE_GUERRERO_WEAPON2H_PROFU';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_GUERRERO_WEAPON2H_PROFU');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_GUERRERO_WEAPON2H_PROFU'), i.id, v.n FROM (VALUES ('NUCLEO_BESTIA_PROFUNDIDADES', 1), ('ANCLA_ALMIRANTE', 1), ('TINTA_ABISAL', 2), ('COLMILLO_LEVIATAN_MENOR', 1), ('FRAGMENTO_CORAL', 2)) AS v(code, n) JOIN items i ON i.code = v.code;
+-- Escudo de las Profundidades
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'GUERRERO_OFFHAND_PROFU', 'Escudo de las Profundidades', 'EQUIPMENT', 'OFFHAND', FALSE, 'LEGENDARIO', 1, 60, TRUE, 'CRAFT', 'Pieza del set de la Bestia de las Profundidades, forjada con el corazón de la Guardiana del Cuarto Sello. Huele a mar abierto.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'GUERRERO_OFFHAND_PROFU');
+UPDATE items SET name = 'Escudo de las Profundidades', item_type = 'EQUIPMENT', slot = 'OFFHAND', is_two_handed = FALSE, rarity = 'LEGENDARIO', class_id = 1, required_level = 60, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Pieza del set de la Bestia de las Profundidades, forjada con el corazón de la Guardiana del Cuarto Sello. Huele a mar abierto.' WHERE code = 'GUERRERO_OFFHAND_PROFU';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'GUERRERO_OFFHAND_PROFU');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'GUERRERO_OFFHAND_PROFU'), v.* FROM (VALUES ('DEF', 33, FALSE), ('HP', 40, FALSE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station, scroll_item_id)
+SELECT 'RECIPE_GUERRERO_OFFHAND_PROFU', (SELECT id FROM items WHERE code = 'GUERRERO_OFFHAND_PROFU'), 1, 'LEGENDARIO', 60, 1, 55, 1, 'Brea, en el Astillero del Puerto Antiguo', 4, 'forja', (SELECT id FROM items WHERE code = 'SCROLL_BESTIA_GUERRERO') WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_GUERRERO_OFFHAND_PROFU');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'GUERRERO_OFFHAND_PROFU'), result_quantity = 1, rarity = 'LEGENDARIO', required_level = 60, required_class_id = 1, success_rate_percent = 55, craft_time_minutes = 1, artisan_name = 'Brea, en el Astillero del Puerto Antiguo', zone_id = 4, station = 'forja', scroll_item_id = (SELECT id FROM items WHERE code = 'SCROLL_BESTIA_GUERRERO') WHERE code = 'RECIPE_GUERRERO_OFFHAND_PROFU';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_GUERRERO_OFFHAND_PROFU');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_GUERRERO_OFFHAND_PROFU'), i.id, v.n FROM (VALUES ('NUCLEO_BESTIA_PROFUNDIDADES', 1), ('TINTA_ABISAL', 1), ('COLMILLO_LEVIATAN_MENOR', 1), ('FRAGMENTO_CORAL', 1)) AS v(code, n) JOIN items i ON i.code = v.code;
+-- Yelmo de las Profundidades
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'GUERRERO_HELMET_PROFU', 'Yelmo de las Profundidades', 'EQUIPMENT', 'HELMET', FALSE, 'LEGENDARIO', 1, 60, TRUE, 'CRAFT', 'Pieza del set de la Bestia de las Profundidades, forjada con el corazón de la Guardiana del Cuarto Sello. Huele a mar abierto.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'GUERRERO_HELMET_PROFU');
+UPDATE items SET name = 'Yelmo de las Profundidades', item_type = 'EQUIPMENT', slot = 'HELMET', is_two_handed = FALSE, rarity = 'LEGENDARIO', class_id = 1, required_level = 60, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Pieza del set de la Bestia de las Profundidades, forjada con el corazón de la Guardiana del Cuarto Sello. Huele a mar abierto.' WHERE code = 'GUERRERO_HELMET_PROFU';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'GUERRERO_HELMET_PROFU');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'GUERRERO_HELMET_PROFU'), v.* FROM (VALUES ('DEF', 27, FALSE), ('HP', 26, FALSE), ('MAGIC_DEF', 9, FALSE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station, scroll_item_id)
+SELECT 'RECIPE_GUERRERO_HELMET_PROFU', (SELECT id FROM items WHERE code = 'GUERRERO_HELMET_PROFU'), 1, 'LEGENDARIO', 60, 1, 55, 1, 'Brea, en el Astillero del Puerto Antiguo', 4, 'forja', (SELECT id FROM items WHERE code = 'SCROLL_BESTIA_GUERRERO') WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_GUERRERO_HELMET_PROFU');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'GUERRERO_HELMET_PROFU'), result_quantity = 1, rarity = 'LEGENDARIO', required_level = 60, required_class_id = 1, success_rate_percent = 55, craft_time_minutes = 1, artisan_name = 'Brea, en el Astillero del Puerto Antiguo', zone_id = 4, station = 'forja', scroll_item_id = (SELECT id FROM items WHERE code = 'SCROLL_BESTIA_GUERRERO') WHERE code = 'RECIPE_GUERRERO_HELMET_PROFU';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_GUERRERO_HELMET_PROFU');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_GUERRERO_HELMET_PROFU'), i.id, v.n FROM (VALUES ('NUCLEO_BESTIA_PROFUNDIDADES', 1), ('TINTA_ABISAL', 1), ('COLMILLO_LEVIATAN_MENOR', 1), ('FRAGMENTO_CORAL', 1)) AS v(code, n) JOIN items i ON i.code = v.code;
+-- Armadura de las Profundidades
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'GUERRERO_ARMOR_PROFU', 'Armadura de las Profundidades', 'EQUIPMENT', 'ARMOR', FALSE, 'LEGENDARIO', 1, 60, TRUE, 'CRAFT', 'Pieza del set de la Bestia de las Profundidades, forjada con el corazón de la Guardiana del Cuarto Sello. Huele a mar abierto.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'GUERRERO_ARMOR_PROFU');
+UPDATE items SET name = 'Armadura de las Profundidades', item_type = 'EQUIPMENT', slot = 'ARMOR', is_two_handed = FALSE, rarity = 'LEGENDARIO', class_id = 1, required_level = 60, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Pieza del set de la Bestia de las Profundidades, forjada con el corazón de la Guardiana del Cuarto Sello. Huele a mar abierto.' WHERE code = 'GUERRERO_ARMOR_PROFU';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'GUERRERO_ARMOR_PROFU');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'GUERRERO_ARMOR_PROFU'), v.* FROM (VALUES ('DEF', 54, FALSE), ('HP', 187, FALSE), ('MAGIC_DEF', 18, FALSE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station, scroll_item_id)
+SELECT 'RECIPE_GUERRERO_ARMOR_PROFU', (SELECT id FROM items WHERE code = 'GUERRERO_ARMOR_PROFU'), 1, 'LEGENDARIO', 60, 1, 55, 1, 'Brea, en el Astillero del Puerto Antiguo', 4, 'forja', (SELECT id FROM items WHERE code = 'SCROLL_BESTIA_GUERRERO') WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_GUERRERO_ARMOR_PROFU');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'GUERRERO_ARMOR_PROFU'), result_quantity = 1, rarity = 'LEGENDARIO', required_level = 60, required_class_id = 1, success_rate_percent = 55, craft_time_minutes = 1, artisan_name = 'Brea, en el Astillero del Puerto Antiguo', zone_id = 4, station = 'forja', scroll_item_id = (SELECT id FROM items WHERE code = 'SCROLL_BESTIA_GUERRERO') WHERE code = 'RECIPE_GUERRERO_ARMOR_PROFU';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_GUERRERO_ARMOR_PROFU');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_GUERRERO_ARMOR_PROFU'), i.id, v.n FROM (VALUES ('NUCLEO_BESTIA_PROFUNDIDADES', 1), ('ANCLA_ALMIRANTE', 1), ('TINTA_ABISAL', 2), ('COLMILLO_LEVIATAN_MENOR', 1), ('FRAGMENTO_CORAL', 2)) AS v(code, n) JOIN items i ON i.code = v.code;
+-- Guanteletes de las Profundidades
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'GUERRERO_GLOVES_PROFU', 'Guanteletes de las Profundidades', 'EQUIPMENT', 'GLOVES', FALSE, 'LEGENDARIO', 1, 60, TRUE, 'CRAFT', 'Pieza del set de la Bestia de las Profundidades, forjada con el corazón de la Guardiana del Cuarto Sello. Huele a mar abierto.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'GUERRERO_GLOVES_PROFU');
+UPDATE items SET name = 'Guanteletes de las Profundidades', item_type = 'EQUIPMENT', slot = 'GLOVES', is_two_handed = FALSE, rarity = 'LEGENDARIO', class_id = 1, required_level = 60, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Pieza del set de la Bestia de las Profundidades, forjada con el corazón de la Guardiana del Cuarto Sello. Huele a mar abierto.' WHERE code = 'GUERRERO_GLOVES_PROFU';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'GUERRERO_GLOVES_PROFU');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'GUERRERO_GLOVES_PROFU'), v.* FROM (VALUES ('DEF', 27, FALSE), ('HP', 42, FALSE), ('MAGIC_DEF', 8, FALSE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station, scroll_item_id)
+SELECT 'RECIPE_GUERRERO_GLOVES_PROFU', (SELECT id FROM items WHERE code = 'GUERRERO_GLOVES_PROFU'), 1, 'LEGENDARIO', 60, 1, 55, 1, 'Brea, en el Astillero del Puerto Antiguo', 4, 'forja', (SELECT id FROM items WHERE code = 'SCROLL_BESTIA_GUERRERO') WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_GUERRERO_GLOVES_PROFU');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'GUERRERO_GLOVES_PROFU'), result_quantity = 1, rarity = 'LEGENDARIO', required_level = 60, required_class_id = 1, success_rate_percent = 55, craft_time_minutes = 1, artisan_name = 'Brea, en el Astillero del Puerto Antiguo', zone_id = 4, station = 'forja', scroll_item_id = (SELECT id FROM items WHERE code = 'SCROLL_BESTIA_GUERRERO') WHERE code = 'RECIPE_GUERRERO_GLOVES_PROFU';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_GUERRERO_GLOVES_PROFU');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_GUERRERO_GLOVES_PROFU'), i.id, v.n FROM (VALUES ('NUCLEO_BESTIA_PROFUNDIDADES', 1), ('TINTA_ABISAL', 1), ('COLMILLO_LEVIATAN_MENOR', 1), ('FRAGMENTO_CORAL', 1)) AS v(code, n) JOIN items i ON i.code = v.code;
+-- Botas de las Profundidades
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'GUERRERO_BOOTS_PROFU', 'Botas de las Profundidades', 'EQUIPMENT', 'BOOTS', FALSE, 'LEGENDARIO', 1, 60, TRUE, 'CRAFT', 'Pieza del set de la Bestia de las Profundidades, forjada con el corazón de la Guardiana del Cuarto Sello. Huele a mar abierto.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'GUERRERO_BOOTS_PROFU');
+UPDATE items SET name = 'Botas de las Profundidades', item_type = 'EQUIPMENT', slot = 'BOOTS', is_two_handed = FALSE, rarity = 'LEGENDARIO', class_id = 1, required_level = 60, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Pieza del set de la Bestia de las Profundidades, forjada con el corazón de la Guardiana del Cuarto Sello. Huele a mar abierto.' WHERE code = 'GUERRERO_BOOTS_PROFU';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'GUERRERO_BOOTS_PROFU');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'GUERRERO_BOOTS_PROFU'), v.* FROM (VALUES ('SPD', 40, FALSE), ('HP', 10, FALSE), ('DEF', 13, FALSE), ('EVASION', 3, TRUE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station, scroll_item_id)
+SELECT 'RECIPE_GUERRERO_BOOTS_PROFU', (SELECT id FROM items WHERE code = 'GUERRERO_BOOTS_PROFU'), 1, 'LEGENDARIO', 60, 1, 55, 1, 'Brea, en el Astillero del Puerto Antiguo', 4, 'forja', (SELECT id FROM items WHERE code = 'SCROLL_BESTIA_GUERRERO') WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_GUERRERO_BOOTS_PROFU');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'GUERRERO_BOOTS_PROFU'), result_quantity = 1, rarity = 'LEGENDARIO', required_level = 60, required_class_id = 1, success_rate_percent = 55, craft_time_minutes = 1, artisan_name = 'Brea, en el Astillero del Puerto Antiguo', zone_id = 4, station = 'forja', scroll_item_id = (SELECT id FROM items WHERE code = 'SCROLL_BESTIA_GUERRERO') WHERE code = 'RECIPE_GUERRERO_BOOTS_PROFU';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_GUERRERO_BOOTS_PROFU');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_GUERRERO_BOOTS_PROFU'), i.id, v.n FROM (VALUES ('NUCLEO_BESTIA_PROFUNDIDADES', 1), ('TINTA_ABISAL', 1), ('COLMILLO_LEVIATAN_MENOR', 1), ('FRAGMENTO_CORAL', 1)) AS v(code, n) JOIN items i ON i.code = v.code;
+-- Varita de las Profundidades
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'MAGO_WEAPON_PROFU', 'Varita de las Profundidades', 'EQUIPMENT', 'WEAPON', FALSE, 'LEGENDARIO', 2, 60, TRUE, 'CRAFT', 'Pieza del set de la Bestia de las Profundidades, forjada con el corazón de la Guardiana del Cuarto Sello. Huele a mar abierto.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'MAGO_WEAPON_PROFU');
+UPDATE items SET name = 'Varita de las Profundidades', item_type = 'EQUIPMENT', slot = 'WEAPON', is_two_handed = FALSE, rarity = 'LEGENDARIO', class_id = 2, required_level = 60, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Pieza del set de la Bestia de las Profundidades, forjada con el corazón de la Guardiana del Cuarto Sello. Huele a mar abierto.' WHERE code = 'MAGO_WEAPON_PROFU';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'MAGO_WEAPON_PROFU');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'MAGO_WEAPON_PROFU'), v.* FROM (VALUES ('MAG', 149, FALSE), ('CRIT_CHANCE', 8.3, TRUE), ('CRIT_DAMAGE', 13, TRUE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station, scroll_item_id)
+SELECT 'RECIPE_MAGO_WEAPON_PROFU', (SELECT id FROM items WHERE code = 'MAGO_WEAPON_PROFU'), 1, 'LEGENDARIO', 60, 2, 55, 1, 'Brea, en el Astillero del Puerto Antiguo', 4, 'forja', (SELECT id FROM items WHERE code = 'SCROLL_BESTIA_MAGO') WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_MAGO_WEAPON_PROFU');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'MAGO_WEAPON_PROFU'), result_quantity = 1, rarity = 'LEGENDARIO', required_level = 60, required_class_id = 2, success_rate_percent = 55, craft_time_minutes = 1, artisan_name = 'Brea, en el Astillero del Puerto Antiguo', zone_id = 4, station = 'forja', scroll_item_id = (SELECT id FROM items WHERE code = 'SCROLL_BESTIA_MAGO') WHERE code = 'RECIPE_MAGO_WEAPON_PROFU';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_MAGO_WEAPON_PROFU');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_MAGO_WEAPON_PROFU'), i.id, v.n FROM (VALUES ('NUCLEO_BESTIA_PROFUNDIDADES', 1), ('ANCLA_ALMIRANTE', 1), ('TINTA_ABISAL', 2), ('COLMILLO_LEVIATAN_MENOR', 1), ('GEL_MEDUSA', 2)) AS v(code, n) JOIN items i ON i.code = v.code;
+-- Orbe de las Profundidades
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'MAGO_OFFHAND_ORB_PROFU', 'Orbe de las Profundidades', 'EQUIPMENT', 'OFFHAND', FALSE, 'LEGENDARIO', 2, 60, TRUE, 'CRAFT', 'Pieza del set de la Bestia de las Profundidades, forjada con el corazón de la Guardiana del Cuarto Sello. Huele a mar abierto.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'MAGO_OFFHAND_ORB_PROFU');
+UPDATE items SET name = 'Orbe de las Profundidades', item_type = 'EQUIPMENT', slot = 'OFFHAND', is_two_handed = FALSE, rarity = 'LEGENDARIO', class_id = 2, required_level = 60, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Pieza del set de la Bestia de las Profundidades, forjada con el corazón de la Guardiana del Cuarto Sello. Huele a mar abierto.' WHERE code = 'MAGO_OFFHAND_ORB_PROFU';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'MAGO_OFFHAND_ORB_PROFU');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'MAGO_OFFHAND_ORB_PROFU'), v.* FROM (VALUES ('DEF', 6, FALSE), ('HP', 35, FALSE), ('MAGIC_DEF', 19, FALSE), ('MANA_REGEN', 5.5, TRUE), ('SPD', 49, FALSE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station, scroll_item_id)
+SELECT 'RECIPE_MAGO_OFFHAND_ORB_PROFU', (SELECT id FROM items WHERE code = 'MAGO_OFFHAND_ORB_PROFU'), 1, 'LEGENDARIO', 60, 2, 55, 1, 'Brea, en el Astillero del Puerto Antiguo', 4, 'forja', (SELECT id FROM items WHERE code = 'SCROLL_BESTIA_MAGO') WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_MAGO_OFFHAND_ORB_PROFU');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'MAGO_OFFHAND_ORB_PROFU'), result_quantity = 1, rarity = 'LEGENDARIO', required_level = 60, required_class_id = 2, success_rate_percent = 55, craft_time_minutes = 1, artisan_name = 'Brea, en el Astillero del Puerto Antiguo', zone_id = 4, station = 'forja', scroll_item_id = (SELECT id FROM items WHERE code = 'SCROLL_BESTIA_MAGO') WHERE code = 'RECIPE_MAGO_OFFHAND_ORB_PROFU';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_MAGO_OFFHAND_ORB_PROFU');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_MAGO_OFFHAND_ORB_PROFU'), i.id, v.n FROM (VALUES ('NUCLEO_BESTIA_PROFUNDIDADES', 1), ('TINTA_ABISAL', 1), ('COLMILLO_LEVIATAN_MENOR', 1), ('GEL_MEDUSA', 1)) AS v(code, n) JOIN items i ON i.code = v.code;
+-- Cristal de las Profundidades
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'MAGO_OFFHAND_CRYSTAL_PROFU', 'Cristal de las Profundidades', 'EQUIPMENT', 'OFFHAND', FALSE, 'LEGENDARIO', 2, 60, TRUE, 'CRAFT', 'Pieza del set de la Bestia de las Profundidades, forjada con el corazón de la Guardiana del Cuarto Sello. Huele a mar abierto.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'MAGO_OFFHAND_CRYSTAL_PROFU');
+UPDATE items SET name = 'Cristal de las Profundidades', item_type = 'EQUIPMENT', slot = 'OFFHAND', is_two_handed = FALSE, rarity = 'LEGENDARIO', class_id = 2, required_level = 60, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Pieza del set de la Bestia de las Profundidades, forjada con el corazón de la Guardiana del Cuarto Sello. Huele a mar abierto.' WHERE code = 'MAGO_OFFHAND_CRYSTAL_PROFU';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'MAGO_OFFHAND_CRYSTAL_PROFU');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'MAGO_OFFHAND_CRYSTAL_PROFU'), v.* FROM (VALUES ('MAG', 82, FALSE), ('CRIT_CHANCE', 5.5, TRUE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station, scroll_item_id)
+SELECT 'RECIPE_MAGO_OFFHAND_CRYSTAL_PROFU', (SELECT id FROM items WHERE code = 'MAGO_OFFHAND_CRYSTAL_PROFU'), 1, 'LEGENDARIO', 60, 2, 55, 1, 'Brea, en el Astillero del Puerto Antiguo', 4, 'forja', (SELECT id FROM items WHERE code = 'SCROLL_BESTIA_MAGO') WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_MAGO_OFFHAND_CRYSTAL_PROFU');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'MAGO_OFFHAND_CRYSTAL_PROFU'), result_quantity = 1, rarity = 'LEGENDARIO', required_level = 60, required_class_id = 2, success_rate_percent = 55, craft_time_minutes = 1, artisan_name = 'Brea, en el Astillero del Puerto Antiguo', zone_id = 4, station = 'forja', scroll_item_id = (SELECT id FROM items WHERE code = 'SCROLL_BESTIA_MAGO') WHERE code = 'RECIPE_MAGO_OFFHAND_CRYSTAL_PROFU';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_MAGO_OFFHAND_CRYSTAL_PROFU');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_MAGO_OFFHAND_CRYSTAL_PROFU'), i.id, v.n FROM (VALUES ('NUCLEO_BESTIA_PROFUNDIDADES', 1), ('TINTA_ABISAL', 1), ('COLMILLO_LEVIATAN_MENOR', 1), ('GEL_MEDUSA', 1)) AS v(code, n) JOIN items i ON i.code = v.code;
+-- Capirote de las Profundidades
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'MAGO_HELMET_PROFU', 'Capirote de las Profundidades', 'EQUIPMENT', 'HELMET', FALSE, 'LEGENDARIO', 2, 60, TRUE, 'CRAFT', 'Pieza del set de la Bestia de las Profundidades, forjada con el corazón de la Guardiana del Cuarto Sello. Huele a mar abierto.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'MAGO_HELMET_PROFU');
+UPDATE items SET name = 'Capirote de las Profundidades', item_type = 'EQUIPMENT', slot = 'HELMET', is_two_handed = FALSE, rarity = 'LEGENDARIO', class_id = 2, required_level = 60, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Pieza del set de la Bestia de las Profundidades, forjada con el corazón de la Guardiana del Cuarto Sello. Huele a mar abierto.' WHERE code = 'MAGO_HELMET_PROFU';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'MAGO_HELMET_PROFU');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'MAGO_HELMET_PROFU'), v.* FROM (VALUES ('DEF', 8, FALSE), ('HP', 19, FALSE), ('MAGIC_DEF', 27, FALSE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station, scroll_item_id)
+SELECT 'RECIPE_MAGO_HELMET_PROFU', (SELECT id FROM items WHERE code = 'MAGO_HELMET_PROFU'), 1, 'LEGENDARIO', 60, 2, 55, 1, 'Brea, en el Astillero del Puerto Antiguo', 4, 'forja', (SELECT id FROM items WHERE code = 'SCROLL_BESTIA_MAGO') WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_MAGO_HELMET_PROFU');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'MAGO_HELMET_PROFU'), result_quantity = 1, rarity = 'LEGENDARIO', required_level = 60, required_class_id = 2, success_rate_percent = 55, craft_time_minutes = 1, artisan_name = 'Brea, en el Astillero del Puerto Antiguo', zone_id = 4, station = 'forja', scroll_item_id = (SELECT id FROM items WHERE code = 'SCROLL_BESTIA_MAGO') WHERE code = 'RECIPE_MAGO_HELMET_PROFU';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_MAGO_HELMET_PROFU');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_MAGO_HELMET_PROFU'), i.id, v.n FROM (VALUES ('NUCLEO_BESTIA_PROFUNDIDADES', 1), ('TINTA_ABISAL', 1), ('COLMILLO_LEVIATAN_MENOR', 1), ('GEL_MEDUSA', 1)) AS v(code, n) JOIN items i ON i.code = v.code;
+-- Túnica de las Profundidades
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'MAGO_ARMOR_PROFU', 'Túnica de las Profundidades', 'EQUIPMENT', 'ARMOR', FALSE, 'LEGENDARIO', 2, 60, TRUE, 'CRAFT', 'Pieza del set de la Bestia de las Profundidades, forjada con el corazón de la Guardiana del Cuarto Sello. Huele a mar abierto.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'MAGO_ARMOR_PROFU');
+UPDATE items SET name = 'Túnica de las Profundidades', item_type = 'EQUIPMENT', slot = 'ARMOR', is_two_handed = FALSE, rarity = 'LEGENDARIO', class_id = 2, required_level = 60, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Pieza del set de la Bestia de las Profundidades, forjada con el corazón de la Guardiana del Cuarto Sello. Huele a mar abierto.' WHERE code = 'MAGO_ARMOR_PROFU';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'MAGO_ARMOR_PROFU');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'MAGO_ARMOR_PROFU'), v.* FROM (VALUES ('DEF', 17, FALSE), ('HP', 96, FALSE), ('MAGIC_DEF', 54, FALSE), ('HP_REGEN', 3.5, TRUE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station, scroll_item_id)
+SELECT 'RECIPE_MAGO_ARMOR_PROFU', (SELECT id FROM items WHERE code = 'MAGO_ARMOR_PROFU'), 1, 'LEGENDARIO', 60, 2, 55, 1, 'Brea, en el Astillero del Puerto Antiguo', 4, 'forja', (SELECT id FROM items WHERE code = 'SCROLL_BESTIA_MAGO') WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_MAGO_ARMOR_PROFU');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'MAGO_ARMOR_PROFU'), result_quantity = 1, rarity = 'LEGENDARIO', required_level = 60, required_class_id = 2, success_rate_percent = 55, craft_time_minutes = 1, artisan_name = 'Brea, en el Astillero del Puerto Antiguo', zone_id = 4, station = 'forja', scroll_item_id = (SELECT id FROM items WHERE code = 'SCROLL_BESTIA_MAGO') WHERE code = 'RECIPE_MAGO_ARMOR_PROFU';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_MAGO_ARMOR_PROFU');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_MAGO_ARMOR_PROFU'), i.id, v.n FROM (VALUES ('NUCLEO_BESTIA_PROFUNDIDADES', 1), ('ANCLA_ALMIRANTE', 1), ('TINTA_ABISAL', 2), ('COLMILLO_LEVIATAN_MENOR', 1), ('GEL_MEDUSA', 2)) AS v(code, n) JOIN items i ON i.code = v.code;
+-- Guantes de las Profundidades
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'MAGO_GLOVES_PROFU', 'Guantes de las Profundidades', 'EQUIPMENT', 'GLOVES', FALSE, 'LEGENDARIO', 2, 60, TRUE, 'CRAFT', 'Pieza del set de la Bestia de las Profundidades, forjada con el corazón de la Guardiana del Cuarto Sello. Huele a mar abierto.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'MAGO_GLOVES_PROFU');
+UPDATE items SET name = 'Guantes de las Profundidades', item_type = 'EQUIPMENT', slot = 'GLOVES', is_two_handed = FALSE, rarity = 'LEGENDARIO', class_id = 2, required_level = 60, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Pieza del set de la Bestia de las Profundidades, forjada con el corazón de la Guardiana del Cuarto Sello. Huele a mar abierto.' WHERE code = 'MAGO_GLOVES_PROFU';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'MAGO_GLOVES_PROFU');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'MAGO_GLOVES_PROFU'), v.* FROM (VALUES ('DEF', 9, FALSE), ('HP', 49, FALSE), ('MAGIC_DEF', 27, FALSE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station, scroll_item_id)
+SELECT 'RECIPE_MAGO_GLOVES_PROFU', (SELECT id FROM items WHERE code = 'MAGO_GLOVES_PROFU'), 1, 'LEGENDARIO', 60, 2, 55, 1, 'Brea, en el Astillero del Puerto Antiguo', 4, 'forja', (SELECT id FROM items WHERE code = 'SCROLL_BESTIA_MAGO') WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_MAGO_GLOVES_PROFU');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'MAGO_GLOVES_PROFU'), result_quantity = 1, rarity = 'LEGENDARIO', required_level = 60, required_class_id = 2, success_rate_percent = 55, craft_time_minutes = 1, artisan_name = 'Brea, en el Astillero del Puerto Antiguo', zone_id = 4, station = 'forja', scroll_item_id = (SELECT id FROM items WHERE code = 'SCROLL_BESTIA_MAGO') WHERE code = 'RECIPE_MAGO_GLOVES_PROFU';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_MAGO_GLOVES_PROFU');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_MAGO_GLOVES_PROFU'), i.id, v.n FROM (VALUES ('NUCLEO_BESTIA_PROFUNDIDADES', 1), ('TINTA_ABISAL', 1), ('COLMILLO_LEVIATAN_MENOR', 1), ('GEL_MEDUSA', 1)) AS v(code, n) JOIN items i ON i.code = v.code;
+-- Sandalias de las Profundidades
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'MAGO_BOOTS_PROFU', 'Sandalias de las Profundidades', 'EQUIPMENT', 'BOOTS', FALSE, 'LEGENDARIO', 2, 60, TRUE, 'CRAFT', 'Pieza del set de la Bestia de las Profundidades, forjada con el corazón de la Guardiana del Cuarto Sello. Huele a mar abierto.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'MAGO_BOOTS_PROFU');
+UPDATE items SET name = 'Sandalias de las Profundidades', item_type = 'EQUIPMENT', slot = 'BOOTS', is_two_handed = FALSE, rarity = 'LEGENDARIO', class_id = 2, required_level = 60, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Pieza del set de la Bestia de las Profundidades, forjada con el corazón de la Guardiana del Cuarto Sello. Huele a mar abierto.' WHERE code = 'MAGO_BOOTS_PROFU';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'MAGO_BOOTS_PROFU');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'MAGO_BOOTS_PROFU'), v.* FROM (VALUES ('SPD', 40, FALSE), ('HP', 10, FALSE), ('MAGIC_DEF', 18, FALSE), ('EVASION', 3, TRUE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station, scroll_item_id)
+SELECT 'RECIPE_MAGO_BOOTS_PROFU', (SELECT id FROM items WHERE code = 'MAGO_BOOTS_PROFU'), 1, 'LEGENDARIO', 60, 2, 55, 1, 'Brea, en el Astillero del Puerto Antiguo', 4, 'forja', (SELECT id FROM items WHERE code = 'SCROLL_BESTIA_MAGO') WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_MAGO_BOOTS_PROFU');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'MAGO_BOOTS_PROFU'), result_quantity = 1, rarity = 'LEGENDARIO', required_level = 60, required_class_id = 2, success_rate_percent = 55, craft_time_minutes = 1, artisan_name = 'Brea, en el Astillero del Puerto Antiguo', zone_id = 4, station = 'forja', scroll_item_id = (SELECT id FROM items WHERE code = 'SCROLL_BESTIA_MAGO') WHERE code = 'RECIPE_MAGO_BOOTS_PROFU';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_MAGO_BOOTS_PROFU');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_MAGO_BOOTS_PROFU'), i.id, v.n FROM (VALUES ('NUCLEO_BESTIA_PROFUNDIDADES', 1), ('TINTA_ABISAL', 1), ('COLMILLO_LEVIATAN_MENOR', 1), ('GEL_MEDUSA', 1)) AS v(code, n) JOIN items i ON i.code = v.code;
+-- Arco de las Profundidades
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'ARQUERO_WEAPON_PROFU', 'Arco de las Profundidades', 'EQUIPMENT', 'WEAPON', FALSE, 'LEGENDARIO', 3, 60, TRUE, 'CRAFT', 'Pieza del set de la Bestia de las Profundidades, forjada con el corazón de la Guardiana del Cuarto Sello. Huele a mar abierto.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'ARQUERO_WEAPON_PROFU');
+UPDATE items SET name = 'Arco de las Profundidades', item_type = 'EQUIPMENT', slot = 'WEAPON', is_two_handed = FALSE, rarity = 'LEGENDARIO', class_id = 3, required_level = 60, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Pieza del set de la Bestia de las Profundidades, forjada con el corazón de la Guardiana del Cuarto Sello. Huele a mar abierto.' WHERE code = 'ARQUERO_WEAPON_PROFU';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'ARQUERO_WEAPON_PROFU');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'ARQUERO_WEAPON_PROFU'), v.* FROM (VALUES ('ATK', 149, FALSE), ('CRIT_CHANCE', 8.3, TRUE), ('CRIT_DAMAGE', 13, TRUE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station, scroll_item_id)
+SELECT 'RECIPE_ARQUERO_WEAPON_PROFU', (SELECT id FROM items WHERE code = 'ARQUERO_WEAPON_PROFU'), 1, 'LEGENDARIO', 60, 3, 55, 1, 'Brea, en el Astillero del Puerto Antiguo', 4, 'forja', (SELECT id FROM items WHERE code = 'SCROLL_BESTIA_ARQUERO') WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_ARQUERO_WEAPON_PROFU');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'ARQUERO_WEAPON_PROFU'), result_quantity = 1, rarity = 'LEGENDARIO', required_level = 60, required_class_id = 3, success_rate_percent = 55, craft_time_minutes = 1, artisan_name = 'Brea, en el Astillero del Puerto Antiguo', zone_id = 4, station = 'forja', scroll_item_id = (SELECT id FROM items WHERE code = 'SCROLL_BESTIA_ARQUERO') WHERE code = 'RECIPE_ARQUERO_WEAPON_PROFU';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_ARQUERO_WEAPON_PROFU');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_ARQUERO_WEAPON_PROFU'), i.id, v.n FROM (VALUES ('NUCLEO_BESTIA_PROFUNDIDADES', 1), ('ANCLA_ALMIRANTE', 1), ('TINTA_ABISAL', 2), ('COLMILLO_LEVIATAN_MENOR', 1), ('CUERO_COCODRILO', 2)) AS v(code, n) JOIN items i ON i.code = v.code;
+-- Carcaj de las Profundidades
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'ARQUERO_OFFHAND_PROFU', 'Carcaj de las Profundidades', 'EQUIPMENT', 'OFFHAND', FALSE, 'LEGENDARIO', 3, 60, TRUE, 'CRAFT', 'Pieza del set de la Bestia de las Profundidades, forjada con el corazón de la Guardiana del Cuarto Sello. Huele a mar abierto.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'ARQUERO_OFFHAND_PROFU');
+UPDATE items SET name = 'Carcaj de las Profundidades', item_type = 'EQUIPMENT', slot = 'OFFHAND', is_two_handed = FALSE, rarity = 'LEGENDARIO', class_id = 3, required_level = 60, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Pieza del set de la Bestia de las Profundidades, forjada con el corazón de la Guardiana del Cuarto Sello. Huele a mar abierto.' WHERE code = 'ARQUERO_OFFHAND_PROFU';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'ARQUERO_OFFHAND_PROFU');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'ARQUERO_OFFHAND_PROFU'), v.* FROM (VALUES ('ATK', 40, FALSE), ('CRIT_DAMAGE', 13, TRUE), ('SPD', 49, FALSE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station, scroll_item_id)
+SELECT 'RECIPE_ARQUERO_OFFHAND_PROFU', (SELECT id FROM items WHERE code = 'ARQUERO_OFFHAND_PROFU'), 1, 'LEGENDARIO', 60, 3, 55, 1, 'Brea, en el Astillero del Puerto Antiguo', 4, 'forja', (SELECT id FROM items WHERE code = 'SCROLL_BESTIA_ARQUERO') WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_ARQUERO_OFFHAND_PROFU');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'ARQUERO_OFFHAND_PROFU'), result_quantity = 1, rarity = 'LEGENDARIO', required_level = 60, required_class_id = 3, success_rate_percent = 55, craft_time_minutes = 1, artisan_name = 'Brea, en el Astillero del Puerto Antiguo', zone_id = 4, station = 'forja', scroll_item_id = (SELECT id FROM items WHERE code = 'SCROLL_BESTIA_ARQUERO') WHERE code = 'RECIPE_ARQUERO_OFFHAND_PROFU';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_ARQUERO_OFFHAND_PROFU');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_ARQUERO_OFFHAND_PROFU'), i.id, v.n FROM (VALUES ('NUCLEO_BESTIA_PROFUNDIDADES', 1), ('TINTA_ABISAL', 1), ('COLMILLO_LEVIATAN_MENOR', 1), ('CUERO_COCODRILO', 1)) AS v(code, n) JOIN items i ON i.code = v.code;
+-- Capucha de las Profundidades
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'ARQUERO_HELMET_PROFU', 'Capucha de las Profundidades', 'EQUIPMENT', 'HELMET', FALSE, 'LEGENDARIO', 3, 60, TRUE, 'CRAFT', 'Pieza del set de la Bestia de las Profundidades, forjada con el corazón de la Guardiana del Cuarto Sello. Huele a mar abierto.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'ARQUERO_HELMET_PROFU');
+UPDATE items SET name = 'Capucha de las Profundidades', item_type = 'EQUIPMENT', slot = 'HELMET', is_two_handed = FALSE, rarity = 'LEGENDARIO', class_id = 3, required_level = 60, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Pieza del set de la Bestia de las Profundidades, forjada con el corazón de la Guardiana del Cuarto Sello. Huele a mar abierto.' WHERE code = 'ARQUERO_HELMET_PROFU';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'ARQUERO_HELMET_PROFU');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'ARQUERO_HELMET_PROFU'), v.* FROM (VALUES ('DEF', 27, FALSE), ('HP', 20, FALSE), ('MAGIC_DEF', 9, FALSE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station, scroll_item_id)
+SELECT 'RECIPE_ARQUERO_HELMET_PROFU', (SELECT id FROM items WHERE code = 'ARQUERO_HELMET_PROFU'), 1, 'LEGENDARIO', 60, 3, 55, 1, 'Brea, en el Astillero del Puerto Antiguo', 4, 'forja', (SELECT id FROM items WHERE code = 'SCROLL_BESTIA_ARQUERO') WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_ARQUERO_HELMET_PROFU');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'ARQUERO_HELMET_PROFU'), result_quantity = 1, rarity = 'LEGENDARIO', required_level = 60, required_class_id = 3, success_rate_percent = 55, craft_time_minutes = 1, artisan_name = 'Brea, en el Astillero del Puerto Antiguo', zone_id = 4, station = 'forja', scroll_item_id = (SELECT id FROM items WHERE code = 'SCROLL_BESTIA_ARQUERO') WHERE code = 'RECIPE_ARQUERO_HELMET_PROFU';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_ARQUERO_HELMET_PROFU');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_ARQUERO_HELMET_PROFU'), i.id, v.n FROM (VALUES ('NUCLEO_BESTIA_PROFUNDIDADES', 1), ('TINTA_ABISAL', 1), ('COLMILLO_LEVIATAN_MENOR', 1), ('CUERO_COCODRILO', 1)) AS v(code, n) JOIN items i ON i.code = v.code;
+-- Gabán de las Profundidades
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'ARQUERO_ARMOR_PROFU', 'Gabán de las Profundidades', 'EQUIPMENT', 'ARMOR', FALSE, 'LEGENDARIO', 3, 60, TRUE, 'CRAFT', 'Pieza del set de la Bestia de las Profundidades, forjada con el corazón de la Guardiana del Cuarto Sello. Huele a mar abierto.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'ARQUERO_ARMOR_PROFU');
+UPDATE items SET name = 'Gabán de las Profundidades', item_type = 'EQUIPMENT', slot = 'ARMOR', is_two_handed = FALSE, rarity = 'LEGENDARIO', class_id = 3, required_level = 60, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Pieza del set de la Bestia de las Profundidades, forjada con el corazón de la Guardiana del Cuarto Sello. Huele a mar abierto.' WHERE code = 'ARQUERO_ARMOR_PROFU';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'ARQUERO_ARMOR_PROFU');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'ARQUERO_ARMOR_PROFU'), v.* FROM (VALUES ('DEF', 54, FALSE), ('HP', 95, FALSE), ('MAGIC_DEF', 17, FALSE), ('EVASION', 3, TRUE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station, scroll_item_id)
+SELECT 'RECIPE_ARQUERO_ARMOR_PROFU', (SELECT id FROM items WHERE code = 'ARQUERO_ARMOR_PROFU'), 1, 'LEGENDARIO', 60, 3, 55, 1, 'Brea, en el Astillero del Puerto Antiguo', 4, 'forja', (SELECT id FROM items WHERE code = 'SCROLL_BESTIA_ARQUERO') WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_ARQUERO_ARMOR_PROFU');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'ARQUERO_ARMOR_PROFU'), result_quantity = 1, rarity = 'LEGENDARIO', required_level = 60, required_class_id = 3, success_rate_percent = 55, craft_time_minutes = 1, artisan_name = 'Brea, en el Astillero del Puerto Antiguo', zone_id = 4, station = 'forja', scroll_item_id = (SELECT id FROM items WHERE code = 'SCROLL_BESTIA_ARQUERO') WHERE code = 'RECIPE_ARQUERO_ARMOR_PROFU';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_ARQUERO_ARMOR_PROFU');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_ARQUERO_ARMOR_PROFU'), i.id, v.n FROM (VALUES ('NUCLEO_BESTIA_PROFUNDIDADES', 1), ('ANCLA_ALMIRANTE', 1), ('TINTA_ABISAL', 2), ('COLMILLO_LEVIATAN_MENOR', 1), ('CUERO_COCODRILO', 2)) AS v(code, n) JOIN items i ON i.code = v.code;
+-- Guantes de las Profundidades
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'ARQUERO_GLOVES_PROFU', 'Guantes de las Profundidades', 'EQUIPMENT', 'GLOVES', FALSE, 'LEGENDARIO', 3, 60, TRUE, 'CRAFT', 'Pieza del set de la Bestia de las Profundidades, forjada con el corazón de la Guardiana del Cuarto Sello. Huele a mar abierto.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'ARQUERO_GLOVES_PROFU');
+UPDATE items SET name = 'Guantes de las Profundidades', item_type = 'EQUIPMENT', slot = 'GLOVES', is_two_handed = FALSE, rarity = 'LEGENDARIO', class_id = 3, required_level = 60, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Pieza del set de la Bestia de las Profundidades, forjada con el corazón de la Guardiana del Cuarto Sello. Huele a mar abierto.' WHERE code = 'ARQUERO_GLOVES_PROFU';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'ARQUERO_GLOVES_PROFU');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'ARQUERO_GLOVES_PROFU'), v.* FROM (VALUES ('DEF', 27, FALSE), ('HP', 47, FALSE), ('MAGIC_DEF', 9, FALSE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station, scroll_item_id)
+SELECT 'RECIPE_ARQUERO_GLOVES_PROFU', (SELECT id FROM items WHERE code = 'ARQUERO_GLOVES_PROFU'), 1, 'LEGENDARIO', 60, 3, 55, 1, 'Brea, en el Astillero del Puerto Antiguo', 4, 'forja', (SELECT id FROM items WHERE code = 'SCROLL_BESTIA_ARQUERO') WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_ARQUERO_GLOVES_PROFU');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'ARQUERO_GLOVES_PROFU'), result_quantity = 1, rarity = 'LEGENDARIO', required_level = 60, required_class_id = 3, success_rate_percent = 55, craft_time_minutes = 1, artisan_name = 'Brea, en el Astillero del Puerto Antiguo', zone_id = 4, station = 'forja', scroll_item_id = (SELECT id FROM items WHERE code = 'SCROLL_BESTIA_ARQUERO') WHERE code = 'RECIPE_ARQUERO_GLOVES_PROFU';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_ARQUERO_GLOVES_PROFU');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_ARQUERO_GLOVES_PROFU'), i.id, v.n FROM (VALUES ('NUCLEO_BESTIA_PROFUNDIDADES', 1), ('TINTA_ABISAL', 1), ('COLMILLO_LEVIATAN_MENOR', 1), ('CUERO_COCODRILO', 1)) AS v(code, n) JOIN items i ON i.code = v.code;
+-- Botas de las Profundidades
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'ARQUERO_BOOTS_PROFU', 'Botas de las Profundidades', 'EQUIPMENT', 'BOOTS', FALSE, 'LEGENDARIO', 3, 60, TRUE, 'CRAFT', 'Pieza del set de la Bestia de las Profundidades, forjada con el corazón de la Guardiana del Cuarto Sello. Huele a mar abierto.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'ARQUERO_BOOTS_PROFU');
+UPDATE items SET name = 'Botas de las Profundidades', item_type = 'EQUIPMENT', slot = 'BOOTS', is_two_handed = FALSE, rarity = 'LEGENDARIO', class_id = 3, required_level = 60, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Pieza del set de la Bestia de las Profundidades, forjada con el corazón de la Guardiana del Cuarto Sello. Huele a mar abierto.' WHERE code = 'ARQUERO_BOOTS_PROFU';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'ARQUERO_BOOTS_PROFU');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'ARQUERO_BOOTS_PROFU'), v.* FROM (VALUES ('SPD', 40, FALSE), ('HP', 10, FALSE), ('DEF', 16, FALSE), ('EVASION', 3, TRUE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station, scroll_item_id)
+SELECT 'RECIPE_ARQUERO_BOOTS_PROFU', (SELECT id FROM items WHERE code = 'ARQUERO_BOOTS_PROFU'), 1, 'LEGENDARIO', 60, 3, 55, 1, 'Brea, en el Astillero del Puerto Antiguo', 4, 'forja', (SELECT id FROM items WHERE code = 'SCROLL_BESTIA_ARQUERO') WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_ARQUERO_BOOTS_PROFU');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'ARQUERO_BOOTS_PROFU'), result_quantity = 1, rarity = 'LEGENDARIO', required_level = 60, required_class_id = 3, success_rate_percent = 55, craft_time_minutes = 1, artisan_name = 'Brea, en el Astillero del Puerto Antiguo', zone_id = 4, station = 'forja', scroll_item_id = (SELECT id FROM items WHERE code = 'SCROLL_BESTIA_ARQUERO') WHERE code = 'RECIPE_ARQUERO_BOOTS_PROFU';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_ARQUERO_BOOTS_PROFU');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_ARQUERO_BOOTS_PROFU'), i.id, v.n FROM (VALUES ('NUCLEO_BESTIA_PROFUNDIDADES', 1), ('TINTA_ABISAL', 1), ('COLMILLO_LEVIATAN_MENOR', 1), ('CUERO_COCODRILO', 1)) AS v(code, n) JOIN items i ON i.code = v.code;
+-- Daga de las Profundidades
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'PICARO_WEAPON_PROFU', 'Daga de las Profundidades', 'EQUIPMENT', 'WEAPON', FALSE, 'LEGENDARIO', 4, 60, TRUE, 'CRAFT', 'Pieza del set de la Bestia de las Profundidades, forjada con el corazón de la Guardiana del Cuarto Sello. Huele a mar abierto.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'PICARO_WEAPON_PROFU');
+UPDATE items SET name = 'Daga de las Profundidades', item_type = 'EQUIPMENT', slot = 'WEAPON', is_two_handed = FALSE, rarity = 'LEGENDARIO', class_id = 4, required_level = 60, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Pieza del set de la Bestia de las Profundidades, forjada con el corazón de la Guardiana del Cuarto Sello. Huele a mar abierto.' WHERE code = 'PICARO_WEAPON_PROFU';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'PICARO_WEAPON_PROFU');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'PICARO_WEAPON_PROFU'), v.* FROM (VALUES ('ATK', 149, FALSE), ('CRIT_CHANCE', 8.3, TRUE), ('CRIT_DAMAGE', 13, TRUE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station, scroll_item_id)
+SELECT 'RECIPE_PICARO_WEAPON_PROFU', (SELECT id FROM items WHERE code = 'PICARO_WEAPON_PROFU'), 1, 'LEGENDARIO', 60, 4, 55, 1, 'Brea, en el Astillero del Puerto Antiguo', 4, 'forja', (SELECT id FROM items WHERE code = 'SCROLL_BESTIA_PICARO') WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_PICARO_WEAPON_PROFU');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'PICARO_WEAPON_PROFU'), result_quantity = 1, rarity = 'LEGENDARIO', required_level = 60, required_class_id = 4, success_rate_percent = 55, craft_time_minutes = 1, artisan_name = 'Brea, en el Astillero del Puerto Antiguo', zone_id = 4, station = 'forja', scroll_item_id = (SELECT id FROM items WHERE code = 'SCROLL_BESTIA_PICARO') WHERE code = 'RECIPE_PICARO_WEAPON_PROFU';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_PICARO_WEAPON_PROFU');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_PICARO_WEAPON_PROFU'), i.id, v.n FROM (VALUES ('NUCLEO_BESTIA_PROFUNDIDADES', 1), ('ANCLA_ALMIRANTE', 1), ('TINTA_ABISAL', 2), ('COLMILLO_LEVIATAN_MENOR', 1), ('DIENTE_DE_PIRANA', 2)) AS v(code, n) JOIN items i ON i.code = v.code;
+-- Daga Gemela de las Profundidades
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'PICARO_OFFHAND_PROFU', 'Daga Gemela de las Profundidades', 'EQUIPMENT', 'OFFHAND', FALSE, 'LEGENDARIO', 4, 60, TRUE, 'CRAFT', 'Pieza del set de la Bestia de las Profundidades, forjada con el corazón de la Guardiana del Cuarto Sello. Huele a mar abierto.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'PICARO_OFFHAND_PROFU');
+UPDATE items SET name = 'Daga Gemela de las Profundidades', item_type = 'EQUIPMENT', slot = 'OFFHAND', is_two_handed = FALSE, rarity = 'LEGENDARIO', class_id = 4, required_level = 60, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Pieza del set de la Bestia de las Profundidades, forjada con el corazón de la Guardiana del Cuarto Sello. Huele a mar abierto.' WHERE code = 'PICARO_OFFHAND_PROFU';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'PICARO_OFFHAND_PROFU');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'PICARO_OFFHAND_PROFU'), v.* FROM (VALUES ('ATK', 40, FALSE), ('CRIT_CHANCE', 5.5, TRUE), ('EVASION', 3, TRUE), ('SPD', 49, FALSE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station, scroll_item_id)
+SELECT 'RECIPE_PICARO_OFFHAND_PROFU', (SELECT id FROM items WHERE code = 'PICARO_OFFHAND_PROFU'), 1, 'LEGENDARIO', 60, 4, 55, 1, 'Brea, en el Astillero del Puerto Antiguo', 4, 'forja', (SELECT id FROM items WHERE code = 'SCROLL_BESTIA_PICARO') WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_PICARO_OFFHAND_PROFU');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'PICARO_OFFHAND_PROFU'), result_quantity = 1, rarity = 'LEGENDARIO', required_level = 60, required_class_id = 4, success_rate_percent = 55, craft_time_minutes = 1, artisan_name = 'Brea, en el Astillero del Puerto Antiguo', zone_id = 4, station = 'forja', scroll_item_id = (SELECT id FROM items WHERE code = 'SCROLL_BESTIA_PICARO') WHERE code = 'RECIPE_PICARO_OFFHAND_PROFU';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_PICARO_OFFHAND_PROFU');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_PICARO_OFFHAND_PROFU'), i.id, v.n FROM (VALUES ('NUCLEO_BESTIA_PROFUNDIDADES', 1), ('TINTA_ABISAL', 1), ('COLMILLO_LEVIATAN_MENOR', 1), ('DIENTE_DE_PIRANA', 1)) AS v(code, n) JOIN items i ON i.code = v.code;
+-- Máscara de las Profundidades
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'PICARO_HELMET_PROFU', 'Máscara de las Profundidades', 'EQUIPMENT', 'HELMET', FALSE, 'LEGENDARIO', 4, 60, TRUE, 'CRAFT', 'Pieza del set de la Bestia de las Profundidades, forjada con el corazón de la Guardiana del Cuarto Sello. Huele a mar abierto.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'PICARO_HELMET_PROFU');
+UPDATE items SET name = 'Máscara de las Profundidades', item_type = 'EQUIPMENT', slot = 'HELMET', is_two_handed = FALSE, rarity = 'LEGENDARIO', class_id = 4, required_level = 60, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Pieza del set de la Bestia de las Profundidades, forjada con el corazón de la Guardiana del Cuarto Sello. Huele a mar abierto.' WHERE code = 'PICARO_HELMET_PROFU';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'PICARO_HELMET_PROFU');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'PICARO_HELMET_PROFU'), v.* FROM (VALUES ('DEF', 27, FALSE), ('HP', 23, FALSE), ('MAGIC_DEF', 9, FALSE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station, scroll_item_id)
+SELECT 'RECIPE_PICARO_HELMET_PROFU', (SELECT id FROM items WHERE code = 'PICARO_HELMET_PROFU'), 1, 'LEGENDARIO', 60, 4, 55, 1, 'Brea, en el Astillero del Puerto Antiguo', 4, 'forja', (SELECT id FROM items WHERE code = 'SCROLL_BESTIA_PICARO') WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_PICARO_HELMET_PROFU');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'PICARO_HELMET_PROFU'), result_quantity = 1, rarity = 'LEGENDARIO', required_level = 60, required_class_id = 4, success_rate_percent = 55, craft_time_minutes = 1, artisan_name = 'Brea, en el Astillero del Puerto Antiguo', zone_id = 4, station = 'forja', scroll_item_id = (SELECT id FROM items WHERE code = 'SCROLL_BESTIA_PICARO') WHERE code = 'RECIPE_PICARO_HELMET_PROFU';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_PICARO_HELMET_PROFU');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_PICARO_HELMET_PROFU'), i.id, v.n FROM (VALUES ('NUCLEO_BESTIA_PROFUNDIDADES', 1), ('TINTA_ABISAL', 1), ('COLMILLO_LEVIATAN_MENOR', 1), ('DIENTE_DE_PIRANA', 1)) AS v(code, n) JOIN items i ON i.code = v.code;
+-- Cuero de las Profundidades
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'PICARO_ARMOR_PROFU', 'Cuero de las Profundidades', 'EQUIPMENT', 'ARMOR', FALSE, 'LEGENDARIO', 4, 60, TRUE, 'CRAFT', 'Pieza del set de la Bestia de las Profundidades, forjada con el corazón de la Guardiana del Cuarto Sello. Huele a mar abierto.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'PICARO_ARMOR_PROFU');
+UPDATE items SET name = 'Cuero de las Profundidades', item_type = 'EQUIPMENT', slot = 'ARMOR', is_two_handed = FALSE, rarity = 'LEGENDARIO', class_id = 4, required_level = 60, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Pieza del set de la Bestia de las Profundidades, forjada con el corazón de la Guardiana del Cuarto Sello. Huele a mar abierto.' WHERE code = 'PICARO_ARMOR_PROFU';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'PICARO_ARMOR_PROFU');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'PICARO_ARMOR_PROFU'), v.* FROM (VALUES ('DEF', 54, FALSE), ('HP', 103, FALSE), ('MAGIC_DEF', 16, FALSE), ('EVASION', 3, TRUE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station, scroll_item_id)
+SELECT 'RECIPE_PICARO_ARMOR_PROFU', (SELECT id FROM items WHERE code = 'PICARO_ARMOR_PROFU'), 1, 'LEGENDARIO', 60, 4, 55, 1, 'Brea, en el Astillero del Puerto Antiguo', 4, 'forja', (SELECT id FROM items WHERE code = 'SCROLL_BESTIA_PICARO') WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_PICARO_ARMOR_PROFU');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'PICARO_ARMOR_PROFU'), result_quantity = 1, rarity = 'LEGENDARIO', required_level = 60, required_class_id = 4, success_rate_percent = 55, craft_time_minutes = 1, artisan_name = 'Brea, en el Astillero del Puerto Antiguo', zone_id = 4, station = 'forja', scroll_item_id = (SELECT id FROM items WHERE code = 'SCROLL_BESTIA_PICARO') WHERE code = 'RECIPE_PICARO_ARMOR_PROFU';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_PICARO_ARMOR_PROFU');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_PICARO_ARMOR_PROFU'), i.id, v.n FROM (VALUES ('NUCLEO_BESTIA_PROFUNDIDADES', 1), ('ANCLA_ALMIRANTE', 1), ('TINTA_ABISAL', 2), ('COLMILLO_LEVIATAN_MENOR', 1), ('DIENTE_DE_PIRANA', 2)) AS v(code, n) JOIN items i ON i.code = v.code;
+-- Guantes de las Profundidades
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'PICARO_GLOVES_PROFU', 'Guantes de las Profundidades', 'EQUIPMENT', 'GLOVES', FALSE, 'LEGENDARIO', 4, 60, TRUE, 'CRAFT', 'Pieza del set de la Bestia de las Profundidades, forjada con el corazón de la Guardiana del Cuarto Sello. Huele a mar abierto.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'PICARO_GLOVES_PROFU');
+UPDATE items SET name = 'Guantes de las Profundidades', item_type = 'EQUIPMENT', slot = 'GLOVES', is_two_handed = FALSE, rarity = 'LEGENDARIO', class_id = 4, required_level = 60, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Pieza del set de la Bestia de las Profundidades, forjada con el corazón de la Guardiana del Cuarto Sello. Huele a mar abierto.' WHERE code = 'PICARO_GLOVES_PROFU';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'PICARO_GLOVES_PROFU');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'PICARO_GLOVES_PROFU'), v.* FROM (VALUES ('DEF', 27, FALSE), ('HP', 52, FALSE), ('MAGIC_DEF', 8, FALSE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station, scroll_item_id)
+SELECT 'RECIPE_PICARO_GLOVES_PROFU', (SELECT id FROM items WHERE code = 'PICARO_GLOVES_PROFU'), 1, 'LEGENDARIO', 60, 4, 55, 1, 'Brea, en el Astillero del Puerto Antiguo', 4, 'forja', (SELECT id FROM items WHERE code = 'SCROLL_BESTIA_PICARO') WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_PICARO_GLOVES_PROFU');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'PICARO_GLOVES_PROFU'), result_quantity = 1, rarity = 'LEGENDARIO', required_level = 60, required_class_id = 4, success_rate_percent = 55, craft_time_minutes = 1, artisan_name = 'Brea, en el Astillero del Puerto Antiguo', zone_id = 4, station = 'forja', scroll_item_id = (SELECT id FROM items WHERE code = 'SCROLL_BESTIA_PICARO') WHERE code = 'RECIPE_PICARO_GLOVES_PROFU';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_PICARO_GLOVES_PROFU');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_PICARO_GLOVES_PROFU'), i.id, v.n FROM (VALUES ('NUCLEO_BESTIA_PROFUNDIDADES', 1), ('TINTA_ABISAL', 1), ('COLMILLO_LEVIATAN_MENOR', 1), ('DIENTE_DE_PIRANA', 1)) AS v(code, n) JOIN items i ON i.code = v.code;
+-- Botas de las Profundidades
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'PICARO_BOOTS_PROFU', 'Botas de las Profundidades', 'EQUIPMENT', 'BOOTS', FALSE, 'LEGENDARIO', 4, 60, TRUE, 'CRAFT', 'Pieza del set de la Bestia de las Profundidades, forjada con el corazón de la Guardiana del Cuarto Sello. Huele a mar abierto.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'PICARO_BOOTS_PROFU');
+UPDATE items SET name = 'Botas de las Profundidades', item_type = 'EQUIPMENT', slot = 'BOOTS', is_two_handed = FALSE, rarity = 'LEGENDARIO', class_id = 4, required_level = 60, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Pieza del set de la Bestia de las Profundidades, forjada con el corazón de la Guardiana del Cuarto Sello. Huele a mar abierto.' WHERE code = 'PICARO_BOOTS_PROFU';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'PICARO_BOOTS_PROFU');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'PICARO_BOOTS_PROFU'), v.* FROM (VALUES ('SPD', 40, FALSE), ('HP', 10, FALSE), ('DEF', 16, FALSE), ('EVASION', 3, TRUE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station, scroll_item_id)
+SELECT 'RECIPE_PICARO_BOOTS_PROFU', (SELECT id FROM items WHERE code = 'PICARO_BOOTS_PROFU'), 1, 'LEGENDARIO', 60, 4, 55, 1, 'Brea, en el Astillero del Puerto Antiguo', 4, 'forja', (SELECT id FROM items WHERE code = 'SCROLL_BESTIA_PICARO') WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_PICARO_BOOTS_PROFU');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'PICARO_BOOTS_PROFU'), result_quantity = 1, rarity = 'LEGENDARIO', required_level = 60, required_class_id = 4, success_rate_percent = 55, craft_time_minutes = 1, artisan_name = 'Brea, en el Astillero del Puerto Antiguo', zone_id = 4, station = 'forja', scroll_item_id = (SELECT id FROM items WHERE code = 'SCROLL_BESTIA_PICARO') WHERE code = 'RECIPE_PICARO_BOOTS_PROFU';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_PICARO_BOOTS_PROFU');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_PICARO_BOOTS_PROFU'), i.id, v.n FROM (VALUES ('NUCLEO_BESTIA_PROFUNDIDADES', 1), ('TINTA_ABISAL', 1), ('COLMILLO_LEVIATAN_MENOR', 1), ('DIENTE_DE_PIRANA', 1)) AS v(code, n) JOIN items i ON i.code = v.code;
+-- Báculo de las Profundidades
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'SACERDOTE_WEAPON_PROFU', 'Báculo de las Profundidades', 'EQUIPMENT', 'WEAPON', FALSE, 'LEGENDARIO', 5, 60, TRUE, 'CRAFT', 'Pieza del set de la Bestia de las Profundidades, forjada con el corazón de la Guardiana del Cuarto Sello. Huele a mar abierto.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'SACERDOTE_WEAPON_PROFU');
+UPDATE items SET name = 'Báculo de las Profundidades', item_type = 'EQUIPMENT', slot = 'WEAPON', is_two_handed = FALSE, rarity = 'LEGENDARIO', class_id = 5, required_level = 60, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Pieza del set de la Bestia de las Profundidades, forjada con el corazón de la Guardiana del Cuarto Sello. Huele a mar abierto.' WHERE code = 'SACERDOTE_WEAPON_PROFU';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'SACERDOTE_WEAPON_PROFU');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'SACERDOTE_WEAPON_PROFU'), v.* FROM (VALUES ('MAG', 149, FALSE), ('CRIT_CHANCE', 8.3, TRUE), ('CRIT_DAMAGE', 13, TRUE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station, scroll_item_id)
+SELECT 'RECIPE_SACERDOTE_WEAPON_PROFU', (SELECT id FROM items WHERE code = 'SACERDOTE_WEAPON_PROFU'), 1, 'LEGENDARIO', 60, 5, 55, 1, 'Brea, en el Astillero del Puerto Antiguo', 4, 'forja', (SELECT id FROM items WHERE code = 'SCROLL_BESTIA_SACERDOTE') WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_SACERDOTE_WEAPON_PROFU');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'SACERDOTE_WEAPON_PROFU'), result_quantity = 1, rarity = 'LEGENDARIO', required_level = 60, required_class_id = 5, success_rate_percent = 55, craft_time_minutes = 1, artisan_name = 'Brea, en el Astillero del Puerto Antiguo', zone_id = 4, station = 'forja', scroll_item_id = (SELECT id FROM items WHERE code = 'SCROLL_BESTIA_SACERDOTE') WHERE code = 'RECIPE_SACERDOTE_WEAPON_PROFU';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_SACERDOTE_WEAPON_PROFU');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_SACERDOTE_WEAPON_PROFU'), i.id, v.n FROM (VALUES ('NUCLEO_BESTIA_PROFUNDIDADES', 1), ('ANCLA_ALMIRANTE', 1), ('TINTA_ABISAL', 2), ('COLMILLO_LEVIATAN_MENOR', 1), ('ESCAMA_SIRENA_CORRUPTA', 2)) AS v(code, n) JOIN items i ON i.code = v.code;
+-- Símbolo de las Profundidades
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'SACERDOTE_OFFHAND_PROFU', 'Símbolo de las Profundidades', 'EQUIPMENT', 'OFFHAND', FALSE, 'LEGENDARIO', 5, 60, TRUE, 'CRAFT', 'Pieza del set de la Bestia de las Profundidades, forjada con el corazón de la Guardiana del Cuarto Sello. Huele a mar abierto.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'SACERDOTE_OFFHAND_PROFU');
+UPDATE items SET name = 'Símbolo de las Profundidades', item_type = 'EQUIPMENT', slot = 'OFFHAND', is_two_handed = FALSE, rarity = 'LEGENDARIO', class_id = 5, required_level = 60, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Pieza del set de la Bestia de las Profundidades, forjada con el corazón de la Guardiana del Cuarto Sello. Huele a mar abierto.' WHERE code = 'SACERDOTE_OFFHAND_PROFU';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'SACERDOTE_OFFHAND_PROFU');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'SACERDOTE_OFFHAND_PROFU'), v.* FROM (VALUES ('HP', 43, FALSE), ('MAGIC_DEF', 33, FALSE), ('HEALING', 5.5, TRUE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station, scroll_item_id)
+SELECT 'RECIPE_SACERDOTE_OFFHAND_PROFU', (SELECT id FROM items WHERE code = 'SACERDOTE_OFFHAND_PROFU'), 1, 'LEGENDARIO', 60, 5, 55, 1, 'Brea, en el Astillero del Puerto Antiguo', 4, 'forja', (SELECT id FROM items WHERE code = 'SCROLL_BESTIA_SACERDOTE') WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_SACERDOTE_OFFHAND_PROFU');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'SACERDOTE_OFFHAND_PROFU'), result_quantity = 1, rarity = 'LEGENDARIO', required_level = 60, required_class_id = 5, success_rate_percent = 55, craft_time_minutes = 1, artisan_name = 'Brea, en el Astillero del Puerto Antiguo', zone_id = 4, station = 'forja', scroll_item_id = (SELECT id FROM items WHERE code = 'SCROLL_BESTIA_SACERDOTE') WHERE code = 'RECIPE_SACERDOTE_OFFHAND_PROFU';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_SACERDOTE_OFFHAND_PROFU');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_SACERDOTE_OFFHAND_PROFU'), i.id, v.n FROM (VALUES ('NUCLEO_BESTIA_PROFUNDIDADES', 1), ('TINTA_ABISAL', 1), ('COLMILLO_LEVIATAN_MENOR', 1), ('ESCAMA_SIRENA_CORRUPTA', 1)) AS v(code, n) JOIN items i ON i.code = v.code;
+-- Diadema de las Profundidades
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'SACERDOTE_HELMET_PROFU', 'Diadema de las Profundidades', 'EQUIPMENT', 'HELMET', FALSE, 'LEGENDARIO', 5, 60, TRUE, 'CRAFT', 'Pieza del set de la Bestia de las Profundidades, forjada con el corazón de la Guardiana del Cuarto Sello. Huele a mar abierto.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'SACERDOTE_HELMET_PROFU');
+UPDATE items SET name = 'Diadema de las Profundidades', item_type = 'EQUIPMENT', slot = 'HELMET', is_two_handed = FALSE, rarity = 'LEGENDARIO', class_id = 5, required_level = 60, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Pieza del set de la Bestia de las Profundidades, forjada con el corazón de la Guardiana del Cuarto Sello. Huele a mar abierto.' WHERE code = 'SACERDOTE_HELMET_PROFU';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'SACERDOTE_HELMET_PROFU');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'SACERDOTE_HELMET_PROFU'), v.* FROM (VALUES ('DEF', 8, FALSE), ('HP', 23, FALSE), ('MAGIC_DEF', 27, FALSE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station, scroll_item_id)
+SELECT 'RECIPE_SACERDOTE_HELMET_PROFU', (SELECT id FROM items WHERE code = 'SACERDOTE_HELMET_PROFU'), 1, 'LEGENDARIO', 60, 5, 55, 1, 'Brea, en el Astillero del Puerto Antiguo', 4, 'forja', (SELECT id FROM items WHERE code = 'SCROLL_BESTIA_SACERDOTE') WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_SACERDOTE_HELMET_PROFU');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'SACERDOTE_HELMET_PROFU'), result_quantity = 1, rarity = 'LEGENDARIO', required_level = 60, required_class_id = 5, success_rate_percent = 55, craft_time_minutes = 1, artisan_name = 'Brea, en el Astillero del Puerto Antiguo', zone_id = 4, station = 'forja', scroll_item_id = (SELECT id FROM items WHERE code = 'SCROLL_BESTIA_SACERDOTE') WHERE code = 'RECIPE_SACERDOTE_HELMET_PROFU';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_SACERDOTE_HELMET_PROFU');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_SACERDOTE_HELMET_PROFU'), i.id, v.n FROM (VALUES ('NUCLEO_BESTIA_PROFUNDIDADES', 1), ('TINTA_ABISAL', 1), ('COLMILLO_LEVIATAN_MENOR', 1), ('ESCAMA_SIRENA_CORRUPTA', 1)) AS v(code, n) JOIN items i ON i.code = v.code;
+-- Vestidura de las Profundidades
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'SACERDOTE_ARMOR_PROFU', 'Vestidura de las Profundidades', 'EQUIPMENT', 'ARMOR', FALSE, 'LEGENDARIO', 5, 60, TRUE, 'CRAFT', 'Pieza del set de la Bestia de las Profundidades, forjada con el corazón de la Guardiana del Cuarto Sello. Huele a mar abierto.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'SACERDOTE_ARMOR_PROFU');
+UPDATE items SET name = 'Vestidura de las Profundidades', item_type = 'EQUIPMENT', slot = 'ARMOR', is_two_handed = FALSE, rarity = 'LEGENDARIO', class_id = 5, required_level = 60, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Pieza del set de la Bestia de las Profundidades, forjada con el corazón de la Guardiana del Cuarto Sello. Huele a mar abierto.' WHERE code = 'SACERDOTE_ARMOR_PROFU';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'SACERDOTE_ARMOR_PROFU');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'SACERDOTE_ARMOR_PROFU'), v.* FROM (VALUES ('DEF', 17, FALSE), ('HP', 86, FALSE), ('MAGIC_DEF', 54, FALSE), ('HEALING', 9, TRUE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station, scroll_item_id)
+SELECT 'RECIPE_SACERDOTE_ARMOR_PROFU', (SELECT id FROM items WHERE code = 'SACERDOTE_ARMOR_PROFU'), 1, 'LEGENDARIO', 60, 5, 55, 1, 'Brea, en el Astillero del Puerto Antiguo', 4, 'forja', (SELECT id FROM items WHERE code = 'SCROLL_BESTIA_SACERDOTE') WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_SACERDOTE_ARMOR_PROFU');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'SACERDOTE_ARMOR_PROFU'), result_quantity = 1, rarity = 'LEGENDARIO', required_level = 60, required_class_id = 5, success_rate_percent = 55, craft_time_minutes = 1, artisan_name = 'Brea, en el Astillero del Puerto Antiguo', zone_id = 4, station = 'forja', scroll_item_id = (SELECT id FROM items WHERE code = 'SCROLL_BESTIA_SACERDOTE') WHERE code = 'RECIPE_SACERDOTE_ARMOR_PROFU';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_SACERDOTE_ARMOR_PROFU');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_SACERDOTE_ARMOR_PROFU'), i.id, v.n FROM (VALUES ('NUCLEO_BESTIA_PROFUNDIDADES', 1), ('ANCLA_ALMIRANTE', 1), ('TINTA_ABISAL', 2), ('COLMILLO_LEVIATAN_MENOR', 1), ('ESCAMA_SIRENA_CORRUPTA', 2)) AS v(code, n) JOIN items i ON i.code = v.code;
+-- Guantes de las Profundidades
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'SACERDOTE_GLOVES_PROFU', 'Guantes de las Profundidades', 'EQUIPMENT', 'GLOVES', FALSE, 'LEGENDARIO', 5, 60, TRUE, 'CRAFT', 'Pieza del set de la Bestia de las Profundidades, forjada con el corazón de la Guardiana del Cuarto Sello. Huele a mar abierto.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'SACERDOTE_GLOVES_PROFU');
+UPDATE items SET name = 'Guantes de las Profundidades', item_type = 'EQUIPMENT', slot = 'GLOVES', is_two_handed = FALSE, rarity = 'LEGENDARIO', class_id = 5, required_level = 60, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Pieza del set de la Bestia de las Profundidades, forjada con el corazón de la Guardiana del Cuarto Sello. Huele a mar abierto.' WHERE code = 'SACERDOTE_GLOVES_PROFU';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'SACERDOTE_GLOVES_PROFU');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'SACERDOTE_GLOVES_PROFU'), v.* FROM (VALUES ('DEF', 9, FALSE), ('HP', 44, FALSE), ('MAGIC_DEF', 27, FALSE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station, scroll_item_id)
+SELECT 'RECIPE_SACERDOTE_GLOVES_PROFU', (SELECT id FROM items WHERE code = 'SACERDOTE_GLOVES_PROFU'), 1, 'LEGENDARIO', 60, 5, 55, 1, 'Brea, en el Astillero del Puerto Antiguo', 4, 'forja', (SELECT id FROM items WHERE code = 'SCROLL_BESTIA_SACERDOTE') WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_SACERDOTE_GLOVES_PROFU');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'SACERDOTE_GLOVES_PROFU'), result_quantity = 1, rarity = 'LEGENDARIO', required_level = 60, required_class_id = 5, success_rate_percent = 55, craft_time_minutes = 1, artisan_name = 'Brea, en el Astillero del Puerto Antiguo', zone_id = 4, station = 'forja', scroll_item_id = (SELECT id FROM items WHERE code = 'SCROLL_BESTIA_SACERDOTE') WHERE code = 'RECIPE_SACERDOTE_GLOVES_PROFU';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_SACERDOTE_GLOVES_PROFU');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_SACERDOTE_GLOVES_PROFU'), i.id, v.n FROM (VALUES ('NUCLEO_BESTIA_PROFUNDIDADES', 1), ('TINTA_ABISAL', 1), ('COLMILLO_LEVIATAN_MENOR', 1), ('ESCAMA_SIRENA_CORRUPTA', 1)) AS v(code, n) JOIN items i ON i.code = v.code;
+-- Sandalias de las Profundidades
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'SACERDOTE_BOOTS_PROFU', 'Sandalias de las Profundidades', 'EQUIPMENT', 'BOOTS', FALSE, 'LEGENDARIO', 5, 60, TRUE, 'CRAFT', 'Pieza del set de la Bestia de las Profundidades, forjada con el corazón de la Guardiana del Cuarto Sello. Huele a mar abierto.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'SACERDOTE_BOOTS_PROFU');
+UPDATE items SET name = 'Sandalias de las Profundidades', item_type = 'EQUIPMENT', slot = 'BOOTS', is_two_handed = FALSE, rarity = 'LEGENDARIO', class_id = 5, required_level = 60, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Pieza del set de la Bestia de las Profundidades, forjada con el corazón de la Guardiana del Cuarto Sello. Huele a mar abierto.' WHERE code = 'SACERDOTE_BOOTS_PROFU';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'SACERDOTE_BOOTS_PROFU');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'SACERDOTE_BOOTS_PROFU'), v.* FROM (VALUES ('SPD', 40, FALSE), ('HP', 10, FALSE), ('MAGIC_DEF', 13, FALSE), ('EVASION', 3, TRUE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station, scroll_item_id)
+SELECT 'RECIPE_SACERDOTE_BOOTS_PROFU', (SELECT id FROM items WHERE code = 'SACERDOTE_BOOTS_PROFU'), 1, 'LEGENDARIO', 60, 5, 55, 1, 'Brea, en el Astillero del Puerto Antiguo', 4, 'forja', (SELECT id FROM items WHERE code = 'SCROLL_BESTIA_SACERDOTE') WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_SACERDOTE_BOOTS_PROFU');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'SACERDOTE_BOOTS_PROFU'), result_quantity = 1, rarity = 'LEGENDARIO', required_level = 60, required_class_id = 5, success_rate_percent = 55, craft_time_minutes = 1, artisan_name = 'Brea, en el Astillero del Puerto Antiguo', zone_id = 4, station = 'forja', scroll_item_id = (SELECT id FROM items WHERE code = 'SCROLL_BESTIA_SACERDOTE') WHERE code = 'RECIPE_SACERDOTE_BOOTS_PROFU';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_SACERDOTE_BOOTS_PROFU');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_SACERDOTE_BOOTS_PROFU'), i.id, v.n FROM (VALUES ('NUCLEO_BESTIA_PROFUNDIDADES', 1), ('TINTA_ABISAL', 1), ('COLMILLO_LEVIATAN_MENOR', 1), ('ESCAMA_SIRENA_CORRUPTA', 1)) AS v(code, n) JOIN items i ON i.code = v.code;
+
+-- ---------------------------------------------------------------- armas del Abismo (nv 52, LEGENDARIO)
+-- Espada del Abismo
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'GUERRERO_WEAPON_ABISMO', 'Espada del Abismo', 'EQUIPMENT', 'WEAPON', FALSE, 'LEGENDARIO', 1, 52, TRUE, 'CRAFT', 'Forjada con una Perla del Abismo, la que el Señor del Océano guardaba en su corona. Se siente fría y pesada, como el fondo del mar.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'GUERRERO_WEAPON_ABISMO');
+UPDATE items SET name = 'Espada del Abismo', item_type = 'EQUIPMENT', slot = 'WEAPON', is_two_handed = FALSE, rarity = 'LEGENDARIO', class_id = 1, required_level = 52, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Forjada con una Perla del Abismo, la que el Señor del Océano guardaba en su corona. Se siente fría y pesada, como el fondo del mar.' WHERE code = 'GUERRERO_WEAPON_ABISMO';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'GUERRERO_WEAPON_ABISMO');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'GUERRERO_WEAPON_ABISMO'), v.* FROM (VALUES ('ATK', 132, FALSE), ('CRIT_CHANCE', 8.3, TRUE), ('CRIT_DAMAGE', 13, TRUE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station, scroll_item_id)
+SELECT 'RECIPE_GUERRERO_WEAPON_ABISMO', (SELECT id FROM items WHERE code = 'GUERRERO_WEAPON_ABISMO'), 1, 'LEGENDARIO', 52, 1, 75, 1, 'Brea, en el Astillero del Puerto Antiguo', 4, 'forja', NULL WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_GUERRERO_WEAPON_ABISMO');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'GUERRERO_WEAPON_ABISMO'), result_quantity = 1, rarity = 'LEGENDARIO', required_level = 52, required_class_id = 1, success_rate_percent = 75, craft_time_minutes = 1, artisan_name = 'Brea, en el Astillero del Puerto Antiguo', zone_id = 4, station = 'forja', scroll_item_id = NULL WHERE code = 'RECIPE_GUERRERO_WEAPON_ABISMO';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_GUERRERO_WEAPON_ABISMO');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_GUERRERO_WEAPON_ABISMO'), i.id, v.n FROM (VALUES ('PERLA_DEL_ABISMO', 1), ('ARENA_ABISAL', 6), ('CORAL_ROJO', 3), ('FRAGMENTO_CORAL', 2)) AS v(code, n) JOIN items i ON i.code = v.code;
+-- Gran Espada del Abismo
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'GUERRERO_WEAPON2H_ABISMO', 'Gran Espada del Abismo', 'EQUIPMENT', 'WEAPON', TRUE, 'LEGENDARIO', 1, 52, TRUE, 'CRAFT', 'Forjada con una Perla del Abismo, la que el Señor del Océano guardaba en su corona. Se siente fría y pesada, como el fondo del mar.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'GUERRERO_WEAPON2H_ABISMO');
+UPDATE items SET name = 'Gran Espada del Abismo', item_type = 'EQUIPMENT', slot = 'WEAPON', is_two_handed = TRUE, rarity = 'LEGENDARIO', class_id = 1, required_level = 52, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Forjada con una Perla del Abismo, la que el Señor del Océano guardaba en su corona. Se siente fría y pesada, como el fondo del mar.' WHERE code = 'GUERRERO_WEAPON2H_ABISMO';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'GUERRERO_WEAPON2H_ABISMO');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'GUERRERO_WEAPON2H_ABISMO'), v.* FROM (VALUES ('ATK', 198, FALSE), ('CRIT_CHANCE', 8.3, TRUE), ('CRIT_DAMAGE', 13, TRUE), ('DEF', -38, FALSE), ('SPD', -28, FALSE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station, scroll_item_id)
+SELECT 'RECIPE_GUERRERO_WEAPON2H_ABISMO', (SELECT id FROM items WHERE code = 'GUERRERO_WEAPON2H_ABISMO'), 1, 'LEGENDARIO', 52, 1, 75, 1, 'Brea, en el Astillero del Puerto Antiguo', 4, 'forja', NULL WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_GUERRERO_WEAPON2H_ABISMO');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'GUERRERO_WEAPON2H_ABISMO'), result_quantity = 1, rarity = 'LEGENDARIO', required_level = 52, required_class_id = 1, success_rate_percent = 75, craft_time_minutes = 1, artisan_name = 'Brea, en el Astillero del Puerto Antiguo', zone_id = 4, station = 'forja', scroll_item_id = NULL WHERE code = 'RECIPE_GUERRERO_WEAPON2H_ABISMO';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_GUERRERO_WEAPON2H_ABISMO');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_GUERRERO_WEAPON2H_ABISMO'), i.id, v.n FROM (VALUES ('PERLA_DEL_ABISMO', 1), ('ARENA_ABISAL', 6), ('CORAL_ROJO', 3), ('FRAGMENTO_CORAL', 2)) AS v(code, n) JOIN items i ON i.code = v.code;
+-- Báculo del Abismo
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'MAGO_WEAPON_ABISMO', 'Báculo del Abismo', 'EQUIPMENT', 'WEAPON', FALSE, 'LEGENDARIO', 2, 52, TRUE, 'CRAFT', 'Forjada con una Perla del Abismo, la que el Señor del Océano guardaba en su corona. Se siente fría y pesada, como el fondo del mar.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'MAGO_WEAPON_ABISMO');
+UPDATE items SET name = 'Báculo del Abismo', item_type = 'EQUIPMENT', slot = 'WEAPON', is_two_handed = FALSE, rarity = 'LEGENDARIO', class_id = 2, required_level = 52, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Forjada con una Perla del Abismo, la que el Señor del Océano guardaba en su corona. Se siente fría y pesada, como el fondo del mar.' WHERE code = 'MAGO_WEAPON_ABISMO';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'MAGO_WEAPON_ABISMO');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'MAGO_WEAPON_ABISMO'), v.* FROM (VALUES ('MAG', 132, FALSE), ('CRIT_CHANCE', 8.3, TRUE), ('CRIT_DAMAGE', 13, TRUE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station, scroll_item_id)
+SELECT 'RECIPE_MAGO_WEAPON_ABISMO', (SELECT id FROM items WHERE code = 'MAGO_WEAPON_ABISMO'), 1, 'LEGENDARIO', 52, 2, 75, 1, 'Brea, en el Astillero del Puerto Antiguo', 4, 'forja', NULL WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_MAGO_WEAPON_ABISMO');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'MAGO_WEAPON_ABISMO'), result_quantity = 1, rarity = 'LEGENDARIO', required_level = 52, required_class_id = 2, success_rate_percent = 75, craft_time_minutes = 1, artisan_name = 'Brea, en el Astillero del Puerto Antiguo', zone_id = 4, station = 'forja', scroll_item_id = NULL WHERE code = 'RECIPE_MAGO_WEAPON_ABISMO';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_MAGO_WEAPON_ABISMO');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_MAGO_WEAPON_ABISMO'), i.id, v.n FROM (VALUES ('PERLA_DEL_ABISMO', 1), ('ARENA_ABISAL', 6), ('CORAL_ROJO', 3), ('GEL_MEDUSA', 2)) AS v(code, n) JOIN items i ON i.code = v.code;
+-- Arco del Abismo
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'ARQUERO_WEAPON_ABISMO', 'Arco del Abismo', 'EQUIPMENT', 'WEAPON', FALSE, 'LEGENDARIO', 3, 52, TRUE, 'CRAFT', 'Forjada con una Perla del Abismo, la que el Señor del Océano guardaba en su corona. Se siente fría y pesada, como el fondo del mar.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'ARQUERO_WEAPON_ABISMO');
+UPDATE items SET name = 'Arco del Abismo', item_type = 'EQUIPMENT', slot = 'WEAPON', is_two_handed = FALSE, rarity = 'LEGENDARIO', class_id = 3, required_level = 52, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Forjada con una Perla del Abismo, la que el Señor del Océano guardaba en su corona. Se siente fría y pesada, como el fondo del mar.' WHERE code = 'ARQUERO_WEAPON_ABISMO';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'ARQUERO_WEAPON_ABISMO');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'ARQUERO_WEAPON_ABISMO'), v.* FROM (VALUES ('ATK', 132, FALSE), ('CRIT_CHANCE', 8.3, TRUE), ('CRIT_DAMAGE', 13, TRUE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station, scroll_item_id)
+SELECT 'RECIPE_ARQUERO_WEAPON_ABISMO', (SELECT id FROM items WHERE code = 'ARQUERO_WEAPON_ABISMO'), 1, 'LEGENDARIO', 52, 3, 75, 1, 'Brea, en el Astillero del Puerto Antiguo', 4, 'forja', NULL WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_ARQUERO_WEAPON_ABISMO');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'ARQUERO_WEAPON_ABISMO'), result_quantity = 1, rarity = 'LEGENDARIO', required_level = 52, required_class_id = 3, success_rate_percent = 75, craft_time_minutes = 1, artisan_name = 'Brea, en el Astillero del Puerto Antiguo', zone_id = 4, station = 'forja', scroll_item_id = NULL WHERE code = 'RECIPE_ARQUERO_WEAPON_ABISMO';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_ARQUERO_WEAPON_ABISMO');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_ARQUERO_WEAPON_ABISMO'), i.id, v.n FROM (VALUES ('PERLA_DEL_ABISMO', 1), ('ARENA_ABISAL', 6), ('CORAL_ROJO', 3), ('CUERO_COCODRILO', 2)) AS v(code, n) JOIN items i ON i.code = v.code;
+-- Daga del Abismo
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'PICARO_WEAPON_ABISMO', 'Daga del Abismo', 'EQUIPMENT', 'WEAPON', FALSE, 'LEGENDARIO', 4, 52, TRUE, 'CRAFT', 'Forjada con una Perla del Abismo, la que el Señor del Océano guardaba en su corona. Se siente fría y pesada, como el fondo del mar.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'PICARO_WEAPON_ABISMO');
+UPDATE items SET name = 'Daga del Abismo', item_type = 'EQUIPMENT', slot = 'WEAPON', is_two_handed = FALSE, rarity = 'LEGENDARIO', class_id = 4, required_level = 52, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Forjada con una Perla del Abismo, la que el Señor del Océano guardaba en su corona. Se siente fría y pesada, como el fondo del mar.' WHERE code = 'PICARO_WEAPON_ABISMO';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'PICARO_WEAPON_ABISMO');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'PICARO_WEAPON_ABISMO'), v.* FROM (VALUES ('ATK', 132, FALSE), ('CRIT_CHANCE', 8.3, TRUE), ('CRIT_DAMAGE', 13, TRUE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station, scroll_item_id)
+SELECT 'RECIPE_PICARO_WEAPON_ABISMO', (SELECT id FROM items WHERE code = 'PICARO_WEAPON_ABISMO'), 1, 'LEGENDARIO', 52, 4, 75, 1, 'Brea, en el Astillero del Puerto Antiguo', 4, 'forja', NULL WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_PICARO_WEAPON_ABISMO');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'PICARO_WEAPON_ABISMO'), result_quantity = 1, rarity = 'LEGENDARIO', required_level = 52, required_class_id = 4, success_rate_percent = 75, craft_time_minutes = 1, artisan_name = 'Brea, en el Astillero del Puerto Antiguo', zone_id = 4, station = 'forja', scroll_item_id = NULL WHERE code = 'RECIPE_PICARO_WEAPON_ABISMO';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_PICARO_WEAPON_ABISMO');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_PICARO_WEAPON_ABISMO'), i.id, v.n FROM (VALUES ('PERLA_DEL_ABISMO', 1), ('ARENA_ABISAL', 6), ('CORAL_ROJO', 3), ('DIENTE_DE_PIRANA', 2)) AS v(code, n) JOIN items i ON i.code = v.code;
+-- Báculo Sagrado del Abismo
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'SACERDOTE_WEAPON_ABISMO', 'Báculo Sagrado del Abismo', 'EQUIPMENT', 'WEAPON', FALSE, 'LEGENDARIO', 5, 52, TRUE, 'CRAFT', 'Forjada con una Perla del Abismo, la que el Señor del Océano guardaba en su corona. Se siente fría y pesada, como el fondo del mar.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'SACERDOTE_WEAPON_ABISMO');
+UPDATE items SET name = 'Báculo Sagrado del Abismo', item_type = 'EQUIPMENT', slot = 'WEAPON', is_two_handed = FALSE, rarity = 'LEGENDARIO', class_id = 5, required_level = 52, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Forjada con una Perla del Abismo, la que el Señor del Océano guardaba en su corona. Se siente fría y pesada, como el fondo del mar.' WHERE code = 'SACERDOTE_WEAPON_ABISMO';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'SACERDOTE_WEAPON_ABISMO');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'SACERDOTE_WEAPON_ABISMO'), v.* FROM (VALUES ('MAG', 132, FALSE), ('CRIT_CHANCE', 8.3, TRUE), ('CRIT_DAMAGE', 13, TRUE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station, scroll_item_id)
+SELECT 'RECIPE_SACERDOTE_WEAPON_ABISMO', (SELECT id FROM items WHERE code = 'SACERDOTE_WEAPON_ABISMO'), 1, 'LEGENDARIO', 52, 5, 75, 1, 'Brea, en el Astillero del Puerto Antiguo', 4, 'forja', NULL WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_SACERDOTE_WEAPON_ABISMO');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'SACERDOTE_WEAPON_ABISMO'), result_quantity = 1, rarity = 'LEGENDARIO', required_level = 52, required_class_id = 5, success_rate_percent = 75, craft_time_minutes = 1, artisan_name = 'Brea, en el Astillero del Puerto Antiguo', zone_id = 4, station = 'forja', scroll_item_id = NULL WHERE code = 'RECIPE_SACERDOTE_WEAPON_ABISMO';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_SACERDOTE_WEAPON_ABISMO');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_SACERDOTE_WEAPON_ABISMO'), i.id, v.n FROM (VALUES ('PERLA_DEL_ABISMO', 1), ('ARENA_ABISAL', 6), ('CORAL_ROJO', 3), ('ESCAMA_SIRENA_CORRUPTA', 2)) AS v(code, n) JOIN items i ON i.code = v.code;
+
+-- ---------------------------------------------------------------- accesorios de los jefes
+-- Brazalete del Almirante
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'BRAZALETE_OCEANO', 'Brazalete del Almirante', 'EQUIPMENT', 'ACCESSORY', FALSE, 'EPICO', NULL, 55, TRUE, 'CRAFT', 'Joya del Almirante Ahogado. La suelta él mismo o se fabrica con su ancla.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'BRAZALETE_OCEANO');
+UPDATE items SET name = 'Brazalete del Almirante', item_type = 'EQUIPMENT', slot = 'ACCESSORY', is_two_handed = FALSE, rarity = 'EPICO', class_id = NULL, required_level = 55, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Joya del Almirante Ahogado. La suelta él mismo o se fabrica con su ancla.' WHERE code = 'BRAZALETE_OCEANO';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'BRAZALETE_OCEANO');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'BRAZALETE_OCEANO'), v.* FROM (VALUES ('ATK', 50, FALSE), ('HP', 69, FALSE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station, scroll_item_id)
+SELECT 'RECIPE_GUERRERO_ACC_OCEANO', (SELECT id FROM items WHERE code = 'BRAZALETE_OCEANO'), 1, 'EPICO', 55, NULL, 70, 1, 'Brea, en el Astillero del Puerto Antiguo', 4, 'forja', (SELECT id FROM items WHERE code = 'SCROLL_OCEANO_GUERRERO') WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_GUERRERO_ACC_OCEANO');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'BRAZALETE_OCEANO'), result_quantity = 1, rarity = 'EPICO', required_level = 55, required_class_id = NULL, success_rate_percent = 70, craft_time_minutes = 1, artisan_name = 'Brea, en el Astillero del Puerto Antiguo', zone_id = 4, station = 'forja', scroll_item_id = (SELECT id FROM items WHERE code = 'SCROLL_OCEANO_GUERRERO') WHERE code = 'RECIPE_GUERRERO_ACC_OCEANO';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_GUERRERO_ACC_OCEANO');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_GUERRERO_ACC_OCEANO'), i.id, v.n FROM (VALUES ('ANCLA_ALMIRANTE', 1), ('CADENA_AHOGADA', 2), ('FRAGMENTO_CORAL', 2)) AS v(code, n) JOIN items i ON i.code = v.code;
+-- Colgante del Almirante
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'COLGANTE_OCEANO', 'Colgante del Almirante', 'EQUIPMENT', 'ACCESSORY', FALSE, 'EPICO', NULL, 55, TRUE, 'CRAFT', 'Joya del Almirante Ahogado. La suelta él mismo o se fabrica con su ancla.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'COLGANTE_OCEANO');
+UPDATE items SET name = 'Colgante del Almirante', item_type = 'EQUIPMENT', slot = 'ACCESSORY', is_two_handed = FALSE, rarity = 'EPICO', class_id = NULL, required_level = 55, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Joya del Almirante Ahogado. La suelta él mismo o se fabrica con su ancla.' WHERE code = 'COLGANTE_OCEANO';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'COLGANTE_OCEANO');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'COLGANTE_OCEANO'), v.* FROM (VALUES ('SPD', 30, FALSE), ('CRIT_CHANCE', 4.5, TRUE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station, scroll_item_id)
+SELECT 'RECIPE_ARQUERO_ACC_OCEANO', (SELECT id FROM items WHERE code = 'COLGANTE_OCEANO'), 1, 'EPICO', 55, NULL, 70, 1, 'Brea, en el Astillero del Puerto Antiguo', 4, 'forja', (SELECT id FROM items WHERE code = 'SCROLL_OCEANO_ARQUERO') WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_ARQUERO_ACC_OCEANO');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'COLGANTE_OCEANO'), result_quantity = 1, rarity = 'EPICO', required_level = 55, required_class_id = NULL, success_rate_percent = 70, craft_time_minutes = 1, artisan_name = 'Brea, en el Astillero del Puerto Antiguo', zone_id = 4, station = 'forja', scroll_item_id = (SELECT id FROM items WHERE code = 'SCROLL_OCEANO_ARQUERO') WHERE code = 'RECIPE_ARQUERO_ACC_OCEANO';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_ARQUERO_ACC_OCEANO');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_ARQUERO_ACC_OCEANO'), i.id, v.n FROM (VALUES ('ANCLA_ALMIRANTE', 1), ('CADENA_AHOGADA', 2), ('CUERO_COCODRILO', 2)) AS v(code, n) JOIN items i ON i.code = v.code;
+-- Medallón del Almirante
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'MEDALLON_OCEANO', 'Medallón del Almirante', 'EQUIPMENT', 'ACCESSORY', FALSE, 'EPICO', NULL, 55, TRUE, 'CRAFT', 'Joya del Almirante Ahogado. La suelta él mismo o se fabrica con su ancla.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'MEDALLON_OCEANO');
+UPDATE items SET name = 'Medallón del Almirante', item_type = 'EQUIPMENT', slot = 'ACCESSORY', is_two_handed = FALSE, rarity = 'EPICO', class_id = NULL, required_level = 55, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Joya del Almirante Ahogado. La suelta él mismo o se fabrica con su ancla.' WHERE code = 'MEDALLON_OCEANO';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'MEDALLON_OCEANO');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'MEDALLON_OCEANO'), v.* FROM (VALUES ('EVASION', 2.5, TRUE), ('CRIT_CHANCE', 4.5, TRUE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station, scroll_item_id)
+SELECT 'RECIPE_PICARO_ACC_OCEANO', (SELECT id FROM items WHERE code = 'MEDALLON_OCEANO'), 1, 'EPICO', 55, NULL, 70, 1, 'Brea, en el Astillero del Puerto Antiguo', 4, 'forja', (SELECT id FROM items WHERE code = 'SCROLL_OCEANO_PICARO') WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_PICARO_ACC_OCEANO');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'MEDALLON_OCEANO'), result_quantity = 1, rarity = 'EPICO', required_level = 55, required_class_id = NULL, success_rate_percent = 70, craft_time_minutes = 1, artisan_name = 'Brea, en el Astillero del Puerto Antiguo', zone_id = 4, station = 'forja', scroll_item_id = (SELECT id FROM items WHERE code = 'SCROLL_OCEANO_PICARO') WHERE code = 'RECIPE_PICARO_ACC_OCEANO';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_PICARO_ACC_OCEANO');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_PICARO_ACC_OCEANO'), i.id, v.n FROM (VALUES ('ANCLA_ALMIRANTE', 1), ('CADENA_AHOGADA', 2), ('DIENTE_DE_PIRANA', 2)) AS v(code, n) JOIN items i ON i.code = v.code;
+-- Amuleto del Almirante
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'AMULETO_OCEANO_MAGO', 'Amuleto del Almirante', 'EQUIPMENT', 'ACCESSORY', FALSE, 'EPICO', NULL, 55, TRUE, 'CRAFT', 'Joya del Almirante Ahogado. La suelta él mismo o se fabrica con su ancla.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'AMULETO_OCEANO_MAGO');
+UPDATE items SET name = 'Amuleto del Almirante', item_type = 'EQUIPMENT', slot = 'ACCESSORY', is_two_handed = FALSE, rarity = 'EPICO', class_id = NULL, required_level = 55, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Joya del Almirante Ahogado. La suelta él mismo o se fabrica con su ancla.' WHERE code = 'AMULETO_OCEANO_MAGO';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'AMULETO_OCEANO_MAGO');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'AMULETO_OCEANO_MAGO'), v.* FROM (VALUES ('MAG', 29, FALSE), ('MAGIC_DEF', 20, FALSE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station, scroll_item_id)
+SELECT 'RECIPE_MAGO_ACC_OCEANO', (SELECT id FROM items WHERE code = 'AMULETO_OCEANO_MAGO'), 1, 'EPICO', 55, NULL, 70, 1, 'Brea, en el Astillero del Puerto Antiguo', 4, 'forja', (SELECT id FROM items WHERE code = 'SCROLL_OCEANO_MAGO') WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_MAGO_ACC_OCEANO');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'AMULETO_OCEANO_MAGO'), result_quantity = 1, rarity = 'EPICO', required_level = 55, required_class_id = NULL, success_rate_percent = 70, craft_time_minutes = 1, artisan_name = 'Brea, en el Astillero del Puerto Antiguo', zone_id = 4, station = 'forja', scroll_item_id = (SELECT id FROM items WHERE code = 'SCROLL_OCEANO_MAGO') WHERE code = 'RECIPE_MAGO_ACC_OCEANO';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_MAGO_ACC_OCEANO');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_MAGO_ACC_OCEANO'), i.id, v.n FROM (VALUES ('ANCLA_ALMIRANTE', 1), ('CADENA_AHOGADA', 2), ('GEL_MEDUSA', 2)) AS v(code, n) JOIN items i ON i.code = v.code;
+-- Relicario del Almirante
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'RELICARIO_OCEANO', 'Relicario del Almirante', 'EQUIPMENT', 'ACCESSORY', FALSE, 'EPICO', NULL, 55, TRUE, 'CRAFT', 'Joya del Almirante Ahogado. La suelta él mismo o se fabrica con su ancla.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'RELICARIO_OCEANO');
+UPDATE items SET name = 'Relicario del Almirante', item_type = 'EQUIPMENT', slot = 'ACCESSORY', is_two_handed = FALSE, rarity = 'EPICO', class_id = NULL, required_level = 55, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Joya del Almirante Ahogado. La suelta él mismo o se fabrica con su ancla.' WHERE code = 'RELICARIO_OCEANO';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'RELICARIO_OCEANO');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'RELICARIO_OCEANO'), v.* FROM (VALUES ('HEALING', 16, TRUE), ('HP', 199, FALSE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station, scroll_item_id)
+SELECT 'RECIPE_SACERDOTE_ACC_OCEANO', (SELECT id FROM items WHERE code = 'RELICARIO_OCEANO'), 1, 'EPICO', 55, NULL, 70, 1, 'Brea, en el Astillero del Puerto Antiguo', 4, 'forja', (SELECT id FROM items WHERE code = 'SCROLL_OCEANO_SACERDOTE') WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_SACERDOTE_ACC_OCEANO');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'RELICARIO_OCEANO'), result_quantity = 1, rarity = 'EPICO', required_level = 55, required_class_id = NULL, success_rate_percent = 70, craft_time_minutes = 1, artisan_name = 'Brea, en el Astillero del Puerto Antiguo', zone_id = 4, station = 'forja', scroll_item_id = (SELECT id FROM items WHERE code = 'SCROLL_OCEANO_SACERDOTE') WHERE code = 'RECIPE_SACERDOTE_ACC_OCEANO';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_SACERDOTE_ACC_OCEANO');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_SACERDOTE_ACC_OCEANO'), i.id, v.n FROM (VALUES ('ANCLA_ALMIRANTE', 1), ('CADENA_AHOGADA', 2), ('ESCAMA_SIRENA_CORRUPTA', 3)) AS v(code, n) JOIN items i ON i.code = v.code;
+-- Brazalete de las Profundidades
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'BRAZALETE_PROFUNDIDADES', 'Brazalete de las Profundidades', 'EQUIPMENT', 'ACCESSORY', FALSE, 'LEGENDARIO', NULL, 60, TRUE, 'CRAFT', 'Joya de la Bestia de las Profundidades. La suelta ella misma o se fabrica con su corazón.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'BRAZALETE_PROFUNDIDADES');
+UPDATE items SET name = 'Brazalete de las Profundidades', item_type = 'EQUIPMENT', slot = 'ACCESSORY', is_two_handed = FALSE, rarity = 'LEGENDARIO', class_id = NULL, required_level = 60, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Joya de la Bestia de las Profundidades. La suelta ella misma o se fabrica con su corazón.' WHERE code = 'BRAZALETE_PROFUNDIDADES';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'BRAZALETE_PROFUNDIDADES');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'BRAZALETE_PROFUNDIDADES'), v.* FROM (VALUES ('ATK', 60, FALSE), ('HP', 84, FALSE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station, scroll_item_id)
+SELECT 'RECIPE_GUERRERO_ACC_BESTIA', (SELECT id FROM items WHERE code = 'BRAZALETE_PROFUNDIDADES'), 1, 'LEGENDARIO', 60, NULL, 55, 1, 'Brea, en el Astillero del Puerto Antiguo', 4, 'forja', (SELECT id FROM items WHERE code = 'SCROLL_BESTIA_GUERRERO') WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_GUERRERO_ACC_BESTIA');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'BRAZALETE_PROFUNDIDADES'), result_quantity = 1, rarity = 'LEGENDARIO', required_level = 60, required_class_id = NULL, success_rate_percent = 55, craft_time_minutes = 1, artisan_name = 'Brea, en el Astillero del Puerto Antiguo', zone_id = 4, station = 'forja', scroll_item_id = (SELECT id FROM items WHERE code = 'SCROLL_BESTIA_GUERRERO') WHERE code = 'RECIPE_GUERRERO_ACC_BESTIA';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_GUERRERO_ACC_BESTIA');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_GUERRERO_ACC_BESTIA'), i.id, v.n FROM (VALUES ('NUCLEO_BESTIA_PROFUNDIDADES', 1), ('TINTA_ABISAL', 2), ('COLMILLO_LEVIATAN_MENOR', 1), ('FRAGMENTO_CORAL', 3)) AS v(code, n) JOIN items i ON i.code = v.code;
+-- Colgante de las Profundidades
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'COLGANTE_PROFUNDIDADES', 'Colgante de las Profundidades', 'EQUIPMENT', 'ACCESSORY', FALSE, 'LEGENDARIO', NULL, 60, TRUE, 'CRAFT', 'Joya de la Bestia de las Profundidades. La suelta ella misma o se fabrica con su corazón.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'COLGANTE_PROFUNDIDADES');
+UPDATE items SET name = 'Colgante de las Profundidades', item_type = 'EQUIPMENT', slot = 'ACCESSORY', is_two_handed = FALSE, rarity = 'LEGENDARIO', class_id = NULL, required_level = 60, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Joya de la Bestia de las Profundidades. La suelta ella misma o se fabrica con su corazón.' WHERE code = 'COLGANTE_PROFUNDIDADES';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'COLGANTE_PROFUNDIDADES');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'COLGANTE_PROFUNDIDADES'), v.* FROM (VALUES ('SPD', 36, FALSE), ('CRIT_CHANCE', 5.5, TRUE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station, scroll_item_id)
+SELECT 'RECIPE_ARQUERO_ACC_BESTIA', (SELECT id FROM items WHERE code = 'COLGANTE_PROFUNDIDADES'), 1, 'LEGENDARIO', 60, NULL, 55, 1, 'Brea, en el Astillero del Puerto Antiguo', 4, 'forja', (SELECT id FROM items WHERE code = 'SCROLL_BESTIA_ARQUERO') WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_ARQUERO_ACC_BESTIA');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'COLGANTE_PROFUNDIDADES'), result_quantity = 1, rarity = 'LEGENDARIO', required_level = 60, required_class_id = NULL, success_rate_percent = 55, craft_time_minutes = 1, artisan_name = 'Brea, en el Astillero del Puerto Antiguo', zone_id = 4, station = 'forja', scroll_item_id = (SELECT id FROM items WHERE code = 'SCROLL_BESTIA_ARQUERO') WHERE code = 'RECIPE_ARQUERO_ACC_BESTIA';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_ARQUERO_ACC_BESTIA');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_ARQUERO_ACC_BESTIA'), i.id, v.n FROM (VALUES ('NUCLEO_BESTIA_PROFUNDIDADES', 1), ('TINTA_ABISAL', 2), ('COLMILLO_LEVIATAN_MENOR', 1), ('CUERO_COCODRILO', 3)) AS v(code, n) JOIN items i ON i.code = v.code;
+-- Medallón de las Profundidades
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'MEDALLON_PROFUNDIDADES', 'Medallón de las Profundidades', 'EQUIPMENT', 'ACCESSORY', FALSE, 'LEGENDARIO', NULL, 60, TRUE, 'CRAFT', 'Joya de la Bestia de las Profundidades. La suelta ella misma o se fabrica con su corazón.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'MEDALLON_PROFUNDIDADES');
+UPDATE items SET name = 'Medallón de las Profundidades', item_type = 'EQUIPMENT', slot = 'ACCESSORY', is_two_handed = FALSE, rarity = 'LEGENDARIO', class_id = NULL, required_level = 60, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Joya de la Bestia de las Profundidades. La suelta ella misma o se fabrica con su corazón.' WHERE code = 'MEDALLON_PROFUNDIDADES';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'MEDALLON_PROFUNDIDADES');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'MEDALLON_PROFUNDIDADES'), v.* FROM (VALUES ('EVASION', 3, TRUE), ('CRIT_CHANCE', 5.5, TRUE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station, scroll_item_id)
+SELECT 'RECIPE_PICARO_ACC_BESTIA', (SELECT id FROM items WHERE code = 'MEDALLON_PROFUNDIDADES'), 1, 'LEGENDARIO', 60, NULL, 55, 1, 'Brea, en el Astillero del Puerto Antiguo', 4, 'forja', (SELECT id FROM items WHERE code = 'SCROLL_BESTIA_PICARO') WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_PICARO_ACC_BESTIA');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'MEDALLON_PROFUNDIDADES'), result_quantity = 1, rarity = 'LEGENDARIO', required_level = 60, required_class_id = NULL, success_rate_percent = 55, craft_time_minutes = 1, artisan_name = 'Brea, en el Astillero del Puerto Antiguo', zone_id = 4, station = 'forja', scroll_item_id = (SELECT id FROM items WHERE code = 'SCROLL_BESTIA_PICARO') WHERE code = 'RECIPE_PICARO_ACC_BESTIA';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_PICARO_ACC_BESTIA');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_PICARO_ACC_BESTIA'), i.id, v.n FROM (VALUES ('NUCLEO_BESTIA_PROFUNDIDADES', 1), ('TINTA_ABISAL', 2), ('COLMILLO_LEVIATAN_MENOR', 1), ('DIENTE_DE_PIRANA', 3)) AS v(code, n) JOIN items i ON i.code = v.code;
+-- Amuleto de las Profundidades
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'AMULETO_PROFUNDIDADES_MAGO', 'Amuleto de las Profundidades', 'EQUIPMENT', 'ACCESSORY', FALSE, 'LEGENDARIO', NULL, 60, TRUE, 'CRAFT', 'Joya de la Bestia de las Profundidades. La suelta ella misma o se fabrica con su corazón.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'AMULETO_PROFUNDIDADES_MAGO');
+UPDATE items SET name = 'Amuleto de las Profundidades', item_type = 'EQUIPMENT', slot = 'ACCESSORY', is_two_handed = FALSE, rarity = 'LEGENDARIO', class_id = NULL, required_level = 60, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Joya de la Bestia de las Profundidades. La suelta ella misma o se fabrica con su corazón.' WHERE code = 'AMULETO_PROFUNDIDADES_MAGO';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'AMULETO_PROFUNDIDADES_MAGO');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'AMULETO_PROFUNDIDADES_MAGO'), v.* FROM (VALUES ('MAG', 34, FALSE), ('MAGIC_DEF', 24, FALSE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station, scroll_item_id)
+SELECT 'RECIPE_MAGO_ACC_BESTIA', (SELECT id FROM items WHERE code = 'AMULETO_PROFUNDIDADES_MAGO'), 1, 'LEGENDARIO', 60, NULL, 55, 1, 'Brea, en el Astillero del Puerto Antiguo', 4, 'forja', (SELECT id FROM items WHERE code = 'SCROLL_BESTIA_MAGO') WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_MAGO_ACC_BESTIA');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'AMULETO_PROFUNDIDADES_MAGO'), result_quantity = 1, rarity = 'LEGENDARIO', required_level = 60, required_class_id = NULL, success_rate_percent = 55, craft_time_minutes = 1, artisan_name = 'Brea, en el Astillero del Puerto Antiguo', zone_id = 4, station = 'forja', scroll_item_id = (SELECT id FROM items WHERE code = 'SCROLL_BESTIA_MAGO') WHERE code = 'RECIPE_MAGO_ACC_BESTIA';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_MAGO_ACC_BESTIA');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_MAGO_ACC_BESTIA'), i.id, v.n FROM (VALUES ('NUCLEO_BESTIA_PROFUNDIDADES', 1), ('TINTA_ABISAL', 2), ('PERLA_MARINA', 1), ('GEL_MEDUSA', 3)) AS v(code, n) JOIN items i ON i.code = v.code;
+-- Relicario de las Profundidades
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, class_id, required_level, is_craftable, obtain_method, description)
+SELECT 'RELICARIO_PROFUNDIDADES', 'Relicario de las Profundidades', 'EQUIPMENT', 'ACCESSORY', FALSE, 'LEGENDARIO', NULL, 60, TRUE, 'CRAFT', 'Joya de la Bestia de las Profundidades. La suelta ella misma o se fabrica con su corazón.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'RELICARIO_PROFUNDIDADES');
+UPDATE items SET name = 'Relicario de las Profundidades', item_type = 'EQUIPMENT', slot = 'ACCESSORY', is_two_handed = FALSE, rarity = 'LEGENDARIO', class_id = NULL, required_level = 60, is_craftable = TRUE, obtain_method = 'CRAFT', description = 'Joya de la Bestia de las Profundidades. La suelta ella misma o se fabrica con su corazón.' WHERE code = 'RELICARIO_PROFUNDIDADES';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'RELICARIO_PROFUNDIDADES');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'RELICARIO_PROFUNDIDADES'), v.* FROM (VALUES ('HEALING', 18, TRUE), ('HP', 239, FALSE)) AS v(stat_code, amount, is_percent);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, required_class_id, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station, scroll_item_id)
+SELECT 'RECIPE_SACERDOTE_ACC_BESTIA', (SELECT id FROM items WHERE code = 'RELICARIO_PROFUNDIDADES'), 1, 'LEGENDARIO', 60, NULL, 55, 1, 'Brea, en el Astillero del Puerto Antiguo', 4, 'forja', (SELECT id FROM items WHERE code = 'SCROLL_BESTIA_SACERDOTE') WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECIPE_SACERDOTE_ACC_BESTIA');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'RELICARIO_PROFUNDIDADES'), result_quantity = 1, rarity = 'LEGENDARIO', required_level = 60, required_class_id = NULL, success_rate_percent = 55, craft_time_minutes = 1, artisan_name = 'Brea, en el Astillero del Puerto Antiguo', zone_id = 4, station = 'forja', scroll_item_id = (SELECT id FROM items WHERE code = 'SCROLL_BESTIA_SACERDOTE') WHERE code = 'RECIPE_SACERDOTE_ACC_BESTIA';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_SACERDOTE_ACC_BESTIA');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECIPE_SACERDOTE_ACC_BESTIA'), i.id, v.n FROM (VALUES ('NUCLEO_BESTIA_PROFUNDIDADES', 1), ('TINTA_ABISAL', 2), ('PERLA_MARINA', 1), ('ESCAMA_SIRENA_CORRUPTA', 4)) AS v(code, n) JOIN items i ON i.code = v.code;
+
+-- pergaminos: el set del Océano pasa a ser el del Almirante Ahogado
+UPDATE items SET name = 'Pergamino: Set del Almirante (' || initcap(lower(split_part(code, '_', 3))) || ')',
+  description = 'Enseña a fabricar las piezas del set del Almirante de esta clase. Lo suelta el Almirante Ahogado.' WHERE code ~ '^SCROLL_OCEANO_';
+UPDATE items SET name = replace(name, 'Picaro', 'Pícaro') WHERE code = 'SCROLL_OCEANO_PICARO';
+UPDATE items SET description = 'Enseña a fabricar las piezas del set de la Bestia de esta clase. Lo suelta la Bestia de las Profundidades.' WHERE code ~ '^SCROLL_BESTIA_';
+DELETE FROM monster_drops WHERE monster_id = (SELECT id FROM monsters WHERE code = 'SENOR_OCEANO') AND item_id IN (SELECT id FROM items WHERE code ~ '^SCROLL_OCEANO_');
+DELETE FROM monster_drops WHERE monster_id = (SELECT id FROM monsters WHERE code = 'ALMIRANTE_AHOGADO') AND item_id IN (SELECT id FROM items WHERE code ~ '^SCROLL_OCEANO_');
+INSERT INTO monster_drops (monster_id, item_id, drop_chance_percent, min_quantity, max_quantity)
+SELECT (SELECT id FROM monsters WHERE code = 'ALMIRANTE_AHOGADO'), i.id, 17.50, 1, 1 FROM items i WHERE i.code ~ '^SCROLL_OCEANO_';
+-- la Bestia: pergaminos de su set (12,5%), su corazón siempre, y colmillos y perlas para fabricar
+UPDATE monster_drops SET drop_chance_percent = 12.50 WHERE monster_id = (SELECT id FROM monsters WHERE code = 'BESTIA_PROFUNDIDADES')
+  AND item_id IN (SELECT id FROM items WHERE code ~ '^SCROLL_BESTIA_');
+DELETE FROM monster_drops WHERE monster_id = (SELECT id FROM monsters WHERE code = 'BESTIA_PROFUNDIDADES')
+  AND item_id IN (SELECT id FROM items WHERE code IN ('COLMILLO_LEVIATAN_MENOR', 'PERLA_MARINA', 'ANCLA_ALMIRANTE'));
+INSERT INTO monster_drops (monster_id, item_id, drop_chance_percent, min_quantity, max_quantity)
+SELECT (SELECT id FROM monsters WHERE code = 'BESTIA_PROFUNDIDADES'), i.id, v.pct, 1, v.mx FROM (VALUES ('COLMILLO_LEVIATAN_MENOR', 100, 2), ('PERLA_MARINA', 50, 1), ('ANCLA_ALMIRANTE', 30, 1)) AS v(code, pct, mx)
+JOIN items i ON i.code = v.code;
+
+-- el resto del equipo de clase base o sin clase de nivel 46-60: la misma fórmula (mismo nivel y rareza)
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'CRISTAL_SUPREMO');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'CRISTAL_SUPREMO'), v.* FROM (VALUES ('MAG', 49, FALSE), ('MAGIC_DEF', 24, FALSE), ('ELEMENTAL_DAMAGE', 30, TRUE), ('SPELL_COOLDOWN_REDUCTION', 20, TRUE)) AS v(stat_code, amount, is_percent);
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'ARCO_DE_LOS_DIOSES');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'ARCO_DE_LOS_DIOSES'), v.* FROM (VALUES ('ATK', 93, FALSE), ('SPD', 72, FALSE), ('CRIT_CHANCE', 6.8, TRUE)) AS v(stat_code, amount, is_percent);
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'DAGA_DEL_ASESINATO');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'DAGA_DEL_ASESINATO'), v.* FROM (VALUES ('ATK', 95, FALSE), ('SPD', 78, FALSE), ('CRIT_CHANCE', 6.8, TRUE), ('LETHAL_DAMAGE', 20, TRUE)) AS v(stat_code, amount, is_percent);
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'BACULO_DE_RESURRECCION');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'BACULO_DE_RESURRECCION'), v.* FROM (VALUES ('MAG', 86, FALSE), ('MAGIC_DEF', 50, FALSE), ('HEALING', 50, TRUE), ('REVIVE_HP_PERCENT', 50, FALSE)) AS v(stat_code, amount, is_percent);
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'ESPADA_LEGENDARIA_ANCESTRAL');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'ESPADA_LEGENDARIA_ANCESTRAL'), v.* FROM (VALUES ('ATK', 134, FALSE), ('DEF', 41, FALSE), ('CRIT_CHANCE', 6.8, TRUE), ('ELEMENTAL_DAMAGE', 20, TRUE)) AS v(stat_code, amount, is_percent);
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'GUERRERO_WEAPON2H_CATACUMBAS');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'GUERRERO_WEAPON2H_CATACUMBAS'), v.* FROM (VALUES ('ATK', 180, FALSE)) AS v(stat_code, amount, is_percent);
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'AMULETO_PRIMORDIAL');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'AMULETO_PRIMORDIAL'), v.* FROM (VALUES ('HP', 57, FALSE), ('ATK', 21, FALSE), ('DEF', 21, FALSE), ('MAG', 21, FALSE)) AS v(stat_code, amount, is_percent);
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'ANILLO_MALDITO');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'ANILLO_MALDITO'), v.* FROM (VALUES ('MAGIC_DEF', 17, FALSE), ('CRIT', 8, FALSE), ('ATK', 30, FALSE)) AS v(stat_code, amount, is_percent);
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'GUERRERO_WEAPON2H_HACHA_L50');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'GUERRERO_WEAPON2H_HACHA_L50'), v.* FROM (VALUES ('ATK', 166, FALSE), ('CRIT_CHANCE', 6.8, TRUE)) AS v(stat_code, amount, is_percent);
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'ARQUERO_WEAPON2H_BALLESTA_L50');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'ARQUERO_WEAPON2H_BALLESTA_L50'), v.* FROM (VALUES ('ATK', 166, FALSE), ('CRIT_DAMAGE', 11, TRUE)) AS v(stat_code, amount, is_percent);
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'GUERRERO_ARMOR_PESADA_L50');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'GUERRERO_ARMOR_PESADA_L50'), v.* FROM (VALUES ('DEF', 40, FALSE), ('HP', 62, FALSE), ('MAGIC_DEF', 11, FALSE)) AS v(stat_code, amount, is_percent);
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'GUERRERO_HELMET_PESADA_L50');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'GUERRERO_HELMET_PESADA_L50'), v.* FROM (VALUES ('DEF', 20, FALSE), ('HP', 22, FALSE), ('MAGIC_DEF', 6, FALSE)) AS v(stat_code, amount, is_percent);
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'GUERRERO_GLOVES_PESADA_L50');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'GUERRERO_GLOVES_PESADA_L50'), v.* FROM (VALUES ('DEF', 20, FALSE), ('HP', 20, FALSE)) AS v(stat_code, amount, is_percent);
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'GUERRERO_BOOTS_PESADA_L50');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'GUERRERO_BOOTS_PESADA_L50'), v.* FROM (VALUES ('DEF', 20, FALSE), ('HP', 20, FALSE), ('SPD', 20, FALSE), ('EVASION', 2.5, TRUE)) AS v(stat_code, amount, is_percent);
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'GUERRERO_WEAPON_MAGICA_L50');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'GUERRERO_WEAPON_MAGICA_L50'), v.* FROM (VALUES ('ATK', 111, FALSE), ('MAG', 86, FALSE), ('CRIT_CHANCE', 6.8, TRUE)) AS v(stat_code, amount, is_percent);
+
+-- ############################################################################################
+-- COSTAS MUERTAS (zona 4) · tanda 3, paso 2: Equipo de las Costas: escalera (gen_escalera_costas.js)
+-- ############################################################################################
+-- Espada de la Marea (arma Marea: ATK98 CRIT_CHANCE5.3% → ATK427 CRIT_CHANCE5.3%)
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'GUERRERO_WEAPON_COSTAS');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'ATK', 427, FALSE FROM items WHERE code = 'GUERRERO_WEAPON_COSTAS';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'CRIT_CHANCE', 5.3, TRUE FROM items WHERE code = 'GUERRERO_WEAPON_COSTAS';
+-- Gran Espada de la Marea (a dos manos Marea: ATK148 CRIT_CHANCE5.3% → ATK645 CRIT_CHANCE5.3%)
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'GUERRERO_WEAPON2H_COSTAS');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'ATK', 645, FALSE FROM items WHERE code = 'GUERRERO_WEAPON2H_COSTAS';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'CRIT_CHANCE', 5.3, TRUE FROM items WHERE code = 'GUERRERO_WEAPON2H_COSTAS';
+-- Guanteletes de la Marea (guantes Marea: DEF18 MAGIC_DEF5 HP29 → DEF18 MAGIC_DEF6 HP28)
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'GUERRERO_GLOVES_COSTAS');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'DEF', 18, FALSE FROM items WHERE code = 'GUERRERO_GLOVES_COSTAS';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'MAGIC_DEF', 6, FALSE FROM items WHERE code = 'GUERRERO_GLOVES_COSTAS';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'HP', 28, FALSE FROM items WHERE code = 'GUERRERO_GLOVES_COSTAS';
+-- Espada de Coral (arma Coral: ATK116 CRIT_CHANCE6.8% → ATK476 CRIT_CHANCE6.8%)
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'GUERRERO_WEAPON_CORAL');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'ATK', 476, FALSE FROM items WHERE code = 'GUERRERO_WEAPON_CORAL';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'CRIT_CHANCE', 6.8, TRUE FROM items WHERE code = 'GUERRERO_WEAPON_CORAL';
+-- Gran Espada de Coral (a dos manos Coral: ATK175 CRIT_CHANCE6.8% → ATK718 CRIT_CHANCE6.8%)
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'GUERRERO_WEAPON2H_CORAL');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'ATK', 718, FALSE FROM items WHERE code = 'GUERRERO_WEAPON2H_CORAL';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'CRIT_CHANCE', 6.8, TRUE FROM items WHERE code = 'GUERRERO_WEAPON2H_CORAL';
+-- Guanteletes de Coral (guantes Coral: DEF21 HP33 MAGIC_DEF7 → DEF21 HP33 MAGIC_DEF6)
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'GUERRERO_GLOVES_CORAL');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'DEF', 21, FALSE FROM items WHERE code = 'GUERRERO_GLOVES_CORAL';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'HP', 33, FALSE FROM items WHERE code = 'GUERRERO_GLOVES_CORAL';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'MAGIC_DEF', 6, FALSE FROM items WHERE code = 'GUERRERO_GLOVES_CORAL';
+-- Espada del Abismo (arma Abismo: ATK132 CRIT_CHANCE8.3% CRIT_DAMAGE13% → ATK523 CRIT_CHANCE8.3% CRIT_DAMAGE15%)
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'GUERRERO_WEAPON_ABISMO');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'ATK', 523, FALSE FROM items WHERE code = 'GUERRERO_WEAPON_ABISMO';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'CRIT_CHANCE', 8.3, TRUE FROM items WHERE code = 'GUERRERO_WEAPON_ABISMO';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'CRIT_DAMAGE', 15, TRUE FROM items WHERE code = 'GUERRERO_WEAPON_ABISMO';
+-- Gran Espada del Abismo (a dos manos Abismo: ATK198 CRIT_CHANCE8.3% CRIT_DAMAGE13% DEF-38 SPD-28 → ATK785 CRIT_CHANCE8.3% CRIT_DAMAGE15% DEF-38 SPD-28)
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'GUERRERO_WEAPON2H_ABISMO');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'ATK', 785, FALSE FROM items WHERE code = 'GUERRERO_WEAPON2H_ABISMO';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'CRIT_CHANCE', 8.3, TRUE FROM items WHERE code = 'GUERRERO_WEAPON2H_ABISMO';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'CRIT_DAMAGE', 15, TRUE FROM items WHERE code = 'GUERRERO_WEAPON2H_ABISMO';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'DEF', -38, FALSE FROM items WHERE code = 'GUERRERO_WEAPON2H_ABISMO';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'SPD', -28, FALSE FROM items WHERE code = 'GUERRERO_WEAPON2H_ABISMO';
+-- Espada del Almirante (arma Almirante: ATK124 CRIT_CHANCE6.8% CRIT_DAMAGE11% → ATK614 CRIT_CHANCE6.8% CRIT_DAMAGE15%)
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'GUERRERO_WEAPON_OCEANO');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'ATK', 614, FALSE FROM items WHERE code = 'GUERRERO_WEAPON_OCEANO';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'CRIT_CHANCE', 6.8, TRUE FROM items WHERE code = 'GUERRERO_WEAPON_OCEANO';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'CRIT_DAMAGE', 15, TRUE FROM items WHERE code = 'GUERRERO_WEAPON_OCEANO';
+-- Gran Espada del Almirante (a dos manos Almirante: ATK186 CRIT_CHANCE6.8% CRIT_DAMAGE11% → ATK921 CRIT_CHANCE6.8% CRIT_DAMAGE15%)
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'GUERRERO_WEAPON2H_OCEANO');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'ATK', 921, FALSE FROM items WHERE code = 'GUERRERO_WEAPON2H_OCEANO';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'CRIT_CHANCE', 6.8, TRUE FROM items WHERE code = 'GUERRERO_WEAPON2H_OCEANO';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'CRIT_DAMAGE', 15, TRUE FROM items WHERE code = 'GUERRERO_WEAPON2H_OCEANO';
+-- Guanteletes del Almirante (guantes Almirante: DEF22 HP35 MAGIC_DEF7 → DEF23 HP80 MAGIC_DEF8)
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'GUERRERO_GLOVES_OCEANO');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'DEF', 23, FALSE FROM items WHERE code = 'GUERRERO_GLOVES_OCEANO';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'HP', 80, FALSE FROM items WHERE code = 'GUERRERO_GLOVES_OCEANO';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'MAGIC_DEF', 8, FALSE FROM items WHERE code = 'GUERRERO_GLOVES_OCEANO';
+-- Armadura del Almirante (pecho Almirante con su extra: DEF45 HP159 MAGIC_DEF15 → DEF38 HP229 MAGIC_DEF15)
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'GUERRERO_ARMOR_OCEANO');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'DEF', 38, FALSE FROM items WHERE code = 'GUERRERO_ARMOR_OCEANO';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'HP', 229, FALSE FROM items WHERE code = 'GUERRERO_ARMOR_OCEANO';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'MAGIC_DEF', 15, FALSE FROM items WHERE code = 'GUERRERO_ARMOR_OCEANO';
+-- Espada de las Profundidades (arma Bestia: ATK149 CRIT_CHANCE8.3% CRIT_DAMAGE13% → ATK692 CRIT_CHANCE8.3% CRIT_DAMAGE18%)
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'GUERRERO_WEAPON_PROFU');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'ATK', 692, FALSE FROM items WHERE code = 'GUERRERO_WEAPON_PROFU';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'CRIT_CHANCE', 8.3, TRUE FROM items WHERE code = 'GUERRERO_WEAPON_PROFU';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'CRIT_DAMAGE', 18, TRUE FROM items WHERE code = 'GUERRERO_WEAPON_PROFU';
+-- Gran Espada de las Profundidades (a dos manos Bestia: ATK224 CRIT_CHANCE8.3% CRIT_DAMAGE13% → ATK1040 CRIT_CHANCE8.3% CRIT_DAMAGE18%)
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'GUERRERO_WEAPON2H_PROFU');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'ATK', 1040, FALSE FROM items WHERE code = 'GUERRERO_WEAPON2H_PROFU';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'CRIT_CHANCE', 8.3, TRUE FROM items WHERE code = 'GUERRERO_WEAPON2H_PROFU';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'CRIT_DAMAGE', 18, TRUE FROM items WHERE code = 'GUERRERO_WEAPON2H_PROFU';
+-- Guanteletes de las Profundidades (guantes Bestia: DEF27 HP42 MAGIC_DEF8 → DEF27 HP94 MAGIC_DEF9)
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'GUERRERO_GLOVES_PROFU');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'DEF', 27, FALSE FROM items WHERE code = 'GUERRERO_GLOVES_PROFU';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'HP', 94, FALSE FROM items WHERE code = 'GUERRERO_GLOVES_PROFU';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'MAGIC_DEF', 9, FALSE FROM items WHERE code = 'GUERRERO_GLOVES_PROFU';
+-- Armadura de las Profundidades (pecho Bestia con su extra: DEF54 HP187 MAGIC_DEF18 → DEF46 HP267 MAGIC_DEF18)
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'GUERRERO_ARMOR_PROFU');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'DEF', 46, FALSE FROM items WHERE code = 'GUERRERO_ARMOR_PROFU';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'HP', 267, FALSE FROM items WHERE code = 'GUERRERO_ARMOR_PROFU';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'MAGIC_DEF', 18, FALSE FROM items WHERE code = 'GUERRERO_ARMOR_PROFU';
+-- Báculo Arcano de la Marea (arma Marea: MAG98 CRIT_CHANCE5.3% → MAG434 CRIT_CHANCE5.3%)
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'MAGO_WEAPON_COSTAS');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'MAG', 434, FALSE FROM items WHERE code = 'MAGO_WEAPON_COSTAS';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'CRIT_CHANCE', 5.3, TRUE FROM items WHERE code = 'MAGO_WEAPON_COSTAS';
+-- Guantes de Tela de la Marea (guantes Marea: MAGIC_DEF18 DEF5 HP31 → MAGIC_DEF18 DEF5 HP32)
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'MAGO_GLOVES_COSTAS');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'MAGIC_DEF', 18, FALSE FROM items WHERE code = 'MAGO_GLOVES_COSTAS';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'DEF', 5, FALSE FROM items WHERE code = 'MAGO_GLOVES_COSTAS';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'HP', 32, FALSE FROM items WHERE code = 'MAGO_GLOVES_COSTAS';
+-- Orbe de la Marea (orbe Marea: MAGIC_DEF14 DEF4 HP23 MANA_REGEN4% SPD32 → MAGIC_DEF13 DEF4 HP23 MANA_REGEN5.5% SPD32)
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'MAGO_OFFHAND_COSTAS');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'MAGIC_DEF', 13, FALSE FROM items WHERE code = 'MAGO_OFFHAND_COSTAS';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'DEF', 4, FALSE FROM items WHERE code = 'MAGO_OFFHAND_COSTAS';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'HP', 23, FALSE FROM items WHERE code = 'MAGO_OFFHAND_COSTAS';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'MANA_REGEN', 5.5, TRUE FROM items WHERE code = 'MAGO_OFFHAND_COSTAS';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'SPD', 32, FALSE FROM items WHERE code = 'MAGO_OFFHAND_COSTAS';
+-- Cristal de la Marea (cristal Marea: +8% de daño)
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'MAGO_ACCESSORY_COSTAS');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'MAG', 47, FALSE FROM items WHERE code = 'MAGO_ACCESSORY_COSTAS';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'CRIT_CHANCE', 3.5, TRUE FROM items WHERE code = 'MAGO_ACCESSORY_COSTAS';
+-- Varita de Coral (arma Coral: MAG116 CRIT_CHANCE6.8% → MAG484 CRIT_CHANCE6.8%)
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'MAGO_WEAPON_CORAL');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'MAG', 484, FALSE FROM items WHERE code = 'MAGO_WEAPON_CORAL';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'CRIT_CHANCE', 6.8, TRUE FROM items WHERE code = 'MAGO_WEAPON_CORAL';
+-- Guantes de Coral (guantes Coral: DEF7 HP38 MAGIC_DEF21 → DEF7 HP39 MAGIC_DEF21)
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'MAGO_GLOVES_CORAL');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'DEF', 7, FALSE FROM items WHERE code = 'MAGO_GLOVES_CORAL';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'HP', 39, FALSE FROM items WHERE code = 'MAGO_GLOVES_CORAL';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'MAGIC_DEF', 21, FALSE FROM items WHERE code = 'MAGO_GLOVES_CORAL';
+-- Orbe de Coral (orbe Coral: DEF5 HP28 MAGIC_DEF15 MANA_REGEN4.5% SPD38 → DEF5 HP28 MAGIC_DEF15 MANA_REGEN6% SPD38)
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'MAGO_OFFHAND_ORB_CORAL');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'DEF', 5, FALSE FROM items WHERE code = 'MAGO_OFFHAND_ORB_CORAL';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'HP', 28, FALSE FROM items WHERE code = 'MAGO_OFFHAND_ORB_CORAL';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'MAGIC_DEF', 15, FALSE FROM items WHERE code = 'MAGO_OFFHAND_ORB_CORAL';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'MANA_REGEN', 6, TRUE FROM items WHERE code = 'MAGO_OFFHAND_ORB_CORAL';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'SPD', 38, FALSE FROM items WHERE code = 'MAGO_OFFHAND_ORB_CORAL';
+-- Cristal de Coral (cristal Coral: +8% de daño)
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'MAGO_OFFHAND_CRYSTAL_CORAL');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'MAG', 49, FALSE FROM items WHERE code = 'MAGO_OFFHAND_CRYSTAL_CORAL';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'CRIT_CHANCE', 4.5, TRUE FROM items WHERE code = 'MAGO_OFFHAND_CRYSTAL_CORAL';
+-- Báculo del Abismo (arma Abismo: MAG132 CRIT_CHANCE8.3% CRIT_DAMAGE13% → MAG531 CRIT_CHANCE8.3% CRIT_DAMAGE15%)
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'MAGO_WEAPON_ABISMO');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'MAG', 531, FALSE FROM items WHERE code = 'MAGO_WEAPON_ABISMO';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'CRIT_CHANCE', 8.3, TRUE FROM items WHERE code = 'MAGO_WEAPON_ABISMO';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'CRIT_DAMAGE', 15, TRUE FROM items WHERE code = 'MAGO_WEAPON_ABISMO';
+-- Varita del Almirante (arma Almirante: MAG124 CRIT_CHANCE6.8% CRIT_DAMAGE11% → MAG623 CRIT_CHANCE6.8% CRIT_DAMAGE15%)
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'MAGO_WEAPON_OCEANO');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'MAG', 623, FALSE FROM items WHERE code = 'MAGO_WEAPON_OCEANO';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'CRIT_CHANCE', 6.8, TRUE FROM items WHERE code = 'MAGO_WEAPON_OCEANO';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'CRIT_DAMAGE', 15, TRUE FROM items WHERE code = 'MAGO_WEAPON_OCEANO';
+-- Guantes del Almirante (guantes Almirante: DEF7 HP41 MAGIC_DEF22 → DEF7 HP41 MAGIC_DEF23)
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'MAGO_GLOVES_OCEANO');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'DEF', 7, FALSE FROM items WHERE code = 'MAGO_GLOVES_OCEANO';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'HP', 41, FALSE FROM items WHERE code = 'MAGO_GLOVES_OCEANO';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'MAGIC_DEF', 23, FALSE FROM items WHERE code = 'MAGO_GLOVES_OCEANO';
+-- Orbe del Almirante (orbe Almirante: DEF5 HP30 MAGIC_DEF16 MANA_REGEN5% SPD41 → DEF5 HP30 MAGIC_DEF17 MANA_REGEN6.5% SPD41)
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'MAGO_OFFHAND_ORB_OCEANO');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'DEF', 5, FALSE FROM items WHERE code = 'MAGO_OFFHAND_ORB_OCEANO';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'HP', 30, FALSE FROM items WHERE code = 'MAGO_OFFHAND_ORB_OCEANO';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'MAGIC_DEF', 17, FALSE FROM items WHERE code = 'MAGO_OFFHAND_ORB_OCEANO';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'MANA_REGEN', 6.5, TRUE FROM items WHERE code = 'MAGO_OFFHAND_ORB_OCEANO';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'SPD', 41, FALSE FROM items WHERE code = 'MAGO_OFFHAND_ORB_OCEANO';
+-- Cristal del Almirante (cristal Almirante: +8% de daño)
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'MAGO_OFFHAND_CRYSTAL_OCEANO');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'MAG', 52, FALSE FROM items WHERE code = 'MAGO_OFFHAND_CRYSTAL_OCEANO';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'CRIT_CHANCE', 4.5, TRUE FROM items WHERE code = 'MAGO_OFFHAND_CRYSTAL_OCEANO';
+-- Túnica del Almirante (pecho Almirante con su extra: DEF13 HP81 MAGIC_DEF45 HP_REGEN3% → DEF12 HP73 MAGIC_DEF41 HP_REGEN3.5%)
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'MAGO_ARMOR_OCEANO');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'DEF', 12, FALSE FROM items WHERE code = 'MAGO_ARMOR_OCEANO';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'HP', 73, FALSE FROM items WHERE code = 'MAGO_ARMOR_OCEANO';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'MAGIC_DEF', 41, FALSE FROM items WHERE code = 'MAGO_ARMOR_OCEANO';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'HP_REGEN', 3.5, TRUE FROM items WHERE code = 'MAGO_ARMOR_OCEANO';
+-- Varita de las Profundidades (arma Bestia: MAG149 CRIT_CHANCE8.3% CRIT_DAMAGE13% → MAG702 CRIT_CHANCE8.3% CRIT_DAMAGE18%)
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'MAGO_WEAPON_PROFU');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'MAG', 702, FALSE FROM items WHERE code = 'MAGO_WEAPON_PROFU';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'CRIT_CHANCE', 8.3, TRUE FROM items WHERE code = 'MAGO_WEAPON_PROFU';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'CRIT_DAMAGE', 18, TRUE FROM items WHERE code = 'MAGO_WEAPON_PROFU';
+-- Guantes de las Profundidades (guantes Bestia: DEF9 HP49 MAGIC_DEF27 → DEF9 HP48 MAGIC_DEF27)
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'MAGO_GLOVES_PROFU');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'DEF', 9, FALSE FROM items WHERE code = 'MAGO_GLOVES_PROFU';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'HP', 48, FALSE FROM items WHERE code = 'MAGO_GLOVES_PROFU';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'MAGIC_DEF', 27, FALSE FROM items WHERE code = 'MAGO_GLOVES_PROFU';
+-- Orbe de las Profundidades (orbe Bestia: DEF6 HP35 MAGIC_DEF19 MANA_REGEN5.5% SPD49 → DEF6 HP35 MAGIC_DEF20 MANA_REGEN7% SPD49)
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'MAGO_OFFHAND_ORB_PROFU');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'DEF', 6, FALSE FROM items WHERE code = 'MAGO_OFFHAND_ORB_PROFU';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'HP', 35, FALSE FROM items WHERE code = 'MAGO_OFFHAND_ORB_PROFU';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'MAGIC_DEF', 20, FALSE FROM items WHERE code = 'MAGO_OFFHAND_ORB_PROFU';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'MANA_REGEN', 7, TRUE FROM items WHERE code = 'MAGO_OFFHAND_ORB_PROFU';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'SPD', 49, FALSE FROM items WHERE code = 'MAGO_OFFHAND_ORB_PROFU';
+-- Cristal de las Profundidades (cristal Bestia: +8% de daño)
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'MAGO_OFFHAND_CRYSTAL_PROFU');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'MAG', 50, FALSE FROM items WHERE code = 'MAGO_OFFHAND_CRYSTAL_PROFU';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'CRIT_CHANCE', 5.5, TRUE FROM items WHERE code = 'MAGO_OFFHAND_CRYSTAL_PROFU';
+-- Túnica de las Profundidades (pecho Bestia con su extra: DEF17 HP96 MAGIC_DEF54 HP_REGEN3.5% → DEF15 HP86 MAGIC_DEF49 HP_REGEN4%)
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'MAGO_ARMOR_PROFU');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'DEF', 15, FALSE FROM items WHERE code = 'MAGO_ARMOR_PROFU';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'HP', 86, FALSE FROM items WHERE code = 'MAGO_ARMOR_PROFU';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'MAGIC_DEF', 49, FALSE FROM items WHERE code = 'MAGO_ARMOR_PROFU';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'HP_REGEN', 4, TRUE FROM items WHERE code = 'MAGO_ARMOR_PROFU';
+-- Carcaj de la Marea (carcaj Marea: ATK27 CRIT_DAMAGE9% SPD32 → ATK27 CRIT_DAMAGE9% SPD32)
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'ARQUERO_OFFHAND_COSTAS');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'ATK', 27, FALSE FROM items WHERE code = 'ARQUERO_OFFHAND_COSTAS';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'CRIT_DAMAGE', 9, TRUE FROM items WHERE code = 'ARQUERO_OFFHAND_COSTAS';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'SPD', 32, FALSE FROM items WHERE code = 'ARQUERO_OFFHAND_COSTAS';
+-- Arco de la Marea (arma Marea: ATK98 CRIT_CHANCE5.3% → ATK399 CRIT_CHANCE5.3%)
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'ARQUERO_WEAPON_COSTAS');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'ATK', 399, FALSE FROM items WHERE code = 'ARQUERO_WEAPON_COSTAS';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'CRIT_CHANCE', 5.3, TRUE FROM items WHERE code = 'ARQUERO_WEAPON_COSTAS';
+-- Guantes de la Marea (guantes Marea: DEF18 MAGIC_DEF5 HP31 → DEF18 MAGIC_DEF5 HP32)
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'ARQUERO_GLOVES_COSTAS');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'DEF', 18, FALSE FROM items WHERE code = 'ARQUERO_GLOVES_COSTAS';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'MAGIC_DEF', 5, FALSE FROM items WHERE code = 'ARQUERO_GLOVES_COSTAS';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'HP', 32, FALSE FROM items WHERE code = 'ARQUERO_GLOVES_COSTAS';
+-- Carcaj de Coral (carcaj Coral: ATK32 CRIT_DAMAGE11% SPD38 → ATK32 CRIT_DAMAGE11% SPD38)
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'ARQUERO_OFFHAND_CORAL');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'ATK', 32, FALSE FROM items WHERE code = 'ARQUERO_OFFHAND_CORAL';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'CRIT_DAMAGE', 11, TRUE FROM items WHERE code = 'ARQUERO_OFFHAND_CORAL';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'SPD', 38, FALSE FROM items WHERE code = 'ARQUERO_OFFHAND_CORAL';
+-- Arco de Coral (arma Coral: ATK116 CRIT_CHANCE6.8% → ATK436 CRIT_CHANCE6.8%)
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'ARQUERO_WEAPON_CORAL');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'ATK', 436, FALSE FROM items WHERE code = 'ARQUERO_WEAPON_CORAL';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'CRIT_CHANCE', 6.8, TRUE FROM items WHERE code = 'ARQUERO_WEAPON_CORAL';
+-- Guantes de Coral (guantes Coral: DEF21 HP37 MAGIC_DEF7 → DEF21 HP37 MAGIC_DEF6)
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'ARQUERO_GLOVES_CORAL');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'DEF', 21, FALSE FROM items WHERE code = 'ARQUERO_GLOVES_CORAL';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'HP', 37, FALSE FROM items WHERE code = 'ARQUERO_GLOVES_CORAL';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'MAGIC_DEF', 6, FALSE FROM items WHERE code = 'ARQUERO_GLOVES_CORAL';
+-- Arco del Abismo (arma Abismo: ATK132 CRIT_CHANCE8.3% CRIT_DAMAGE13% → ATK467 CRIT_CHANCE8.3% CRIT_DAMAGE15%)
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'ARQUERO_WEAPON_ABISMO');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'ATK', 467, FALSE FROM items WHERE code = 'ARQUERO_WEAPON_ABISMO';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'CRIT_CHANCE', 8.3, TRUE FROM items WHERE code = 'ARQUERO_WEAPON_ABISMO';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'CRIT_DAMAGE', 15, TRUE FROM items WHERE code = 'ARQUERO_WEAPON_ABISMO';
+-- Carcaj del Almirante (carcaj Almirante: ATK34 CRIT_DAMAGE11% SPD41 → ATK34 CRIT_DAMAGE11% SPD41)
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'ARQUERO_OFFHAND_OCEANO');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'ATK', 34, FALSE FROM items WHERE code = 'ARQUERO_OFFHAND_OCEANO';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'CRIT_DAMAGE', 11, TRUE FROM items WHERE code = 'ARQUERO_OFFHAND_OCEANO';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'SPD', 41, FALSE FROM items WHERE code = 'ARQUERO_OFFHAND_OCEANO';
+-- Arco del Almirante (arma Almirante: ATK124 CRIT_CHANCE6.8% CRIT_DAMAGE11% → ATK550 CRIT_CHANCE6.8% CRIT_DAMAGE15%)
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'ARQUERO_WEAPON_OCEANO');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'ATK', 550, FALSE FROM items WHERE code = 'ARQUERO_WEAPON_OCEANO';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'CRIT_CHANCE', 6.8, TRUE FROM items WHERE code = 'ARQUERO_WEAPON_OCEANO';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'CRIT_DAMAGE', 15, TRUE FROM items WHERE code = 'ARQUERO_WEAPON_OCEANO';
+-- Guantes del Almirante (guantes Almirante: DEF22 HP39 MAGIC_DEF7 → DEF23 HP39 MAGIC_DEF7)
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'ARQUERO_GLOVES_OCEANO');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'DEF', 23, FALSE FROM items WHERE code = 'ARQUERO_GLOVES_OCEANO';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'HP', 39, FALSE FROM items WHERE code = 'ARQUERO_GLOVES_OCEANO';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'MAGIC_DEF', 7, FALSE FROM items WHERE code = 'ARQUERO_GLOVES_OCEANO';
+-- Gabán del Almirante (pecho Almirante con su extra: DEF45 HP78 MAGIC_DEF13 EVASION2.5% → DEF41 HP70 MAGIC_DEF12 EVASION4.5%)
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'ARQUERO_ARMOR_OCEANO');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'DEF', 41, FALSE FROM items WHERE code = 'ARQUERO_ARMOR_OCEANO';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'HP', 70, FALSE FROM items WHERE code = 'ARQUERO_ARMOR_OCEANO';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'MAGIC_DEF', 12, FALSE FROM items WHERE code = 'ARQUERO_ARMOR_OCEANO';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'EVASION', 4.5, TRUE FROM items WHERE code = 'ARQUERO_ARMOR_OCEANO';
+-- Carcaj de las Profundidades (carcaj Bestia: ATK40 CRIT_DAMAGE13% SPD49 → ATK41 CRIT_DAMAGE13% SPD49)
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'ARQUERO_OFFHAND_PROFU');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'ATK', 41, FALSE FROM items WHERE code = 'ARQUERO_OFFHAND_PROFU';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'CRIT_DAMAGE', 13, TRUE FROM items WHERE code = 'ARQUERO_OFFHAND_PROFU';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'SPD', 49, FALSE FROM items WHERE code = 'ARQUERO_OFFHAND_PROFU';
+-- Arco de las Profundidades (arma Bestia: ATK149 CRIT_CHANCE8.3% CRIT_DAMAGE13% → ATK606 CRIT_CHANCE8.3% CRIT_DAMAGE18%)
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'ARQUERO_WEAPON_PROFU');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'ATK', 606, FALSE FROM items WHERE code = 'ARQUERO_WEAPON_PROFU';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'CRIT_CHANCE', 8.3, TRUE FROM items WHERE code = 'ARQUERO_WEAPON_PROFU';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'CRIT_DAMAGE', 18, TRUE FROM items WHERE code = 'ARQUERO_WEAPON_PROFU';
+-- Guantes de las Profundidades (guantes Bestia: DEF27 HP47 MAGIC_DEF9 → DEF27 HP48 MAGIC_DEF9)
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'ARQUERO_GLOVES_PROFU');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'DEF', 27, FALSE FROM items WHERE code = 'ARQUERO_GLOVES_PROFU';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'HP', 48, FALSE FROM items WHERE code = 'ARQUERO_GLOVES_PROFU';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'MAGIC_DEF', 9, FALSE FROM items WHERE code = 'ARQUERO_GLOVES_PROFU';
+-- Gabán de las Profundidades (pecho Bestia con su extra: DEF54 HP95 MAGIC_DEF17 EVASION3% → DEF49 HP86 MAGIC_DEF15 EVASION5%)
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'ARQUERO_ARMOR_PROFU');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'DEF', 49, FALSE FROM items WHERE code = 'ARQUERO_ARMOR_PROFU';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'HP', 86, FALSE FROM items WHERE code = 'ARQUERO_ARMOR_PROFU';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'MAGIC_DEF', 15, FALSE FROM items WHERE code = 'ARQUERO_ARMOR_PROFU';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'EVASION', 5, TRUE FROM items WHERE code = 'ARQUERO_ARMOR_PROFU';
+-- Daga Gemela de la Marea (daga gemela Marea: ATK27 CRIT_CHANCE3.5% EVASION2% SPD32 → ATK27 CRIT_CHANCE3.5% EVASION2% SPD32)
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'PICARO_OFFHAND_COSTAS');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'ATK', 27, FALSE FROM items WHERE code = 'PICARO_OFFHAND_COSTAS';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'CRIT_CHANCE', 3.5, TRUE FROM items WHERE code = 'PICARO_OFFHAND_COSTAS';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'EVASION', 2, TRUE FROM items WHERE code = 'PICARO_OFFHAND_COSTAS';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'SPD', 32, FALSE FROM items WHERE code = 'PICARO_OFFHAND_COSTAS';
+-- Daga de la Marea (arma Marea: ATK98 CRIT_CHANCE5.3% → ATK415 CRIT_CHANCE5.3%)
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'PICARO_WEAPON_COSTAS');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'ATK', 415, FALSE FROM items WHERE code = 'PICARO_WEAPON_COSTAS';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'CRIT_CHANCE', 5.3, TRUE FROM items WHERE code = 'PICARO_WEAPON_COSTAS';
+-- Guantes de la Marea (guantes Marea: DEF18 MAGIC_DEF5 HP34 → DEF18 MAGIC_DEF6 HP34)
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'PICARO_GLOVES_COSTAS');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'DEF', 18, FALSE FROM items WHERE code = 'PICARO_GLOVES_COSTAS';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'MAGIC_DEF', 6, FALSE FROM items WHERE code = 'PICARO_GLOVES_COSTAS';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'HP', 34, FALSE FROM items WHERE code = 'PICARO_GLOVES_COSTAS';
+-- Daga Gemela de Coral (daga gemela Coral: ATK32 CRIT_CHANCE4.5% EVASION2.5% SPD38 → ATK32 CRIT_CHANCE4.5% EVASION2.5% SPD38)
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'PICARO_OFFHAND_CORAL');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'ATK', 32, FALSE FROM items WHERE code = 'PICARO_OFFHAND_CORAL';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'CRIT_CHANCE', 4.5, TRUE FROM items WHERE code = 'PICARO_OFFHAND_CORAL';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'EVASION', 2.5, TRUE FROM items WHERE code = 'PICARO_OFFHAND_CORAL';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'SPD', 38, FALSE FROM items WHERE code = 'PICARO_OFFHAND_CORAL';
+-- Daga de Coral (arma Coral: ATK116 CRIT_CHANCE6.8% → ATK456 CRIT_CHANCE6.8%)
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'PICARO_WEAPON_CORAL');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'ATK', 456, FALSE FROM items WHERE code = 'PICARO_WEAPON_CORAL';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'CRIT_CHANCE', 6.8, TRUE FROM items WHERE code = 'PICARO_WEAPON_CORAL';
+-- Guantes de Coral (guantes Coral: DEF21 HP39 MAGIC_DEF7 → DEF21 HP41 MAGIC_DEF6)
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'PICARO_GLOVES_CORAL');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'DEF', 21, FALSE FROM items WHERE code = 'PICARO_GLOVES_CORAL';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'HP', 41, FALSE FROM items WHERE code = 'PICARO_GLOVES_CORAL';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'MAGIC_DEF', 6, FALSE FROM items WHERE code = 'PICARO_GLOVES_CORAL';
+-- Daga del Abismo (arma Abismo: ATK132 CRIT_CHANCE8.3% CRIT_DAMAGE13% → ATK476 CRIT_CHANCE8.3% CRIT_DAMAGE15%)
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'PICARO_WEAPON_ABISMO');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'ATK', 476, FALSE FROM items WHERE code = 'PICARO_WEAPON_ABISMO';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'CRIT_CHANCE', 8.3, TRUE FROM items WHERE code = 'PICARO_WEAPON_ABISMO';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'CRIT_DAMAGE', 15, TRUE FROM items WHERE code = 'PICARO_WEAPON_ABISMO';
+-- Daga Gemela del Almirante (daga gemela Almirante: ATK34 CRIT_CHANCE4.5% EVASION2.5% SPD41 → ATK34 CRIT_CHANCE4.5% EVASION2.5% SPD41)
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'PICARO_OFFHAND_OCEANO');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'ATK', 34, FALSE FROM items WHERE code = 'PICARO_OFFHAND_OCEANO';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'CRIT_CHANCE', 4.5, TRUE FROM items WHERE code = 'PICARO_OFFHAND_OCEANO';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'EVASION', 2.5, TRUE FROM items WHERE code = 'PICARO_OFFHAND_OCEANO';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'SPD', 41, FALSE FROM items WHERE code = 'PICARO_OFFHAND_OCEANO';
+-- Daga del Almirante (arma Almirante: ATK124 CRIT_CHANCE6.8% CRIT_DAMAGE11% → ATK559 CRIT_CHANCE6.8% CRIT_DAMAGE15%)
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'PICARO_WEAPON_OCEANO');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'ATK', 559, FALSE FROM items WHERE code = 'PICARO_WEAPON_OCEANO';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'CRIT_CHANCE', 6.8, TRUE FROM items WHERE code = 'PICARO_WEAPON_OCEANO';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'CRIT_DAMAGE', 15, TRUE FROM items WHERE code = 'PICARO_WEAPON_OCEANO';
+-- Guantes del Almirante (guantes Almirante: DEF22 HP43 MAGIC_DEF7 → DEF23 HP43 MAGIC_DEF7)
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'PICARO_GLOVES_OCEANO');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'DEF', 23, FALSE FROM items WHERE code = 'PICARO_GLOVES_OCEANO';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'HP', 43, FALSE FROM items WHERE code = 'PICARO_GLOVES_OCEANO';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'MAGIC_DEF', 7, FALSE FROM items WHERE code = 'PICARO_GLOVES_OCEANO';
+-- Cuero del Almirante (pecho Almirante con su extra: DEF45 HP85 MAGIC_DEF13 EVASION2.5% → DEF41 HP77 MAGIC_DEF12 EVASION4.5%)
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'PICARO_ARMOR_OCEANO');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'DEF', 41, FALSE FROM items WHERE code = 'PICARO_ARMOR_OCEANO';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'HP', 77, FALSE FROM items WHERE code = 'PICARO_ARMOR_OCEANO';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'MAGIC_DEF', 12, FALSE FROM items WHERE code = 'PICARO_ARMOR_OCEANO';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'EVASION', 4.5, TRUE FROM items WHERE code = 'PICARO_ARMOR_OCEANO';
+-- Daga Gemela de las Profundidades (daga gemela Bestia: ATK40 CRIT_CHANCE5.5% EVASION3% SPD49 → ATK41 CRIT_CHANCE5.5% EVASION3% SPD49)
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'PICARO_OFFHAND_PROFU');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'ATK', 41, FALSE FROM items WHERE code = 'PICARO_OFFHAND_PROFU';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'CRIT_CHANCE', 5.5, TRUE FROM items WHERE code = 'PICARO_OFFHAND_PROFU';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'EVASION', 3, TRUE FROM items WHERE code = 'PICARO_OFFHAND_PROFU';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'SPD', 49, FALSE FROM items WHERE code = 'PICARO_OFFHAND_PROFU';
+-- Daga de las Profundidades (arma Bestia: ATK149 CRIT_CHANCE8.3% CRIT_DAMAGE13% → ATK616 CRIT_CHANCE8.3% CRIT_DAMAGE18%)
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'PICARO_WEAPON_PROFU');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'ATK', 616, FALSE FROM items WHERE code = 'PICARO_WEAPON_PROFU';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'CRIT_CHANCE', 8.3, TRUE FROM items WHERE code = 'PICARO_WEAPON_PROFU';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'CRIT_DAMAGE', 18, TRUE FROM items WHERE code = 'PICARO_WEAPON_PROFU';
+-- Guantes de las Profundidades (guantes Bestia: DEF27 HP52 MAGIC_DEF8 → DEF27 HP52 MAGIC_DEF8)
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'PICARO_GLOVES_PROFU');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'DEF', 27, FALSE FROM items WHERE code = 'PICARO_GLOVES_PROFU';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'HP', 52, FALSE FROM items WHERE code = 'PICARO_GLOVES_PROFU';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'MAGIC_DEF', 8, FALSE FROM items WHERE code = 'PICARO_GLOVES_PROFU';
+-- Cuero de las Profundidades (pecho Bestia con su extra: DEF54 HP103 MAGIC_DEF16 EVASION3% → DEF49 HP93 MAGIC_DEF14 EVASION5%)
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'PICARO_ARMOR_PROFU');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'DEF', 49, FALSE FROM items WHERE code = 'PICARO_ARMOR_PROFU';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'HP', 93, FALSE FROM items WHERE code = 'PICARO_ARMOR_PROFU';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'MAGIC_DEF', 14, FALSE FROM items WHERE code = 'PICARO_ARMOR_PROFU';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'EVASION', 5, TRUE FROM items WHERE code = 'PICARO_ARMOR_PROFU';
+-- Báculo Sagrado de la Marea (arma Marea: MAG98 CRIT_CHANCE5.3% → MAG395 CRIT_CHANCE5.3%)
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'SACERDOTE_WEAPON_COSTAS');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'MAG', 395, FALSE FROM items WHERE code = 'SACERDOTE_WEAPON_COSTAS';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'CRIT_CHANCE', 5.3, TRUE FROM items WHERE code = 'SACERDOTE_WEAPON_COSTAS';
+-- Guantes Bendecidos de la Marea (guantes Marea: MAGIC_DEF18 DEF5 HP29 → MAGIC_DEF18 DEF6 HP28)
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'SACERDOTE_GLOVES_COSTAS');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'MAGIC_DEF', 18, FALSE FROM items WHERE code = 'SACERDOTE_GLOVES_COSTAS';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'DEF', 6, FALSE FROM items WHERE code = 'SACERDOTE_GLOVES_COSTAS';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'HP', 28, FALSE FROM items WHERE code = 'SACERDOTE_GLOVES_COSTAS';
+-- Símbolo Sagrado de la Marea (símbolo Marea: MAGIC_DEF22 HP28 HEALING4% → MAGIC_DEF19 HP24 HEALING5.5%)
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'SACERDOTE_OFFHAND_COSTAS');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'MAGIC_DEF', 19, FALSE FROM items WHERE code = 'SACERDOTE_OFFHAND_COSTAS';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'HP', 24, FALSE FROM items WHERE code = 'SACERDOTE_OFFHAND_COSTAS';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'HEALING', 5.5, TRUE FROM items WHERE code = 'SACERDOTE_OFFHAND_COSTAS';
+-- Báculo de Coral (arma Coral: MAG116 CRIT_CHANCE6.8% → MAG440 CRIT_CHANCE6.8%)
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'SACERDOTE_WEAPON_CORAL');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'MAG', 440, FALSE FROM items WHERE code = 'SACERDOTE_WEAPON_CORAL';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'CRIT_CHANCE', 6.8, TRUE FROM items WHERE code = 'SACERDOTE_WEAPON_CORAL';
+-- Guantes de Coral (guantes Coral: DEF7 HP34 MAGIC_DEF21 → DEF7 HP35 MAGIC_DEF21)
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'SACERDOTE_GLOVES_CORAL');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'DEF', 7, FALSE FROM items WHERE code = 'SACERDOTE_GLOVES_CORAL';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'HP', 35, FALSE FROM items WHERE code = 'SACERDOTE_GLOVES_CORAL';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'MAGIC_DEF', 21, FALSE FROM items WHERE code = 'SACERDOTE_GLOVES_CORAL';
+-- Símbolo de Coral (símbolo Coral: HP34 MAGIC_DEF26 HEALING4.5% → HP29 MAGIC_DEF22 HEALING6%)
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'SACERDOTE_OFFHAND_CORAL');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'HP', 29, FALSE FROM items WHERE code = 'SACERDOTE_OFFHAND_CORAL';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'MAGIC_DEF', 22, FALSE FROM items WHERE code = 'SACERDOTE_OFFHAND_CORAL';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'HEALING', 6, TRUE FROM items WHERE code = 'SACERDOTE_OFFHAND_CORAL';
+-- Báculo Sagrado del Abismo (arma Abismo: MAG132 CRIT_CHANCE8.3% CRIT_DAMAGE13% → MAG483 CRIT_CHANCE8.3% CRIT_DAMAGE15%)
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'SACERDOTE_WEAPON_ABISMO');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'MAG', 483, FALSE FROM items WHERE code = 'SACERDOTE_WEAPON_ABISMO';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'CRIT_CHANCE', 8.3, TRUE FROM items WHERE code = 'SACERDOTE_WEAPON_ABISMO';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'CRIT_DAMAGE', 15, TRUE FROM items WHERE code = 'SACERDOTE_WEAPON_ABISMO';
+-- Báculo del Almirante (arma Almirante: MAG124 CRIT_CHANCE6.8% CRIT_DAMAGE11% → MAG565 CRIT_CHANCE6.8% CRIT_DAMAGE15%)
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'SACERDOTE_WEAPON_OCEANO');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'MAG', 565, FALSE FROM items WHERE code = 'SACERDOTE_WEAPON_OCEANO';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'CRIT_CHANCE', 6.8, TRUE FROM items WHERE code = 'SACERDOTE_WEAPON_OCEANO';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'CRIT_DAMAGE', 15, TRUE FROM items WHERE code = 'SACERDOTE_WEAPON_OCEANO';
+-- Guantes del Almirante (guantes Almirante: DEF8 HP37 MAGIC_DEF22 → DEF7 HP36 MAGIC_DEF23)
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'SACERDOTE_GLOVES_OCEANO');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'DEF', 7, FALSE FROM items WHERE code = 'SACERDOTE_GLOVES_OCEANO';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'HP', 36, FALSE FROM items WHERE code = 'SACERDOTE_GLOVES_OCEANO';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'MAGIC_DEF', 23, FALSE FROM items WHERE code = 'SACERDOTE_GLOVES_OCEANO';
+-- Símbolo del Almirante (símbolo Almirante: HP36 MAGIC_DEF27 HEALING5% → HP31 MAGIC_DEF23 HEALING6.5%)
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'SACERDOTE_OFFHAND_OCEANO');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'HP', 31, FALSE FROM items WHERE code = 'SACERDOTE_OFFHAND_OCEANO';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'MAGIC_DEF', 23, FALSE FROM items WHERE code = 'SACERDOTE_OFFHAND_OCEANO';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'HEALING', 6.5, TRUE FROM items WHERE code = 'SACERDOTE_OFFHAND_OCEANO';
+-- Vestidura del Almirante (pecho Almirante con su extra: DEF14 HP72 MAGIC_DEF45 HEALING8% → DEF13 HP65 MAGIC_DEF41 HEALING9%)
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'SACERDOTE_ARMOR_OCEANO');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'DEF', 13, FALSE FROM items WHERE code = 'SACERDOTE_ARMOR_OCEANO';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'HP', 65, FALSE FROM items WHERE code = 'SACERDOTE_ARMOR_OCEANO';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'MAGIC_DEF', 41, FALSE FROM items WHERE code = 'SACERDOTE_ARMOR_OCEANO';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'HEALING', 9, TRUE FROM items WHERE code = 'SACERDOTE_ARMOR_OCEANO';
+-- Báculo de las Profundidades (arma Bestia: MAG149 CRIT_CHANCE8.3% CRIT_DAMAGE13% → MAG635 CRIT_CHANCE8.3% CRIT_DAMAGE18%)
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'SACERDOTE_WEAPON_PROFU');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'MAG', 635, FALSE FROM items WHERE code = 'SACERDOTE_WEAPON_PROFU';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'CRIT_CHANCE', 8.3, TRUE FROM items WHERE code = 'SACERDOTE_WEAPON_PROFU';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'CRIT_DAMAGE', 18, TRUE FROM items WHERE code = 'SACERDOTE_WEAPON_PROFU';
+-- Guantes de las Profundidades (guantes Bestia: DEF9 HP44 MAGIC_DEF27 → DEF9 HP43 MAGIC_DEF27)
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'SACERDOTE_GLOVES_PROFU');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'DEF', 9, FALSE FROM items WHERE code = 'SACERDOTE_GLOVES_PROFU';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'HP', 43, FALSE FROM items WHERE code = 'SACERDOTE_GLOVES_PROFU';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'MAGIC_DEF', 27, FALSE FROM items WHERE code = 'SACERDOTE_GLOVES_PROFU';
+-- Símbolo de las Profundidades (símbolo Bestia: HP43 MAGIC_DEF33 HEALING5.5% → HP37 MAGIC_DEF28 HEALING7%)
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'SACERDOTE_OFFHAND_PROFU');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'HP', 37, FALSE FROM items WHERE code = 'SACERDOTE_OFFHAND_PROFU';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'MAGIC_DEF', 28, FALSE FROM items WHERE code = 'SACERDOTE_OFFHAND_PROFU';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'HEALING', 7, TRUE FROM items WHERE code = 'SACERDOTE_OFFHAND_PROFU';
+-- Vestidura de las Profundidades (pecho Bestia con su extra: DEF17 HP86 MAGIC_DEF54 HEALING9% → DEF15 HP77 MAGIC_DEF49 HEALING10%)
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'SACERDOTE_ARMOR_PROFU');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'DEF', 15, FALSE FROM items WHERE code = 'SACERDOTE_ARMOR_PROFU';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'HP', 77, FALSE FROM items WHERE code = 'SACERDOTE_ARMOR_PROFU';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'MAGIC_DEF', 49, FALSE FROM items WHERE code = 'SACERDOTE_ARMOR_PROFU';
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent) SELECT id, 'HEALING', 10, TRUE FROM items WHERE code = 'SACERDOTE_ARMOR_PROFU';
+
+-- ############################################################################################
+-- COSTAS MUERTAS (zona 4) · tanda 3: comidas, venta por zona (x4) y costas_v1 (gen_comidas_costas.js)
+-- ############################################################################################
+
+-- ============================================================================================
+-- Comidas de las Costas Muertas (repetible; sin ON CONFLICT). El Cocodrilo del Manglar suelta su
+-- carne y Doña Almeja, la cocinera del mercado de pescado del Puerto Antiguo, cocina las ostras, el
+-- cangrejo, el cocodrilo y el calamar de la zona; además dos bebidas de alquimia. Todas dejan "bien
+-- alimentado" (lib/comida.js). Al final: lo que vale vender lo de la costa (×4) y costas_v1.
+-- ============================================================================================
+INSERT INTO items (code, name, item_type, rarity, obtain_method, description)
+SELECT 'CARNE_COCODRILO', 'Carne de Cocodrilo', 'MATERIAL', 'COMUN', 'Drop de monstruo', 'La cola de un Cocodrilo del Manglar: dura, pero en guiso se deshace. Cieno dice que sabe a pollo.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'CARNE_COCODRILO');
+UPDATE items SET name = 'Carne de Cocodrilo', item_type = 'MATERIAL', rarity = 'COMUN', obtain_method = 'Drop de monstruo', description = 'La cola de un Cocodrilo del Manglar: dura, pero en guiso se deshace. Cieno dice que sabe a pollo.' WHERE code = 'CARNE_COCODRILO';
+-- la carne: el cocodrilo la suelta además de su cuero
+DELETE FROM monster_drops WHERE item_id IN (SELECT id FROM items WHERE code IN ('CARNE_COCODRILO'));
+INSERT INTO monster_drops (monster_id, item_id, drop_chance_percent, min_quantity, max_quantity)
+SELECT m.id, i.id, v.pct, v.mn, v.mx FROM (VALUES ('COCODRILO_MANGLAR', 'CARNE_COCODRILO', 35, 1, 2)) AS v(mon, item, pct, mn, mx)
+JOIN monsters m ON m.code = v.mon JOIN items i ON i.code = v.item;
+
+-- Sopa de Cangrejo
+INSERT INTO items (code, name, item_type, rarity, required_level, is_craftable, obtain_method, description)
+SELECT 'SOPA_CANGREJO', 'Sopa de Cangrejo', 'CONSUMABLE', 'POCO_COMUN', 46, TRUE, 'Crafteo', 'Cura 260 de vida y da +15% de defensa. Doña Almeja la sirve en el mismo caparazón. Tomada fuera de combate te deja bien alimentado 20 minutos: tus combates empiezan con ese bonus.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'SOPA_CANGREJO');
+UPDATE items SET name = 'Sopa de Cangrejo', item_type = 'CONSUMABLE', rarity = 'POCO_COMUN', required_level = 46, is_craftable = TRUE, obtain_method = 'Crafteo', description = 'Cura 260 de vida y da +15% de defensa. Doña Almeja la sirve en el mismo caparazón. Tomada fuera de combate te deja bien alimentado 20 minutos: tus combates empiezan con ese bonus.' WHERE code = 'SOPA_CANGREJO';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'SOPA_CANGREJO');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent, description)
+SELECT (SELECT id FROM items WHERE code = 'SOPA_CANGREJO'), v.* FROM (VALUES ('HEAL_HP', 260, FALSE, 'Restaura 260 HP'), ('BUFF_DEF', 15, TRUE, '+15% de defensa durante el combate')) AS v(stat_code, amount, is_percent, description);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station)
+SELECT 'RECETA_SOPA_CANGREJO', (SELECT id FROM items WHERE code = 'SOPA_CANGREJO'), 1, 'POCO_COMUN', 46, 95, 1, 'Doña Almeja, del mercado de pescado del Puerto Antiguo', 4, NULL WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECETA_SOPA_CANGREJO');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'SOPA_CANGREJO'), result_quantity = 1, rarity = 'POCO_COMUN', required_level = 46, success_rate_percent = 95, craft_time_minutes = 1, artisan_name = 'Doña Almeja, del mercado de pescado del Puerto Antiguo', zone_id = 4, station = NULL WHERE code = 'RECETA_SOPA_CANGREJO';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECETA_SOPA_CANGREJO');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECETA_SOPA_CANGREJO'), i.id, v.n FROM (VALUES ('CAPARAZON_CANGREJO_GIGANTE', 1), ('CARNE_OSTRA', 2), ('ALGA_SALINA', 1)) AS v(code, n) JOIN items i ON i.code = v.code;
+
+-- Ostras a la Brasa
+INSERT INTO items (code, name, item_type, rarity, required_level, is_craftable, obtain_method, description)
+SELECT 'OSTRAS_BRASA', 'Ostras a la Brasa', 'CONSUMABLE', 'POCO_COMUN', 47, TRUE, 'Crafteo', 'Cura 240 de vida y da +12% de velocidad. Se abren solas sobre las brasas. Tomada fuera de combate te deja bien alimentado 20 minutos: tus combates empiezan con ese bonus.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'OSTRAS_BRASA');
+UPDATE items SET name = 'Ostras a la Brasa', item_type = 'CONSUMABLE', rarity = 'POCO_COMUN', required_level = 47, is_craftable = TRUE, obtain_method = 'Crafteo', description = 'Cura 240 de vida y da +12% de velocidad. Se abren solas sobre las brasas. Tomada fuera de combate te deja bien alimentado 20 minutos: tus combates empiezan con ese bonus.' WHERE code = 'OSTRAS_BRASA';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'OSTRAS_BRASA');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent, description)
+SELECT (SELECT id FROM items WHERE code = 'OSTRAS_BRASA'), v.* FROM (VALUES ('HEAL_HP', 240, FALSE, 'Restaura 240 HP'), ('BUFF_SPD', 12, TRUE, '+12% de velocidad durante el combate')) AS v(stat_code, amount, is_percent, description);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station)
+SELECT 'RECETA_OSTRAS_BRASA', (SELECT id FROM items WHERE code = 'OSTRAS_BRASA'), 1, 'POCO_COMUN', 47, 95, 1, 'Doña Almeja, del mercado de pescado del Puerto Antiguo', 4, NULL WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECETA_OSTRAS_BRASA');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'OSTRAS_BRASA'), result_quantity = 1, rarity = 'POCO_COMUN', required_level = 47, success_rate_percent = 95, craft_time_minutes = 1, artisan_name = 'Doña Almeja, del mercado de pescado del Puerto Antiguo', zone_id = 4, station = NULL WHERE code = 'RECETA_OSTRAS_BRASA';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECETA_OSTRAS_BRASA');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECETA_OSTRAS_BRASA'), i.id, v.n FROM (VALUES ('CARNE_OSTRA', 3), ('ACEITE_DE_COCINA', 1)) AS v(code, n) JOIN items i ON i.code = v.code;
+
+-- Té de Alga
+INSERT INTO items (code, name, item_type, rarity, required_level, is_craftable, obtain_method, description)
+SELECT 'TE_ALGA', 'Té de Alga', 'CONSUMABLE', 'POCO_COMUN', 47, TRUE, 'Crafteo', 'Devuelve 160 de maná y da +12% de inteligencia. Verde, salado y sorprendentemente rico. Tomada fuera de combate te deja bien alimentado 20 minutos: tus combates empiezan con ese bonus.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'TE_ALGA');
+UPDATE items SET name = 'Té de Alga', item_type = 'CONSUMABLE', rarity = 'POCO_COMUN', required_level = 47, is_craftable = TRUE, obtain_method = 'Crafteo', description = 'Devuelve 160 de maná y da +12% de inteligencia. Verde, salado y sorprendentemente rico. Tomada fuera de combate te deja bien alimentado 20 minutos: tus combates empiezan con ese bonus.' WHERE code = 'TE_ALGA';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'TE_ALGA');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent, description)
+SELECT (SELECT id FROM items WHERE code = 'TE_ALGA'), v.* FROM (VALUES ('HEAL_MP', 160, FALSE, 'Restaura 160 MP'), ('BUFF_MAG', 12, TRUE, '+12% de inteligencia durante el combate')) AS v(stat_code, amount, is_percent, description);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station)
+SELECT 'RECETA_TE_ALGA', (SELECT id FROM items WHERE code = 'TE_ALGA'), 1, 'POCO_COMUN', 47, 95, 1, 'Alquimia', 4, NULL WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECETA_TE_ALGA');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'TE_ALGA'), result_quantity = 1, rarity = 'POCO_COMUN', required_level = 47, success_rate_percent = 95, craft_time_minutes = 1, artisan_name = 'Alquimia', zone_id = 4, station = NULL WHERE code = 'RECETA_TE_ALGA';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECETA_TE_ALGA');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECETA_TE_ALGA'), i.id, v.n FROM (VALUES ('ALGA_SALINA', 3), ('AGUA_PURIFICADA', 1)) AS v(code, n) JOIN items i ON i.code = v.code;
+
+-- Ceviche de Ostras
+INSERT INTO items (code, name, item_type, rarity, required_level, is_craftable, obtain_method, description)
+SELECT 'CEVICHE_OSTRAS', 'Ceviche de Ostras', 'CONSUMABLE', 'POCO_COMUN', 49, TRUE, 'Crafteo', 'Cura 220 de vida y da +15% de ataque. Frío, ácido y con un toque de sal de las pozas. Tomada fuera de combate te deja bien alimentado 20 minutos: tus combates empiezan con ese bonus.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'CEVICHE_OSTRAS');
+UPDATE items SET name = 'Ceviche de Ostras', item_type = 'CONSUMABLE', rarity = 'POCO_COMUN', required_level = 49, is_craftable = TRUE, obtain_method = 'Crafteo', description = 'Cura 220 de vida y da +15% de ataque. Frío, ácido y con un toque de sal de las pozas. Tomada fuera de combate te deja bien alimentado 20 minutos: tus combates empiezan con ese bonus.' WHERE code = 'CEVICHE_OSTRAS';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'CEVICHE_OSTRAS');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent, description)
+SELECT (SELECT id FROM items WHERE code = 'CEVICHE_OSTRAS'), v.* FROM (VALUES ('HEAL_HP', 220, FALSE, 'Restaura 220 HP'), ('BUFF_ATK', 15, TRUE, '+15% de ataque durante el combate')) AS v(stat_code, amount, is_percent, description);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station)
+SELECT 'RECETA_CEVICHE_OSTRAS', (SELECT id FROM items WHERE code = 'CEVICHE_OSTRAS'), 1, 'POCO_COMUN', 49, 95, 1, 'Doña Almeja, del mercado de pescado del Puerto Antiguo', 4, NULL WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECETA_CEVICHE_OSTRAS');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'CEVICHE_OSTRAS'), result_quantity = 1, rarity = 'POCO_COMUN', required_level = 49, success_rate_percent = 95, craft_time_minutes = 1, artisan_name = 'Doña Almeja, del mercado de pescado del Puerto Antiguo', zone_id = 4, station = NULL WHERE code = 'RECETA_CEVICHE_OSTRAS';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECETA_CEVICHE_OSTRAS');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECETA_CEVICHE_OSTRAS'), i.id, v.n FROM (VALUES ('CARNE_OSTRA', 3), ('ALGA_SALINA', 1), ('SAL_DE_CRISTAL', 1)) AS v(code, n) JOIN items i ON i.code = v.code;
+
+-- Guiso de Cocodrilo
+INSERT INTO items (code, name, item_type, rarity, required_level, is_craftable, obtain_method, description)
+SELECT 'GUISO_COCODRILO', 'Guiso de Cocodrilo', 'CONSUMABLE', 'RARO', 52, TRUE, 'Crafteo', 'Cura 300 de vida y da +18% de defensa. La receta es de Cieno; Doña Almeja dice que es suya. Tomada fuera de combate te deja bien alimentado 20 minutos: tus combates empiezan con ese bonus.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'GUISO_COCODRILO');
+UPDATE items SET name = 'Guiso de Cocodrilo', item_type = 'CONSUMABLE', rarity = 'RARO', required_level = 52, is_craftable = TRUE, obtain_method = 'Crafteo', description = 'Cura 300 de vida y da +18% de defensa. La receta es de Cieno; Doña Almeja dice que es suya. Tomada fuera de combate te deja bien alimentado 20 minutos: tus combates empiezan con ese bonus.' WHERE code = 'GUISO_COCODRILO';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'GUISO_COCODRILO');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent, description)
+SELECT (SELECT id FROM items WHERE code = 'GUISO_COCODRILO'), v.* FROM (VALUES ('HEAL_HP', 300, FALSE, 'Restaura 300 HP'), ('BUFF_DEF', 18, TRUE, '+18% de defensa durante el combate')) AS v(stat_code, amount, is_percent, description);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station)
+SELECT 'RECETA_GUISO_COCODRILO', (SELECT id FROM items WHERE code = 'GUISO_COCODRILO'), 1, 'RARO', 52, 95, 1, 'Doña Almeja, del mercado de pescado del Puerto Antiguo', 4, NULL WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECETA_GUISO_COCODRILO');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'GUISO_COCODRILO'), result_quantity = 1, rarity = 'RARO', required_level = 52, success_rate_percent = 95, craft_time_minutes = 1, artisan_name = 'Doña Almeja, del mercado de pescado del Puerto Antiguo', zone_id = 4, station = NULL WHERE code = 'RECETA_GUISO_COCODRILO';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECETA_GUISO_COCODRILO');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECETA_GUISO_COCODRILO'), i.id, v.n FROM (VALUES ('CARNE_COCODRILO', 2), ('ALGA_SALINA', 2)) AS v(code, n) JOIN items i ON i.code = v.code;
+
+-- Elixir de la Marea
+INSERT INTO items (code, name, item_type, rarity, required_level, is_craftable, obtain_method, description)
+SELECT 'ELIXIR_MAREA', 'Elixir de la Marea', 'CONSUMABLE', 'RARO', 53, TRUE, 'Crafteo', 'Devuelve 200 de maná y da +15% de velocidad y +12% de inteligencia. Brilla de morado en la oscuridad. Tomada fuera de combate te deja bien alimentado 20 minutos: tus combates empiezan con ese bonus.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'ELIXIR_MAREA');
+UPDATE items SET name = 'Elixir de la Marea', item_type = 'CONSUMABLE', rarity = 'RARO', required_level = 53, is_craftable = TRUE, obtain_method = 'Crafteo', description = 'Devuelve 200 de maná y da +15% de velocidad y +12% de inteligencia. Brilla de morado en la oscuridad. Tomada fuera de combate te deja bien alimentado 20 minutos: tus combates empiezan con ese bonus.' WHERE code = 'ELIXIR_MAREA';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'ELIXIR_MAREA');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent, description)
+SELECT (SELECT id FROM items WHERE code = 'ELIXIR_MAREA'), v.* FROM (VALUES ('HEAL_MP', 200, FALSE, 'Restaura 200 MP'), ('BUFF_SPD', 15, TRUE, '+15% de velocidad durante el combate'), ('BUFF_MAG', 12, TRUE, '+12% de inteligencia durante el combate')) AS v(stat_code, amount, is_percent, description);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station)
+SELECT 'RECETA_ELIXIR_MAREA', (SELECT id FROM items WHERE code = 'ELIXIR_MAREA'), 1, 'RARO', 53, 95, 1, 'Alquimia', 4, NULL WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECETA_ELIXIR_MAREA');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'ELIXIR_MAREA'), result_quantity = 1, rarity = 'RARO', required_level = 53, success_rate_percent = 95, craft_time_minutes = 1, artisan_name = 'Alquimia', zone_id = 4, station = NULL WHERE code = 'RECETA_ELIXIR_MAREA';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECETA_ELIXIR_MAREA');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECETA_ELIXIR_MAREA'), i.id, v.n FROM (VALUES ('GEL_MEDUSA', 1), ('ESCAMA_SIRENA_CORRUPTA', 1), ('AGUA_PURIFICADA', 1)) AS v(code, n) JOIN items i ON i.code = v.code;
+
+-- Brocheta de Calamar en su Tinta
+INSERT INTO items (code, name, item_type, rarity, required_level, is_craftable, obtain_method, description)
+SELECT 'BROCHETA_CALAMAR', 'Brocheta de Calamar en su Tinta', 'CONSUMABLE', 'RARO', 57, TRUE, 'Crafteo', 'Cura 320 de vida y da +18% de ataque. Te deja los dientes negros un buen rato. Tomada fuera de combate te deja bien alimentado 20 minutos: tus combates empiezan con ese bonus.' WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'BROCHETA_CALAMAR');
+UPDATE items SET name = 'Brocheta de Calamar en su Tinta', item_type = 'CONSUMABLE', rarity = 'RARO', required_level = 57, is_craftable = TRUE, obtain_method = 'Crafteo', description = 'Cura 320 de vida y da +18% de ataque. Te deja los dientes negros un buen rato. Tomada fuera de combate te deja bien alimentado 20 minutos: tus combates empiezan con ese bonus.' WHERE code = 'BROCHETA_CALAMAR';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'BROCHETA_CALAMAR');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent, description)
+SELECT (SELECT id FROM items WHERE code = 'BROCHETA_CALAMAR'), v.* FROM (VALUES ('HEAL_HP', 320, FALSE, 'Restaura 320 HP'), ('BUFF_ATK', 18, TRUE, '+18% de ataque durante el combate')) AS v(stat_code, amount, is_percent, description);
+INSERT INTO crafting_recipes (code, result_item_id, result_quantity, rarity, required_level, success_rate_percent, craft_time_minutes, artisan_name, zone_id, station)
+SELECT 'RECETA_BROCHETA_CALAMAR', (SELECT id FROM items WHERE code = 'BROCHETA_CALAMAR'), 1, 'RARO', 57, 95, 1, 'Doña Almeja, del mercado de pescado del Puerto Antiguo', 4, NULL WHERE NOT EXISTS (SELECT 1 FROM crafting_recipes WHERE code = 'RECETA_BROCHETA_CALAMAR');
+UPDATE crafting_recipes SET result_item_id = (SELECT id FROM items WHERE code = 'BROCHETA_CALAMAR'), result_quantity = 1, rarity = 'RARO', required_level = 57, success_rate_percent = 95, craft_time_minutes = 1, artisan_name = 'Doña Almeja, del mercado de pescado del Puerto Antiguo', zone_id = 4, station = NULL WHERE code = 'RECETA_BROCHETA_CALAMAR';
+DELETE FROM crafting_recipe_ingredients WHERE recipe_id = (SELECT id FROM crafting_recipes WHERE code = 'RECETA_BROCHETA_CALAMAR');
+INSERT INTO crafting_recipe_ingredients (recipe_id, item_id, quantity)
+SELECT (SELECT id FROM crafting_recipes WHERE code = 'RECETA_BROCHETA_CALAMAR'), i.id, v.n FROM (VALUES ('TINTA_ABISAL', 1), ('CARNE_OSTRA', 2), ('SAL_DE_CRISTAL', 1)) AS v(code, n) JOIN items i ON i.code = v.code;
+
+-- venta a NPCs: lo de la costa vale ×4
+UPDATE items SET sell_zone_mult = 4 WHERE (code IN ('CAPARAZON_CANGREJO_GIGANTE', 'PLUMA_SALADA', 'PARCHE_PIRATA_SIN_NOMBRE', 'CAPARAZON_HERVIDO', 'DIENTE_DE_PIRANA', 'CUERO_COCODRILO', 'GEL_MEDUSA', 'ESCAMA_SIRENA_CORRUPTA', 'FRAGMENTO_CORAL', 'CADENA_AHOGADA', 'SELLO_MAREA', 'TINTA_ABISAL', 'COLMILLO_LEVIATAN_MENOR', 'PERLA_MARINA', 'MAPA_CAPITAN_PIRATA', 'ANCLA_ALMIRANTE', 'NUCLEO_BESTIA_PROFUNDIDADES', 'ALGA_SALINA', 'CORAL_ROJO', 'CARNE_OSTRA', 'MADERA_NAUFRAGIO', 'CUERDA_ALQUITRAN', 'ESTRELLA_DE_MAR', 'SAL_DE_CRISTAL', 'ARENA_ABISAL', 'PERLA_DEL_ABISMO', 'CARNE_COCODRILO', 'SOPA_CANGREJO', 'OSTRAS_BRASA', 'TE_ALGA', 'CEVICHE_OSTRAS', 'GUISO_COCODRILO', 'ELIXIR_MAREA', 'BROCHETA_CALAMAR')
+  OR (item_type = 'EQUIPMENT' AND (code ~ '_(COSTAS|CORAL|ABISMO|OCEANO|PROFU)$' OR code ~ '^(BRAZALETE|COLGANTE|MEDALLON|AMULETO|RELICARIO)_(OCEANO|PROFUNDIDADES)(_MAGO)?$')))
+  AND sell_zone_mult <> 4;
+INSERT INTO balance_versions (version) SELECT 'costas_v1' WHERE NOT EXISTS (SELECT 1 FROM balance_versions WHERE version = 'costas_v1');
+
+-- ============================================================================================
+-- Historia de las Costas Muertas (repetible; sin ON CONFLICT): C1-C14, sigue a «El corazón del
+-- volcán» (V14). NPCs: Tilo, Bastida, Brea, Doña Almeja, Salitre y Gaspar (Puerto Antiguo), Nerea,
+-- Marul, Nácar y Ondina (Coralia), Rhaegar y Anka (la Cala; Rhaegar después preso y en el muelle),
+-- Cieno (Manglar) y Bartolo (Faro Negro). Las viejas Cazador de Piratas, El Tridente Perdido y
+-- Bestia de las Profundidades se reaprovechan como C4, C8 y C14 (mismo código). C8 baja al Arrecife
+-- Hundido (mazmorra). Además 16 secundarias (Trueno, el loro de Rhaegar, Tilo y Anka, Ondina…), 3
+-- diarias nuevas y las diarias viejas de la zona, cada una con su NPC. Diseño: docs/zona4_costas.md.
+-- ============================================================================================
+
+-- objetos de misión (no se venden ni se regalan; se quitan al abandonar o entregar)
+INSERT INTO items (code, name, item_type, rarity, is_quest_item, description)
+SELECT 'TROZO_VELA_NEGRA', 'Trozo de vela negra', 'MATERIAL', 'POCO_COMUN', TRUE, 'Un jirón de lona negra, quemado en los bordes. No tiene bandera ni escudo: solo un eclipse cosido con hilo morado.'
+WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'TROZO_VELA_NEGRA');
+UPDATE items SET name = 'Trozo de vela negra', is_quest_item = TRUE, description = 'Un jirón de lona negra, quemado en los bordes. No tiene bandera ni escudo: solo un eclipse cosido con hilo morado.' WHERE code = 'TROZO_VELA_NEGRA';
+INSERT INTO items (code, name, item_type, rarity, is_quest_item, description)
+SELECT 'CRISTALES_ROBADOS', 'Cristales robados', 'MATERIAL', 'POCO_COMUN', TRUE, 'Un cofre lleno de Cristales de Eclipse, envueltos en trapos. Rhaegar se los robaba a los barcos de los Ocultos para hundirlos en la Fosa.'
+WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'CRISTALES_ROBADOS');
+UPDATE items SET name = 'Cristales robados', is_quest_item = TRUE, description = 'Un cofre lleno de Cristales de Eclipse, envueltos en trapos. Rhaegar se los robaba a los barcos de los Ocultos para hundirlos en la Fosa.' WHERE code = 'CRISTALES_ROBADOS';
+INSERT INTO items (code, name, item_type, rarity, is_quest_item, description)
+SELECT 'CARACOLA_DEL_REY', 'Caracola del Rey', 'MATERIAL', 'POCO_COMUN', TRUE, 'Una caracola dorada, enorme, llena de barro. Los cocodrilos la usaban de nido. Era del rey de los tritones.'
+WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'CARACOLA_DEL_REY');
+UPDATE items SET name = 'Caracola del Rey', is_quest_item = TRUE, description = 'Una caracola dorada, enorme, llena de barro. Los cocodrilos la usaban de nido. Era del rey de los tritones.' WHERE code = 'CARACOLA_DEL_REY';
+INSERT INTO items (code, name, item_type, rarity, is_quest_item, description)
+SELECT 'LLAVE_ARRECIFE', 'Caracola del Rey (afinada)', 'MATERIAL', 'POCO_COMUN', TRUE, 'La caracola del rey de los tritones, limpia y afinada por Nerea. Su canto abre las compuertas de coral del Arrecife Hundido.'
+WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'LLAVE_ARRECIFE');
+UPDATE items SET name = 'Caracola del Rey (afinada)', is_quest_item = TRUE, description = 'La caracola del rey de los tritones, limpia y afinada por Nerea. Su canto abre las compuertas de coral del Arrecife Hundido.' WHERE code = 'LLAVE_ARRECIFE';
+INSERT INTO items (code, name, item_type, rarity, is_quest_item, description)
+SELECT 'MAPA_FONDEADERO', 'Mapa del fondeadero', 'MATERIAL', 'POCO_COMUN', TRUE, 'Una carta de navegación de Velanegra, con el eclipse marcado en el Cementerio de Barcos: ahí fondea el barco sin bandera.'
+WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'MAPA_FONDEADERO');
+UPDATE items SET name = 'Mapa del fondeadero', is_quest_item = TRUE, description = 'Una carta de navegación de Velanegra, con el eclipse marcado en el Cementerio de Barcos: ahí fondea el barco sin bandera.' WHERE code = 'MAPA_FONDEADERO';
+INSERT INTO items (code, name, item_type, rarity, is_quest_item, description)
+SELECT 'FRAGMENTO_SELLO_COSTAS', 'Cuarto Fragmento de Sello', 'MATERIAL', 'POCO_COMUN', TRUE, 'Una piedra azul que suena como el mar si te la acercas al oído. Es un pedazo del Cuarto Sello de Aethra, el que guardaba la Bestia de las Profundidades.'
+WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'FRAGMENTO_SELLO_COSTAS');
+UPDATE items SET name = 'Cuarto Fragmento de Sello', is_quest_item = TRUE, description = 'Una piedra azul que suena como el mar si te la acercas al oído. Es un pedazo del Cuarto Sello de Aethra, el que guardaba la Bestia de las Profundidades.' WHERE code = 'FRAGMENTO_SELLO_COSTAS';
+INSERT INTO items (code, name, item_type, rarity, is_quest_item, description)
+SELECT 'CARTA_DE_IGNAR_MAR', 'Carta de Ignar (mojada)', 'MATERIAL', 'POCO_COMUN', TRUE, 'Una carta en una botella, escrita con letra enorme: «Al HERRERUCHO de Aurelia». Ignar la tiró al río de lava esperando que llegara. Llegó al mar.'
+WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'CARTA_DE_IGNAR_MAR');
+UPDATE items SET name = 'Carta de Ignar (mojada)', is_quest_item = TRUE, description = 'Una carta en una botella, escrita con letra enorme: «Al HERRERUCHO de Aurelia». Ignar la tiró al río de lava esperando que llegara. Llegó al mar.' WHERE code = 'CARTA_DE_IGNAR_MAR';
+INSERT INTO items (code, name, item_type, rarity, is_quest_item, description)
+SELECT 'CARTA_DE_TILO', 'Carta de Tilo', 'MATERIAL', 'POCO_COMUN', TRUE, 'Una carta doblada ocho veces. Por fuera dice «PARA ANKA. NO LEER». Por dentro hay más tachones que palabras.'
+WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'CARTA_DE_TILO');
+UPDATE items SET name = 'Carta de Tilo', is_quest_item = TRUE, description = 'Una carta doblada ocho veces. Por fuera dice «PARA ANKA. NO LEER». Por dentro hay más tachones que palabras.' WHERE code = 'CARTA_DE_TILO';
+INSERT INTO items (code, name, item_type, rarity, is_quest_item, description)
+SELECT 'CARTA_DE_ANKA', 'Carta de Anka', 'MATERIAL', 'POCO_COMUN', TRUE, 'Un papel que huele a ron y a sal. Tiene un dibujo de un barco y, abajo, «sí» subrayado tres veces.'
+WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'CARTA_DE_ANKA');
+UPDATE items SET name = 'Carta de Anka', is_quest_item = TRUE, description = 'Un papel que huele a ron y a sal. Tiene un dibujo de un barco y, abajo, «sí» subrayado tres veces.' WHERE code = 'CARTA_DE_ANKA';
+INSERT INTO items (code, name, item_type, rarity, is_quest_item, description)
+SELECT 'HERRADURA_DE_TRUENO', 'Herradura de Trueno', 'MATERIAL', 'POCO_COMUN', TRUE, 'Una herradura vieja de Trueno. Gaspar la guardaba «para la suerte». Ondina dice que es el tesoro más raro del mundo seco.'
+WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'HERRADURA_DE_TRUENO');
+UPDATE items SET name = 'Herradura de Trueno', is_quest_item = TRUE, description = 'Una herradura vieja de Trueno. Gaspar la guardaba «para la suerte». Ondina dice que es el tesoro más raro del mundo seco.' WHERE code = 'HERRADURA_DE_TRUENO';
+
+-- La Bajada de Basalto (Ignar)
+INSERT INTO quests (code, name, quest_type, zone_id, min_level, max_level, difficulty_stars, npc_name, location_name, is_repeatable, repeat_cooldown_hours, reputation_reward, gold_reward, xp_reward, description, is_personal, is_boss_quest, giver_npc, turn_in_npc, dialog, chain_position, chain_total)
+SELECT 'COSTAS_HISTORIA_01_BAJADA', 'La Bajada de Basalto', 'PRINCIPAL', 4, 46, 60, 3, 'Ignar', 'Playa de Ceniza Negra', FALSE, NULL, 208, 3800, 14000, '«El Encapuchado escapó por los ríos de lava, hacia el mar. Al sur de la Caldera hay una bajada de basalto que llega a la costa. Allá abajo está el Puerto Antiguo. Y mira esto: una carta del puerto. Dice que te espera un soldado. Un tal Tilo. ¿Lo conoces?»', TRUE, FALSE, 'ignar', 'tilo_puerto', '{"entrega":"¡Lo sabía! ¡Sabía que ibas a llegar! Soy soldado del puerto desde la primavera. Bueno, soldado de guardia. Bueno, cuido el muelle. Pero tengo yelmo. ¿Viste el yelmo?"}'::jsonb, 1, 14
+WHERE NOT EXISTS (SELECT 1 FROM quests WHERE code = 'COSTAS_HISTORIA_01_BAJADA');
+UPDATE quests SET name = 'La Bajada de Basalto', quest_type = 'PRINCIPAL', zone_id = 4, min_level = 46, max_level = 60, difficulty_stars = 3, npc_name = 'Ignar', location_name = 'Playa de Ceniza Negra', is_repeatable = FALSE, repeat_cooldown_hours = NULL, reputation_reward = 208, gold_reward = 3800, xp_reward = 14000, description = '«El Encapuchado escapó por los ríos de lava, hacia el mar. Al sur de la Caldera hay una bajada de basalto que llega a la costa. Allá abajo está el Puerto Antiguo. Y mira esto: una carta del puerto. Dice que te espera un soldado. Un tal Tilo. ¿Lo conoces?»', is_personal = TRUE, is_boss_quest = FALSE, giver_npc = 'ignar', turn_in_npc = 'tilo_puerto', dialog = '{"entrega":"¡Lo sabía! ¡Sabía que ibas a llegar! Soy soldado del puerto desde la primavera. Bueno, soldado de guardia. Bueno, cuido el muelle. Pero tengo yelmo. ¿Viste el yelmo?"}'::jsonb, chain_position = 1, chain_total = 14 WHERE code = 'COSTAS_HISTORIA_01_BAJADA';
+DELETE FROM quest_objectives WHERE quest_id = (SELECT id FROM quests WHERE code = 'COSTAS_HISTORIA_01_BAJADA');
+INSERT INTO quest_objectives (quest_id, objective_type, step, target_code, monster_id, item_id, target_count, params, description)
+SELECT (SELECT id FROM quests WHERE code = 'COSTAS_HISTORIA_01_BAJADA'), v.t, v.step, v.target, (SELECT id FROM monsters WHERE code = v.monster), (SELECT id FROM items WHERE code = v.item), v.n, v.params::jsonb, v.descr
+FROM (VALUES
+  ('TALK', 1, 'ignar', NULL, NULL, 1, '{"speaker":"Ignar","dialog":"Baja por la Bajada de Basalto, al sureste de la Caldera. Cuando el aire huela a sal en vez de azufre, llegaste. Y no te mojes los pies en el agua donde entra la lava: hierve."}', 'Pregúntale a Ignar por la bajada al mar'),
+  ('VISIT', 2, NULL, NULL, NULL, 1, '{"zone":"costas","x":107,"y":11,"radius":3,"label":"Llegar a la Playa de Ceniza Negra","speaker":"Tilo","dialog":"¡Eh! ¡Aquí! ¡Soy yo, Tilo! *corre por la arena negra con el yelmo torcido* Me mandaron a buscarte. Ven, te llevo al puerto, que el capitán quiere conocerte."}', 'Baja hasta la Playa de Ceniza Negra'),
+  ('ESCORT', 3, NULL, NULL, NULL, 1, '{"zone":"costas","x":115,"y":42,"radius":3,"label":"La capitanía del puerto","speaker":"Tilo","dialog":"¡Llegamos! Esa es la capitanía. El capitán Bastida es buena persona. Un poco aburrido. Bastante aburrido. Pero buena persona.","escort":{"sprite":"npc_tilo_soldado","name":"Tilo","lines":["¿Viste mi yelmo? Es del puerto. No es mío, pero es del puerto.","La arena negra quema los pies. Por eso uso botas. Bueno, por eso y porque son del uniforme.","¡Cuidado con las gaviotas! Roban todo. Me robaron un sándwich. Y un zapato.","Aldren me escribe cada mes. Te manda saludos. Creo. Su letra es horrible."]}}', 'Sigue a Tilo hasta el Puerto Antiguo'),
+  ('TALK', 4, 'tilo_puerto', NULL, NULL, 1, NULL, 'Habla con Tilo en su puesto del muelle')
+) AS v(t, step, target, monster, item, n, params, descr);
+DELETE FROM quest_npc_spots WHERE quest_id = (SELECT id FROM quests WHERE code = 'COSTAS_HISTORIA_01_BAJADA');
+DELETE FROM quest_item_rewards WHERE quest_id = (SELECT id FROM quests WHERE code = 'COSTAS_HISTORIA_01_BAJADA');
+
+-- Puerto en alerta (Osvaldo Bastida)
+INSERT INTO quests (code, name, quest_type, zone_id, min_level, max_level, difficulty_stars, npc_name, location_name, is_repeatable, repeat_cooldown_hours, reputation_reward, gold_reward, xp_reward, description, is_personal, is_boss_quest, giver_npc, turn_in_npc, dialog, chain_position, chain_total)
+SELECT 'COSTAS_HISTORIA_02_PUERTO', 'Puerto en alerta', 'PRINCIPAL', 4, 46, 60, 3, 'Osvaldo Bastida', 'Puerto Antiguo', FALSE, NULL, 216, 3950, 14600, '«El reglamento del puerto, artículo cuarto: "en caso de piratas, defender los almacenes". Los piratas vienen de noche y se llevan lo que pueden. Yo tengo el reglamento. Usted tiene una espada. Creo que nos complementamos.»', TRUE, FALSE, 'bastida', 'bastida', '{"entrega":"Tres piratas menos y los almacenes enteros. Voy a anotarlo en el libro de guardia. *anota despacio, con muy buena letra* «Día cuarenta… defensa… exitosa». Gracias. De verdad. Hace años que nadie me ayuda con nada."}'::jsonb, 2, 14
+WHERE NOT EXISTS (SELECT 1 FROM quests WHERE code = 'COSTAS_HISTORIA_02_PUERTO');
+UPDATE quests SET name = 'Puerto en alerta', quest_type = 'PRINCIPAL', zone_id = 4, min_level = 46, max_level = 60, difficulty_stars = 3, npc_name = 'Osvaldo Bastida', location_name = 'Puerto Antiguo', is_repeatable = FALSE, repeat_cooldown_hours = NULL, reputation_reward = 216, gold_reward = 3950, xp_reward = 14600, description = '«El reglamento del puerto, artículo cuarto: "en caso de piratas, defender los almacenes". Los piratas vienen de noche y se llevan lo que pueden. Yo tengo el reglamento. Usted tiene una espada. Creo que nos complementamos.»', is_personal = TRUE, is_boss_quest = FALSE, giver_npc = 'bastida', turn_in_npc = 'bastida', dialog = '{"entrega":"Tres piratas menos y los almacenes enteros. Voy a anotarlo en el libro de guardia. *anota despacio, con muy buena letra* «Día cuarenta… defensa… exitosa». Gracias. De verdad. Hace años que nadie me ayuda con nada."}'::jsonb, chain_position = 2, chain_total = 14 WHERE code = 'COSTAS_HISTORIA_02_PUERTO';
+DELETE FROM quest_objectives WHERE quest_id = (SELECT id FROM quests WHERE code = 'COSTAS_HISTORIA_02_PUERTO');
+INSERT INTO quest_objectives (quest_id, objective_type, step, target_code, monster_id, item_id, target_count, params, description)
+SELECT (SELECT id FROM quests WHERE code = 'COSTAS_HISTORIA_02_PUERTO'), v.t, v.step, v.target, (SELECT id FROM monsters WHERE code = v.monster), (SELECT id FROM items WHERE code = v.item), v.n, v.params::jsonb, v.descr
+FROM (VALUES
+  ('TALK', 1, 'bastida', NULL, NULL, 1, '{"speaker":"Osvaldo Bastida","dialog":"Los almacenes están al este de la plaza. Pusimos una barricada, pero una barricada no pelea. Espere allí. Siempre vienen cuando suena la segunda campana."}', 'Habla con el capitán Bastida en la capitanía'),
+  ('AMBUSH', 2, NULL, NULL, NULL, 1, '{"zone":"costas","x":130,"y":46,"radius":3,"label":"Vigilar los almacenes","dialog":"¡Suena la segunda campana y tres piratas saltan la barricada! «¡A llevarse el ron!», grita uno. Te ven y desenvainan.","monsters":[{"code":"PIRATA_SIN_NOMBRE","level":47},{"code":"PIRATA_SIN_NOMBRE","level":46},{"code":"PIRATA_SIN_NOMBRE","level":46}]}', 'Defiende los almacenes de los piratas'),
+  ('TALK', 3, 'bastida', NULL, NULL, 1, NULL, 'Vuelve con el capitán Bastida')
+) AS v(t, step, target, monster, item, n, params, descr);
+DELETE FROM quest_npc_spots WHERE quest_id = (SELECT id FROM quests WHERE code = 'COSTAS_HISTORIA_02_PUERTO');
+DELETE FROM quest_item_rewards WHERE quest_id = (SELECT id FROM quests WHERE code = 'COSTAS_HISTORIA_02_PUERTO');
+INSERT INTO quest_item_rewards (quest_id, item_id, quantity)
+SELECT (SELECT id FROM quests WHERE code = 'COSTAS_HISTORIA_02_PUERTO'), i.id, v.qty FROM (VALUES ('SOPA_CANGREJO', 3)) AS v(code, qty) JOIN items i ON i.code = v.code;
+
+-- Velas en la noche (Osvaldo Bastida)
+INSERT INTO quests (code, name, quest_type, zone_id, min_level, max_level, difficulty_stars, npc_name, location_name, is_repeatable, repeat_cooldown_hours, reputation_reward, gold_reward, xp_reward, description, is_personal, is_boss_quest, giver_npc, turn_in_npc, dialog, chain_position, chain_total)
+SELECT 'COSTAS_HISTORIA_03_VELAS', 'Velas en la noche', 'PRINCIPAL', 4, 47, 60, 3, 'Osvaldo Bastida', 'Playa de Ceniza Negra', FALSE, NULL, 224, 4100, 15200, '«Anoche se quemó un bote de pesca en la playa negra. Los pescadores dicen que vieron un barco sin bandera, con velas negras. Yo digo que fueron los piratas de Rhaegar. Siempre son los piratas de Rhaegar. Revise los restos, por favor.»', TRUE, FALSE, 'bastida', 'bastida', '{"entrega":"*Bastida mira la vela negra mucho rato* Un eclipse. Cosido a mano. Los piratas de Rhaegar llevan una gaviota en la bandera, no esto. *se aclara la garganta* Igual las huellas van a la Cala. Y en la Cala está Rhaegar. Así que… el reglamento dice que hay que ir."}'::jsonb, 3, 14
+WHERE NOT EXISTS (SELECT 1 FROM quests WHERE code = 'COSTAS_HISTORIA_03_VELAS');
+UPDATE quests SET name = 'Velas en la noche', quest_type = 'PRINCIPAL', zone_id = 4, min_level = 47, max_level = 60, difficulty_stars = 3, npc_name = 'Osvaldo Bastida', location_name = 'Playa de Ceniza Negra', is_repeatable = FALSE, repeat_cooldown_hours = NULL, reputation_reward = 224, gold_reward = 4100, xp_reward = 15200, description = '«Anoche se quemó un bote de pesca en la playa negra. Los pescadores dicen que vieron un barco sin bandera, con velas negras. Yo digo que fueron los piratas de Rhaegar. Siempre son los piratas de Rhaegar. Revise los restos, por favor.»', is_personal = TRUE, is_boss_quest = FALSE, giver_npc = 'bastida', turn_in_npc = 'bastida', dialog = '{"entrega":"*Bastida mira la vela negra mucho rato* Un eclipse. Cosido a mano. Los piratas de Rhaegar llevan una gaviota en la bandera, no esto. *se aclara la garganta* Igual las huellas van a la Cala. Y en la Cala está Rhaegar. Así que… el reglamento dice que hay que ir."}'::jsonb, chain_position = 3, chain_total = 14 WHERE code = 'COSTAS_HISTORIA_03_VELAS';
+DELETE FROM quest_objectives WHERE quest_id = (SELECT id FROM quests WHERE code = 'COSTAS_HISTORIA_03_VELAS');
+INSERT INTO quest_objectives (quest_id, objective_type, step, target_code, monster_id, item_id, target_count, params, description)
+SELECT (SELECT id FROM quests WHERE code = 'COSTAS_HISTORIA_03_VELAS'), v.t, v.step, v.target, (SELECT id FROM monsters WHERE code = v.monster), (SELECT id FROM items WHERE code = v.item), v.n, v.params::jsonb, v.descr
+FROM (VALUES
+  ('INVESTIGATE', 1, NULL, NULL, NULL, 1, '{"zone":"costas","x":143,"y":21,"radius":3,"label":"Revisar los restos","speaker":"Tú","sprite":"barco_quemado","dialog":"Del bote no queda casi nada. Entre las tablas quemadas hay un jirón de vela negra, sin bandera. Tiene un eclipse cosido con hilo morado.","gives":{"item":"TROZO_VELA_NEGRA","qty":1}}', 'Revisa los restos del bote quemado en la playa'),
+  ('INVESTIGATE', 2, NULL, NULL, NULL, 1, '{"zone":"costas","x":62,"y":20,"radius":3,"label":"Mirar las huellas","speaker":"Tú","sprite":"huellas_botas","dialog":"Huellas de botas pesadas, muchas, que cruzan el Delta y siguen hacia los acantilados de la Cala. Alguien cargaba algo que arrastraba."}', 'Sigue las huellas de botas hacia el oeste'),
+  ('DELIVER', 3, 'bastida', NULL, 'TROZO_VELA_NEGRA', 1, NULL, 'Lleva el trozo de vela al capitán Bastida')
+) AS v(t, step, target, monster, item, n, params, descr);
+DELETE FROM quest_npc_spots WHERE quest_id = (SELECT id FROM quests WHERE code = 'COSTAS_HISTORIA_03_VELAS');
+DELETE FROM quest_item_rewards WHERE quest_id = (SELECT id FROM quests WHERE code = 'COSTAS_HISTORIA_03_VELAS');
+
+-- La Cala de los Piratas (Osvaldo Bastida)
+INSERT INTO quests (code, name, quest_type, zone_id, min_level, max_level, difficulty_stars, npc_name, location_name, is_repeatable, repeat_cooldown_hours, reputation_reward, gold_reward, xp_reward, description, is_personal, is_boss_quest, giver_npc, turn_in_npc, dialog, chain_position, chain_total)
+SELECT 'COSTAS_Q1_CAZADOR_PIRATAS', 'La Cala de los Piratas', 'PRINCIPAL', 4, 48, 60, 4, 'Osvaldo Bastida', 'Cala de los Piratas', FALSE, NULL, 232, 4250, 15800, '«Rhaegar. El terror del Puerto Antiguo. Tiene su guarida en una cueva de la Cala, al noroeste. Tráigalo, por favor. Vivo. El reglamento no dice nada de traerlo muerto y no quiero inventar un artículo nuevo.»', TRUE, FALSE, 'bastida', 'bastida', '{"entrega":"Lo trajo. De verdad lo trajo. *Bastida mira a Rhaegar detrás de los barrotes como si fuera un animal raro* Dice que quiere hablar con usted. Solo con usted. Yo no confiaría en él. Pero yo no confío en nadie desde 1342."}'::jsonb, 4, 14
+WHERE NOT EXISTS (SELECT 1 FROM quests WHERE code = 'COSTAS_Q1_CAZADOR_PIRATAS');
+UPDATE quests SET name = 'La Cala de los Piratas', quest_type = 'PRINCIPAL', zone_id = 4, min_level = 48, max_level = 60, difficulty_stars = 4, npc_name = 'Osvaldo Bastida', location_name = 'Cala de los Piratas', is_repeatable = FALSE, repeat_cooldown_hours = NULL, reputation_reward = 232, gold_reward = 4250, xp_reward = 15800, description = '«Rhaegar. El terror del Puerto Antiguo. Tiene su guarida en una cueva de la Cala, al noroeste. Tráigalo, por favor. Vivo. El reglamento no dice nada de traerlo muerto y no quiero inventar un artículo nuevo.»', is_personal = TRUE, is_boss_quest = FALSE, giver_npc = 'bastida', turn_in_npc = 'bastida', dialog = '{"entrega":"Lo trajo. De verdad lo trajo. *Bastida mira a Rhaegar detrás de los barrotes como si fuera un animal raro* Dice que quiere hablar con usted. Solo con usted. Yo no confiaría en él. Pero yo no confío en nadie desde 1342."}'::jsonb, chain_position = 4, chain_total = 14 WHERE code = 'COSTAS_Q1_CAZADOR_PIRATAS';
+DELETE FROM quest_objectives WHERE quest_id = (SELECT id FROM quests WHERE code = 'COSTAS_Q1_CAZADOR_PIRATAS');
+INSERT INTO quest_objectives (quest_id, objective_type, step, target_code, monster_id, item_id, target_count, params, description)
+SELECT (SELECT id FROM quests WHERE code = 'COSTAS_Q1_CAZADOR_PIRATAS'), v.t, v.step, v.target, (SELECT id FROM monsters WHERE code = v.monster), (SELECT id FROM items WHERE code = v.item), v.n, v.params::jsonb, v.descr
+FROM (VALUES
+  ('KILL_MONSTER', 1, 'PIRATA_SIN_NOMBRE', 'PIRATA_SIN_NOMBRE', NULL, 6, NULL, 'Derrota 6 Piratas Sin Nombre en la Cala'),
+  ('TALK', 2, 'rhaegar', NULL, NULL, 1, '{"speaker":"Rhaegar","dialog":"¡Alto, alto! *baja el sable* Me rindo. No por miedo: por curiosidad. Llévame a tu capitán aburrido. Y cuando estemos allá, pregúntame por qué ataco barcos. Te va a gustar la respuesta."}', 'Enfrenta al capitán Rhaegar en su campamento'),
+  ('TALK', 3, 'bastida', NULL, NULL, 1, NULL, 'Vuelve con el capitán Bastida')
+) AS v(t, step, target, monster, item, n, params, descr);
+DELETE FROM quest_npc_spots WHERE quest_id = (SELECT id FROM quests WHERE code = 'COSTAS_Q1_CAZADOR_PIRATAS');
+DELETE FROM quest_item_rewards WHERE quest_id = (SELECT id FROM quests WHERE code = 'COSTAS_Q1_CAZADOR_PIRATAS');
+
+-- El pirata que cazaba sombras (Rhaegar)
+INSERT INTO quests (code, name, quest_type, zone_id, min_level, max_level, difficulty_stars, npc_name, location_name, is_repeatable, repeat_cooldown_hours, reputation_reward, gold_reward, xp_reward, description, is_personal, is_boss_quest, giver_npc, turn_in_npc, dialog, chain_position, chain_total)
+SELECT 'COSTAS_HISTORIA_05_SOMBRAS', 'El pirata que cazaba sombras', 'PRINCIPAL', 4, 48, 60, 4, 'Rhaegar', 'Cala de los Piratas', FALSE, NULL, 240, 4400, 16400, '«¿Quieres saber por qué ataco barcos? Ve a mi cueva. Al fondo hay un cofre. Ábrelo. Y si mi loro te grita algo, escúchalo: es más listo que tu capitán.»', TRUE, FALSE, 'rhaegar_preso', 'rhaegar_preso', '{"entrega":"¿Ahora entiendes? Esos cristales son de los Ocultos. Los traen en un barco sin bandera, con velas negras. Yo se los robo y los tiro a la Fosa, donde nadie los encuentra. Tu capitán me llama pirata. Lo soy. Pero de los que cazan sombras."}'::jsonb, 5, 14
+WHERE NOT EXISTS (SELECT 1 FROM quests WHERE code = 'COSTAS_HISTORIA_05_SOMBRAS');
+UPDATE quests SET name = 'El pirata que cazaba sombras', quest_type = 'PRINCIPAL', zone_id = 4, min_level = 48, max_level = 60, difficulty_stars = 4, npc_name = 'Rhaegar', location_name = 'Cala de los Piratas', is_repeatable = FALSE, repeat_cooldown_hours = NULL, reputation_reward = 240, gold_reward = 4400, xp_reward = 16400, description = '«¿Quieres saber por qué ataco barcos? Ve a mi cueva. Al fondo hay un cofre. Ábrelo. Y si mi loro te grita algo, escúchalo: es más listo que tu capitán.»', is_personal = TRUE, is_boss_quest = FALSE, giver_npc = 'rhaegar_preso', turn_in_npc = 'rhaegar_preso', dialog = '{"entrega":"¿Ahora entiendes? Esos cristales son de los Ocultos. Los traen en un barco sin bandera, con velas negras. Yo se los robo y los tiro a la Fosa, donde nadie los encuentra. Tu capitán me llama pirata. Lo soy. Pero de los que cazan sombras."}'::jsonb, chain_position = 5, chain_total = 14 WHERE code = 'COSTAS_HISTORIA_05_SOMBRAS';
+DELETE FROM quest_objectives WHERE quest_id = (SELECT id FROM quests WHERE code = 'COSTAS_HISTORIA_05_SOMBRAS');
+INSERT INTO quest_objectives (quest_id, objective_type, step, target_code, monster_id, item_id, target_count, params, description)
+SELECT (SELECT id FROM quests WHERE code = 'COSTAS_HISTORIA_05_SOMBRAS'), v.t, v.step, v.target, (SELECT id FROM monsters WHERE code = v.monster), (SELECT id FROM items WHERE code = v.item), v.n, v.params::jsonb, v.descr
+FROM (VALUES
+  ('INVESTIGATE', 1, NULL, NULL, NULL, 1, '{"zone":"costas","x":25,"y":8,"radius":3,"label":"Abrir el cofre","speaker":"Tú","sprite":"cofre_cristales","dialog":"No hay oro. El cofre está lleno de Cristales de Eclipse envueltos en trapos, como si alguien los guardara para tirarlos.","gives":{"item":"CRISTALES_ROBADOS","qty":1}}', 'Abre el cofre del fondo de la cueva de Rhaegar'),
+  ('INVESTIGATE', 2, NULL, NULL, NULL, 1, '{"zone":"costas","x":31,"y":14,"radius":3,"label":"Escuchar al loro","speaker":"Galleta, el loro","sprite":"loro","dialog":"¡Velanegra! ¡Velanegra! ¡Barco sin bandera! ¡Cristales a la Fosa! ¡Galleta quiere galleta! ¡VELANEGRA!"}', 'Escucha al loro del campamento'),
+  ('DELIVER', 3, 'rhaegar_preso', NULL, 'CRISTALES_ROBADOS', 1, NULL, 'Lleva los cristales a Rhaegar, en la celda de la capitanía')
+) AS v(t, step, target, monster, item, n, params, descr);
+DELETE FROM quest_npc_spots WHERE quest_id = (SELECT id FROM quests WHERE code = 'COSTAS_HISTORIA_05_SOMBRAS');
+DELETE FROM quest_item_rewards WHERE quest_id = (SELECT id FROM quests WHERE code = 'COSTAS_HISTORIA_05_SOMBRAS');
+INSERT INTO quest_item_rewards (quest_id, item_id, quantity)
+SELECT (SELECT id FROM quests WHERE code = 'COSTAS_HISTORIA_05_SOMBRAS'), i.id, v.qty FROM (VALUES ('PIEDRA_ENCANT_MAYOR', 1)) AS v(code, qty) JOIN items i ON i.code = v.code;
+
+-- Los que perdieron el mar (Rhaegar)
+INSERT INTO quests (code, name, quest_type, zone_id, min_level, max_level, difficulty_stars, npc_name, location_name, is_repeatable, repeat_cooldown_hours, reputation_reward, gold_reward, xp_reward, description, is_personal, is_boss_quest, giver_npc, turn_in_npc, dialog, chain_position, chain_total)
+SELECT 'COSTAS_HISTORIA_06_CORALIA', 'Los que perdieron el mar', 'PRINCIPAL', 4, 49, 60, 3, 'Rhaegar', 'Coralia', FALSE, NULL, 248, 4550, 17000, '«Velanegra no trabaja sola. Los Ocultos echaron a los tritones de su ciudad, allá abajo, en el Arrecife Hundido. Los que quedaron viven en Coralia, sobre el agua, al lado del puerto. Hay heridos. Ve a verlos. Nerea, la vieja, sabe más que yo.»', TRUE, FALSE, 'rhaegar_preso', 'nerea', '{"entrega":"*Nerea canta bajito mientras venda al último herido* Gracias, viajero del mundo seco. Las algas les bajan la fiebre y el coral les cierra las heridas. Ahora escucha: lo que tenemos que contarte no se cuenta dos veces."}'::jsonb, 6, 14
+WHERE NOT EXISTS (SELECT 1 FROM quests WHERE code = 'COSTAS_HISTORIA_06_CORALIA');
+UPDATE quests SET name = 'Los que perdieron el mar', quest_type = 'PRINCIPAL', zone_id = 4, min_level = 49, max_level = 60, difficulty_stars = 3, npc_name = 'Rhaegar', location_name = 'Coralia', is_repeatable = FALSE, repeat_cooldown_hours = NULL, reputation_reward = 248, gold_reward = 4550, xp_reward = 17000, description = '«Velanegra no trabaja sola. Los Ocultos echaron a los tritones de su ciudad, allá abajo, en el Arrecife Hundido. Los que quedaron viven en Coralia, sobre el agua, al lado del puerto. Hay heridos. Ve a verlos. Nerea, la vieja, sabe más que yo.»', is_personal = TRUE, is_boss_quest = FALSE, giver_npc = 'rhaegar_preso', turn_in_npc = 'nerea', dialog = '{"entrega":"*Nerea canta bajito mientras venda al último herido* Gracias, viajero del mundo seco. Las algas les bajan la fiebre y el coral les cierra las heridas. Ahora escucha: lo que tenemos que contarte no se cuenta dos veces."}'::jsonb, chain_position = 6, chain_total = 14 WHERE code = 'COSTAS_HISTORIA_06_CORALIA';
+DELETE FROM quest_objectives WHERE quest_id = (SELECT id FROM quests WHERE code = 'COSTAS_HISTORIA_06_CORALIA');
+INSERT INTO quest_objectives (quest_id, objective_type, step, target_code, monster_id, item_id, target_count, params, description)
+SELECT (SELECT id FROM quests WHERE code = 'COSTAS_HISTORIA_06_CORALIA'), v.t, v.step, v.target, (SELECT id FROM monsters WHERE code = v.monster), (SELECT id FROM items WHERE code = v.item), v.n, v.params::jsonb, v.descr
+FROM (VALUES
+  ('COLLECT_ITEM', 1, NULL, NULL, 'ALGA_SALINA', 5, NULL, 'Junta 5 Algas Salinas para los heridos'),
+  ('COLLECT_ITEM', 1, NULL, NULL, 'CORAL_ROJO', 4, NULL, 'Junta 4 de Coral Rojo para los vendajes'),
+  ('TALK', 2, 'nerea', NULL, NULL, 1, NULL, 'Lleva todo a Nerea, en el palafito mayor de Coralia')
+) AS v(t, step, target, monster, item, n, params, descr);
+DELETE FROM quest_npc_spots WHERE quest_id = (SELECT id FROM quests WHERE code = 'COSTAS_HISTORIA_06_CORALIA');
+DELETE FROM quest_item_rewards WHERE quest_id = (SELECT id FROM quests WHERE code = 'COSTAS_HISTORIA_06_CORALIA');
+
+-- La Caracola del Rey (Nerea)
+INSERT INTO quests (code, name, quest_type, zone_id, min_level, max_level, difficulty_stars, npc_name, location_name, is_repeatable, repeat_cooldown_hours, reputation_reward, gold_reward, xp_reward, description, is_personal, is_boss_quest, giver_npc, turn_in_npc, dialog, chain_position, chain_total)
+SELECT 'COSTAS_HISTORIA_07_CARACOLA', 'La Caracola del Rey', 'PRINCIPAL', 4, 50, 60, 4, 'Nerea', 'Manglar de los Susurros', FALSE, NULL, 256, 4700, 17600, '«Mi padre era el rey de los tritones. Cuando los Ocultos encadenaron a la Bestia, lo hechizaron y nos echaron del Arrecife. Al huir perdimos su caracola: solo su canto abre las compuertas de coral. Cieno, el pescador del manglar, dice que los cocodrilos tienen algo dorado en su nido.»', TRUE, FALSE, 'nerea', 'nerea', '{"entrega":"*Nerea lava la caracola, la sopla una vez y el sonido hace temblar el agua de todo el puerto* Ya está afinada. Con esto se abren las compuertas del Arrecife Hundido. Ahí abajo está mi padre. O lo que los Ocultos dejaron de él."}'::jsonb, 7, 14
+WHERE NOT EXISTS (SELECT 1 FROM quests WHERE code = 'COSTAS_HISTORIA_07_CARACOLA');
+UPDATE quests SET name = 'La Caracola del Rey', quest_type = 'PRINCIPAL', zone_id = 4, min_level = 50, max_level = 60, difficulty_stars = 4, npc_name = 'Nerea', location_name = 'Manglar de los Susurros', is_repeatable = FALSE, repeat_cooldown_hours = NULL, reputation_reward = 256, gold_reward = 4700, xp_reward = 17600, description = '«Mi padre era el rey de los tritones. Cuando los Ocultos encadenaron a la Bestia, lo hechizaron y nos echaron del Arrecife. Al huir perdimos su caracola: solo su canto abre las compuertas de coral. Cieno, el pescador del manglar, dice que los cocodrilos tienen algo dorado en su nido.»', is_personal = TRUE, is_boss_quest = FALSE, giver_npc = 'nerea', turn_in_npc = 'nerea', dialog = '{"entrega":"*Nerea lava la caracola, la sopla una vez y el sonido hace temblar el agua de todo el puerto* Ya está afinada. Con esto se abren las compuertas del Arrecife Hundido. Ahí abajo está mi padre. O lo que los Ocultos dejaron de él."}'::jsonb, chain_position = 7, chain_total = 14 WHERE code = 'COSTAS_HISTORIA_07_CARACOLA';
+DELETE FROM quest_objectives WHERE quest_id = (SELECT id FROM quests WHERE code = 'COSTAS_HISTORIA_07_CARACOLA');
+INSERT INTO quest_objectives (quest_id, objective_type, step, target_code, monster_id, item_id, target_count, params, description)
+SELECT (SELECT id FROM quests WHERE code = 'COSTAS_HISTORIA_07_CARACOLA'), v.t, v.step, v.target, (SELECT id FROM monsters WHERE code = v.monster), (SELECT id FROM items WHERE code = v.item), v.n, v.params::jsonb, v.descr
+FROM (VALUES
+  ('TALK', 1, 'cieno', NULL, NULL, 1, '{"speaker":"Cieno","dialog":"¿Algo dorado? Sí, en el barrizal grande, al este de mi choza. Los cocodrilos lo cuidan como si fuera un huevo. Yo no me acerco. Me gustan mis piernas."}', 'Pregúntale a Cieno, en su choza del Manglar'),
+  ('KILL_MONSTER', 2, 'COCODRILO_MANGLAR', 'COCODRILO_MANGLAR', NULL, 5, NULL, 'Derrota 5 Cocodrilos del Manglar'),
+  ('INVESTIGATE', 3, NULL, NULL, NULL, 1, '{"zone":"costas","x":39,"y":69,"radius":3,"label":"Revisar el nido","speaker":"Tú","sprite":"caracola","dialog":"Entre ramas y barro hay una caracola enorme, dorada, con nácar por dentro. Pesa como una piedra.","gives":{"item":"CARACOLA_DEL_REY","qty":1}}', 'Saca la caracola del nido de los cocodrilos'),
+  ('DELIVER', 4, 'nerea', NULL, 'CARACOLA_DEL_REY', 1, '{"speaker":"Nerea","dialog":"Tómala. Cuando llegues a las compuertas del Arrecife, sóplala. Y si encuentras a mi padre… dile que su hija lo espera.","gives":{"item":"LLAVE_ARRECIFE","qty":1}}', 'Lleva la caracola a Nerea')
+) AS v(t, step, target, monster, item, n, params, descr);
+DELETE FROM quest_npc_spots WHERE quest_id = (SELECT id FROM quests WHERE code = 'COSTAS_HISTORIA_07_CARACOLA');
+DELETE FROM quest_item_rewards WHERE quest_id = (SELECT id FROM quests WHERE code = 'COSTAS_HISTORIA_07_CARACOLA');
+
+-- El Arrecife Hundido (Nerea)
+INSERT INTO quests (code, name, quest_type, zone_id, min_level, max_level, difficulty_stars, npc_name, location_name, is_repeatable, repeat_cooldown_hours, reputation_reward, gold_reward, xp_reward, description, is_personal, is_boss_quest, giver_npc, turn_in_npc, dialog, chain_position, chain_total)
+SELECT 'COSTAS_Q2_TRIDENTE_PERDIDO', 'El Arrecife Hundido', 'PRINCIPAL', 4, 52, 60, 5, 'Nerea', 'Arrecife Hundido', FALSE, NULL, 264, 4850, 18200, '«La entrada al Arrecife está en el Arrecife Blanco, bajo un arco de coral. Sopla la caracola en cada compuerta. Y ten cuidado: mi padre ya no es mi padre. Tiene un cristal en la frente, y el cristal no deja de cantar.»', TRUE, FALSE, 'nerea', 'nerea', '{"entrega":"*Nerea escucha lo que le cuentas sin llorar, hasta el final* Así que volvió en sí. Al final. *mira el mar mucho rato* Gracias por darle eso. Él cuidó a la Bestia toda su vida. Ahora nos toca a nosotros."}'::jsonb, 8, 14
+WHERE NOT EXISTS (SELECT 1 FROM quests WHERE code = 'COSTAS_Q2_TRIDENTE_PERDIDO');
+UPDATE quests SET name = 'El Arrecife Hundido', quest_type = 'PRINCIPAL', zone_id = 4, min_level = 52, max_level = 60, difficulty_stars = 5, npc_name = 'Nerea', location_name = 'Arrecife Hundido', is_repeatable = FALSE, repeat_cooldown_hours = NULL, reputation_reward = 264, gold_reward = 4850, xp_reward = 18200, description = '«La entrada al Arrecife está en el Arrecife Blanco, bajo un arco de coral. Sopla la caracola en cada compuerta. Y ten cuidado: mi padre ya no es mi padre. Tiene un cristal en la frente, y el cristal no deja de cantar.»', is_personal = TRUE, is_boss_quest = FALSE, giver_npc = 'nerea', turn_in_npc = 'nerea', dialog = '{"entrega":"*Nerea escucha lo que le cuentas sin llorar, hasta el final* Así que volvió en sí. Al final. *mira el mar mucho rato* Gracias por darle eso. Él cuidó a la Bestia toda su vida. Ahora nos toca a nosotros."}'::jsonb, chain_position = 8, chain_total = 14 WHERE code = 'COSTAS_Q2_TRIDENTE_PERDIDO';
+DELETE FROM quest_objectives WHERE quest_id = (SELECT id FROM quests WHERE code = 'COSTAS_Q2_TRIDENTE_PERDIDO');
+INSERT INTO quest_objectives (quest_id, objective_type, step, target_code, monster_id, item_id, target_count, params, description)
+SELECT (SELECT id FROM quests WHERE code = 'COSTAS_Q2_TRIDENTE_PERDIDO'), v.t, v.step, v.target, (SELECT id FROM monsters WHERE code = v.monster), (SELECT id FROM items WHERE code = v.item), v.n, v.params::jsonb, v.descr
+FROM (VALUES
+  ('DEFEAT_BOSS', 1, 'SENOR_OCEANO', 'SENOR_OCEANO', NULL, 1, NULL, 'Libera al Señor del Océano en el fondo del Arrecife Hundido'),
+  ('TALK', 2, 'nerea', NULL, NULL, 1, NULL, 'Vuelve con Nerea')
+) AS v(t, step, target, monster, item, n, params, descr);
+DELETE FROM quest_npc_spots WHERE quest_id = (SELECT id FROM quests WHERE code = 'COSTAS_Q2_TRIDENTE_PERDIDO');
+DELETE FROM quest_item_rewards WHERE quest_id = (SELECT id FROM quests WHERE code = 'COSTAS_Q2_TRIDENTE_PERDIDO');
+INSERT INTO quest_item_rewards (quest_id, item_id, quantity)
+SELECT (SELECT id FROM quests WHERE code = 'COSTAS_Q2_TRIDENTE_PERDIDO'), i.id, v.qty FROM (VALUES ('PIEDRA_ENCANT_MAYOR', 2)) AS v(code, qty) JOIN items i ON i.code = v.code;
+
+-- Alianza incómoda (Rhaegar)
+INSERT INTO quests (code, name, quest_type, zone_id, min_level, max_level, difficulty_stars, npc_name, location_name, is_repeatable, repeat_cooldown_hours, reputation_reward, gold_reward, xp_reward, description, is_personal, is_boss_quest, giver_npc, turn_in_npc, dialog, chain_position, chain_total)
+SELECT 'COSTAS_HISTORIA_09_ALIANZA', 'Alianza incómoda', 'PRINCIPAL', 4, 53, 60, 3, 'Rhaegar', 'Puerto Antiguo', FALSE, NULL, 272, 5000, 18800, '«El barco sin bandera fondea en algún lugar de la costa, y yo sé leer el mar mejor que nadie. Pero desde esta celda no leo nada. Convence a tu capitán de que me suelte. Y de paso pregúntale quién le paga el amarre a los barcos sin bandera.»', TRUE, FALSE, 'rhaegar_preso', 'bastida', '{"entrega":"*Bastida abre la celda con las manos temblando* Yo… le vendía el amarre a ese barco. Pagaban bien, pagaban puntual y no hacían preguntas. Yo tampoco. El reglamento no dice nada de barcos sin bandera. *se saca la gorra* Pero debería. Rhaegar: está libre. Y usted… haga lo que tenga que hacer."}'::jsonb, 9, 14
+WHERE NOT EXISTS (SELECT 1 FROM quests WHERE code = 'COSTAS_HISTORIA_09_ALIANZA');
+UPDATE quests SET name = 'Alianza incómoda', quest_type = 'PRINCIPAL', zone_id = 4, min_level = 53, max_level = 60, difficulty_stars = 3, npc_name = 'Rhaegar', location_name = 'Puerto Antiguo', is_repeatable = FALSE, repeat_cooldown_hours = NULL, reputation_reward = 272, gold_reward = 5000, xp_reward = 18800, description = '«El barco sin bandera fondea en algún lugar de la costa, y yo sé leer el mar mejor que nadie. Pero desde esta celda no leo nada. Convence a tu capitán de que me suelte. Y de paso pregúntale quién le paga el amarre a los barcos sin bandera.»', is_personal = TRUE, is_boss_quest = FALSE, giver_npc = 'rhaegar_preso', turn_in_npc = 'bastida', dialog = '{"entrega":"*Bastida abre la celda con las manos temblando* Yo… le vendía el amarre a ese barco. Pagaban bien, pagaban puntual y no hacían preguntas. Yo tampoco. El reglamento no dice nada de barcos sin bandera. *se saca la gorra* Pero debería. Rhaegar: está libre. Y usted… haga lo que tenga que hacer."}'::jsonb, chain_position = 9, chain_total = 14 WHERE code = 'COSTAS_HISTORIA_09_ALIANZA';
+DELETE FROM quest_objectives WHERE quest_id = (SELECT id FROM quests WHERE code = 'COSTAS_HISTORIA_09_ALIANZA');
+INSERT INTO quest_objectives (quest_id, objective_type, step, target_code, monster_id, item_id, target_count, params, description)
+SELECT (SELECT id FROM quests WHERE code = 'COSTAS_HISTORIA_09_ALIANZA'), v.t, v.step, v.target, (SELECT id FROM monsters WHERE code = v.monster), (SELECT id FROM items WHERE code = v.item), v.n, v.params::jsonb, v.descr
+FROM (VALUES
+  ('TALK', 1, 'rhaegar_preso', NULL, NULL, 1, '{"speaker":"Rhaegar","dialog":"Pregúntale por el libro de amarres, página de los martes. Ahí lo vas a ver. Y no le grites: se pone a llorar y es incómodo para todos."}', 'Escucha el plan de Rhaegar'),
+  ('TALK', 2, 'bastida', NULL, NULL, 1, '{"speaker":"Osvaldo Bastida","dialog":"¿Los martes? *abre el libro, lo cierra, lo vuelve a abrir* «Barco sin nombre. Amarre pagado. Carga: sin declarar». Yo lo anoté. Con mi letra. Ay. Ay, no."}', 'Pregúntale al capitán Bastida por el libro de amarres')
+) AS v(t, step, target, monster, item, n, params, descr);
+DELETE FROM quest_npc_spots WHERE quest_id = (SELECT id FROM quests WHERE code = 'COSTAS_HISTORIA_09_ALIANZA');
+DELETE FROM quest_item_rewards WHERE quest_id = (SELECT id FROM quests WHERE code = 'COSTAS_HISTORIA_09_ALIANZA');
+
+-- El canto de las rocas (Rhaegar)
+INSERT INTO quests (code, name, quest_type, zone_id, min_level, max_level, difficulty_stars, npc_name, location_name, is_repeatable, repeat_cooldown_hours, reputation_reward, gold_reward, xp_reward, description, is_personal, is_boss_quest, giver_npc, turn_in_npc, dialog, chain_position, chain_total)
+SELECT 'COSTAS_HISTORIA_10_CANTO', 'El canto de las rocas', 'PRINCIPAL', 4, 54, 60, 4, 'Rhaegar', 'Rocas de las Sirenas', FALSE, NULL, 280, 5150, 19400, '«Las sirenas de las Rocas cantan para Velanegra: avisan cuando pasa un barco que no es el suyo. Hay que callarlas un rato. Y en uno de los islotes, el que solo se pisa con la marea baja, Velanegra deja sus cartas. Tráeme una.»', TRUE, FALSE, 'rhaegar_puerto', 'rhaegar_puerto', '{"entrega":"*Rhaegar despliega el mapa sobre un barril* El Cementerio de Barcos. Por supuesto. Entre tanto casco hundido nadie mira un barco más. Esta noche vamos. Bueno: tú vas. Yo te espero con el barco listo. Por si acaso."}'::jsonb, 10, 14
+WHERE NOT EXISTS (SELECT 1 FROM quests WHERE code = 'COSTAS_HISTORIA_10_CANTO');
+UPDATE quests SET name = 'El canto de las rocas', quest_type = 'PRINCIPAL', zone_id = 4, min_level = 54, max_level = 60, difficulty_stars = 4, npc_name = 'Rhaegar', location_name = 'Rocas de las Sirenas', is_repeatable = FALSE, repeat_cooldown_hours = NULL, reputation_reward = 280, gold_reward = 5150, xp_reward = 19400, description = '«Las sirenas de las Rocas cantan para Velanegra: avisan cuando pasa un barco que no es el suyo. Hay que callarlas un rato. Y en uno de los islotes, el que solo se pisa con la marea baja, Velanegra deja sus cartas. Tráeme una.»', is_personal = TRUE, is_boss_quest = FALSE, giver_npc = 'rhaegar_puerto', turn_in_npc = 'rhaegar_puerto', dialog = '{"entrega":"*Rhaegar despliega el mapa sobre un barril* El Cementerio de Barcos. Por supuesto. Entre tanto casco hundido nadie mira un barco más. Esta noche vamos. Bueno: tú vas. Yo te espero con el barco listo. Por si acaso."}'::jsonb, chain_position = 10, chain_total = 14 WHERE code = 'COSTAS_HISTORIA_10_CANTO';
+DELETE FROM quest_objectives WHERE quest_id = (SELECT id FROM quests WHERE code = 'COSTAS_HISTORIA_10_CANTO');
+INSERT INTO quest_objectives (quest_id, objective_type, step, target_code, monster_id, item_id, target_count, params, description)
+SELECT (SELECT id FROM quests WHERE code = 'COSTAS_HISTORIA_10_CANTO'), v.t, v.step, v.target, (SELECT id FROM monsters WHERE code = v.monster), (SELECT id FROM items WHERE code = v.item), v.n, v.params::jsonb, v.descr
+FROM (VALUES
+  ('KILL_MONSTER', 1, 'SIRENA_CORRUPTA', 'SIRENA_CORRUPTA', NULL, 5, NULL, 'Calla a 5 Sirenas Corruptas en las Rocas'),
+  ('INVESTIGATE', 2, NULL, NULL, NULL, 1, '{"zone":"costas","x":79,"y":95,"radius":3,"label":"Revisar las rocas del islote","speaker":"Tú","sprite":"mapa_fondeadero","dialog":"Bajo una piedra, envuelta en cuero encerado, hay una carta de navegación. El Cementerio de Barcos tiene un eclipse dibujado encima.","gives":{"item":"MAPA_FONDEADERO","qty":1}}', 'Busca la carta de Velanegra en el islote del medio'),
+  ('DELIVER', 3, 'rhaegar_puerto', NULL, 'MAPA_FONDEADERO', 1, NULL, 'Lleva el mapa a Rhaegar, en el muelle')
+) AS v(t, step, target, monster, item, n, params, descr);
+DELETE FROM quest_npc_spots WHERE quest_id = (SELECT id FROM quests WHERE code = 'COSTAS_HISTORIA_10_CANTO');
+DELETE FROM quest_item_rewards WHERE quest_id = (SELECT id FROM quests WHERE code = 'COSTAS_HISTORIA_10_CANTO');
+
+-- La Capitana Velanegra (Rhaegar)
+INSERT INTO quests (code, name, quest_type, zone_id, min_level, max_level, difficulty_stars, npc_name, location_name, is_repeatable, repeat_cooldown_hours, reputation_reward, gold_reward, xp_reward, description, is_personal, is_boss_quest, giver_npc, turn_in_npc, dialog, chain_position, chain_total)
+SELECT 'COSTAS_HISTORIA_11_VELANEGRA', 'La Capitana Velanegra', 'PRINCIPAL', 4, 55, 60, 4, 'Rhaegar', 'Cementerio de Barcos', FALSE, NULL, 288, 5300, 20000, '«Velanegra baja a tierra en el Cementerio cuando cae la niebla. Levanta a los ahogados con una brújula que apunta al eclipse en vez del norte. Primero los ahogados, después ella. Y si puedes, tráeme la brújula. Siempre quise una que funcionara.»', TRUE, FALSE, 'rhaegar_puerto', 'rhaegar_puerto', '{"entrega":"Velanegra en el suelo. *Rhaegar se quita el sombrero* No me alegra. Era buena marinera. La mejor que conocí. Los Ocultos le prometieron que el mar nunca se la iba a llevar. Mintieron. Ahora falta su barco. Y el que lo gobierna."}'::jsonb, 11, 14
+WHERE NOT EXISTS (SELECT 1 FROM quests WHERE code = 'COSTAS_HISTORIA_11_VELANEGRA');
+UPDATE quests SET name = 'La Capitana Velanegra', quest_type = 'PRINCIPAL', zone_id = 4, min_level = 55, max_level = 60, difficulty_stars = 4, npc_name = 'Rhaegar', location_name = 'Cementerio de Barcos', is_repeatable = FALSE, repeat_cooldown_hours = NULL, reputation_reward = 288, gold_reward = 5300, xp_reward = 20000, description = '«Velanegra baja a tierra en el Cementerio cuando cae la niebla. Levanta a los ahogados con una brújula que apunta al eclipse en vez del norte. Primero los ahogados, después ella. Y si puedes, tráeme la brújula. Siempre quise una que funcionara.»', is_personal = TRUE, is_boss_quest = FALSE, giver_npc = 'rhaegar_puerto', turn_in_npc = 'rhaegar_puerto', dialog = '{"entrega":"Velanegra en el suelo. *Rhaegar se quita el sombrero* No me alegra. Era buena marinera. La mejor que conocí. Los Ocultos le prometieron que el mar nunca se la iba a llevar. Mintieron. Ahora falta su barco. Y el que lo gobierna."}'::jsonb, chain_position = 11, chain_total = 14 WHERE code = 'COSTAS_HISTORIA_11_VELANEGRA';
+DELETE FROM quest_objectives WHERE quest_id = (SELECT id FROM quests WHERE code = 'COSTAS_HISTORIA_11_VELANEGRA');
+INSERT INTO quest_objectives (quest_id, objective_type, step, target_code, monster_id, item_id, target_count, params, description)
+SELECT (SELECT id FROM quests WHERE code = 'COSTAS_HISTORIA_11_VELANEGRA'), v.t, v.step, v.target, (SELECT id FROM monsters WHERE code = v.monster), (SELECT id FROM items WHERE code = v.item), v.n, v.params::jsonb, v.descr
+FROM (VALUES
+  ('KILL_MONSTER', 1, 'MARINERO_MALDITO', 'MARINERO_MALDITO', NULL, 5, NULL, 'Derrota 5 Marineros Malditos en el Cementerio de Barcos'),
+  ('AMBUSH', 2, NULL, NULL, NULL, 1, '{"zone":"costas","x":16,"y":104,"radius":3,"label":"Esperar en el fondeadero","dialog":"La niebla se abre. Una mujer de abrigo negro baja de un bote con una brújula que brilla morado. «¿El perro de Rhaegar?», dice. «Qué decepción.» Los ahogados se levantan detrás de ella.","monsters":[{"code":"CAPITAN_PIRATA","level":56},{"code":"MARINERO_MALDITO","level":55},{"code":"MARINERO_MALDITO","level":55}]}', 'Espera a Velanegra en el fondeadero'),
+  ('TALK', 3, 'rhaegar_puerto', NULL, NULL, 1, NULL, 'Vuelve con Rhaegar')
+) AS v(t, step, target, monster, item, n, params, descr);
+DELETE FROM quest_npc_spots WHERE quest_id = (SELECT id FROM quests WHERE code = 'COSTAS_HISTORIA_11_VELANEGRA');
+DELETE FROM quest_item_rewards WHERE quest_id = (SELECT id FROM quests WHERE code = 'COSTAS_HISTORIA_11_VELANEGRA');
+
+-- El barco sin bandera (Rhaegar)
+INSERT INTO quests (code, name, quest_type, zone_id, min_level, max_level, difficulty_stars, npc_name, location_name, is_repeatable, repeat_cooldown_hours, reputation_reward, gold_reward, xp_reward, description, is_personal, is_boss_quest, giver_npc, turn_in_npc, dialog, chain_position, chain_total)
+SELECT 'COSTAS_HISTORIA_12_BARCO', 'El barco sin bandera', 'PRINCIPAL', 4, 56, 60, 5, 'Rhaegar', 'Cementerio de Barcos', FALSE, NULL, 296, 5450, 20600, '«El barco sin bandera no tiene capitana, pero sí almirante. Uno de verdad: el Almirante de la flota real, que se hundió frente al Faro hace cien años. Velanegra lo levantó para que gobierne el barco. Esta noche La Gaviota Insolente te deja a su lado. Del resto te encargas tú.»', TRUE, TRUE, 'rhaegar_puerto', 'rhaegar_puerto', '{"entrega":"*el barco sin bandera cruje y se hunde despacio entre los cascos viejos, hasta que solo queda el mástil* Ya está. *Rhaegar levanta una copa de ron hacia el mar* Por el Almirante. Por fin descansa. Y por ti, que eres más terco que una gaviota."}'::jsonb, 12, 14
+WHERE NOT EXISTS (SELECT 1 FROM quests WHERE code = 'COSTAS_HISTORIA_12_BARCO');
+UPDATE quests SET name = 'El barco sin bandera', quest_type = 'PRINCIPAL', zone_id = 4, min_level = 56, max_level = 60, difficulty_stars = 5, npc_name = 'Rhaegar', location_name = 'Cementerio de Barcos', is_repeatable = FALSE, repeat_cooldown_hours = NULL, reputation_reward = 296, gold_reward = 5450, xp_reward = 20600, description = '«El barco sin bandera no tiene capitana, pero sí almirante. Uno de verdad: el Almirante de la flota real, que se hundió frente al Faro hace cien años. Velanegra lo levantó para que gobierne el barco. Esta noche La Gaviota Insolente te deja a su lado. Del resto te encargas tú.»', is_personal = TRUE, is_boss_quest = TRUE, giver_npc = 'rhaegar_puerto', turn_in_npc = 'rhaegar_puerto', dialog = '{"entrega":"*el barco sin bandera cruje y se hunde despacio entre los cascos viejos, hasta que solo queda el mástil* Ya está. *Rhaegar levanta una copa de ron hacia el mar* Por el Almirante. Por fin descansa. Y por ti, que eres más terco que una gaviota."}'::jsonb, chain_position = 12, chain_total = 14 WHERE code = 'COSTAS_HISTORIA_12_BARCO';
+DELETE FROM quest_objectives WHERE quest_id = (SELECT id FROM quests WHERE code = 'COSTAS_HISTORIA_12_BARCO');
+INSERT INTO quest_objectives (quest_id, objective_type, step, target_code, monster_id, item_id, target_count, params, description)
+SELECT (SELECT id FROM quests WHERE code = 'COSTAS_HISTORIA_12_BARCO'), v.t, v.step, v.target, (SELECT id FROM monsters WHERE code = v.monster), (SELECT id FROM items WHERE code = v.item), v.n, v.params::jsonb, v.descr
+FROM (VALUES
+  ('TALK', 1, 'rhaegar_puerto', NULL, NULL, 1, '{"speaker":"Rhaegar","dialog":"El barco está fondeado frente al Cementerio. El Almirante baja a tierra a contar sus muertos. Ahí lo esperas. Si ves que pierdes, corre hacia el mar: yo te recojo. Probablemente."}', 'Prepárate con Rhaegar para el abordaje'),
+  ('DEFEAT_BOSS', 2, 'ALMIRANTE_AHOGADO', 'ALMIRANTE_AHOGADO', NULL, 1, NULL, 'Derrota al Almirante Ahogado en el fondeadero del Cementerio'),
+  ('TALK', 3, 'rhaegar_puerto', NULL, NULL, 1, NULL, 'Vuelve con Rhaegar')
+) AS v(t, step, target, monster, item, n, params, descr);
+DELETE FROM quest_npc_spots WHERE quest_id = (SELECT id FROM quests WHERE code = 'COSTAS_HISTORIA_12_BARCO');
+DELETE FROM quest_item_rewards WHERE quest_id = (SELECT id FROM quests WHERE code = 'COSTAS_HISTORIA_12_BARCO');
+
+-- La luz del faro (Bartolo)
+INSERT INTO quests (code, name, quest_type, zone_id, min_level, max_level, difficulty_stars, npc_name, location_name, is_repeatable, repeat_cooldown_hours, reputation_reward, gold_reward, xp_reward, description, is_personal, is_boss_quest, giver_npc, turn_in_npc, dialog, chain_position, chain_total)
+SELECT 'COSTAS_HISTORIA_13_FARO', 'La luz del faro', 'PRINCIPAL', 4, 57, 60, 4, 'Bartolo', 'Faro Negro', FALSE, NULL, 304, 5600, 21200, '«Ese faro era mío. Treinta años encendiéndolo cada noche. Un día llegaron los de túnica mojada, me echaron y pusieron una luz negra. Una luz que no alumbra: llama. Desde que está, la Bestia no duerme. Apágala. Y mira bien las cadenas que bajan al mar.»', TRUE, FALSE, 'bartolo', 'bartolo', '{"entrega":"*Bartolo sube la escalera del faro, despacio, y se queda mirando la linterna vacía* Treinta años. Y ahora está apagada. Mejor apagada que negra. *se seca los ojos con la manga* Las cadenas bajan a la Fosa. Ahí está la Bestia. Ve con Nerea. Ella sabe qué hacer."}'::jsonb, 13, 14
+WHERE NOT EXISTS (SELECT 1 FROM quests WHERE code = 'COSTAS_HISTORIA_13_FARO');
+UPDATE quests SET name = 'La luz del faro', quest_type = 'PRINCIPAL', zone_id = 4, min_level = 57, max_level = 60, difficulty_stars = 4, npc_name = 'Bartolo', location_name = 'Faro Negro', is_repeatable = FALSE, repeat_cooldown_hours = NULL, reputation_reward = 304, gold_reward = 5600, xp_reward = 21200, description = '«Ese faro era mío. Treinta años encendiéndolo cada noche. Un día llegaron los de túnica mojada, me echaron y pusieron una luz negra. Una luz que no alumbra: llama. Desde que está, la Bestia no duerme. Apágala. Y mira bien las cadenas que bajan al mar.»', is_personal = TRUE, is_boss_quest = FALSE, giver_npc = 'bartolo', turn_in_npc = 'bartolo', dialog = '{"entrega":"*Bartolo sube la escalera del faro, despacio, y se queda mirando la linterna vacía* Treinta años. Y ahora está apagada. Mejor apagada que negra. *se seca los ojos con la manga* Las cadenas bajan a la Fosa. Ahí está la Bestia. Ve con Nerea. Ella sabe qué hacer."}'::jsonb, chain_position = 13, chain_total = 14 WHERE code = 'COSTAS_HISTORIA_13_FARO';
+DELETE FROM quest_objectives WHERE quest_id = (SELECT id FROM quests WHERE code = 'COSTAS_HISTORIA_13_FARO');
+INSERT INTO quest_objectives (quest_id, objective_type, step, target_code, monster_id, item_id, target_count, params, description)
+SELECT (SELECT id FROM quests WHERE code = 'COSTAS_HISTORIA_13_FARO'), v.t, v.step, v.target, (SELECT id FROM monsters WHERE code = v.monster), (SELECT id FROM items WHERE code = v.item), v.n, v.params::jsonb, v.descr
+FROM (VALUES
+  ('KILL_MONSTER', 1, 'ACOLITO_MAREA', 'ACOLITO_MAREA', NULL, 6, NULL, 'Derrota 6 Acólitos de la Marea en el Faro Negro'),
+  ('INVESTIGATE', 2, NULL, NULL, NULL, 1, '{"zone":"costas","x":71,"y":108,"radius":3,"label":"Apagar la luz negra","speaker":"Tú","sprite":"farol_negro","dialog":"Rompes el cristal morado de la linterna y la luz negra se apaga con un suspiro. Muy lejos, en el mar, algo enorme deja de gritar."}', 'Apaga la luz negra del faro'),
+  ('INVESTIGATE', 3, NULL, NULL, NULL, 1, '{"zone":"costas","x":90,"y":110,"radius":3,"label":"Revisar las cadenas","speaker":"Tú","sprite":"cadena_bestia","dialog":"Cadenas gruesas como un brazo, con un cristal de eclipse clavado en cada eslabón grande, bajan del embarcadero hacia la plataforma de la Fosa."}', 'Revisa las cadenas que bajan al mar desde el embarcadero'),
+  ('TALK', 4, 'bartolo', NULL, NULL, 1, NULL, 'Vuelve con Bartolo')
+) AS v(t, step, target, monster, item, n, params, descr);
+DELETE FROM quest_npc_spots WHERE quest_id = (SELECT id FROM quests WHERE code = 'COSTAS_HISTORIA_13_FARO');
+DELETE FROM quest_item_rewards WHERE quest_id = (SELECT id FROM quests WHERE code = 'COSTAS_HISTORIA_13_FARO');
+
+-- La Bestia de las Profundidades (Nerea)
+INSERT INTO quests (code, name, quest_type, zone_id, min_level, max_level, difficulty_stars, npc_name, location_name, is_repeatable, repeat_cooldown_hours, reputation_reward, gold_reward, xp_reward, description, is_personal, is_boss_quest, giver_npc, turn_in_npc, dialog, chain_position, chain_total)
+SELECT 'COSTAS_Q3_BESTIA_PROFUNDIDADES', 'La Bestia de las Profundidades', 'PRINCIPAL', 4, 59, 60, 5, 'Nerea', 'Fosa del Abismo', FALSE, NULL, 312, 5750, 21800, '«La Bestia es la madre de todos los leviatanes y la Guardiana del Cuarto Sello. Mi padre la cuidó toda su vida. Los Ocultos la encadenaron en la Fosa y la enloquecieron con sus cristales. Rómpele las cadenas. Va a pelear: no sabe que la estás liberando.»', TRUE, TRUE, 'nerea', 'elenya', '{"entrega":"*Elenya toma el fragmento y lo acerca a la luz del Pilar; por un instante se escucha el mar en toda la Catedral* El Cuarto Fragmento. Ya van cuatro. *te mira con cansancio y orgullo* El Encapuchado huyó al norte, hacia el hielo. Rhaegar dice que te lleva cuando se abra el paso. Descansa primero. Te lo ganaste."}'::jsonb, 14, 14
+WHERE NOT EXISTS (SELECT 1 FROM quests WHERE code = 'COSTAS_Q3_BESTIA_PROFUNDIDADES');
+UPDATE quests SET name = 'La Bestia de las Profundidades', quest_type = 'PRINCIPAL', zone_id = 4, min_level = 59, max_level = 60, difficulty_stars = 5, npc_name = 'Nerea', location_name = 'Fosa del Abismo', is_repeatable = FALSE, repeat_cooldown_hours = NULL, reputation_reward = 312, gold_reward = 5750, xp_reward = 21800, description = '«La Bestia es la madre de todos los leviatanes y la Guardiana del Cuarto Sello. Mi padre la cuidó toda su vida. Los Ocultos la encadenaron en la Fosa y la enloquecieron con sus cristales. Rómpele las cadenas. Va a pelear: no sabe que la estás liberando.»', is_personal = TRUE, is_boss_quest = TRUE, giver_npc = 'nerea', turn_in_npc = 'elenya', dialog = '{"entrega":"*Elenya toma el fragmento y lo acerca a la luz del Pilar; por un instante se escucha el mar en toda la Catedral* El Cuarto Fragmento. Ya van cuatro. *te mira con cansancio y orgullo* El Encapuchado huyó al norte, hacia el hielo. Rhaegar dice que te lleva cuando se abra el paso. Descansa primero. Te lo ganaste."}'::jsonb, chain_position = 14, chain_total = 14 WHERE code = 'COSTAS_Q3_BESTIA_PROFUNDIDADES';
+DELETE FROM quest_objectives WHERE quest_id = (SELECT id FROM quests WHERE code = 'COSTAS_Q3_BESTIA_PROFUNDIDADES');
+INSERT INTO quest_objectives (quest_id, objective_type, step, target_code, monster_id, item_id, target_count, params, description)
+SELECT (SELECT id FROM quests WHERE code = 'COSTAS_Q3_BESTIA_PROFUNDIDADES'), v.t, v.step, v.target, (SELECT id FROM monsters WHERE code = v.monster), (SELECT id FROM items WHERE code = v.item), v.n, v.params::jsonb, v.descr
+FROM (VALUES
+  ('VISIT', 1, NULL, NULL, NULL, 1, '{"zone":"costas","x":116,"y":111,"radius":3,"label":"Llegar a la plataforma","speaker":"Tú","dialog":"El mar está quieto, demasiado quieto. Las cadenas se tensan. Desde el fondo de la Fosa sube una sombra del tamaño de un barco."}', 'Cruza el embarcadero hasta la plataforma de la Fosa'),
+  ('DEFEAT_BOSS', 2, 'BESTIA_PROFUNDIDADES', 'BESTIA_PROFUNDIDADES', NULL, 1, NULL, 'Enfrenta a la Bestia de las Profundidades en la plataforma'),
+  ('INVESTIGATE', 3, NULL, NULL, NULL, 1, '{"zone":"costas","x":122,"y":112,"radius":3,"label":"Romper las cadenas","speaker":"Tú","sprite":"cadena_bestia","dialog":"Las cadenas se parten una por una. La Bestia abre los ojos, ya azules, te mira y se hunde en la Fosa sin hacer olas. Donde estaba, flota una piedra azul que suena como el mar.","gives":{"item":"FRAGMENTO_SELLO_COSTAS","qty":1}}', 'Rompe las cadenas de la Bestia'),
+  ('TALK', 4, 'nerea', NULL, NULL, 1, '{"speaker":"Nerea","dialog":"Escucha. *el agua de todo el puerto se mueve, como si respirara* Está cantando. Hace cien años que no la escuchaba cantar. Lleva el fragmento a tu sacerdotisa, viajero. Coralia no te va a olvidar."}', 'Cuéntale a Nerea que la Bestia es libre'),
+  ('DELIVER', 5, 'elenya', NULL, 'FRAGMENTO_SELLO_COSTAS', 1, NULL, 'Lleva el Cuarto Fragmento a Elenya, en la Catedral de Aurelia')
+) AS v(t, step, target, monster, item, n, params, descr);
+DELETE FROM quest_npc_spots WHERE quest_id = (SELECT id FROM quests WHERE code = 'COSTAS_Q3_BESTIA_PROFUNDIDADES');
+DELETE FROM quest_item_rewards WHERE quest_id = (SELECT id FROM quests WHERE code = 'COSTAS_Q3_BESTIA_PROFUNDIDADES');
+
+-- ¿Dónde está Trueno? (en el mar) (Gaspar)
+INSERT INTO quests (code, name, quest_type, zone_id, min_level, max_level, difficulty_stars, npc_name, location_name, is_repeatable, repeat_cooldown_hours, reputation_reward, gold_reward, xp_reward, description, is_personal, is_boss_quest, giver_npc, turn_in_npc, dialog, chain_position, chain_total)
+SELECT 'COSTAS_SEC_TRUENO', '¿Dónde está Trueno? (en el mar)', 'SECUNDARIA', 4, 46, 60, 3, 'Gaspar', 'Puerto Antiguo', FALSE, NULL, 40, 2200, 8050, '«¡Se subió a un barco! ¡Un caballo! ¡A un BARCO! Lo vi alejarse desde el muelle, mirándome como diciendo "nos vemos". Búscalo, por favor. Yo me mareo hasta en la diligencia.»', TRUE, FALSE, 'gaspar_costas', 'gaspar_costas', '{"entrega":"¡TRUENO! *Gaspar lo abraza del cuello; Trueno huele a algas y a sal* ¿Nadaste con los tritones? ¿Comiste algas? ¿Te subiste a un barco SOLO? *a ti* Este caballo va a terminar dando la vuelta al mundo. Y yo detrás."}'::jsonb, NULL, NULL
+WHERE NOT EXISTS (SELECT 1 FROM quests WHERE code = 'COSTAS_SEC_TRUENO');
+UPDATE quests SET name = '¿Dónde está Trueno? (en el mar)', quest_type = 'SECUNDARIA', zone_id = 4, min_level = 46, max_level = 60, difficulty_stars = 3, npc_name = 'Gaspar', location_name = 'Puerto Antiguo', is_repeatable = FALSE, repeat_cooldown_hours = NULL, reputation_reward = 40, gold_reward = 2200, xp_reward = 8050, description = '«¡Se subió a un barco! ¡Un caballo! ¡A un BARCO! Lo vi alejarse desde el muelle, mirándome como diciendo "nos vemos". Búscalo, por favor. Yo me mareo hasta en la diligencia.»', is_personal = TRUE, is_boss_quest = FALSE, giver_npc = 'gaspar_costas', turn_in_npc = 'gaspar_costas', dialog = '{"entrega":"¡TRUENO! *Gaspar lo abraza del cuello; Trueno huele a algas y a sal* ¿Nadaste con los tritones? ¿Comiste algas? ¿Te subiste a un barco SOLO? *a ti* Este caballo va a terminar dando la vuelta al mundo. Y yo detrás."}'::jsonb, chain_position = NULL, chain_total = NULL WHERE code = 'COSTAS_SEC_TRUENO';
+DELETE FROM quest_objectives WHERE quest_id = (SELECT id FROM quests WHERE code = 'COSTAS_SEC_TRUENO');
+INSERT INTO quest_objectives (quest_id, objective_type, step, target_code, monster_id, item_id, target_count, params, description)
+SELECT (SELECT id FROM quests WHERE code = 'COSTAS_SEC_TRUENO'), v.t, v.step, v.target, (SELECT id FROM monsters WHERE code = v.monster), (SELECT id FROM items WHERE code = v.item), v.n, v.params::jsonb, v.descr
+FROM (VALUES
+  ('INVESTIGATE', 1, NULL, NULL, NULL, 1, '{"zone":"costas","x":141,"y":61,"radius":3,"label":"Mirar los botes","speaker":"Tú","sprite":"trueno_barco","huye":true,"dialog":"Trueno está parado en un bote de pesca, muy tranquilo, rodeado de redes. Cuando te ve, salta al muelle y sale trotando hacia el oeste."}', 'Busca a Trueno en los botes de los pescadores'),
+  ('INVESTIGATE', 2, NULL, NULL, NULL, 1, '{"zone":"costas","x":55,"y":61,"radius":3,"label":"Buscar entre las raíces","speaker":"Tú","sprite":"trueno_algas","huye":true,"dialog":"Trueno come algas de un canal del manglar con mucho gusto. Te mira, mastica, y se va corriendo hacia el mar."}', 'Síguelo hasta el Manglar'),
+  ('INVESTIGATE', 3, NULL, NULL, NULL, 1, '{"zone":"costas","x":154,"y":52,"radius":3,"label":"Mirar en el agua","speaker":"Ondina","sprite":"trueno_nadando","huye":true,"dialog":"¡Es un caballo que nada! ¡Nunca vi uno! *Ondina aplaude desde la pasarela* Se fue para el muelle de los pescadores. ¡Dile que vuelva!"}', 'Encuéntralo en el agua de Coralia'),
+  ('TALK', 4, 'gaspar_costas', NULL, NULL, 1, NULL, 'Avísale a Gaspar')
+) AS v(t, step, target, monster, item, n, params, descr);
+DELETE FROM quest_npc_spots WHERE quest_id = (SELECT id FROM quests WHERE code = 'COSTAS_SEC_TRUENO');
+DELETE FROM quest_item_rewards WHERE quest_id = (SELECT id FROM quests WHERE code = 'COSTAS_SEC_TRUENO');
+
+-- La carta que no llegó (Salitre)
+INSERT INTO quests (code, name, quest_type, zone_id, min_level, max_level, difficulty_stars, npc_name, location_name, is_repeatable, repeat_cooldown_hours, reputation_reward, gold_reward, xp_reward, description, is_personal, is_boss_quest, giver_npc, turn_in_npc, dialog, chain_position, chain_total)
+SELECT 'COSTAS_SEC_CARTA', 'La carta que no llegó', 'SECUNDARIA', 4, 47, 60, 3, 'Salitre', 'Playa de Ceniza Negra', FALSE, NULL, 40, 2250, 8250, '«Una botella varada en la playa negra, con una carta adentro. La vi pasar esta mañana. Dice "al herrerucho de Aurelia". No sé quién es el herrerucho, pero tiene enemigos con buena letra.»', TRUE, FALSE, 'mercader_puerto', 'brokk', '{"entrega":"*Brokk lee la carta tres veces, gruñendo* «Al HERRERUCHO». La tiró al río de lava. AL RÍO DE LAVA. ¿Quién manda una carta por un río de lava? *guarda la carta en el bolsillo del delantal, con cuidado* …Dice que mi espada quedó «aceptable». Hmph. Viniendo de ese, es un poema."}'::jsonb, NULL, NULL
+WHERE NOT EXISTS (SELECT 1 FROM quests WHERE code = 'COSTAS_SEC_CARTA');
+UPDATE quests SET name = 'La carta que no llegó', quest_type = 'SECUNDARIA', zone_id = 4, min_level = 47, max_level = 60, difficulty_stars = 3, npc_name = 'Salitre', location_name = 'Playa de Ceniza Negra', is_repeatable = FALSE, repeat_cooldown_hours = NULL, reputation_reward = 40, gold_reward = 2250, xp_reward = 8250, description = '«Una botella varada en la playa negra, con una carta adentro. La vi pasar esta mañana. Dice "al herrerucho de Aurelia". No sé quién es el herrerucho, pero tiene enemigos con buena letra.»', is_personal = TRUE, is_boss_quest = FALSE, giver_npc = 'mercader_puerto', turn_in_npc = 'brokk', dialog = '{"entrega":"*Brokk lee la carta tres veces, gruñendo* «Al HERRERUCHO». La tiró al río de lava. AL RÍO DE LAVA. ¿Quién manda una carta por un río de lava? *guarda la carta en el bolsillo del delantal, con cuidado* …Dice que mi espada quedó «aceptable». Hmph. Viniendo de ese, es un poema."}'::jsonb, chain_position = NULL, chain_total = NULL WHERE code = 'COSTAS_SEC_CARTA';
+DELETE FROM quest_objectives WHERE quest_id = (SELECT id FROM quests WHERE code = 'COSTAS_SEC_CARTA');
+INSERT INTO quest_objectives (quest_id, objective_type, step, target_code, monster_id, item_id, target_count, params, description)
+SELECT (SELECT id FROM quests WHERE code = 'COSTAS_SEC_CARTA'), v.t, v.step, v.target, (SELECT id FROM monsters WHERE code = v.monster), (SELECT id FROM items WHERE code = v.item), v.n, v.params::jsonb, v.descr
+FROM (VALUES
+  ('INVESTIGATE', 1, NULL, NULL, NULL, 1, '{"zone":"costas","x":130,"y":26,"radius":3,"label":"Recoger la botella","speaker":"Tú","sprite":"botella_mensaje","dialog":"La botella está tibia todavía. Adentro, una carta con letra enorme y muchas mayúsculas: «Al HERRERUCHO de Aurelia».","gives":{"item":"CARTA_DE_IGNAR_MAR","qty":1}}', 'Busca la botella en la playa negra'),
+  ('DELIVER', 2, 'brokk', NULL, 'CARTA_DE_IGNAR_MAR', 1, NULL, 'Lleva la carta a Brokk, en la forja de Aurelia')
+) AS v(t, step, target, monster, item, n, params, descr);
+DELETE FROM quest_npc_spots WHERE quest_id = (SELECT id FROM quests WHERE code = 'COSTAS_SEC_CARTA');
+DELETE FROM quest_item_rewards WHERE quest_id = (SELECT id FROM quests WHERE code = 'COSTAS_SEC_CARTA');
+
+-- ¿Fresco? (Doña Almeja)
+INSERT INTO quests (code, name, quest_type, zone_id, min_level, max_level, difficulty_stars, npc_name, location_name, is_repeatable, repeat_cooldown_hours, reputation_reward, gold_reward, xp_reward, description, is_personal, is_boss_quest, giver_npc, turn_in_npc, dialog, chain_position, chain_total)
+SELECT 'COSTAS_SEC_FRESCO', '¿Fresco?', 'SECUNDARIA', 4, 47, 60, 3, 'Doña Almeja', 'Puerto Antiguo', FALSE, NULL, 40, 2250, 8250, '«¡FRESCO! ¡Todo FRESCO! …Bueno, todo menos lo de hoy. Los pescadores no salen por miedo a los piratas y se me acaban las ostras. Tráeme ostras y algas, que sin sopa este puerto se muere de hambre. Y de tristeza.»', TRUE, FALSE, 'almeja', 'almeja', '{"entrega":"*Doña Almeja huele una ostra, cierra los ojos y sonríe* Fresquísima. Ahora sí. *grita hacia la plaza* ¡SOPA DE CANGREJO! ¡LA PRIMERA PARA EL VALIENTE! Toma. Y vuelve mañana, que mañana hay ceviche."}'::jsonb, NULL, NULL
+WHERE NOT EXISTS (SELECT 1 FROM quests WHERE code = 'COSTAS_SEC_FRESCO');
+UPDATE quests SET name = '¿Fresco?', quest_type = 'SECUNDARIA', zone_id = 4, min_level = 47, max_level = 60, difficulty_stars = 3, npc_name = 'Doña Almeja', location_name = 'Puerto Antiguo', is_repeatable = FALSE, repeat_cooldown_hours = NULL, reputation_reward = 40, gold_reward = 2250, xp_reward = 8250, description = '«¡FRESCO! ¡Todo FRESCO! …Bueno, todo menos lo de hoy. Los pescadores no salen por miedo a los piratas y se me acaban las ostras. Tráeme ostras y algas, que sin sopa este puerto se muere de hambre. Y de tristeza.»', is_personal = TRUE, is_boss_quest = FALSE, giver_npc = 'almeja', turn_in_npc = 'almeja', dialog = '{"entrega":"*Doña Almeja huele una ostra, cierra los ojos y sonríe* Fresquísima. Ahora sí. *grita hacia la plaza* ¡SOPA DE CANGREJO! ¡LA PRIMERA PARA EL VALIENTE! Toma. Y vuelve mañana, que mañana hay ceviche."}'::jsonb, chain_position = NULL, chain_total = NULL WHERE code = 'COSTAS_SEC_FRESCO';
+DELETE FROM quest_objectives WHERE quest_id = (SELECT id FROM quests WHERE code = 'COSTAS_SEC_FRESCO');
+INSERT INTO quest_objectives (quest_id, objective_type, step, target_code, monster_id, item_id, target_count, params, description)
+SELECT (SELECT id FROM quests WHERE code = 'COSTAS_SEC_FRESCO'), v.t, v.step, v.target, (SELECT id FROM monsters WHERE code = v.monster), (SELECT id FROM items WHERE code = v.item), v.n, v.params::jsonb, v.descr
+FROM (VALUES
+  ('COLLECT_ITEM', 1, NULL, NULL, 'CARNE_OSTRA', 4, NULL, 'Junta 4 de Carne de Ostra'),
+  ('COLLECT_ITEM', 1, NULL, NULL, 'ALGA_SALINA', 3, NULL, 'Junta 3 Algas Salinas'),
+  ('TALK', 2, 'almeja', NULL, NULL, 1, NULL, 'Lleva todo a Doña Almeja')
+) AS v(t, step, target, monster, item, n, params, descr);
+DELETE FROM quest_npc_spots WHERE quest_id = (SELECT id FROM quests WHERE code = 'COSTAS_SEC_FRESCO');
+DELETE FROM quest_item_rewards WHERE quest_id = (SELECT id FROM quests WHERE code = 'COSTAS_SEC_FRESCO');
+INSERT INTO quest_item_rewards (quest_id, item_id, quantity)
+SELECT (SELECT id FROM quests WHERE code = 'COSTAS_SEC_FRESCO'), i.id, v.qty FROM (VALUES ('SOPA_CANGREJO', 3)) AS v(code, qty) JOIN items i ON i.code = v.code;
+
+-- Red rota (Marul)
+INSERT INTO quests (code, name, quest_type, zone_id, min_level, max_level, difficulty_stars, npc_name, location_name, is_repeatable, repeat_cooldown_hours, reputation_reward, gold_reward, xp_reward, description, is_personal, is_boss_quest, giver_npc, turn_in_npc, dialog, chain_position, chain_total)
+SELECT 'COSTAS_SEC_RED_1', 'Red rota', 'SECUNDARIA', 4, 49, 60, 3, 'Marul', 'Playa de Ceniza Negra', FALSE, NULL, 40, 2350, 8600, '«Los cangrejos gigantes se comen mis redes. Las comen. Con nudos y todo. Si espantas a unos cuantos y me traes cuerda con brea, la remiendo. Jeje. Remendar. Me gusta esa palabra.»', TRUE, FALSE, 'marul', 'marul', '{"entrega":"*Marul anuda la cuerda nueva con los dedos palmeados, rapidísimo* ¡Lista! Más fuerte que antes. Ahora que vengan los cangrejos. Bueno, mejor que no vengan."}'::jsonb, NULL, NULL
+WHERE NOT EXISTS (SELECT 1 FROM quests WHERE code = 'COSTAS_SEC_RED_1');
+UPDATE quests SET name = 'Red rota', quest_type = 'SECUNDARIA', zone_id = 4, min_level = 49, max_level = 60, difficulty_stars = 3, npc_name = 'Marul', location_name = 'Playa de Ceniza Negra', is_repeatable = FALSE, repeat_cooldown_hours = NULL, reputation_reward = 40, gold_reward = 2350, xp_reward = 8600, description = '«Los cangrejos gigantes se comen mis redes. Las comen. Con nudos y todo. Si espantas a unos cuantos y me traes cuerda con brea, la remiendo. Jeje. Remendar. Me gusta esa palabra.»', is_personal = TRUE, is_boss_quest = FALSE, giver_npc = 'marul', turn_in_npc = 'marul', dialog = '{"entrega":"*Marul anuda la cuerda nueva con los dedos palmeados, rapidísimo* ¡Lista! Más fuerte que antes. Ahora que vengan los cangrejos. Bueno, mejor que no vengan."}'::jsonb, chain_position = NULL, chain_total = NULL WHERE code = 'COSTAS_SEC_RED_1';
+DELETE FROM quest_objectives WHERE quest_id = (SELECT id FROM quests WHERE code = 'COSTAS_SEC_RED_1');
+INSERT INTO quest_objectives (quest_id, objective_type, step, target_code, monster_id, item_id, target_count, params, description)
+SELECT (SELECT id FROM quests WHERE code = 'COSTAS_SEC_RED_1'), v.t, v.step, v.target, (SELECT id FROM monsters WHERE code = v.monster), (SELECT id FROM items WHERE code = v.item), v.n, v.params::jsonb, v.descr
+FROM (VALUES
+  ('KILL_MONSTER', 1, 'CANGREJO_GIGANTE', 'CANGREJO_GIGANTE', NULL, 6, NULL, 'Espanta a 6 Cangrejos Gigantes de la playa'),
+  ('COLLECT_ITEM', 1, NULL, NULL, 'CUERDA_ALQUITRAN', 3, NULL, 'Junta 3 Cuerdas con Alquitrán de los restos de naufragio'),
+  ('TALK', 2, 'marul', NULL, NULL, 1, NULL, 'Lleva la cuerda a Marul')
+) AS v(t, step, target, monster, item, n, params, descr);
+DELETE FROM quest_npc_spots WHERE quest_id = (SELECT id FROM quests WHERE code = 'COSTAS_SEC_RED_1');
+DELETE FROM quest_item_rewards WHERE quest_id = (SELECT id FROM quests WHERE code = 'COSTAS_SEC_RED_1');
+
+-- Ladronas de pescado (Marul)
+INSERT INTO quests (code, name, quest_type, zone_id, min_level, max_level, difficulty_stars, npc_name, location_name, is_repeatable, repeat_cooldown_hours, reputation_reward, gold_reward, xp_reward, description, is_personal, is_boss_quest, giver_npc, turn_in_npc, dialog, chain_position, chain_total)
+SELECT 'COSTAS_SEC_RED_2', 'Ladronas de pescado', 'SECUNDARIA', 4, 50, 60, 3, 'Marul', 'Playa de Ceniza Negra', FALSE, NULL, 40, 2400, 8750, '«Ahora la red no se rompe, pero llega vacía. ¡Las gaviotas! Se meten, sacan el pescado y se van riéndose. Las gaviotas se ríen, ¿sabías? Yo sí. Fíjate en la red de la playa y espántalas.»', TRUE, FALSE, 'marul', 'marul', '{"entrega":"¡Red llena! ¡Llena llena! *Marul levanta un pescado enorme* Este es para ti. Bueno, para Doña Almeja, que lo cocina mejor. Pero de tu parte."}'::jsonb, NULL, NULL
+WHERE NOT EXISTS (SELECT 1 FROM quests WHERE code = 'COSTAS_SEC_RED_2');
+UPDATE quests SET name = 'Ladronas de pescado', quest_type = 'SECUNDARIA', zone_id = 4, min_level = 50, max_level = 60, difficulty_stars = 3, npc_name = 'Marul', location_name = 'Playa de Ceniza Negra', is_repeatable = FALSE, repeat_cooldown_hours = NULL, reputation_reward = 40, gold_reward = 2400, xp_reward = 8750, description = '«Ahora la red no se rompe, pero llega vacía. ¡Las gaviotas! Se meten, sacan el pescado y se van riéndose. Las gaviotas se ríen, ¿sabías? Yo sí. Fíjate en la red de la playa y espántalas.»', is_personal = TRUE, is_boss_quest = FALSE, giver_npc = 'marul', turn_in_npc = 'marul', dialog = '{"entrega":"¡Red llena! ¡Llena llena! *Marul levanta un pescado enorme* Este es para ti. Bueno, para Doña Almeja, que lo cocina mejor. Pero de tu parte."}'::jsonb, chain_position = NULL, chain_total = NULL WHERE code = 'COSTAS_SEC_RED_2';
+DELETE FROM quest_objectives WHERE quest_id = (SELECT id FROM quests WHERE code = 'COSTAS_SEC_RED_2');
+INSERT INTO quest_objectives (quest_id, objective_type, step, target_code, monster_id, item_id, target_count, params, description)
+SELECT (SELECT id FROM quests WHERE code = 'COSTAS_SEC_RED_2'), v.t, v.step, v.target, (SELECT id FROM monsters WHERE code = v.monster), (SELECT id FROM items WHERE code = v.item), v.n, v.params::jsonb, v.descr
+FROM (VALUES
+  ('INVESTIGATE', 1, NULL, NULL, NULL, 1, '{"zone":"costas","x":148,"y":26,"radius":3,"label":"Revisar la red","speaker":"Tú","sprite":"red_rota","dialog":"La red está entera, pero vacía. En la arena hay plumas, espinas de pescado y una gaviota mirándote con descaro."}', 'Revisa la red de Marul en la playa'),
+  ('KILL_MONSTER', 2, 'GAVIOTA_CARRONERA', 'GAVIOTA_CARRONERA', NULL, 6, NULL, 'Espanta a 6 Gaviotas Carroñeras'),
+  ('TALK', 3, 'marul', NULL, NULL, 1, NULL, 'Vuelve con Marul')
+) AS v(t, step, target, monster, item, n, params, descr);
+DELETE FROM quest_npc_spots WHERE quest_id = (SELECT id FROM quests WHERE code = 'COSTAS_SEC_RED_2');
+DELETE FROM quest_item_rewards WHERE quest_id = (SELECT id FROM quests WHERE code = 'COSTAS_SEC_RED_2');
+
+-- Tesoros secos (Ondina)
+INSERT INTO quests (code, name, quest_type, zone_id, min_level, max_level, difficulty_stars, npc_name, location_name, is_repeatable, repeat_cooldown_hours, reputation_reward, gold_reward, xp_reward, description, is_personal, is_boss_quest, giver_npc, turn_in_npc, dialog, chain_position, chain_total)
+SELECT 'COSTAS_SEC_TESOROS_1', 'Tesoros secos', 'SECUNDARIA', 4, 49, 60, 3, 'Ondina', 'Coralia', FALSE, NULL, 40, 2350, 8600, '«¡Colecciono cosas del mundo seco! Tengo una cuchara, un botón y un zapato. Uno solo. ¿Me traes algo raro? Algo que no tenga nadie. ¡Algo de un animal del mundo seco!»', TRUE, FALSE, 'ondina', 'ondina', '{"entrega":"*Ondina mira la herradura con los ojos enormes* ¿Un caballo la usaba? ¿En el PIE? *la pone al lado del zapato, con mucho cuidado* Es lo más raro que tengo. Gracias, gracias, gracias."}'::jsonb, NULL, NULL
+WHERE NOT EXISTS (SELECT 1 FROM quests WHERE code = 'COSTAS_SEC_TESOROS_1');
+UPDATE quests SET name = 'Tesoros secos', quest_type = 'SECUNDARIA', zone_id = 4, min_level = 49, max_level = 60, difficulty_stars = 3, npc_name = 'Ondina', location_name = 'Coralia', is_repeatable = FALSE, repeat_cooldown_hours = NULL, reputation_reward = 40, gold_reward = 2350, xp_reward = 8600, description = '«¡Colecciono cosas del mundo seco! Tengo una cuchara, un botón y un zapato. Uno solo. ¿Me traes algo raro? Algo que no tenga nadie. ¡Algo de un animal del mundo seco!»', is_personal = TRUE, is_boss_quest = FALSE, giver_npc = 'ondina', turn_in_npc = 'ondina', dialog = '{"entrega":"*Ondina mira la herradura con los ojos enormes* ¿Un caballo la usaba? ¿En el PIE? *la pone al lado del zapato, con mucho cuidado* Es lo más raro que tengo. Gracias, gracias, gracias."}'::jsonb, chain_position = NULL, chain_total = NULL WHERE code = 'COSTAS_SEC_TESOROS_1';
+DELETE FROM quest_objectives WHERE quest_id = (SELECT id FROM quests WHERE code = 'COSTAS_SEC_TESOROS_1');
+INSERT INTO quest_objectives (quest_id, objective_type, step, target_code, monster_id, item_id, target_count, params, description)
+SELECT (SELECT id FROM quests WHERE code = 'COSTAS_SEC_TESOROS_1'), v.t, v.step, v.target, (SELECT id FROM monsters WHERE code = v.monster), (SELECT id FROM items WHERE code = v.item), v.n, v.params::jsonb, v.descr
+FROM (VALUES
+  ('TALK', 1, 'gaspar_costas', NULL, NULL, 1, '{"speaker":"Gaspar","dialog":"¿Una herradura vieja de Trueno? Tengo una, para la suerte. Para una niña que colecciona, se la regalo. La suerte de Trueno igual es mala: se escapa siempre.","gives":{"item":"HERRADURA_DE_TRUENO","qty":1}}', 'Pídele a Gaspar algo de Trueno'),
+  ('DELIVER', 2, 'ondina', NULL, 'HERRADURA_DE_TRUENO', 1, NULL, 'Llévale la herradura a Ondina')
+) AS v(t, step, target, monster, item, n, params, descr);
+DELETE FROM quest_npc_spots WHERE quest_id = (SELECT id FROM quests WHERE code = 'COSTAS_SEC_TESOROS_1');
+DELETE FROM quest_item_rewards WHERE quest_id = (SELECT id FROM quests WHERE code = 'COSTAS_SEC_TESOROS_1');
+
+-- Una flor que no se moja (Ondina)
+INSERT INTO quests (code, name, quest_type, zone_id, min_level, max_level, difficulty_stars, npc_name, location_name, is_repeatable, repeat_cooldown_hours, reputation_reward, gold_reward, xp_reward, description, is_personal, is_boss_quest, giver_npc, turn_in_npc, dialog, chain_position, chain_total)
+SELECT 'COSTAS_SEC_TESOROS_2', 'Una flor que no se moja', 'SECUNDARIA', 4, 51, 60, 3, 'Ondina', 'Coralia', FALSE, NULL, 40, 2450, 8950, '«Dicen que en el mundo seco hay flores que crecen en el fuego. ¡En el fuego! Aquí las flores crecen en el agua y se ponen feas si las sacas. ¿Me traes una flor de fuego?»', TRUE, FALSE, 'ondina', 'ondina', '{"entrega":"*Ondina sostiene la flor de ceniza como si fuera de cristal* Está tibia. Una flor tibia. *te da algo envuelto en algas* Esto lo encontré en el fondo, cerca del Arrecife. Es un huevo. No sé de qué. Es mi tesoro mojado. Te lo cambio por el seco."}'::jsonb, NULL, NULL
+WHERE NOT EXISTS (SELECT 1 FROM quests WHERE code = 'COSTAS_SEC_TESOROS_2');
+UPDATE quests SET name = 'Una flor que no se moja', quest_type = 'SECUNDARIA', zone_id = 4, min_level = 51, max_level = 60, difficulty_stars = 3, npc_name = 'Ondina', location_name = 'Coralia', is_repeatable = FALSE, repeat_cooldown_hours = NULL, reputation_reward = 40, gold_reward = 2450, xp_reward = 8950, description = '«Dicen que en el mundo seco hay flores que crecen en el fuego. ¡En el fuego! Aquí las flores crecen en el agua y se ponen feas si las sacas. ¿Me traes una flor de fuego?»', is_personal = TRUE, is_boss_quest = FALSE, giver_npc = 'ondina', turn_in_npc = 'ondina', dialog = '{"entrega":"*Ondina sostiene la flor de ceniza como si fuera de cristal* Está tibia. Una flor tibia. *te da algo envuelto en algas* Esto lo encontré en el fondo, cerca del Arrecife. Es un huevo. No sé de qué. Es mi tesoro mojado. Te lo cambio por el seco."}'::jsonb, chain_position = NULL, chain_total = NULL WHERE code = 'COSTAS_SEC_TESOROS_2';
+DELETE FROM quest_objectives WHERE quest_id = (SELECT id FROM quests WHERE code = 'COSTAS_SEC_TESOROS_2');
+INSERT INTO quest_objectives (quest_id, objective_type, step, target_code, monster_id, item_id, target_count, params, description)
+SELECT (SELECT id FROM quests WHERE code = 'COSTAS_SEC_TESOROS_2'), v.t, v.step, v.target, (SELECT id FROM monsters WHERE code = v.monster), (SELECT id FROM items WHERE code = v.item), v.n, v.params::jsonb, v.descr
+FROM (VALUES
+  ('COLLECT_ITEM', 1, NULL, NULL, 'FLOR_DE_CENIZA', 1, NULL, 'Consigue una Flor de Ceniza del Volcán Rojo'),
+  ('TALK', 2, 'ondina', NULL, NULL, 1, NULL, 'Llévale la flor a Ondina')
+) AS v(t, step, target, monster, item, n, params, descr);
+DELETE FROM quest_npc_spots WHERE quest_id = (SELECT id FROM quests WHERE code = 'COSTAS_SEC_TESOROS_2');
+DELETE FROM quest_item_rewards WHERE quest_id = (SELECT id FROM quests WHERE code = 'COSTAS_SEC_TESOROS_2');
+INSERT INTO quest_item_rewards (quest_id, item_id, quantity)
+SELECT (SELECT id FROM quests WHERE code = 'COSTAS_SEC_TESOROS_2'), i.id, v.qty FROM (VALUES ('HUEVO_RARO', 1)) AS v(code, qty) JOIN items i ON i.code = v.code;
+
+-- Lo que esconde el manglar (Cieno)
+INSERT INTO quests (code, name, quest_type, zone_id, min_level, max_level, difficulty_stars, npc_name, location_name, is_repeatable, repeat_cooldown_hours, reputation_reward, gold_reward, xp_reward, description, is_personal, is_boss_quest, giver_npc, turn_in_npc, dialog, chain_position, chain_total)
+SELECT 'COSTAS_SEC_MANGLAR', 'Lo que esconde el manglar', 'SECUNDARIA', 4, 51, 60, 3, 'Cieno', 'Manglar de los Susurros', FALSE, NULL, 40, 2450, 8950, '«Hay uno más grande. El abuelo de todos los cocodrilos. Me roba la pesca cada mañana desde la orilla del canal oscuro, y se ríe. Los cocodrilos no se ríen, dirás. Este sí.»', TRUE, FALSE, 'cieno', 'cieno', '{"entrega":"¿El grande? ¿Ya no está? *Cieno se sienta en la orilla con los pies en el agua, por primera vez en años* Ah. Qué fresquito. Toma, guiso del bueno. La receta es mía, diga lo que diga Doña Almeja."}'::jsonb, NULL, NULL
+WHERE NOT EXISTS (SELECT 1 FROM quests WHERE code = 'COSTAS_SEC_MANGLAR');
+UPDATE quests SET name = 'Lo que esconde el manglar', quest_type = 'SECUNDARIA', zone_id = 4, min_level = 51, max_level = 60, difficulty_stars = 3, npc_name = 'Cieno', location_name = 'Manglar de los Susurros', is_repeatable = FALSE, repeat_cooldown_hours = NULL, reputation_reward = 40, gold_reward = 2450, xp_reward = 8950, description = '«Hay uno más grande. El abuelo de todos los cocodrilos. Me roba la pesca cada mañana desde la orilla del canal oscuro, y se ríe. Los cocodrilos no se ríen, dirás. Este sí.»', is_personal = TRUE, is_boss_quest = FALSE, giver_npc = 'cieno', turn_in_npc = 'cieno', dialog = '{"entrega":"¿El grande? ¿Ya no está? *Cieno se sienta en la orilla con los pies en el agua, por primera vez en años* Ah. Qué fresquito. Toma, guiso del bueno. La receta es mía, diga lo que diga Doña Almeja."}'::jsonb, chain_position = NULL, chain_total = NULL WHERE code = 'COSTAS_SEC_MANGLAR';
+DELETE FROM quest_objectives WHERE quest_id = (SELECT id FROM quests WHERE code = 'COSTAS_SEC_MANGLAR');
+INSERT INTO quest_objectives (quest_id, objective_type, step, target_code, monster_id, item_id, target_count, params, description)
+SELECT (SELECT id FROM quests WHERE code = 'COSTAS_SEC_MANGLAR'), v.t, v.step, v.target, (SELECT id FROM monsters WHERE code = v.monster), (SELECT id FROM items WHERE code = v.item), v.n, v.params::jsonb, v.descr
+FROM (VALUES
+  ('AMBUSH', 1, NULL, NULL, NULL, 1, '{"zone":"costas","x":36,"y":74,"radius":3,"label":"Esperar en la orilla","dialog":"Un tronco enorme flota contra la corriente. Después abre los ojos. Y la boca. Detrás salen dos más chicos, y una bandada de pirañas.","monsters":[{"code":"COCODRILO_MANGLAR","level":54},{"code":"COCODRILO_MANGLAR","level":51},{"code":"PIRANA_AGUA","level":51}]}', 'Espera al cocodrilo grande en el canal oscuro'),
+  ('TALK', 2, 'cieno', NULL, NULL, 1, NULL, 'Vuelve con Cieno')
+) AS v(t, step, target, monster, item, n, params, descr);
+DELETE FROM quest_npc_spots WHERE quest_id = (SELECT id FROM quests WHERE code = 'COSTAS_SEC_MANGLAR');
+DELETE FROM quest_item_rewards WHERE quest_id = (SELECT id FROM quests WHERE code = 'COSTAS_SEC_MANGLAR');
+INSERT INTO quest_item_rewards (quest_id, item_id, quantity)
+SELECT (SELECT id FROM quests WHERE code = 'COSTAS_SEC_MANGLAR'), i.id, v.qty FROM (VALUES ('GUISO_COCODRILO', 2)) AS v(code, qty) JOIN items i ON i.code = v.code;
+
+-- El loro que sabe demasiado (Rhaegar)
+INSERT INTO quests (code, name, quest_type, zone_id, min_level, max_level, difficulty_stars, npc_name, location_name, is_repeatable, repeat_cooldown_hours, reputation_reward, gold_reward, xp_reward, description, is_personal, is_boss_quest, giver_npc, turn_in_npc, dialog, chain_position, chain_total)
+SELECT 'COSTAS_SEC_LORO_1', 'El loro que sabe demasiado', 'SECUNDARIA', 4, 53, 60, 3, 'Rhaegar', 'Cementerio de Barcos', FALSE, NULL, 40, 2550, 9300, '«Galleta se escapó. Otra vez. Y Galleta repite todo lo que escucha, y escuchó muchas cosas de los Ocultos cuando le robábamos los barcos. Si alguien de túnica lo atrapa, se entera de todo lo que sabemos. Búscalo. Le gustan los mástiles altos.»', TRUE, FALSE, 'rhaegar_puerto', 'rhaegar_puerto', '{"entrega":"*Galleta se le sube al hombro y le picotea la oreja* ¡Ay! Sí, sí, yo también te extrañé. *a ti* ¿Dijo algo? ¿«Eclipse»? ¿«Cofre»? Ay, este pájaro. Ya lo voy a encerrar. No, no lo voy a encerrar. Pero lo voy a pensar."}'::jsonb, NULL, NULL
+WHERE NOT EXISTS (SELECT 1 FROM quests WHERE code = 'COSTAS_SEC_LORO_1');
+UPDATE quests SET name = 'El loro que sabe demasiado', quest_type = 'SECUNDARIA', zone_id = 4, min_level = 53, max_level = 60, difficulty_stars = 3, npc_name = 'Rhaegar', location_name = 'Cementerio de Barcos', is_repeatable = FALSE, repeat_cooldown_hours = NULL, reputation_reward = 40, gold_reward = 2550, xp_reward = 9300, description = '«Galleta se escapó. Otra vez. Y Galleta repite todo lo que escucha, y escuchó muchas cosas de los Ocultos cuando le robábamos los barcos. Si alguien de túnica lo atrapa, se entera de todo lo que sabemos. Búscalo. Le gustan los mástiles altos.»', is_personal = TRUE, is_boss_quest = FALSE, giver_npc = 'rhaegar_puerto', turn_in_npc = 'rhaegar_puerto', dialog = '{"entrega":"*Galleta se le sube al hombro y le picotea la oreja* ¡Ay! Sí, sí, yo también te extrañé. *a ti* ¿Dijo algo? ¿«Eclipse»? ¿«Cofre»? Ay, este pájaro. Ya lo voy a encerrar. No, no lo voy a encerrar. Pero lo voy a pensar."}'::jsonb, chain_position = NULL, chain_total = NULL WHERE code = 'COSTAS_SEC_LORO_1';
+DELETE FROM quest_objectives WHERE quest_id = (SELECT id FROM quests WHERE code = 'COSTAS_SEC_LORO_1');
+INSERT INTO quest_objectives (quest_id, objective_type, step, target_code, monster_id, item_id, target_count, params, description)
+SELECT (SELECT id FROM quests WHERE code = 'COSTAS_SEC_LORO_1'), v.t, v.step, v.target, (SELECT id FROM monsters WHERE code = v.monster), (SELECT id FROM items WHERE code = v.item), v.n, v.params::jsonb, v.descr
+FROM (VALUES
+  ('INVESTIGATE', 1, NULL, NULL, NULL, 1, '{"zone":"costas","x":30,"y":94,"radius":3,"label":"Llamar al loro","speaker":"Galleta, el loro","sprite":"loro","huye":true,"dialog":"¡Cofre en la cueva! ¡Cofre en la cueva! ¡Rhaegar es un blando! ¡Galleta quiere galleta! *bate las alas y vuela de vuelta al puerto*"}', 'Busca a Galleta en los mástiles del Cementerio'),
+  ('TALK', 2, 'rhaegar_puerto', NULL, NULL, 1, NULL, 'Avísale a Rhaegar que Galleta volvió')
+) AS v(t, step, target, monster, item, n, params, descr);
+DELETE FROM quest_npc_spots WHERE quest_id = (SELECT id FROM quests WHERE code = 'COSTAS_SEC_LORO_1');
+DELETE FROM quest_item_rewards WHERE quest_id = (SELECT id FROM quests WHERE code = 'COSTAS_SEC_LORO_1');
+
+-- Galleta en el mercado (Rhaegar)
+INSERT INTO quests (code, name, quest_type, zone_id, min_level, max_level, difficulty_stars, npc_name, location_name, is_repeatable, repeat_cooldown_hours, reputation_reward, gold_reward, xp_reward, description, is_personal, is_boss_quest, giver_npc, turn_in_npc, dialog, chain_position, chain_total)
+SELECT 'COSTAS_SEC_LORO_2', 'Galleta en el mercado', 'SECUNDARIA', 4, 54, 60, 3, 'Rhaegar', 'Puerto Antiguo', FALSE, NULL, 40, 2600, 9450, '«Volvió a escaparse. Doña Almeja dice que hay un loro en el mercado insultando a los clientes. No sé de quién puede ser. Bueno, sí sé. Ve, por favor, antes de que se lo coman.»', TRUE, FALSE, 'rhaegar_puerto', 'almeja', '{"entrega":"*Doña Almeja sostiene a Galleta con una mano y un cucharón con la otra* ¡Este pájaro me llamó «sopa aguada» delante de TODOS! ¡Sopa aguada! *Galleta: «¡Sopa aguada!»* Llévatelo. Y dile a Rhaegar que me debe un plato."}'::jsonb, NULL, NULL
+WHERE NOT EXISTS (SELECT 1 FROM quests WHERE code = 'COSTAS_SEC_LORO_2');
+UPDATE quests SET name = 'Galleta en el mercado', quest_type = 'SECUNDARIA', zone_id = 4, min_level = 54, max_level = 60, difficulty_stars = 3, npc_name = 'Rhaegar', location_name = 'Puerto Antiguo', is_repeatable = FALSE, repeat_cooldown_hours = NULL, reputation_reward = 40, gold_reward = 2600, xp_reward = 9450, description = '«Volvió a escaparse. Doña Almeja dice que hay un loro en el mercado insultando a los clientes. No sé de quién puede ser. Bueno, sí sé. Ve, por favor, antes de que se lo coman.»', is_personal = TRUE, is_boss_quest = FALSE, giver_npc = 'rhaegar_puerto', turn_in_npc = 'almeja', dialog = '{"entrega":"*Doña Almeja sostiene a Galleta con una mano y un cucharón con la otra* ¡Este pájaro me llamó «sopa aguada» delante de TODOS! ¡Sopa aguada! *Galleta: «¡Sopa aguada!»* Llévatelo. Y dile a Rhaegar que me debe un plato."}'::jsonb, chain_position = NULL, chain_total = NULL WHERE code = 'COSTAS_SEC_LORO_2';
+DELETE FROM quest_objectives WHERE quest_id = (SELECT id FROM quests WHERE code = 'COSTAS_SEC_LORO_2');
+INSERT INTO quest_objectives (quest_id, objective_type, step, target_code, monster_id, item_id, target_count, params, description)
+SELECT (SELECT id FROM quests WHERE code = 'COSTAS_SEC_LORO_2'), v.t, v.step, v.target, (SELECT id FROM monsters WHERE code = v.monster), (SELECT id FROM items WHERE code = v.item), v.n, v.params::jsonb, v.descr
+FROM (VALUES
+  ('INVESTIGATE', 1, NULL, NULL, NULL, 1, '{"zone":"costas","x":108,"y":54,"radius":3,"label":"Atrapar al loro","speaker":"Galleta, el loro","sprite":"loro","huye":true,"dialog":"¡Sopa aguada! ¡Sopa aguada! ¡El faro es negro! ¡El faro es negro! *se lanza sobre el puesto de Doña Almeja*"}', 'Busca a Galleta en el mercado de pescado'),
+  ('TALK', 2, 'almeja', NULL, NULL, 1, NULL, 'Recupera a Galleta del puesto de Doña Almeja')
+) AS v(t, step, target, monster, item, n, params, descr);
+DELETE FROM quest_npc_spots WHERE quest_id = (SELECT id FROM quests WHERE code = 'COSTAS_SEC_LORO_2');
+DELETE FROM quest_item_rewards WHERE quest_id = (SELECT id FROM quests WHERE code = 'COSTAS_SEC_LORO_2');
+
+-- Lo que dice Galleta (Rhaegar)
+INSERT INTO quests (code, name, quest_type, zone_id, min_level, max_level, difficulty_stars, npc_name, location_name, is_repeatable, repeat_cooldown_hours, reputation_reward, gold_reward, xp_reward, description, is_personal, is_boss_quest, giver_npc, turn_in_npc, dialog, chain_position, chain_total)
+SELECT 'COSTAS_SEC_LORO_3', 'Lo que dice Galleta', 'SECUNDARIA', 4, 56, 60, 3, 'Rhaegar', 'Faro Negro', FALSE, NULL, 40, 2700, 9800, '«Galleta repite una cosa nueva: "la cadena tiene llave". Eso no lo dije yo. Lo escuchó en algún lado. Fue hacia el faro. Síguelo y escucha lo que dice: a lo mejor sabe algo que nosotros no.»', TRUE, FALSE, 'rhaegar_puerto', 'rhaegar_puerto', '{"entrega":"«La cadena tiene llave, la llave es el canto». *Rhaegar se rasca la barba* El canto. Las cadenas de la Bestia se aflojan con un canto. ¿El de la caracola? Ese pájaro… Te lo dije: es más listo que tu capitán. Y que yo. Toma, por las molestias."}'::jsonb, NULL, NULL
+WHERE NOT EXISTS (SELECT 1 FROM quests WHERE code = 'COSTAS_SEC_LORO_3');
+UPDATE quests SET name = 'Lo que dice Galleta', quest_type = 'SECUNDARIA', zone_id = 4, min_level = 56, max_level = 60, difficulty_stars = 3, npc_name = 'Rhaegar', location_name = 'Faro Negro', is_repeatable = FALSE, repeat_cooldown_hours = NULL, reputation_reward = 40, gold_reward = 2700, xp_reward = 9800, description = '«Galleta repite una cosa nueva: "la cadena tiene llave". Eso no lo dije yo. Lo escuchó en algún lado. Fue hacia el faro. Síguelo y escucha lo que dice: a lo mejor sabe algo que nosotros no.»', is_personal = TRUE, is_boss_quest = FALSE, giver_npc = 'rhaegar_puerto', turn_in_npc = 'rhaegar_puerto', dialog = '{"entrega":"«La cadena tiene llave, la llave es el canto». *Rhaegar se rasca la barba* El canto. Las cadenas de la Bestia se aflojan con un canto. ¿El de la caracola? Ese pájaro… Te lo dije: es más listo que tu capitán. Y que yo. Toma, por las molestias."}'::jsonb, chain_position = NULL, chain_total = NULL WHERE code = 'COSTAS_SEC_LORO_3';
+DELETE FROM quest_objectives WHERE quest_id = (SELECT id FROM quests WHERE code = 'COSTAS_SEC_LORO_3');
+INSERT INTO quest_objectives (quest_id, objective_type, step, target_code, monster_id, item_id, target_count, params, description)
+SELECT (SELECT id FROM quests WHERE code = 'COSTAS_SEC_LORO_3'), v.t, v.step, v.target, (SELECT id FROM monsters WHERE code = v.monster), (SELECT id FROM items WHERE code = v.item), v.n, v.params::jsonb, v.descr
+FROM (VALUES
+  ('INVESTIGATE', 1, NULL, NULL, NULL, 1, '{"zone":"costas","x":65,"y":109,"radius":3,"label":"Escuchar al loro","speaker":"Galleta, el loro","sprite":"loro","huye":true,"dialog":"¡La cadena tiene llave! ¡La llave es el canto! ¡Canto, canto, canto! ¡Galleta quiere galleta!"}', 'Sigue a Galleta hasta el Faro Negro'),
+  ('TALK', 2, 'rhaegar_puerto', NULL, NULL, 1, NULL, 'Cuéntale a Rhaegar lo que dijo Galleta')
+) AS v(t, step, target, monster, item, n, params, descr);
+DELETE FROM quest_npc_spots WHERE quest_id = (SELECT id FROM quests WHERE code = 'COSTAS_SEC_LORO_3');
+DELETE FROM quest_item_rewards WHERE quest_id = (SELECT id FROM quests WHERE code = 'COSTAS_SEC_LORO_3');
+INSERT INTO quest_item_rewards (quest_id, item_id, quantity)
+SELECT (SELECT id FROM quests WHERE code = 'COSTAS_SEC_LORO_3'), i.id, v.qty FROM (VALUES ('PIEDRA_ENCANT_MAYOR', 1)) AS v(code, qty) JOIN items i ON i.code = v.code;
+
+-- Amor entre bandos (Tilo)
+INSERT INTO quests (code, name, quest_type, zone_id, min_level, max_level, difficulty_stars, npc_name, location_name, is_repeatable, repeat_cooldown_hours, reputation_reward, gold_reward, xp_reward, description, is_personal, is_boss_quest, giver_npc, turn_in_npc, dialog, chain_position, chain_total)
+SELECT 'COSTAS_SEC_AMOR_1', 'Amor entre bandos', 'SECUNDARIA', 4, 53, 60, 3, 'Tilo', 'Cala de los Piratas', FALSE, NULL, 40, 2550, 9300, '«¿Conoces a Anka? ¿La de la Cala? ¿La del pañuelo rojo? Yo no. Bueno, sí. La vi una vez. Desde lejos. Mientras me robaba el yelmo. Le escribí una carta. ¿Se la llevas? No le digas que es mía. Bueno, dile. Pero no.»', TRUE, FALSE, 'tilo_puerto', 'tilo_puerto', '{"entrega":"¿Se la diste? ¿Qué cara puso? ¿Se rió? ¿Se rió bien o se rió mal? *Tilo se sienta en un barril* No me contestes. Mejor no saber. Bueno, contéstame."}'::jsonb, NULL, NULL
+WHERE NOT EXISTS (SELECT 1 FROM quests WHERE code = 'COSTAS_SEC_AMOR_1');
+UPDATE quests SET name = 'Amor entre bandos', quest_type = 'SECUNDARIA', zone_id = 4, min_level = 53, max_level = 60, difficulty_stars = 3, npc_name = 'Tilo', location_name = 'Cala de los Piratas', is_repeatable = FALSE, repeat_cooldown_hours = NULL, reputation_reward = 40, gold_reward = 2550, xp_reward = 9300, description = '«¿Conoces a Anka? ¿La de la Cala? ¿La del pañuelo rojo? Yo no. Bueno, sí. La vi una vez. Desde lejos. Mientras me robaba el yelmo. Le escribí una carta. ¿Se la llevas? No le digas que es mía. Bueno, dile. Pero no.»', is_personal = TRUE, is_boss_quest = FALSE, giver_npc = 'tilo_puerto', turn_in_npc = 'tilo_puerto', dialog = '{"entrega":"¿Se la diste? ¿Qué cara puso? ¿Se rió? ¿Se rió bien o se rió mal? *Tilo se sienta en un barril* No me contestes. Mejor no saber. Bueno, contéstame."}'::jsonb, chain_position = NULL, chain_total = NULL WHERE code = 'COSTAS_SEC_AMOR_1';
+DELETE FROM quest_objectives WHERE quest_id = (SELECT id FROM quests WHERE code = 'COSTAS_SEC_AMOR_1');
+INSERT INTO quest_objectives (quest_id, objective_type, step, target_code, monster_id, item_id, target_count, params, description)
+SELECT (SELECT id FROM quests WHERE code = 'COSTAS_SEC_AMOR_1'), v.t, v.step, v.target, (SELECT id FROM monsters WHERE code = v.monster), (SELECT id FROM items WHERE code = v.item), v.n, v.params::jsonb, v.descr
+FROM (VALUES
+  ('TALK', 1, 'tilo_puerto', NULL, NULL, 1, '{"speaker":"Tilo","dialog":"Ten. No la leas. Tiene tachones. Muchos. La primera vez escribí «querida» y lo taché porque era mucho.","gives":{"item":"CARTA_DE_TILO","qty":1}}', 'Recibe la carta de Tilo'),
+  ('DELIVER', 2, 'anka', NULL, 'CARTA_DE_TILO', 1, '{"speaker":"Anka","dialog":"*Anka lee la carta, se ríe, la vuelve a leer y se pone seria* ¿El del yelmo? ¿El que se cayó al agua persiguiéndome? *guarda la carta* Dile que… no le digas nada. Ya le voy a contestar yo."}', 'Lleva la carta a Anka, en la Cala'),
+  ('TALK', 3, 'tilo_puerto', NULL, NULL, 1, NULL, 'Vuelve con Tilo')
+) AS v(t, step, target, monster, item, n, params, descr);
+DELETE FROM quest_npc_spots WHERE quest_id = (SELECT id FROM quests WHERE code = 'COSTAS_SEC_AMOR_1');
+DELETE FROM quest_item_rewards WHERE quest_id = (SELECT id FROM quests WHERE code = 'COSTAS_SEC_AMOR_1');
+
+-- La respuesta (Anka)
+INSERT INTO quests (code, name, quest_type, zone_id, min_level, max_level, difficulty_stars, npc_name, location_name, is_repeatable, repeat_cooldown_hours, reputation_reward, gold_reward, xp_reward, description, is_personal, is_boss_quest, giver_npc, turn_in_npc, dialog, chain_position, chain_total)
+SELECT 'COSTAS_SEC_AMOR_2', 'La respuesta', 'SECUNDARIA', 4, 54, 60, 3, 'Anka', 'Puerto Antiguo', FALSE, NULL, 40, 2600, 9450, '«Tengo una respuesta para tu soldado. No te la puedo dar así nomás: soy pirata. Primero tráeme algo de beber del puerto. Ron no. Té. Me gusta el té. No se lo cuentes a nadie.»', TRUE, FALSE, 'anka', 'tilo_puerto', '{"entrega":"*Tilo abre la carta y la cierra, la abre y la cierra* «Sí». Subrayado. Tres veces. ¡TRES! *tira el yelmo al aire y lo agarra con la cabeza* ¡Ay! ¡No importa! ¡Tres veces!"}'::jsonb, NULL, NULL
+WHERE NOT EXISTS (SELECT 1 FROM quests WHERE code = 'COSTAS_SEC_AMOR_2');
+UPDATE quests SET name = 'La respuesta', quest_type = 'SECUNDARIA', zone_id = 4, min_level = 54, max_level = 60, difficulty_stars = 3, npc_name = 'Anka', location_name = 'Puerto Antiguo', is_repeatable = FALSE, repeat_cooldown_hours = NULL, reputation_reward = 40, gold_reward = 2600, xp_reward = 9450, description = '«Tengo una respuesta para tu soldado. No te la puedo dar así nomás: soy pirata. Primero tráeme algo de beber del puerto. Ron no. Té. Me gusta el té. No se lo cuentes a nadie.»', is_personal = TRUE, is_boss_quest = FALSE, giver_npc = 'anka', turn_in_npc = 'tilo_puerto', dialog = '{"entrega":"*Tilo abre la carta y la cierra, la abre y la cierra* «Sí». Subrayado. Tres veces. ¡TRES! *tira el yelmo al aire y lo agarra con la cabeza* ¡Ay! ¡No importa! ¡Tres veces!"}'::jsonb, chain_position = NULL, chain_total = NULL WHERE code = 'COSTAS_SEC_AMOR_2';
+DELETE FROM quest_objectives WHERE quest_id = (SELECT id FROM quests WHERE code = 'COSTAS_SEC_AMOR_2');
+INSERT INTO quest_objectives (quest_id, objective_type, step, target_code, monster_id, item_id, target_count, params, description)
+SELECT (SELECT id FROM quests WHERE code = 'COSTAS_SEC_AMOR_2'), v.t, v.step, v.target, (SELECT id FROM monsters WHERE code = v.monster), (SELECT id FROM items WHERE code = v.item), v.n, v.params::jsonb, v.descr
+FROM (VALUES
+  ('COLLECT_ITEM', 1, NULL, NULL, 'TE_ALGA', 1, NULL, 'Consigue un Té de Alga (se hace en el taller)'),
+  ('TALK', 2, 'anka', NULL, NULL, 1, '{"speaker":"Anka","dialog":"*toma un sorbo* Rico. Bueno, ahí tienes mi respuesta. Si se la lees en voz alta te tiro al mar.","gives":{"item":"CARTA_DE_ANKA","qty":1}}', 'Llévale el té a Anka'),
+  ('DELIVER', 3, 'tilo_puerto', NULL, 'CARTA_DE_ANKA', 1, NULL, 'Lleva la respuesta de Anka a Tilo')
+) AS v(t, step, target, monster, item, n, params, descr);
+DELETE FROM quest_npc_spots WHERE quest_id = (SELECT id FROM quests WHERE code = 'COSTAS_SEC_AMOR_2');
+DELETE FROM quest_item_rewards WHERE quest_id = (SELECT id FROM quests WHERE code = 'COSTAS_SEC_AMOR_2');
+
+-- Cita en el muelle (Tilo)
+INSERT INTO quests (code, name, quest_type, zone_id, min_level, max_level, difficulty_stars, npc_name, location_name, is_repeatable, repeat_cooldown_hours, reputation_reward, gold_reward, xp_reward, description, is_personal, is_boss_quest, giver_npc, turn_in_npc, dialog, chain_position, chain_total)
+SELECT 'COSTAS_SEC_AMOR_3', 'Cita en el muelle', 'SECUNDARIA', 4, 55, 60, 3, 'Tilo', 'Puerto Antiguo', FALSE, NULL, 40, 2650, 9650, '«Quiero verla. En el muelle. Pero si un soldado va a la Cala lo reciben a sablazos, y si una pirata viene al puerto… bueno, ya no, ahora que Rhaegar es amigo del capitán. ¿La traes? ¿Que la acompañes? Por si se pierde. No se va a perder. Pero por si acaso.»', TRUE, FALSE, 'tilo_puerto', 'tilo_puerto', '{"entrega":"*Tilo y Anka se miran en la punta del muelle sin decir nada, un buen rato* Hola. *Anka:* Hola, soldado. *Tilo te mira de reojo y te hace un gesto de que te vayas* …Gracias. De verdad. Ahora vete. Por favor."}'::jsonb, NULL, NULL
+WHERE NOT EXISTS (SELECT 1 FROM quests WHERE code = 'COSTAS_SEC_AMOR_3');
+UPDATE quests SET name = 'Cita en el muelle', quest_type = 'SECUNDARIA', zone_id = 4, min_level = 55, max_level = 60, difficulty_stars = 3, npc_name = 'Tilo', location_name = 'Puerto Antiguo', is_repeatable = FALSE, repeat_cooldown_hours = NULL, reputation_reward = 40, gold_reward = 2650, xp_reward = 9650, description = '«Quiero verla. En el muelle. Pero si un soldado va a la Cala lo reciben a sablazos, y si una pirata viene al puerto… bueno, ya no, ahora que Rhaegar es amigo del capitán. ¿La traes? ¿Que la acompañes? Por si se pierde. No se va a perder. Pero por si acaso.»', is_personal = TRUE, is_boss_quest = FALSE, giver_npc = 'tilo_puerto', turn_in_npc = 'tilo_puerto', dialog = '{"entrega":"*Tilo y Anka se miran en la punta del muelle sin decir nada, un buen rato* Hola. *Anka:* Hola, soldado. *Tilo te mira de reojo y te hace un gesto de que te vayas* …Gracias. De verdad. Ahora vete. Por favor."}'::jsonb, chain_position = NULL, chain_total = NULL WHERE code = 'COSTAS_SEC_AMOR_3';
+DELETE FROM quest_objectives WHERE quest_id = (SELECT id FROM quests WHERE code = 'COSTAS_SEC_AMOR_3');
+INSERT INTO quest_objectives (quest_id, objective_type, step, target_code, monster_id, item_id, target_count, params, description)
+SELECT (SELECT id FROM quests WHERE code = 'COSTAS_SEC_AMOR_3'), v.t, v.step, v.target, (SELECT id FROM monsters WHERE code = v.monster), (SELECT id FROM items WHERE code = v.item), v.n, v.params::jsonb, v.descr
+FROM (VALUES
+  ('TALK', 1, 'anka', NULL, NULL, 1, '{"speaker":"Anka","dialog":"¿Al muelle? ¿Ahora? *se acomoda el pañuelo tres veces* Bueno. Vamos. Pero caminamos despacio. No porque esté nerviosa. Porque me gusta caminar despacio."}', 'Busca a Anka en la Cala'),
+  ('ESCORT', 2, NULL, NULL, NULL, 1, '{"zone":"costas","x":138,"y":44,"radius":3,"label":"El muelle del puerto","speaker":"Anka","dialog":"Ahí está. Con el yelmo torcido. *se ríe bajito* Ve tú adelante. No, yo. No, tú.","escort":{"sprite":"npc_anka","name":"Anka","lines":["¿Se me nota que me lavé la cara? No me mires.","Si me ves dar media vuelta, no me empujes. Igual dame un empujoncito.","Los soldados son aburridos. Este no. Este se cae al agua.","¿Cómo se saluda a un soldado? ¿Con la mano? ¿Con un sable? Con la mano."]}}', 'Acompaña a Anka hasta el muelle del puerto'),
+  ('TALK', 3, 'tilo_puerto', NULL, NULL, 1, NULL, 'Déjalos solos y habla con Tilo')
+) AS v(t, step, target, monster, item, n, params, descr);
+DELETE FROM quest_npc_spots WHERE quest_id = (SELECT id FROM quests WHERE code = 'COSTAS_SEC_AMOR_3');
+DELETE FROM quest_item_rewards WHERE quest_id = (SELECT id FROM quests WHERE code = 'COSTAS_SEC_AMOR_3');
+
+-- El farero sin faro (Bartolo)
+INSERT INTO quests (code, name, quest_type, zone_id, min_level, max_level, difficulty_stars, npc_name, location_name, is_repeatable, repeat_cooldown_hours, reputation_reward, gold_reward, xp_reward, description, is_personal, is_boss_quest, giver_npc, turn_in_npc, dialog, chain_position, chain_total)
+SELECT 'COSTAS_SEC_FARO_1', 'El farero sin faro', 'SECUNDARIA', 4, 57, 60, 3, 'Bartolo', 'Faro Negro', FALSE, NULL, 40, 2750, 10000, '«Un faro apagado es un faro muerto. Los barcos de verdad, los de pescadores, se van a estrellar contra las rocas. Necesito aceite para la lámpara y coral rojo: lo pulo y hace de lente. Mi abuelo lo hacía así. Y su abuelo.»', TRUE, FALSE, 'bartolo', 'bartolo', '{"entrega":"*Bartolo pule el coral contra la manga hasta que brilla* Mira. Rojo. Cuando lo atraviese la llama va a pintar el mar de naranja. Mañana subo. Bueno, mañana descanso. Pasado subo."}'::jsonb, NULL, NULL
+WHERE NOT EXISTS (SELECT 1 FROM quests WHERE code = 'COSTAS_SEC_FARO_1');
+UPDATE quests SET name = 'El farero sin faro', quest_type = 'SECUNDARIA', zone_id = 4, min_level = 57, max_level = 60, difficulty_stars = 3, npc_name = 'Bartolo', location_name = 'Faro Negro', is_repeatable = FALSE, repeat_cooldown_hours = NULL, reputation_reward = 40, gold_reward = 2750, xp_reward = 10000, description = '«Un faro apagado es un faro muerto. Los barcos de verdad, los de pescadores, se van a estrellar contra las rocas. Necesito aceite para la lámpara y coral rojo: lo pulo y hace de lente. Mi abuelo lo hacía así. Y su abuelo.»', is_personal = TRUE, is_boss_quest = FALSE, giver_npc = 'bartolo', turn_in_npc = 'bartolo', dialog = '{"entrega":"*Bartolo pule el coral contra la manga hasta que brilla* Mira. Rojo. Cuando lo atraviese la llama va a pintar el mar de naranja. Mañana subo. Bueno, mañana descanso. Pasado subo."}'::jsonb, chain_position = NULL, chain_total = NULL WHERE code = 'COSTAS_SEC_FARO_1';
+DELETE FROM quest_objectives WHERE quest_id = (SELECT id FROM quests WHERE code = 'COSTAS_SEC_FARO_1');
+INSERT INTO quest_objectives (quest_id, objective_type, step, target_code, monster_id, item_id, target_count, params, description)
+SELECT (SELECT id FROM quests WHERE code = 'COSTAS_SEC_FARO_1'), v.t, v.step, v.target, (SELECT id FROM monsters WHERE code = v.monster), (SELECT id FROM items WHERE code = v.item), v.n, v.params::jsonb, v.descr
+FROM (VALUES
+  ('COLLECT_ITEM', 1, NULL, NULL, 'ACEITE_DE_COCINA', 3, NULL, 'Consigue 3 de Aceite (se compra a los artesanos)'),
+  ('COLLECT_ITEM', 1, NULL, NULL, 'CORAL_ROJO', 4, NULL, 'Junta 4 de Coral Rojo'),
+  ('TALK', 2, 'bartolo', NULL, NULL, 1, NULL, 'Lleva todo a Bartolo')
+) AS v(t, step, target, monster, item, n, params, descr);
+DELETE FROM quest_npc_spots WHERE quest_id = (SELECT id FROM quests WHERE code = 'COSTAS_SEC_FARO_1');
+DELETE FROM quest_item_rewards WHERE quest_id = (SELECT id FROM quests WHERE code = 'COSTAS_SEC_FARO_1');
+
+-- Que vuelva la luz (Bartolo)
+INSERT INTO quests (code, name, quest_type, zone_id, min_level, max_level, difficulty_stars, npc_name, location_name, is_repeatable, repeat_cooldown_hours, reputation_reward, gold_reward, xp_reward, description, is_personal, is_boss_quest, giver_npc, turn_in_npc, dialog, chain_position, chain_total)
+SELECT 'COSTAS_SEC_FARO_2', 'Que vuelva la luz', 'SECUNDARIA', 4, 58, 60, 3, 'Bartolo', 'Faro Negro', FALSE, NULL, 40, 2800, 10150, '«Ya está todo arriba: el aceite, el coral, la mecha. Pero yo tengo vértigo desde que me echaron. Sube tú. Enciende la lámpara. Yo te miro desde aquí abajo y te grito si lo haces mal.»', TRUE, FALSE, 'bartolo', 'bartolo', '{"entrega":"*la luz del faro gira sobre el mar, dorada, y en el puerto alguien toca la campana* ¡Eso! ¡ESO! *Bartolo agita la gorra* Treinta años, y la primera vez que la veo desde abajo. Es más linda desde abajo. No le digas a mi abuelo."}'::jsonb, NULL, NULL
+WHERE NOT EXISTS (SELECT 1 FROM quests WHERE code = 'COSTAS_SEC_FARO_2');
+UPDATE quests SET name = 'Que vuelva la luz', quest_type = 'SECUNDARIA', zone_id = 4, min_level = 58, max_level = 60, difficulty_stars = 3, npc_name = 'Bartolo', location_name = 'Faro Negro', is_repeatable = FALSE, repeat_cooldown_hours = NULL, reputation_reward = 40, gold_reward = 2800, xp_reward = 10150, description = '«Ya está todo arriba: el aceite, el coral, la mecha. Pero yo tengo vértigo desde que me echaron. Sube tú. Enciende la lámpara. Yo te miro desde aquí abajo y te grito si lo haces mal.»', is_personal = TRUE, is_boss_quest = FALSE, giver_npc = 'bartolo', turn_in_npc = 'bartolo', dialog = '{"entrega":"*la luz del faro gira sobre el mar, dorada, y en el puerto alguien toca la campana* ¡Eso! ¡ESO! *Bartolo agita la gorra* Treinta años, y la primera vez que la veo desde abajo. Es más linda desde abajo. No le digas a mi abuelo."}'::jsonb, chain_position = NULL, chain_total = NULL WHERE code = 'COSTAS_SEC_FARO_2';
+DELETE FROM quest_objectives WHERE quest_id = (SELECT id FROM quests WHERE code = 'COSTAS_SEC_FARO_2');
+INSERT INTO quest_objectives (quest_id, objective_type, step, target_code, monster_id, item_id, target_count, params, description)
+SELECT (SELECT id FROM quests WHERE code = 'COSTAS_SEC_FARO_2'), v.t, v.step, v.target, (SELECT id FROM monsters WHERE code = v.monster), (SELECT id FROM items WHERE code = v.item), v.n, v.params::jsonb, v.descr
+FROM (VALUES
+  ('INVESTIGATE', 1, NULL, NULL, NULL, 1, '{"zone":"costas","x":71,"y":108,"radius":3,"label":"Encender la lámpara","speaker":"Tú","sprite":"farol_negro","dialog":"La mecha prende y la luz atraviesa el coral pulido: el mar se pinta de naranja hasta el horizonte. Abajo, Bartolo grita algo que el viento no deja oír."}', 'Sube al faro y enciende la lámpara'),
+  ('TALK', 2, 'bartolo', NULL, NULL, 1, NULL, 'Baja con Bartolo')
+) AS v(t, step, target, monster, item, n, params, descr);
+DELETE FROM quest_npc_spots WHERE quest_id = (SELECT id FROM quests WHERE code = 'COSTAS_SEC_FARO_2');
+DELETE FROM quest_item_rewards WHERE quest_id = (SELECT id FROM quests WHERE code = 'COSTAS_SEC_FARO_2');
+
+-- Ostras para la sopa (Doña Almeja)
+INSERT INTO quests (code, name, quest_type, zone_id, min_level, max_level, difficulty_stars, npc_name, location_name, is_repeatable, repeat_cooldown_hours, reputation_reward, gold_reward, xp_reward, description, is_personal, is_boss_quest, giver_npc, turn_in_npc, dialog, chain_position, chain_total)
+SELECT 'COSTAS_DIARIA_OSTRAS', 'Ostras para la sopa', 'DIARIA', 4, 47, 60, 3, 'Doña Almeja', 'Puerto Antiguo', TRUE, 20, 40, 1200, 4800, '«¡Se acabaron las ostras! ¿Otra vez? Otra vez. Este puerto come más que un leviatán.»', TRUE, FALSE, 'almeja', 'almeja', '{"entrega":"¡FRESCAS! Esta noche hay sopa para todos."}'::jsonb, NULL, NULL
+WHERE NOT EXISTS (SELECT 1 FROM quests WHERE code = 'COSTAS_DIARIA_OSTRAS');
+UPDATE quests SET name = 'Ostras para la sopa', quest_type = 'DIARIA', zone_id = 4, min_level = 47, max_level = 60, difficulty_stars = 3, npc_name = 'Doña Almeja', location_name = 'Puerto Antiguo', is_repeatable = TRUE, repeat_cooldown_hours = 20, reputation_reward = 40, gold_reward = 1200, xp_reward = 4800, description = '«¡Se acabaron las ostras! ¿Otra vez? Otra vez. Este puerto come más que un leviatán.»', is_personal = TRUE, is_boss_quest = FALSE, giver_npc = 'almeja', turn_in_npc = 'almeja', dialog = '{"entrega":"¡FRESCAS! Esta noche hay sopa para todos."}'::jsonb, chain_position = NULL, chain_total = NULL WHERE code = 'COSTAS_DIARIA_OSTRAS';
+DELETE FROM quest_objectives WHERE quest_id = (SELECT id FROM quests WHERE code = 'COSTAS_DIARIA_OSTRAS');
+INSERT INTO quest_objectives (quest_id, objective_type, step, target_code, monster_id, item_id, target_count, params, description)
+SELECT (SELECT id FROM quests WHERE code = 'COSTAS_DIARIA_OSTRAS'), v.t, v.step, v.target, (SELECT id FROM monsters WHERE code = v.monster), (SELECT id FROM items WHERE code = v.item), v.n, v.params::jsonb, v.descr
+FROM (VALUES
+  ('COLLECT_ITEM', 1, NULL, NULL, 'CARNE_OSTRA', 6, NULL, 'Junta 6 de Carne de Ostra'),
+  ('TALK', 2, 'almeja', NULL, NULL, 1, NULL, 'Lleva las ostras a Doña Almeja')
+) AS v(t, step, target, monster, item, n, params, descr);
+DELETE FROM quest_npc_spots WHERE quest_id = (SELECT id FROM quests WHERE code = 'COSTAS_DIARIA_OSTRAS');
+DELETE FROM quest_item_rewards WHERE quest_id = (SELECT id FROM quests WHERE code = 'COSTAS_DIARIA_OSTRAS');
+
+-- Coral para el astillero (Brea)
+INSERT INTO quests (code, name, quest_type, zone_id, min_level, max_level, difficulty_stars, npc_name, location_name, is_repeatable, repeat_cooldown_hours, reputation_reward, gold_reward, xp_reward, description, is_personal, is_boss_quest, giver_npc, turn_in_npc, dialog, chain_position, chain_total)
+SELECT 'COSTAS_DIARIA_CORAL', 'Coral para el astillero', 'DIARIA', 4, 51, 60, 3, 'Brea', 'Arrecife Blanco', TRUE, 20, 40, 1280, 5100, '«Coral rojo. Seis piezas. Del bueno, del duro. El blanco se parte. No me traigas blanco.»', TRUE, FALSE, 'brea', 'brea', '{"entrega":"Bien. Duro. Sirve. Vuelve mañana."}'::jsonb, NULL, NULL
+WHERE NOT EXISTS (SELECT 1 FROM quests WHERE code = 'COSTAS_DIARIA_CORAL');
+UPDATE quests SET name = 'Coral para el astillero', quest_type = 'DIARIA', zone_id = 4, min_level = 51, max_level = 60, difficulty_stars = 3, npc_name = 'Brea', location_name = 'Arrecife Blanco', is_repeatable = TRUE, repeat_cooldown_hours = 20, reputation_reward = 40, gold_reward = 1280, xp_reward = 5100, description = '«Coral rojo. Seis piezas. Del bueno, del duro. El blanco se parte. No me traigas blanco.»', is_personal = TRUE, is_boss_quest = FALSE, giver_npc = 'brea', turn_in_npc = 'brea', dialog = '{"entrega":"Bien. Duro. Sirve. Vuelve mañana."}'::jsonb, chain_position = NULL, chain_total = NULL WHERE code = 'COSTAS_DIARIA_CORAL';
+DELETE FROM quest_objectives WHERE quest_id = (SELECT id FROM quests WHERE code = 'COSTAS_DIARIA_CORAL');
+INSERT INTO quest_objectives (quest_id, objective_type, step, target_code, monster_id, item_id, target_count, params, description)
+SELECT (SELECT id FROM quests WHERE code = 'COSTAS_DIARIA_CORAL'), v.t, v.step, v.target, (SELECT id FROM monsters WHERE code = v.monster), (SELECT id FROM items WHERE code = v.item), v.n, v.params::jsonb, v.descr
+FROM (VALUES
+  ('COLLECT_ITEM', 1, NULL, NULL, 'CORAL_ROJO', 6, NULL, 'Junta 6 de Coral Rojo'),
+  ('TALK', 2, 'brea', NULL, NULL, 1, NULL, 'Lleva el coral a Brea, en el astillero')
+) AS v(t, step, target, monster, item, n, params, descr);
+DELETE FROM quest_npc_spots WHERE quest_id = (SELECT id FROM quests WHERE code = 'COSTAS_DIARIA_CORAL');
+DELETE FROM quest_item_rewards WHERE quest_id = (SELECT id FROM quests WHERE code = 'COSTAS_DIARIA_CORAL');
+
+-- Cocodrilos en el canal (Cieno)
+INSERT INTO quests (code, name, quest_type, zone_id, min_level, max_level, difficulty_stars, npc_name, location_name, is_repeatable, repeat_cooldown_hours, reputation_reward, gold_reward, xp_reward, description, is_personal, is_boss_quest, giver_npc, turn_in_npc, dialog, chain_position, chain_total)
+SELECT 'COSTAS_DIARIA_COCODRILOS', 'Cocodrilos en el canal', 'DIARIA', 4, 50, 60, 3, 'Cieno', 'Manglar de los Susurros', TRUE, 20, 40, 1250, 5000, '«Ya volvieron. Los cocodrilos siempre vuelven. Como mi suegra.»', TRUE, FALSE, 'cieno', 'cieno', '{"entrega":"El canal quedó tranquilo. Por hoy."}'::jsonb, NULL, NULL
+WHERE NOT EXISTS (SELECT 1 FROM quests WHERE code = 'COSTAS_DIARIA_COCODRILOS');
+UPDATE quests SET name = 'Cocodrilos en el canal', quest_type = 'DIARIA', zone_id = 4, min_level = 50, max_level = 60, difficulty_stars = 3, npc_name = 'Cieno', location_name = 'Manglar de los Susurros', is_repeatable = TRUE, repeat_cooldown_hours = 20, reputation_reward = 40, gold_reward = 1250, xp_reward = 5000, description = '«Ya volvieron. Los cocodrilos siempre vuelven. Como mi suegra.»', is_personal = TRUE, is_boss_quest = FALSE, giver_npc = 'cieno', turn_in_npc = 'cieno', dialog = '{"entrega":"El canal quedó tranquilo. Por hoy."}'::jsonb, chain_position = NULL, chain_total = NULL WHERE code = 'COSTAS_DIARIA_COCODRILOS';
+DELETE FROM quest_objectives WHERE quest_id = (SELECT id FROM quests WHERE code = 'COSTAS_DIARIA_COCODRILOS');
+INSERT INTO quest_objectives (quest_id, objective_type, step, target_code, monster_id, item_id, target_count, params, description)
+SELECT (SELECT id FROM quests WHERE code = 'COSTAS_DIARIA_COCODRILOS'), v.t, v.step, v.target, (SELECT id FROM monsters WHERE code = v.monster), (SELECT id FROM items WHERE code = v.item), v.n, v.params::jsonb, v.descr
+FROM (VALUES
+  ('KILL_MONSTER', 1, 'COCODRILO_MANGLAR', 'COCODRILO_MANGLAR', NULL, 6, NULL, 'Derrota 6 Cocodrilos del Manglar'),
+  ('TALK', 2, 'cieno', NULL, NULL, 1, NULL, 'Vuelve con Cieno')
+) AS v(t, step, target, monster, item, n, params, descr);
+DELETE FROM quest_npc_spots WHERE quest_id = (SELECT id FROM quests WHERE code = 'COSTAS_DIARIA_COCODRILOS');
+DELETE FROM quest_item_rewards WHERE quest_id = (SELECT id FROM quests WHERE code = 'COSTAS_DIARIA_COCODRILOS');
+
+-- la cadena y los requisitos: la C1 pide la última del Volcán
+UPDATE quests SET requires_quest_id = (SELECT id FROM quests WHERE code = 'VOLCAN_Q3_TITAN_FUEGO') WHERE code = 'COSTAS_HISTORIA_01_BAJADA';
+UPDATE quests SET requires_quest_id = (SELECT id FROM quests WHERE code = 'COSTAS_HISTORIA_01_BAJADA') WHERE code = 'COSTAS_HISTORIA_02_PUERTO';
+UPDATE quests SET requires_quest_id = (SELECT id FROM quests WHERE code = 'COSTAS_HISTORIA_02_PUERTO') WHERE code = 'COSTAS_HISTORIA_03_VELAS';
+UPDATE quests SET requires_quest_id = (SELECT id FROM quests WHERE code = 'COSTAS_HISTORIA_03_VELAS') WHERE code = 'COSTAS_Q1_CAZADOR_PIRATAS';
+UPDATE quests SET requires_quest_id = (SELECT id FROM quests WHERE code = 'COSTAS_Q1_CAZADOR_PIRATAS') WHERE code = 'COSTAS_HISTORIA_05_SOMBRAS';
+UPDATE quests SET requires_quest_id = (SELECT id FROM quests WHERE code = 'COSTAS_HISTORIA_05_SOMBRAS') WHERE code = 'COSTAS_HISTORIA_06_CORALIA';
+UPDATE quests SET requires_quest_id = (SELECT id FROM quests WHERE code = 'COSTAS_HISTORIA_06_CORALIA') WHERE code = 'COSTAS_HISTORIA_07_CARACOLA';
+UPDATE quests SET requires_quest_id = (SELECT id FROM quests WHERE code = 'COSTAS_HISTORIA_07_CARACOLA') WHERE code = 'COSTAS_Q2_TRIDENTE_PERDIDO';
+UPDATE quests SET requires_quest_id = (SELECT id FROM quests WHERE code = 'COSTAS_Q2_TRIDENTE_PERDIDO') WHERE code = 'COSTAS_HISTORIA_09_ALIANZA';
+UPDATE quests SET requires_quest_id = (SELECT id FROM quests WHERE code = 'COSTAS_HISTORIA_09_ALIANZA') WHERE code = 'COSTAS_HISTORIA_10_CANTO';
+UPDATE quests SET requires_quest_id = (SELECT id FROM quests WHERE code = 'COSTAS_HISTORIA_10_CANTO') WHERE code = 'COSTAS_HISTORIA_11_VELANEGRA';
+UPDATE quests SET requires_quest_id = (SELECT id FROM quests WHERE code = 'COSTAS_HISTORIA_11_VELANEGRA') WHERE code = 'COSTAS_HISTORIA_12_BARCO';
+UPDATE quests SET requires_quest_id = (SELECT id FROM quests WHERE code = 'COSTAS_HISTORIA_12_BARCO') WHERE code = 'COSTAS_HISTORIA_13_FARO';
+UPDATE quests SET requires_quest_id = (SELECT id FROM quests WHERE code = 'COSTAS_HISTORIA_13_FARO') WHERE code = 'COSTAS_Q3_BESTIA_PROFUNDIDADES';
+UPDATE quests SET requires_quest_id = (SELECT id FROM quests WHERE code = 'COSTAS_HISTORIA_01_BAJADA') WHERE code = 'COSTAS_SEC_TRUENO';
+UPDATE quests SET requires_quest_id = (SELECT id FROM quests WHERE code = 'COSTAS_HISTORIA_02_PUERTO') WHERE code = 'COSTAS_SEC_CARTA';
+UPDATE quests SET requires_quest_id = (SELECT id FROM quests WHERE code = 'COSTAS_HISTORIA_02_PUERTO') WHERE code = 'COSTAS_SEC_FRESCO';
+UPDATE quests SET requires_quest_id = (SELECT id FROM quests WHERE code = 'COSTAS_HISTORIA_06_CORALIA') WHERE code = 'COSTAS_SEC_RED_1';
+UPDATE quests SET requires_quest_id = (SELECT id FROM quests WHERE code = 'COSTAS_SEC_RED_1') WHERE code = 'COSTAS_SEC_RED_2';
+UPDATE quests SET requires_quest_id = (SELECT id FROM quests WHERE code = 'COSTAS_HISTORIA_06_CORALIA') WHERE code = 'COSTAS_SEC_TESOROS_1';
+UPDATE quests SET requires_quest_id = (SELECT id FROM quests WHERE code = 'COSTAS_SEC_TESOROS_1') WHERE code = 'COSTAS_SEC_TESOROS_2';
+UPDATE quests SET requires_quest_id = (SELECT id FROM quests WHERE code = 'COSTAS_HISTORIA_07_CARACOLA') WHERE code = 'COSTAS_SEC_MANGLAR';
+UPDATE quests SET requires_quest_id = (SELECT id FROM quests WHERE code = 'COSTAS_HISTORIA_09_ALIANZA') WHERE code = 'COSTAS_SEC_LORO_1';
+UPDATE quests SET requires_quest_id = (SELECT id FROM quests WHERE code = 'COSTAS_SEC_LORO_1') WHERE code = 'COSTAS_SEC_LORO_2';
+UPDATE quests SET requires_quest_id = (SELECT id FROM quests WHERE code = 'COSTAS_SEC_LORO_2') WHERE code = 'COSTAS_SEC_LORO_3';
+UPDATE quests SET requires_quest_id = (SELECT id FROM quests WHERE code = 'COSTAS_HISTORIA_09_ALIANZA') WHERE code = 'COSTAS_SEC_AMOR_1';
+UPDATE quests SET requires_quest_id = (SELECT id FROM quests WHERE code = 'COSTAS_SEC_AMOR_1') WHERE code = 'COSTAS_SEC_AMOR_2';
+UPDATE quests SET requires_quest_id = (SELECT id FROM quests WHERE code = 'COSTAS_SEC_AMOR_2') WHERE code = 'COSTAS_SEC_AMOR_3';
+UPDATE quests SET requires_quest_id = (SELECT id FROM quests WHERE code = 'COSTAS_HISTORIA_13_FARO') WHERE code = 'COSTAS_SEC_FARO_1';
+UPDATE quests SET requires_quest_id = (SELECT id FROM quests WHERE code = 'COSTAS_SEC_FARO_1') WHERE code = 'COSTAS_SEC_FARO_2';
+UPDATE quests SET requires_quest_id = NULL WHERE code = 'COSTAS_DIARIA_OSTRAS';
+UPDATE quests SET requires_quest_id = NULL WHERE code = 'COSTAS_DIARIA_CORAL';
+UPDATE quests SET requires_quest_id = NULL WHERE code = 'COSTAS_DIARIA_COCODRILOS';
+
+-- las diarias que ya existían: cada una la da (y la recibe) un NPC de la zona
+UPDATE quests SET giver_npc = 'bastida', turn_in_npc = 'bastida', npc_name = 'Osvaldo Bastida', name = 'La guardia de la costa', description = '«El reglamento del puerto, artículo noveno: "mantener la costa libre de plagas". Plagas son los cangrejos, las pirañas, las sirenas y los ahogados. Yo no lo escribí. Bueno, sí.»', min_level = 46, repeat_cooldown_hours = 20,
+  dialog = COALESCE(dialog, '{}'::jsonb) || '{"entrega":"Artículo noveno, cumplido. Lo anoto."}'::jsonb,
+  requires_quest_id = (SELECT id FROM quests WHERE code = 'COSTAS_HISTORIA_02_PUERTO') WHERE code = 'COSTAS_DAILY_PLAGA_COSTAS';
+UPDATE quests SET giver_npc = 'marul', turn_in_npc = 'marul', npc_name = 'Marul', name = 'Cangrejos en las redes', description = '«¡Volvieron los cangrejos! Se comen mis redes. Las COMEN.»', min_level = 46, repeat_cooldown_hours = 20,
+  dialog = COALESCE(dialog, '{}'::jsonb) || '{"entrega":"Las redes están a salvo. Por hoy. Jeje."}'::jsonb,
+  requires_quest_id = (SELECT id FROM quests WHERE code = 'COSTAS_HISTORIA_06_CORALIA') WHERE code = 'COSTAS_COMUN_CANGREJO';
+UPDATE quests SET giver_npc = 'cieno', turn_in_npc = 'cieno', npc_name = 'Cieno', name = 'Banco de pirañas', description = '«Las pirañas no dejan pescar. Bueno, sí dejan: te pescan ellas a ti.»', min_level = 48, repeat_cooldown_hours = 20,
+  dialog = COALESCE(dialog, '{}'::jsonb) || '{"entrega":"Ya se puede meter la mano en el canal. No la metas igual."}'::jsonb,
+  requires_quest_id = (SELECT id FROM quests WHERE code = 'COSTAS_HISTORIA_07_CARACOLA') WHERE code = 'COSTAS_COMUN_PIRANA';
+UPDATE quests SET giver_npc = 'nerea', turn_in_npc = 'nerea', npc_name = 'Nerea', name = 'El canto que hunde barcos', description = '«Las sirenas eran nuestras hermanas. El eclipse las cambió. Hasta que podamos curarlas, que no canten cerca de los barcos.»', min_level = 51, repeat_cooldown_hours = 20,
+  dialog = COALESCE(dialog, '{}'::jsonb) || '{"entrega":"Silencio en las Rocas. Gracias, viajero."}'::jsonb,
+  requires_quest_id = (SELECT id FROM quests WHERE code = 'COSTAS_HISTORIA_06_CORALIA') WHERE code = 'COSTAS_COMUN_SIRENA';
+UPDATE quests SET giver_npc = 'bastida', turn_in_npc = 'bastida', npc_name = 'Osvaldo Bastida', name = 'Los ahogados del Cementerio', description = '«Los ahogados del Cementerio caminan hacia el puerto de noche. El reglamento no dice qué hacer con ellos. Usted sí sabe.»', min_level = 54, repeat_cooldown_hours = 20,
+  dialog = COALESCE(dialog, '{}'::jsonb) || '{"entrega":"Que descansen. De verdad, esta vez."}'::jsonb,
+  requires_quest_id = (SELECT id FROM quests WHERE code = 'COSTAS_HISTORIA_03_VELAS') WHERE code = 'COSTAS_COMUN_MARINERO';
+UPDATE quests SET giver_npc = 'marul', turn_in_npc = 'marul', npc_name = 'Marul', name = 'La cría del leviatán', description = '«Las crías de leviatán asustan a los peces. Y a mí. Y a los peces de mí.»', min_level = 53, repeat_cooldown_hours = 20,
+  dialog = COALESCE(dialog, '{}'::jsonb) || '{"entrega":"El mar está tranquilo. Ahora sí salgo a pescar."}'::jsonb,
+  requires_quest_id = (SELECT id FROM quests WHERE code = 'COSTAS_HISTORIA_06_CORALIA') WHERE code = 'COSTAS_CAZA_LEVIATAN';
+UPDATE quests SET giver_npc = 'rhaegar_puerto', turn_in_npc = 'rhaegar_puerto', npc_name = 'Rhaegar', name = 'Las que quedaron de Velanegra', description = '«Velanegra tenía hermanas de tripulación, igual de malas e igual de capitanas. Que no se queden con su barco.»', min_level = 55, repeat_cooldown_hours = 20,
+  dialog = COALESCE(dialog, '{}'::jsonb) || '{"entrega":"Ni una vela negra en el horizonte. Así me gusta."}'::jsonb,
+  requires_quest_id = (SELECT id FROM quests WHERE code = 'COSTAS_HISTORIA_11_VELANEGRA') WHERE code = 'COSTAS_CAZA_CAPITAN_PIRATA';
+UPDATE quests SET giver_npc = 'nerea', turn_in_npc = 'nerea', npc_name = 'Nerea', name = 'Cacería en aguas profundas', description = '«Los leviatanes jóvenes y las capitanas del eclipse no dejan volver a los nuestros al Arrecife. Ayúdanos a abrir el camino.»', min_level = 55, repeat_cooldown_hours = 20,
+  dialog = COALESCE(dialog, '{}'::jsonb) || '{"entrega":"Un tritón más volvió a su casa hoy."}'::jsonb,
+  requires_quest_id = (SELECT id FROM quests WHERE code = 'COSTAS_HISTORIA_11_VELANEGRA') WHERE code = 'COSTAS_DAILY_CACERIA_PROFUNDIDADES';
+UPDATE quests SET giver_npc = 'mercader_puerto', turn_in_npc = 'mercader_puerto', npc_name = 'Salitre', name = 'Pesca de tesoros', description = '«Cada monstruo de la costa se tragó algo alguna vez: monedas, anillos, dientes de oro. Tráeme lo que encuentres.»', min_level = 53, repeat_cooldown_hours = 20,
+  dialog = COALESCE(dialog, '{}'::jsonb) || '{"entrega":"Esto vale algo. Esto no. Esto… esto es un diente. Bueno, todo vale algo."}'::jsonb,
+  requires_quest_id = NULL WHERE code = 'COSTAS_DAILY_PESCA_TESOROS';
+UPDATE quests SET giver_npc = 'rhaegar_puerto', turn_in_npc = 'rhaegar_puerto', npc_name = 'Rhaegar', name = 'El Almirante vuelve a zarpar', description = '«Dicen que el barco sin bandera volvió a aparecer en la niebla. Los muertos no se quedan quietos. Dale otro descanso.»', min_level = 57, repeat_cooldown_hours = 20,
+  dialog = COALESCE(dialog, '{}'::jsonb) || '{"entrega":"Hundido otra vez. Va a tener que aprender a nadar."}'::jsonb,
+  requires_quest_id = (SELECT id FROM quests WHERE code = 'COSTAS_HISTORIA_12_BARCO') WHERE code = 'COSTAS_BOSS_OCEANO';
+UPDATE quests SET giver_npc = 'nerea', turn_in_npc = 'nerea', npc_name = 'Nerea', name = 'La Bestia no descansa', description = '«Quedan cristales en la Fosa. A veces la Bestia vuelve a enloquecer. Cálmala, otra vez.»', min_level = 60, repeat_cooldown_hours = 20,
+  dialog = COALESCE(dialog, '{}'::jsonb) || '{"entrega":"Está cantando de nuevo. Gracias."}'::jsonb,
+  requires_quest_id = (SELECT id FROM quests WHERE code = 'COSTAS_Q3_BESTIA_PROFUNDIDADES') WHERE code = 'COSTAS_LEG_BESTIA';
+UPDATE quest_objectives SET monster_id = (SELECT id FROM monsters WHERE code = 'ALMIRANTE_AHOGADO'), description = 'Derrota al Almirante Ahogado en el fondeadero del Cementerio'
+WHERE quest_id = (SELECT id FROM quests WHERE code = 'COSTAS_BOSS_OCEANO') AND objective_type = 'DEFEAT_BOSS';
+-- las emboscadas sin dibujo muestran a su primer monstruo
+UPDATE quest_objectives SET params = params || jsonb_build_object('sprite', 'mon:' || (params->'monsters'->0->>'code'))
+WHERE objective_type = 'AMBUSH' AND params ? 'monsters' AND jsonb_array_length(params->'monsters') > 0 AND NOT params ? 'sprite'
+  AND quest_id IN (SELECT id FROM quests WHERE zone_id = 4);
+
+-- ============================================================================================
+-- Tienda propia del Puerto Antiguo (Costas Muertas): Salitre, el mercader del muelle. Solo aparece
+-- en la ventana de comercio cuando estás en la costa (artisans.zone_id, ver routes/players.js
+-- /artisan-shop). Vende lo de la zona a más del doble de lo que pagan los NPC (regla de la mitad,
+-- lib/npcSell.js), así no baja lo que te pagan por lo que recolectas. Repetible, sin ON CONFLICT.
+-- ============================================================================================
+INSERT INTO artisans (code, name, specialty, zone_id, description)
+SELECT 'MERCADER_PUERTO', 'Salitre, mercader del Puerto Antiguo', 'MARINO', 4,
+       'Compra lo que escupe el mar y vende lo que llega en los barcos, si los piratas lo dejan llegar.'
+WHERE NOT EXISTS (SELECT 1 FROM artisans WHERE code = 'MERCADER_PUERTO');
+UPDATE artisans SET name = 'Salitre, mercader del Puerto Antiguo', specialty = 'MARINO', zone_id = 4,
+  description = 'Compra lo que escupe el mar y vende lo que llega en los barcos, si los piratas lo dejan llegar.'
+WHERE code = 'MERCADER_PUERTO';
+
+INSERT INTO artisan_shop (artisan_code, item_id, price)
+SELECT 'MERCADER_PUERTO', i.id, v.price
+FROM (VALUES ('ALGA_SALINA', 210), ('CARNE_OSTRA', 210), ('SAL_DE_CRISTAL', 220), ('CUERDA_ALQUITRAN', 220),
+             ('FRASCO_VACIO', 10), ('ACEITE_DE_COCINA', 18), ('CARBON', 22)) AS v(code, price)
+JOIN items i ON i.code = v.code
+WHERE NOT EXISTS (SELECT 1 FROM artisan_shop s WHERE s.artisan_code = 'MERCADER_PUERTO' AND s.item_id = i.id);
+UPDATE artisan_shop s SET price = v.price
+FROM (VALUES ('ALGA_SALINA', 210), ('CARNE_OSTRA', 210), ('SAL_DE_CRISTAL', 220), ('CUERDA_ALQUITRAN', 220),
+             ('FRASCO_VACIO', 10), ('ACEITE_DE_COCINA', 18), ('CARBON', 22)) AS v(code, price), items i
+WHERE i.code = v.code AND s.item_id = i.id AND s.artisan_code = 'MERCADER_PUERTO';
+
+-- ============================================================================================
+-- El Arrecife Hundido (mazmorra de las Costas Muertas, nivel 52-58; lib/arrecife.js). El servidor
+-- siembra sus monstruos al arrancar (Tritón Corrompido, Medusa Guardiana y Coloso de Coral), pero el
+-- jefe, el Señor del Océano, ya existía: aquí pasa a ser jefe de mazmorra (sin zona, así no sale en el
+-- pasto), con sus escalados y sus resistencias nuevas. Repetible, sin ON CONFLICT.
+-- ============================================================================================
+UPDATE monsters SET name = 'Señor del Océano', zone_id = NULL, rarity = 'LEGENDARY', category = 'ACUATICO', base_level = 55,
+  min_spawn_level = 52, max_spawn_level = 58, base_hp = 22187, base_atk = 387, base_def = 412, base_magic_atk = 194,
+  base_magic_def = 428, base_spd = 149, base_evasion = 22.1, base_crit_chance = 17.4,
+  base_crit_damage = 50, xp_reward = 14000, gold_reward = 4200, description = 'El rey de los tritones y padre de Nerea. Cuidó a la Bestia de las Profundidades toda su vida, hasta que los Ocultos le clavaron un Cristal de Eclipse en la frente.'
+WHERE code = 'SENOR_OCEANO';
+DELETE FROM monster_level_scalings WHERE monster_id = (SELECT id FROM monsters WHERE code = 'SENOR_OCEANO');
+INSERT INTO monster_level_scalings (monster_id, level, hp, atk, def, magic_atk, magic_def, spd, evasion, crit_chance, crit_damage, elemental_damage)
+SELECT (SELECT id FROM monsters WHERE code = 'SENOR_OCEANO'), v.* FROM (VALUES
+  (52, 19879, 349, 373, 174, 387, 134, 20.3, 16.2, 50, 8),
+  (58, 22187, 387, 412, 194, 428, 149, 22.1, 17.4, 50, 8)
+) AS v(level, hp, atk, def, magic_atk, magic_def, spd, evasion, crit_chance, crit_damage, elemental_damage);
+DELETE FROM monster_element_resistances WHERE monster_id = (SELECT id FROM monsters WHERE code = 'SENOR_OCEANO');
+INSERT INTO monster_element_resistances (monster_id, element_id, resistance_percent)
+SELECT (SELECT id FROM monsters WHERE code = 'SENOR_OCEANO'), v.el, v.pct FROM (VALUES (1, 20), (2, 30), (6, 50)) AS v(el, pct);

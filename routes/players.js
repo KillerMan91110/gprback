@@ -3669,7 +3669,7 @@ router.post('/:playerId/enchant/npc/:npcId', requireAuth, async (req, res, next)
 
 
 // zona del mapa → id de zona (artisans.zone_id): los mercaderes con zona solo venden en su tierra
-const ZONE_ID_OF_DIR = { pradera: 1, montanas: 2, volcan: 3 };
+const ZONE_ID_OF_DIR = { pradera: 1, montanas: 2, volcan: 3, costas: 4 };
 const playerZoneId = (playerId) => ZONE_ID_OF_DIR[positionOf(Number(playerId))?.zone] ?? null;
 
 // GET /api/player/:playerId/artisan-shop

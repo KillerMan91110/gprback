@@ -305,5 +305,99 @@
    "tipo": "cofre_volcan",
    "sitios": 1
   }
+ },
+ "4": {
+  "restos_cala": {
+   "tipo": "restos_naufragio",
+   "sitios": 4
+  },
+  "cofre_cala": {
+   "tipo": "cofre_costas",
+   "sitios": 2
+  },
+  "alga_playa": {
+   "tipo": "alga_salina",
+   "sitios": 6
+  },
+  "restos_playa": {
+   "tipo": "restos_naufragio",
+   "sitios": 2
+  },
+  "cofre_playa": {
+   "tipo": "cofre_costas",
+   "sitios": 1
+  },
+  "alga_cala": {
+   "tipo": "alga_salina",
+   "sitios": 3
+  },
+  "alga_manglar": {
+   "tipo": "alga_salina",
+   "sitios": 6
+  },
+  "ostras_delta": {
+   "tipo": "ostras",
+   "sitios": 6
+  },
+  "alga_delta": {
+   "tipo": "alga_salina",
+   "sitios": 2
+  },
+  "ostras_manglar": {
+   "tipo": "ostras",
+   "sitios": 2
+  },
+  "poza_rocas": {
+   "tipo": "poza_marea",
+   "sitios": 3
+  },
+  "ostras_rocas": {
+   "tipo": "ostras",
+   "sitios": 4
+  },
+  "restos_manglar": {
+   "tipo": "restos_naufragio",
+   "sitios": 2
+  },
+  "coral_arrecife": {
+   "tipo": "veta_coral",
+   "sitios": 9
+  },
+  "concha_arrecife": {
+   "tipo": "concha_gigante",
+   "sitios": 2
+  },
+  "restos_cementerio": {
+   "tipo": "restos_naufragio",
+   "sitios": 6
+  },
+  "alga_cementerio": {
+   "tipo": "alga_salina",
+   "sitios": 2
+  },
+  "cofre_cementerio": {
+   "tipo": "cofre_costas",
+   "sitios": 2
+  },
+  "concha_rocas": {
+   "tipo": "concha_gigante",
+   "sitios": 2
+  },
+  "coral_faro": {
+   "tipo": "veta_coral",
+   "sitios": 2
+  },
+  "ostras_faro": {
+   "tipo": "ostras",
+   "sitios": 2
+  },
+  "concha_fosa": {
+   "tipo": "concha_gigante",
+   "sitios": 1
+  },
+  "cofre_arrecife": {
+   "tipo": "cofre_costas",
+   "sitios": 1
+  }
  }
 }

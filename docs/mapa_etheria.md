@@ -55,7 +55,7 @@ Cada zona nueva mide como la Pradera: 4×4 trozos (160×120 casillas). Coordenad
 | Montañas Grises | 16-30 | 160, 210 | 4×4 | hecha |
 | Volcán Rojo | 31-45 | 160, 330 | 4×4 | hecho (hoy en 160, 210 de `etheria.json`) |
 | Bosque de Sylvaren | ciudad élfica (sin nivel) | 0, 330 | 4×4 | por hacer |
-| Costas Muertas | 46-60 | 0, 450 | 8×4 (toda la costa sur) | por hacer |
+| Costas Muertas | 46-60 | 160, 450 (hoy en 160, 330 de `etheria.json`) | 4×4, debajo del Volcán (el oeste de la costa queda libre) | en construcción (`zona4_costas.md`) |
 | Tundra Eterna | 61-75 | 320, 90 | 4×4 | por hacer |
 | Catacumbas del Abismo | 76-85 | bajo tierra (mapa aparte, como las mazmorras) | 4×4 | por hacer |
 | Ruinas Ancestrales | 86-100 | 160, 90 | 4×4 | por hacer |
@@ -76,7 +76,7 @@ seguro: cada zona guarda sus posiciones en coordenadas propias (`toLocal`/`toGlo
 | Pradera → Montañas | Paso de la Montaña (Praderas del Este) | P14 *Hacia las montañas* | (ya existe) |
 | Pradera → Sylvaren | **Senda Élfica** (sur del Bosque de Robleviejo) | desde el inicio (la ciudad se puede visitar) | los elfos dejan pasar a los viajeros, no a los monstruos |
 | Montañas → Volcán | **el Paso del Humo**, que baja desde el sur de las Montañas a la Ladera de Ceniza | M14 *El trono de la cumbre* (la V1 «El Paso del Humo» lo abre) | "el Encapuchado escapa por los túneles hacia el calor" |
-| Volcán → Costas | **los ríos de lava** que bajan al mar | V6 | "la lava baja al mar" |
+| Volcán → Costas | **la Bajada de Basalto**, que baja desde la Caldera del Titán (casillas x 102-110 del borde sur del Volcán) a la Playa de Ceniza Negra | V14 (la C1 la usa) | "la lava baja al mar": al lado, el río de lava de la Caldera se apaga en el Delta de Vapor |
 | Sylvaren → Costas | escalera élfica en el acantilado | atajo: se abre al terminar C3 | los elfos te muestran el camino corto cuando ya conoces la costa |
 | Costas → Tundra | **el barco de Rhaegar** (Puerto Antiguo → Fiordo Blanco) | C6 | igual que las vagonetas: un viaje, no una frontera caminable |
 | Tundra → Catacumbas | la **Cripta Congelada** baja al abismo | T5 / T6 | "la tumba de la reina baja al abismo" |

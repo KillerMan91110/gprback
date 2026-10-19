@@ -179,6 +179,8 @@ app.use('/api/player/:playerId/world/cripta', require('./routes/cripta'));
 app.use('/api/player/:playerId/world/mina_profunda', require('./routes/mazmorra')(require('./lib/mina')));
 // la Fisura Infernal (Volcán Rojo): la forja de los Ocultos, mismo molde (lib/fisura.js)
 app.use('/api/player/:playerId/world/fisura', require('./routes/mazmorra')(require('./lib/fisura')));
+// el Arrecife Hundido (Costas Muertas): la ciudad de coral de los tritones, mismo molde (lib/arrecife.js)
+app.use('/api/player/:playerId/world/arrecife', require('./routes/mazmorra')(require('./lib/arrecife')));
 app.use('/api/player/:playerId/world', worldRouter);
 app.use('/api/player/:playerId/puestos', puestosRouter);
 
