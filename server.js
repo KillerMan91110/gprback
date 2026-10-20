@@ -185,6 +185,8 @@ app.use('/api/player/:playerId/world/arrecife', require('./routes/mazmorra')(req
 app.use('/api/player/:playerId/world/cripta_congelada', require('./routes/mazmorra')(require('./lib/cripta_congelada')));
 // el Trono de Huesos (Catacumbas del Abismo): la corte del Lich, mismo molde (lib/trono_huesos.js)
 app.use('/api/player/:playerId/world/trono_huesos', require('./routes/mazmorra')(require('./lib/trono_huesos')));
+// el Observatorio Roto (Ruinas Ancestrales): donde se vigilaba al Devorador, mismo molde (lib/observatorio.js)
+app.use('/api/player/:playerId/world/observatorio', require('./routes/mazmorra')(require('./lib/observatorio')));
 app.use('/api/player/:playerId/world', worldRouter);
 app.use('/api/player/:playerId/puestos', puestosRouter);
 

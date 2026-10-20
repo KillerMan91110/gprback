@@ -118,6 +118,28 @@ const PERFILES = {
   CENTINELA_MUERTE: { hp: 1.1, atk: 1.1, def: 1.2, spd: 0.9 },
   LICH_ANCESTRAL: { magic: true, magic_def: 1.1 },
   VELKAN: { hp: 1.6, atk: 1.15, def: 1.0, magic_def: 1.1, spd: 1.15, crit_chance: 3 },
+  // Ruinas Ancestrales (zona 7, nivel 86-100). Como en las Catacumbas: más vida cuanto más alta la subzona.
+  // Subida en la tanda 3 con el equipo nuevo (Ruinas, Estelar, Observatorio, Cosmos): ~3,1-3,9 turnos
+  PEREGRINO_PIEDRA: { hp: 2.76, def: 1.2, magic_def: 0.9, spd: 0.8 },
+  GRIFO_TEMPLO: { hp: 2.52, atk: 1.05, def: 0.85, spd: 1.4, evasion: 6 },
+  GUARDIAN_RUINAS: { hp: 2.94, atk: 1.1, def: 1.3, magic_def: 0.85, spd: 0.75 },
+  SERPIENTE_LAGRIMAS: { magic: true, hp: 2.75, def: 0.9, magic_def: 1.15, spd: 1.2 },
+  CENTINELA_ANTIGUO: { hp: 3, atk: 1.1, def: 1.25, magic_def: 0.9, spd: 0.9 },
+  HERALDO_OLVIDADO: { magic: true, hp: 2.81, def: 0.8, magic_def: 1.3, spd: 1.1, evasion: 4 },
+  GUARDIAN_FUEGO_ANCESTRAL: { magic: true, hp: 2.99, def: 1.0, magic_def: 1.2 },
+  GUARDIAN_AGUA_ANCESTRAL: { magic: true, hp: 3.06, def: 1.05, magic_def: 1.2, spd: 0.95 },
+  GUARDIAN_HIELO_ANCESTRAL: { magic: true, hp: 3.17, def: 1.1, magic_def: 1.2, spd: 0.9 },
+  ESTRELLA_CAIDA: { magic: true, hp: 2.99, def: 0.85, magic_def: 1.3, spd: 1.2, evasion: 5 },
+  ENGENDRO_DEVORADOR: { hp: 3.29, atk: 1.2, def: 1.0, magic_def: 0.9, spd: 1.1, crit_chance: 3 },
+  OJO_ERRANTE: { magic: true, hp: 3.31, def: 0.9, magic_def: 1.3, spd: 1.05 },
+  COLOSO_MARMOL: { hp: 2.12, def: 1.35, spd: 0.75 },
+  AVATAR_ECLIPSE: { magic: true, hp: 2.1, def: 1.0, magic_def: 1.3, spd: 1.05 },
+  GUARDIAN_ANCESTRAL: { hp: 1.05, def: 1.25, magic_def: 1.15, spd: 0.85 },
+  ENTIDAD_CORRUPTA_TEMPLO: { magic: true, hp: 1.0, def: 0.9, magic_def: 1.2, spd: 1.05 },
+  CENTINELA_COSMICO: { magic: true, hp: 1.1, def: 1.1, magic_def: 1.2, spd: 0.95 },
+  GRAN_ESQUELETO_ABISMO: { hp: 1.05, atk: 1.1, def: 1.15, magic_def: 1.1 },
+  // el final (R13): se pelea con dos aliados al lado, por eso un poco más de vida
+  SOMBRA_DEVORADOR: { magic: true, hp: 1.2, def: 1.05, magic_def: 1.2, spd: 1.1 },
 };
 
 const SIM_LEVELS = [1, 3, 5, 8, 10, 12, 14, 15];
@@ -220,6 +242,7 @@ async function simulate({ classes, gear, monsters }) {
   await simulateCostas(classes);
   await simulateTundra(classes);
   await simulateCatacumbas(classes);
+  await simulateRuinas(classes);
   // jefes y raros contra un grupo de 3 héroes promedio de su nivel
   console.log('\nRaros y jefes (nivel típico): vida / ataque / defensa');
   for (const m of monsters.filter((x) => x.rarity !== 'COMMON')) {
@@ -344,6 +367,66 @@ async function simulateCatacumbas(classes) {
     lines.push(`  ${c.code.padEnd(10)} ${cells.join('  ')}`);
   }
   console.log(`\nCatacumbas del Abismo · turnos para matar / golpes que aguanta (peor común que vive a ese nivel). Meta: 4 → 5-6, nunca perder. Sets usados: ${[...used].join(', ')}`);
+  console.log(lines.join('\n'));
+}
+
+// Ruinas Ancestrales (zona 7, nivel 86-100): igual que las Catacumbas, con los tiers de las Ruinas
+// (_RUINAS 86, Estelar 91, armas del Observatorio 93, Cósmico 97, del Primer Vigía 100). Mientras no existan,
+// usa el mejor set que haya antes (al principio, el del Lich). El _RUINAS viejo, de antes de la escalera, no cuenta.
+async function simulateRuinas(classes) {
+  const DETALLE = process.argv.includes('--detalle');
+  const TIERS = ['LICH', 'RUINAS', 'ESTELAR', 'OBSERVATORIO', 'COSMICO', 'VIGIA_PRIMERO'];
+  const rows = (await db.query(`SELECT i.id, i.code, i.class_id, i.slot, b.stat_code, b.amount
+    FROM items i JOIN item_stat_bonuses b ON b.item_id = i.id
+    WHERE i.item_type = 'EQUIPMENT' AND i.class_id <= 5 AND i.code ~ '_(${TIERS.join('|')})$'
+      AND i.code !~ '(WEAPON2H|OFFHAND_CRYSTAL|ACCESSORY)' AND i.required_level >= 70`)).rows;
+  const sets = {};
+  for (const r of rows) {
+    const set = r.code.match(new RegExp(`_(${TIERS.join('|')})$`))[1];
+    const g = ((sets[r.class_id] ??= {})[set] ??= { slots: {} });
+    (g.slots[r.slot] ??= {})[r.stat_code] = ((g.slots[r.slot] ?? {})[r.stat_code] || 0) + Number(r.amount);
+  }
+  const used = new Set();
+  const gearAt = (classId, lv) => {
+    const want = lv >= 100 ? 'VIGIA_PRIMERO' : lv >= 97 ? 'COSMICO' : lv >= 91 ? 'ESTELAR' : lv >= 86 ? 'RUINAS' : 'LICH';
+    // los sets viejos (de antes de la escalera de equipo) quedan muy por debajo del Rey del Hielo: no cuentan
+    const weaponOf = (t) => Object.values(sets[classId]?.[t]?.slots?.WEAPON ?? {}).reduce((x, v) => Math.max(x, v), 0);
+    const has = (t) => sets[classId]?.[t] && (t === 'LICH' || weaponOf(t) >= weaponOf('LICH'));
+    const set = [...TIERS.slice(0, TIERS.indexOf(want) + 1)].reverse().find((t) => t !== 'OBSERVATORIO' && has(t)) ?? 'LICH';
+    used.add(set);
+    const slots = { ...(sets[classId]?.[set]?.slots ?? {}) };
+    if (lv >= 93 && lv < 97 && has('OBSERVATORIO')) { slots.WEAPON = sets[classId].OBSERVATORIO.slots.WEAPON; used.add('OBSERVATORIO'); }
+    const e = {};
+    for (const st of Object.values(slots)) for (const [k, v] of Object.entries(st ?? {})) e[k] = (e[k] || 0) + v;
+    return e;
+  };
+  const mons = (await db.query(`SELECT code, min_spawn_level mn, max_spawn_level mx FROM monsters WHERE zone_id = 7 AND rarity = 'COMMON'`)).rows;
+  const lines = [];
+  const sk = EQ.skillTier(10);
+  for (const c of classes) {
+    const cells = [86, 87, 88, 90, 92, 94, 96, 98].map((lv) => {
+      const g = EQ.CLASS_GROWTH[c.code]; const k = lv - 1; const e = gearAt(c.id, lv);
+      const h = {
+        hp: Number(c.base_hp) + g.hp * k + (e.HP || 0), atk: Number(c.base_atk) + g.atk * k + (e.ATK || 0), mag: Number(c.base_mag) + g.mag * k + (e.MAG || 0),
+        def: Number(c.base_def) + g.def * k + (e.DEF || 0), magic_def: Number(c.base_magic_def) + g.magic_def * k + (e.MAGIC_DEF || 0),
+        crit: 10 + (PASSIVE_CRIT[c.code] || 0) + (e.CRIT_CHANCE || 0), critDmg: 50 + (e.CRIT_DAMAGE || 0),
+      };
+      const magic = EQ.MAIN_STAT[c.code] === 'mag';
+      let ttk = 0; let ttd = 99; let ttkRaw = 0;
+      for (const m of mons.filter((x) => x.mn <= lv && x.mx >= lv && PERFILES[x.code])) {
+        const row = EQ.monsterRow(lv, 'COMMON', PERFILES[m.code]);
+        const raw = sk.base + sk.mult * h[EQ.MAIN_STAT[c.code]];
+        const dmg = Math.max(raw * DAMAGE_FLOOR, raw - 0.5 * (magic ? row.magic_def : row.def)) * (1 + Math.min(100, h.crit) / 100 * h.critDmg / 100);
+        const mm = row.magic_atk > row.atk;
+        const rh = 1.2 * (mm ? row.magic_atk : row.atk);
+        const hit = Math.max(rh * DAMAGE_FLOOR, rh - 0.5 * (mm ? h.magic_def : h.def)) * (1 + row.crit_chance / 100 * 0.5);
+        ttk = Math.max(ttk, Math.ceil(row.hp / dmg)); ttkRaw = Math.max(ttkRaw, row.hp / dmg); ttd = Math.min(ttd, Math.ceil(h.hp / hit));
+      }
+      return `nv${lv} ${ttk}/${ttd}${DETALLE ? ` (${ttkRaw.toFixed(2)})` : ''}`;
+    });
+    lines.push(`  ${c.code.padEnd(10)} ${cells.join('  ')}`);
+  }
+  console.log(`\nRuinas Ancestrales · turnos para matar / golpes que aguanta (peor común que vive a ese nivel). Meta: 4 → 5-6, nunca perder. Sets usados: ${[...used].join(', ')}`);
   console.log(lines.join('\n'));
 }
 

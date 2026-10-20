@@ -107,6 +107,10 @@ globalRouter.get('/leaderboard', async (req, res, next) => {
 // player_coop_group_members), con 3 diferencias: valida nivel mínimo + cooldown de intento,
 // arranca el clon con hp_remaining REAL del evento en vez del HP escalado por nivel, y marca la
 // sesión con world_boss_event_id para que finalizeSession sepa qué hacer al cerrarse.
+// el final del juego: la misión que abre al Devorador y el nivel de su clon
+const WORLD_BOSS_QUEST = 'RUINAS_HISTORIA_14_VIGIA';
+const WORLD_BOSS_LEVEL = 100;
+
 playerRouter.post('/enter', async (req, res, next) => {
   try {
     const playerRes = await db.query('SELECT id, level FROM players WHERE id = $1', [req.playerId]);
@@ -114,6 +118,16 @@ playerRouter.post('/enter', async (req, res, next) => {
     const player = playerRes.rows[0];
     if (player.level < combatEngine.WORLD_BOSS_MIN_LEVEL_TO_ENTER) {
       return res.status(400).json({ error: `Necesitas nivel ${combatEngine.WORLD_BOSS_MIN_LEVEL_TO_ENTER} para enfrentar al World Boss` });
+    }
+    // el Devorador de Estrellas es el final del juego: solo lo enfrenta quien renovó los Sellos (la R14 de las
+    // Ruinas Ancestrales, «El Vigía de Etheria»), y siempre a nivel 100 (gprback/docs/zona7_ruinas.md)
+    const vigia = await db.query(
+      `SELECT 1 FROM player_quest_completions c JOIN quests q ON q.id = c.quest_id
+       WHERE c.player_id = $1 AND q.code = $2`,
+      [req.playerId, WORLD_BOSS_QUEST]
+    );
+    if (!vigia.rows.length) {
+      return res.status(403).json({ error: 'Solo el Vigía de Etheria puede enfrentar al Devorador de Estrellas: termina la historia de las Ruinas Ancestrales.' });
     }
 
     let event = await getActiveOrLastEvent();
@@ -179,7 +193,7 @@ playerRouter.post('/enter', async (req, res, next) => {
       ? 'El Devorador de Estrellas se ríe: "Aquí no funciona la regeneración de vida."'
       : null;
 
-    const enemyCombatants = await combatEngine.hydrateMonsters([{ code: event.monster_code, level: player.level }]);
+    const enemyCombatants = await combatEngine.hydrateMonsters([{ code: event.monster_code, level: WORLD_BOSS_LEVEL }]);
     if (!enemyCombatants.length) return res.status(500).json({ error: 'No se pudo cargar el World Boss' });
 
     const sessionResult = await combatEngine.createCombatSessionWithClaim(

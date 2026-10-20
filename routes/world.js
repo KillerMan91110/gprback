@@ -16,9 +16,11 @@ const brasas = require('../lib/brasas');
 const frio = require('../lib/frio');
 const trineos = require('../lib/trineos');
 const barca = require('../lib/barca');
+const escalinatas = require('../lib/escalinatas');
 const botes = require('../lib/botes');
 const barco = require('../lib/barco');
 const marea = require('../lib/marea');
+const eclipse = require('../lib/eclipse');
 
 // Mundo 2D: recursos que se recolectan caminando (ver lib/worldNodes.js)
 const router = express.Router({ mergeParams: true });
@@ -346,7 +348,7 @@ router.post('/barco', async (req, res, next) => {
 });
 
 // GET /world/marea — cómo está la marea de las Costas (lib/marea.js), para sincronizar el reloj del front
-router.get('/marea', (req, res) => res.json({ ...marea.estado(), ahora: Date.now() }));
+router.get('/marea', (req, res) => res.json({ ...marea.estado(), eclipse: eclipse.estado(), ahora: Date.now() }));
 
 // POST /world/brasa — te alcanzó una brasa del volcán (Ríos, Grieta y Caldera): te quita vida
 router.post('/brasa', async (req, res, next) => {
@@ -370,6 +372,16 @@ router.post('/trineo', async (req, res, next) => {
 router.post('/barca', async (req, res, next) => {
   try {
     const r = await barca.viajar(req.playerId, String(req.body?.destino ?? ''));
+    if (r.error) return res.status(r.status ?? 400).json({ error: r.error, ...(r.lejos ? { lejos: true } : {}) });
+    res.json(r);
+  } catch (err) { next(err); }
+});
+
+// POST /world/escalinata { destino } — las Escalinatas de Luz de las Ruinas: el Santuario, el Patio y las Torres
+// (lib/escalinatas.js); gratis
+router.post('/escalinata', async (req, res, next) => {
+  try {
+    const r = await escalinatas.viajar(req.playerId, String(req.body?.destino ?? ''));
     if (r.error) return res.status(r.status ?? 400).json({ error: r.error, ...(r.lejos ? { lejos: true } : {}) });
     res.json(r);
   } catch (err) { next(err); }

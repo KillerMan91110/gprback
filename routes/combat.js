@@ -17,6 +17,10 @@ const coleccion = require('../lib/coleccion');
 const comida = require('../lib/comida');
 const mythic = require('../lib/mythic');
 const mazmorras = require('../lib/mazmorras');
+// los eclipses de las Ruinas Ancestrales: monstruos corrompidos (más fuerza y más premio)
+const eclipse = require('../lib/eclipse');
+// los aliados que pelean a tu lado en el final (R13, lib/aliados.js)
+const aliados = require('../lib/aliados');
 const piezasSet = require('../lib/piezasSet');
 const huntRewards = require('../lib/huntRewards');
 const eventos = require('../lib/eventos');
@@ -2102,7 +2106,8 @@ async function finalizeSession(sessionId, status, participants) {
       const heroLuckRow = await db.query('SELECT luck FROM players WHERE id = $1', [heroP.player_id]);
       const heroLuck = Number(heroLuckRow.rows[0]?.luck || 0);
       const partyClasses = [...new Set(await Promise.all(heroPs.map((h) => baseClassCode(h.class_id))))].filter(Boolean);
-      const dropBonusPct = heroPassives.drop_rate_bonus + heroLuck + heroPetBonuses.drop_rate_percent + leaderUtil.drop;
+      // (los monstruos corrompidos por el eclipse de las Ruinas sueltan más: lib/eclipse.js)
+      const dropBonusPct = heroPassives.drop_rate_bonus + heroLuck + heroPetBonuses.drop_rate_percent + leaderUtil.drop + eclipse.botinExtra(participants.enemy);
       rewards.itemsDropped = await rollMonsterDrops(participants.enemy, dropBonusPct, partyClasses);
 
       // Co-op: oro dividido en partes iguales entre todos los héroes (1 a 3).
@@ -2302,6 +2307,25 @@ async function resolveAbandonedPlayerTurn(sessionId, round, actor, participants)
   });
 }
 
+// El turno de un aliado del final (lib/aliados.js): ataca al enemigo más herido, para ayudar a terminarlo
+async function resolveAllyTurn(sessionId, round, actor, participants) {
+  const vivos = participants.enemy.filter((p) => p.hp > 0);
+  if (!vivos.length) return;
+  const target = vivos.sort((a, b) => a.hp / a.max_hp - b.hp / b.max_hp)[0];
+  const result = combat.resolveAttack(actor, target);
+  actor.has_acted_this_round = true;
+  await persistParticipant(actor);
+  await persistParticipant(target);
+  await insertLog(sessionId, round, {
+    actorId: actor.id, action: 'ATTACK', targetId: target.id,
+    damage: result.damage, evaded: result.evaded, crit: result.crit,
+    description: result.evaded
+      ? `${actor.name} pelea a tu lado: ataca a ${target.name}, pero esquiva el golpe.`
+      : `${actor.name} pelea a tu lado: golpea a ${target.name} y le hace ${result.damage} de daño${result.crit ? ' (¡Crítico!)' : ''}.`,
+    hp_after: target.hp,
+  });
+}
+
 // Auto-resuelve turnos de ENEMY y de jugadores abandonados (IA básica), y transiciones de
 // ronda hasta que sea turno de un PLAYER activo o termine la pelea. Devuelve { ended, status }.
 async function advanceEnemyTurns(sessionId) {
@@ -2355,6 +2379,11 @@ async function advanceEnemyTurns(sessionId) {
       if (await paralysisSkip(sessionId, round, actor)) continue;
       if (actor.is_preparing_trap) {
         await resolveTrapActivation(sessionId, round, actor, participants);
+        continue;
+      }
+      // los aliados del final (lib/aliados.js) pelean solos
+      if (aliados.esAliado(actor)) {
+        await resolveAllyTurn(sessionId, round, actor, participants);
         continue;
       }
       const ownerId = actor.player_id ?? actor.owner_player_id;
@@ -2865,7 +2894,7 @@ async function fetchSessionState(sessionId) {
   const enrichedParticipants = participants.all.map((p) => ({
     ...p,
     cooldowns: cooldownsById[p.id] ?? {},
-    is_ai_controlled: abandonedIds.includes(p.player_id ?? p.owner_player_id),
+    is_ai_controlled: abandonedIds.includes(p.player_id ?? p.owner_player_id) || aliados.esAliado(p),
     // World Boss: el nivel real no se expone al jugador (ver hydrateMonsters, mismo criterio).
     level: p.monster_code?.startsWith(WORLD_BOSS_CODE_PREFIX) ? null : p.level,
     element_code: elementCodes[p.element_id] ?? null,
@@ -3264,8 +3293,13 @@ router.post('/sessions', async (req, res, next) => {
     if (enemyCombatants.length !== monsters.length) {
       return res.status(404).json({ error: 'Algún monstruo no fue encontrado' });
     }
+    // el eclipse de las Ruinas Ancestrales (lib/eclipse.js): los monstruos de la zona salen corrompidos
+    await eclipse.corromper(db, req.playerId, enemyCombatants).catch(() => false);
     const aliveHero = playerCombatants.filter((p) => p.hp > 0);
-    const aliveNpcs = npcCombatants.filter((n) => n.hp > 0);
+    // el final (R13): en sus emboscadas pelean a tu lado dos de los que ayudaste en el viaje
+    const allies = await aliados.deEmboscada(req.playerId, monsters.map((m) => m.code), playerCombatants[0]).catch(() => []);
+    // (la formación tiene 4 lugares: con aliados, de tus compañeros viene solo el primero)
+    const aliveNpcs = [...npcCombatants.filter((n) => n.hp > 0).slice(0, allies.length ? 4 - 1 - allies.length : 2), ...allies];
 
     if (aliveHero.length === 0 && aliveNpcs.length === 0) {
       return res.status(400).json({ error: 'Toda tu formación está derrotada. Ve al gremio a curarte.' });

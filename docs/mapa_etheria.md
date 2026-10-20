@@ -57,8 +57,8 @@ Cada zona nueva mide como la Pradera: 4×4 trozos (160×120 casillas). Coordenad
 | Bosque de Sylvaren | ciudad élfica (sin nivel) | 0, 330 | 4×4 | por hacer |
 | Costas Muertas | 46-60 | 160, 450 | 4×4, debajo del Volcán (el oeste de la costa queda libre) | en construcción (`zona4_costas.md`) |
 | Tundra Eterna | 61-75 | 320, 90 | 4×4 | en construcción (`zona5_tundra.md`) |
-| Catacumbas del Abismo | 76-85 | bajo tierra (mapa aparte, como las mazmorras) | 4×4 | en construcción (`zona6_catacumbas.md`) |
-| Ruinas Ancestrales | 86-100 | 160, 90 | 4×4 | por hacer |
+| Catacumbas del Abismo | 76-85 | bajo tierra (mapa aparte, como las mazmorras) | 4×4 | hechas (`zona6_catacumbas.md`) |
+| Ruinas Ancestrales | 86-100 | 160, 90 | 4×4 | hecha, sin subir (`zona7_ruinas.md`) |
 
 **Coordenadas.** Con la Tundra (zona 5) se corrió **todo el continente 120 casillas hacia abajo** en
 `etheria.json`, así que las coordenadas de la tabla ya son las de verdad. Fue seguro: cada zona guarda

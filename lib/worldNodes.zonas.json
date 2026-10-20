@@ -595,5 +595,59 @@
    "tipo": "setas_palidas",
    "sitios": 1
   }
+ },
+ "7": {
+  "marmol_cantera": {
+   "tipo": "bloque_marmol",
+   "sitios": 4
+  },
+  "marmol_patio": {
+   "tipo": "bloque_marmol",
+   "sitios": 3
+  },
+  "oro_cantera": {
+   "tipo": "veta_oro_primordial",
+   "sitios": 2
+  },
+  "oro_torres": {
+   "tipo": "veta_oro_primordial",
+   "sitios": 3
+  },
+  "flores_jardines": {
+   "tipo": "flores_luminosas",
+   "sitios": 4
+  },
+  "flores_bosque": {
+   "tipo": "flores_luminosas",
+   "sitios": 3
+  },
+  "lagrimas_lago": {
+   "tipo": "fuente_lagrimas",
+   "sitios": 3
+  },
+  "lagrimas_jardines": {
+   "tipo": "fuente_lagrimas",
+   "sitios": 2
+  },
+  "crater_torres": {
+   "tipo": "crater_estrella",
+   "sitios": 2
+  },
+  "crater_grieta": {
+   "tipo": "crater_estrella",
+   "sitios": 4
+  },
+  "relicario_campo": {
+   "tipo": "relicario_templo",
+   "sitios": 1
+  },
+  "relicario_torres": {
+   "tipo": "relicario_templo",
+   "sitios": 1
+  },
+  "relicario_jardines": {
+   "tipo": "relicario_templo",
+   "sitios": 1
+  }
  }
 }
