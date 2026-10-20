@@ -183,6 +183,8 @@ app.use('/api/player/:playerId/world/fisura', require('./routes/mazmorra')(requi
 app.use('/api/player/:playerId/world/arrecife', require('./routes/mazmorra')(require('./lib/arrecife')));
 // la Cripta Congelada (Tundra Eterna): la tumba de la reina, mismo molde (lib/cripta_congelada.js)
 app.use('/api/player/:playerId/world/cripta_congelada', require('./routes/mazmorra')(require('./lib/cripta_congelada')));
+// el Trono de Huesos (Catacumbas del Abismo): la corte del Lich, mismo molde (lib/trono_huesos.js)
+app.use('/api/player/:playerId/world/trono_huesos', require('./routes/mazmorra')(require('./lib/trono_huesos')));
 app.use('/api/player/:playerId/world', worldRouter);
 app.use('/api/player/:playerId/puestos', puestosRouter);
 

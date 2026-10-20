@@ -489,5 +489,111 @@
    "tipo": "cofre_tundra",
    "sitios": 1
   }
+ },
+ "6": {
+  "plata_sello": {
+   "tipo": "veta_plata",
+   "sitios": 2
+  },
+  "sarcofago_sello": {
+   "tipo": "sarcofago_tesoro",
+   "sitios": 1
+  },
+  "plata_biblioteca": {
+   "tipo": "veta_plata",
+   "sitios": 2
+  },
+  "cera_biblioteca": {
+   "tipo": "candelabro_olvidado",
+   "sitios": 2
+  },
+  "plata_abismo": {
+   "tipo": "veta_plata",
+   "sitios": 4
+  },
+  "huesos_escalera": {
+   "tipo": "pila_huesos",
+   "sitios": 2
+  },
+  "cera_escalera": {
+   "tipo": "candelabro_olvidado",
+   "sitios": 2
+  },
+  "huesos_antesala": {
+   "tipo": "pila_huesos",
+   "sitios": 2
+  },
+  "sarcofago_antesala": {
+   "tipo": "sarcofago_tesoro",
+   "sitios": 1
+  },
+  "cera_santuario": {
+   "tipo": "candelabro_olvidado",
+   "sitios": 2
+  },
+  "sarcofago_santuario": {
+   "tipo": "sarcofago_tesoro",
+   "sitios": 1
+  },
+  "huesos_osario": {
+   "tipo": "pila_huesos",
+   "sitios": 4
+  },
+  "sarcofago_osario": {
+   "tipo": "sarcofago_tesoro",
+   "sitios": 1
+  },
+  "pozo_rio": {
+   "tipo": "pozo_almas",
+   "sitios": 4
+  },
+  "setas_rio": {
+   "tipo": "setas_palidas",
+   "sitios": 1
+  },
+  "setas_jardin": {
+   "tipo": "setas_palidas",
+   "sitios": 4
+  },
+  "cera_nichos": {
+   "tipo": "candelabro_olvidado",
+   "sitios": 2
+  },
+  "huesos_nichos": {
+   "tipo": "pila_huesos",
+   "sitios": 2
+  },
+  "setas_nichos": {
+   "tipo": "setas_palidas",
+   "sitios": 1
+  },
+  "cera_galeria": {
+   "tipo": "candelabro_olvidado",
+   "sitios": 2
+  },
+  "huesos_galeria": {
+   "tipo": "pila_huesos",
+   "sitios": 1
+  },
+  "setas_lago": {
+   "tipo": "setas_palidas",
+   "sitios": 2
+  },
+  "sarcofago_lago": {
+   "tipo": "sarcofago_tesoro",
+   "sitios": 1
+  },
+  "huesos_cripta": {
+   "tipo": "pila_huesos",
+   "sitios": 2
+  },
+  "cera_cripta": {
+   "tipo": "candelabro_olvidado",
+   "sitios": 2
+  },
+  "setas_cripta": {
+   "tipo": "setas_palidas",
+   "sitios": 1
+  }
  }
 }

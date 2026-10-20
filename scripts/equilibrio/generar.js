@@ -98,6 +98,26 @@ const PERFILES = {
   GUARDIAN_HIELO: { hp: 1.05, def: 1.25, magic_def: 1.1, spd: 0.85 },
   REY_HIELO: { magic: true, magic_def: 1.1 },
   BRUJA_CONGELADA: { magic: true, hp: 1.1, def: 0.85, magic_def: 1.2, spd: 1.1 },
+  // Catacumbas del Abismo (zona 6, nivel 76-85)
+  RATA_OSARIO: { hp: 1.75, def: 0.85, spd: 1.4, evasion: 5 },
+  MURCIELAGO_VAMPIRO: { hp: 1.69, atk: 1.05, def: 0.8, spd: 1.45, evasion: 6 },
+  ESQUELETO_GUERRERO: { hp: 2.0, atk: 1.1, def: 1.3, magic_def: 0.85, spd: 0.9 },
+  ZOMBIE_ANCIANO: { hp: 2.3, atk: 1.1, magic_def: 0.85, spd: 0.7 },
+  ARANA_TUMBA: { hp: 1.88, atk: 1.05, def: 1.1, spd: 1.25, crit_chance: 4 },
+  HONGO_PALIDO: { magic: true, hp: 2.1, magic_def: 1.2, spd: 0.75 },
+  FANTASMA_ENCADENADO: { magic: true, hp: 1.95, def: 0.8, magic_def: 1.3, spd: 1.1, evasion: 4 },
+  GUL_HAMBRIENTO: { hp: 2.2, atk: 1.2, magic_def: 0.9, spd: 1.15, crit_chance: 3 },
+  CADAVER_REANIMADO: { hp: 2.5, atk: 1.15, def: 1.15, magic_def: 0.9, spd: 0.75 },
+  ALMA_EN_PENA: { magic: true, hp: 2.1, def: 0.8, magic_def: 1.3, spd: 1.15, evasion: 5 },
+  SACERDOTE_MALDITO: { magic: true, hp: 2.3, def: 0.85, magic_def: 1.25 },
+  INQUISIDOR_ECLIPSE: { magic: true, hp: 2.6, def: 0.95, magic_def: 1.25, spd: 1.05 },
+  GUSANO_CRIPTA: { hp: 1.7, def: 1.3, spd: 0.8 },
+  CABALLERO_SIN_ROSTRO: { hp: 1.5, atk: 1.15, def: 1.3, spd: 0.9 },
+  GUARDIAN_ABISMO: { hp: 1.05, def: 1.25, magic_def: 1.1, spd: 0.85 },
+  ARCHIMAGO_CORRUPTO: { magic: true, hp: 0.95, def: 0.9, magic_def: 1.2, spd: 1.05 },
+  CENTINELA_MUERTE: { hp: 1.1, atk: 1.1, def: 1.2, spd: 0.9 },
+  LICH_ANCESTRAL: { magic: true, magic_def: 1.1 },
+  VELKAN: { hp: 1.6, atk: 1.15, def: 1.0, magic_def: 1.1, spd: 1.15, crit_chance: 3 },
 };
 
 const SIM_LEVELS = [1, 3, 5, 8, 10, 12, 14, 15];
@@ -199,6 +219,7 @@ async function simulate({ classes, gear, monsters }) {
   await simulateVolcan(classes);
   await simulateCostas(classes);
   await simulateTundra(classes);
+  await simulateCatacumbas(classes);
   // jefes y raros contra un grupo de 3 héroes promedio de su nivel
   console.log('\nRaros y jefes (nivel típico): vida / ataque / defensa');
   for (const m of monsters.filter((x) => x.rarity !== 'COMMON')) {
@@ -263,6 +284,66 @@ async function simulateTundra(classes) {
     lines.push(`  ${c.code.padEnd(10)} ${cells.join('  ')}`);
   }
   console.log(`\nTundra Eterna · turnos para matar / golpes que aguanta (peor común que vive a ese nivel). Meta: 4 → 5-6, nunca perder. Sets usados: ${[...used].join(', ')}`);
+  console.log(lines.join('\n'));
+}
+
+// Catacumbas del Abismo (zona 6, nivel 76-85): igual que la Tundra, con los tiers de las Catacumbas
+// (_CATACUMBAS 76, Sepulcral 81, armas del Trono 82, del Centinela 84, del Lich 85). Mientras no existan,
+// usa el mejor set que haya antes (al principio, el del Rey del Hielo).
+async function simulateCatacumbas(classes) {
+  const DETALLE = process.argv.includes('--detalle');
+  const TIERS = ['REY_HIELO', 'CATACUMBAS', 'SEPULCRAL', 'TRONO', 'CENTINELA', 'LICH'];
+  const rows = (await db.query(`SELECT i.id, i.code, i.class_id, i.slot, b.stat_code, b.amount
+    FROM items i JOIN item_stat_bonuses b ON b.item_id = i.id
+    WHERE i.item_type = 'EQUIPMENT' AND i.class_id <= 5 AND i.code ~ '_(${TIERS.join('|')})$'
+      AND i.code !~ '(WEAPON2H|OFFHAND_CRYSTAL|ACCESSORY)' AND i.required_level >= 70`)).rows;
+  const sets = {};
+  for (const r of rows) {
+    const set = r.code.match(new RegExp(`_(${TIERS.join('|')})$`))[1];
+    const g = ((sets[r.class_id] ??= {})[set] ??= { slots: {} });
+    (g.slots[r.slot] ??= {})[r.stat_code] = ((g.slots[r.slot] ?? {})[r.stat_code] || 0) + Number(r.amount);
+  }
+  const used = new Set();
+  const gearAt = (classId, lv) => {
+    const want = lv >= 85 ? 'LICH' : lv >= 84 ? 'CENTINELA' : lv >= 81 ? 'SEPULCRAL' : lv >= 76 ? 'CATACUMBAS' : 'REY_HIELO';
+    // los sets viejos (de antes de la escalera de equipo) quedan muy por debajo del Rey del Hielo: no cuentan
+    const weaponOf = (t) => Object.values(sets[classId]?.[t]?.slots?.WEAPON ?? {}).reduce((x, v) => Math.max(x, v), 0);
+    const has = (t) => sets[classId]?.[t] && (t === 'REY_HIELO' || weaponOf(t) >= weaponOf('REY_HIELO'));
+    const set = [...TIERS.slice(0, TIERS.indexOf(want) + 1)].reverse().find((t) => t !== 'TRONO' && has(t)) ?? 'REY_HIELO';
+    used.add(set);
+    const slots = { ...(sets[classId]?.[set]?.slots ?? {}) };
+    if (lv >= 82 && lv < 84 && has('TRONO')) { slots.WEAPON = sets[classId].TRONO.slots.WEAPON; used.add('TRONO'); }
+    const e = {};
+    for (const st of Object.values(slots)) for (const [k, v] of Object.entries(st ?? {})) e[k] = (e[k] || 0) + v;
+    return e;
+  };
+  const mons = (await db.query(`SELECT code, min_spawn_level mn, max_spawn_level mx FROM monsters WHERE zone_id = 6 AND rarity = 'COMMON'`)).rows;
+  const lines = [];
+  const sk = EQ.skillTier(10);
+  for (const c of classes) {
+    const cells = [76, 77, 78, 79, 80, 81, 82, 83, 84, 85].map((lv) => {
+      const g = EQ.CLASS_GROWTH[c.code]; const k = lv - 1; const e = gearAt(c.id, lv);
+      const h = {
+        hp: Number(c.base_hp) + g.hp * k + (e.HP || 0), atk: Number(c.base_atk) + g.atk * k + (e.ATK || 0), mag: Number(c.base_mag) + g.mag * k + (e.MAG || 0),
+        def: Number(c.base_def) + g.def * k + (e.DEF || 0), magic_def: Number(c.base_magic_def) + g.magic_def * k + (e.MAGIC_DEF || 0),
+        crit: 10 + (PASSIVE_CRIT[c.code] || 0) + (e.CRIT_CHANCE || 0), critDmg: 50 + (e.CRIT_DAMAGE || 0),
+      };
+      const magic = EQ.MAIN_STAT[c.code] === 'mag';
+      let ttk = 0; let ttd = 99; let ttkRaw = 0;
+      for (const m of mons.filter((x) => x.mn <= lv && x.mx >= lv && PERFILES[x.code])) {
+        const row = EQ.monsterRow(lv, 'COMMON', PERFILES[m.code]);
+        const raw = sk.base + sk.mult * h[EQ.MAIN_STAT[c.code]];
+        const dmg = Math.max(raw * DAMAGE_FLOOR, raw - 0.5 * (magic ? row.magic_def : row.def)) * (1 + Math.min(100, h.crit) / 100 * h.critDmg / 100);
+        const mm = row.magic_atk > row.atk;
+        const rh = 1.2 * (mm ? row.magic_atk : row.atk);
+        const hit = Math.max(rh * DAMAGE_FLOOR, rh - 0.5 * (mm ? h.magic_def : h.def)) * (1 + row.crit_chance / 100 * 0.5);
+        ttk = Math.max(ttk, Math.ceil(row.hp / dmg)); ttkRaw = Math.max(ttkRaw, row.hp / dmg); ttd = Math.min(ttd, Math.ceil(h.hp / hit));
+      }
+      return `nv${lv} ${ttk}/${ttd}${DETALLE ? ` (${ttkRaw.toFixed(2)})` : ''}`;
+    });
+    lines.push(`  ${c.code.padEnd(10)} ${cells.join('  ')}`);
+  }
+  console.log(`\nCatacumbas del Abismo · turnos para matar / golpes que aguanta (peor común que vive a ese nivel). Meta: 4 → 5-6, nunca perder. Sets usados: ${[...used].join(', ')}`);
   console.log(lines.join('\n'));
 }
 

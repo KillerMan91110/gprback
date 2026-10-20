@@ -1292,7 +1292,7 @@ router.get('/:playerId/quests/available', async (req, res, next) => {
     const player = playerResult.rows[0];
     const classChain = await evolution.getClassAncestorChain(player.evolution_class_id || player.current_class_id);
 
-    const [questsResult, unlockedZoneIds, yaElegidas] = await Promise.all([
+    const [questsResult, unlockedZoneIds, yaElegidas, porRival] = await Promise.all([
       db.query(
         `SELECT q.id, q.code, q.name, q.quest_type, q.zone_id, mz.name AS zone_name,
                 q.min_level, q.max_level, q.min_rank_code, q.is_repeatable, q.repeat_cooldown_hours,
@@ -1313,7 +1313,10 @@ router.get('/:playerId/quests/available', async (req, res, next) => {
       ),
       getUnlockedZoneIds(playerId, player.level),
       eleccion.elegidas(playerId),
+      eleccion.cumplidasPorRival(playerId),
     ]);
+    // lo que sigue a una elección acepta cualquiera de las dos (lib/eleccion.js)
+    for (const q of questsResult.rows) if (!q.prerequisite_met && porRival.has(q.requires_quest_id)) q.prerequisite_met = true;
 
     const dailiesToday = dailyPickIds(questsResult.rows.filter((q) => q.quest_type === 'DIARIA'
       && (!q.zone_id || unlockedZoneIds.has(q.zone_id))
@@ -1397,14 +1400,9 @@ router.post('/:playerId/quests/:questId/accept', async (req, res, next) => {
     if (quest.min_rank_code && !rankAtLeast(player.rank, quest.min_rank_code)) {
       return res.status(400).json({ error: `Requiere rango ${quest.min_rank_code} o superior` });
     }
-    if (quest.requires_quest_id) {
-      const prereq = await db.query(
-        'SELECT 1 FROM player_quest_completions WHERE player_id = $1 AND quest_id = $2',
-        [playerId, quest.requires_quest_id]
-      );
-      if (!prereq.rows.length) {
-        return res.status(400).json({ error: 'Todavía no completaste la misión previa requerida' });
-      }
+    // (lo que sigue a una elección acepta cualquiera de las dos: lib/eleccion.js)
+    if (quest.requires_quest_id && !(await eleccion.previaCumplida(playerId, quest.requires_quest_id))) {
+      return res.status(400).json({ error: 'Todavía no completaste la misión previa requerida' });
     }
 
     if (eleccion.tapada(quest.code, await eleccion.elegidas(playerId))) {
@@ -1535,14 +1533,9 @@ router.post('/:playerId/quests/:questId/complete', async (req, res, next) => {
     if (quest.min_rank_code && !rankAtLeast(player.rank, quest.min_rank_code)) {
       return res.status(400).json({ error: `Requiere rango ${quest.min_rank_code} o superior` });
     }
-    if (quest.requires_quest_id) {
-      const prereq = await db.query(
-        'SELECT 1 FROM player_quest_completions WHERE player_id = $1 AND quest_id = $2',
-        [playerId, quest.requires_quest_id]
-      );
-      if (!prereq.rows.length) {
-        return res.status(400).json({ error: 'Todavía no completaste la misión previa requerida' });
-      }
+    // (lo que sigue a una elección acepta cualquiera de las dos: lib/eleccion.js)
+    if (quest.requires_quest_id && !(await eleccion.previaCumplida(playerId, quest.requires_quest_id))) {
+      return res.status(400).json({ error: 'Todavía no completaste la misión previa requerida' });
     }
 
     const completionResult = await db.query(
@@ -2251,7 +2244,7 @@ router.post('/:playerId/use-item', async (req, res, next) => {
   const { itemId, targetNpcId } = req.body;
   if (!itemId) return res.status(400).json({ error: 'itemId es requerido' });
   try {
-    const itemRes = await db.query('SELECT id, name, item_type FROM items WHERE id = $1', [itemId]);
+    const itemRes = await db.query('SELECT id, code, name, item_type FROM items WHERE id = $1', [itemId]);
     if (!itemRes.rows.length) return res.status(404).json({ error: 'Item no encontrado' });
     const item = itemRes.rows[0];
     if (item.item_type !== 'CONSUMABLE') {
@@ -2261,6 +2254,14 @@ router.post('/:playerId/use-item', async (req, res, next) => {
     const bestTier = await inventory.getBestQualityTier(playerId, itemId);
     const have = await inventory.getQuantity(playerId, itemId, 0, bestTier);
     if (have < 1) return res.status(400).json({ error: 'No tienes ese item' });
+
+    // la Vela de Sebo de las Catacumbas: no cura nada, vuelve a encender la llama del héroe (la barra de
+    // luz vive en el cliente, gpr/src/game/world/llama.js: aquí solo se gasta la vela y se avisa)
+    if (item.code === 'VELA_SEBO') {
+      if (targetNpcId) return res.status(400).json({ error: 'La vela la lleva tu héroe.' });
+      await inventory.removeItem(playerId, itemId, 1, 0, bestTier);
+      return res.json({ message: 'Enciendes la Vela de Sebo. Huele mal, pero tu llama vuelve a arder entera.', llama: true });
+    }
 
     // Libros de hechizo: enseñan una skill universal (class_id NULL) al héroe, no afectan HP/MP.
     // Se resuelven acá y no en el loop de item_stat_bonuses porque no es un bono numérico de stat.
@@ -3677,7 +3678,7 @@ router.post('/:playerId/enchant/npc/:npcId', requireAuth, async (req, res, next)
 
 
 // zona del mapa → id de zona (artisans.zone_id): los mercaderes con zona solo venden en su tierra
-const ZONE_ID_OF_DIR = { pradera: 1, montanas: 2, volcan: 3, costas: 4, tundra: 5 };
+const ZONE_ID_OF_DIR = { pradera: 1, montanas: 2, volcan: 3, costas: 4, tundra: 5, catacumbas: 6 };
 const playerZoneId = (playerId) => ZONE_ID_OF_DIR[positionOf(Number(playerId))?.zone] ?? null;
 
 // GET /api/player/:playerId/artisan-shop

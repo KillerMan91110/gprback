@@ -15,6 +15,7 @@ const tormenta = require('../lib/tormenta');
 const brasas = require('../lib/brasas');
 const frio = require('../lib/frio');
 const trineos = require('../lib/trineos');
+const barca = require('../lib/barca');
 const botes = require('../lib/botes');
 const barco = require('../lib/barco');
 const marea = require('../lib/marea');
@@ -360,6 +361,15 @@ router.post('/brasa', async (req, res, next) => {
 router.post('/trineo', async (req, res, next) => {
   try {
     const r = await trineos.viajar(req.playerId, String(req.body?.destino ?? ''));
+    if (r.error) return res.status(r.status ?? 400).json({ error: r.error, ...(r.lejos ? { lejos: true } : {}) });
+    res.json(r);
+  } catch (err) { next(err); }
+});
+
+// POST /world/barca { destino } — la barca de Óbolo: Vela Eterna, el Lago Negro y el Río de las Almas (lib/barca.js)
+router.post('/barca', async (req, res, next) => {
+  try {
+    const r = await barca.viajar(req.playerId, String(req.body?.destino ?? ''));
     if (r.error) return res.status(r.status ?? 400).json({ error: r.error, ...(r.lejos ? { lejos: true } : {}) });
     res.json(r);
   } catch (err) { next(err); }
