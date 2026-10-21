@@ -30443,3 +30443,398 @@ DELETE FROM monster_level_scalings WHERE monster_id = (SELECT id FROM monsters W
 INSERT INTO monster_level_scalings (monster_id, level, hp, atk, def, magic_atk, magic_def, spd, evasion, crit_chance, crit_damage, elemental_damage)
 SELECT (SELECT id FROM monsters WHERE code = 'WORLD_BOSS_DEVORADOR_ESTRELLAS'), 100, 40000, 289, 822, 758, 772, 275, 34.7, 25.8, 50, 10
 WHERE EXISTS (SELECT 1 FROM monsters WHERE code = 'WORLD_BOSS_DEVORADOR_ESTRELLAS');
+
+-- ================================================================ huevos y sobres de cartas por zona
+-- (gprback/lib/huevos.js; generado por gpr/_respaldo_claude/huevos/gen_huevos_sobres.js)
+INSERT INTO items (code, name, item_type, rarity, is_craftable, obtain_method, description, sell_zone_mult)
+SELECT 'HUEVO_PRADERA_COMUN', 'Huevo Común de la Pradera', 'MATERIAL', 'COMUN', FALSE, 'DROP', 'Huele a hierba recién cortada y está tibio, como si lo hubiera calentado el sol. Incúbalo: nace una mascota común de la Pradera.', 1.00 WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'HUEVO_PRADERA_COMUN');
+UPDATE items SET name = 'Huevo Común de la Pradera', item_type = 'MATERIAL', rarity = 'COMUN', is_craftable = FALSE, obtain_method = 'DROP', description = 'Huele a hierba recién cortada y está tibio, como si lo hubiera calentado el sol. Incúbalo: nace una mascota común de la Pradera.', sell_zone_mult = 1.00 WHERE code = 'HUEVO_PRADERA_COMUN';
+INSERT INTO items (code, name, item_type, rarity, is_craftable, obtain_method, description, sell_zone_mult)
+SELECT 'HUEVO_PRADERA_POCO_COMUN', 'Huevo Poco Común de la Pradera', 'MATERIAL', 'POCO_COMUN', FALSE, 'DROP', 'Huele a hierba recién cortada y está tibio, como si lo hubiera calentado el sol. Incúbalo: nace una mascota poco común de la Pradera.', 1.00 WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'HUEVO_PRADERA_POCO_COMUN');
+UPDATE items SET name = 'Huevo Poco Común de la Pradera', item_type = 'MATERIAL', rarity = 'POCO_COMUN', is_craftable = FALSE, obtain_method = 'DROP', description = 'Huele a hierba recién cortada y está tibio, como si lo hubiera calentado el sol. Incúbalo: nace una mascota poco común de la Pradera.', sell_zone_mult = 1.00 WHERE code = 'HUEVO_PRADERA_POCO_COMUN';
+INSERT INTO items (code, name, item_type, rarity, is_craftable, obtain_method, description, sell_zone_mult)
+SELECT 'HUEVO_PRADERA_RARO', 'Huevo Raro de la Pradera', 'MATERIAL', 'RARO', FALSE, 'DROP', 'Huele a hierba recién cortada y está tibio, como si lo hubiera calentado el sol. Incúbalo: nace una mascota rara de la Pradera.', 1.00 WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'HUEVO_PRADERA_RARO');
+UPDATE items SET name = 'Huevo Raro de la Pradera', item_type = 'MATERIAL', rarity = 'RARO', is_craftable = FALSE, obtain_method = 'DROP', description = 'Huele a hierba recién cortada y está tibio, como si lo hubiera calentado el sol. Incúbalo: nace una mascota rara de la Pradera.', sell_zone_mult = 1.00 WHERE code = 'HUEVO_PRADERA_RARO';
+INSERT INTO items (code, name, item_type, rarity, is_craftable, obtain_method, description, sell_zone_mult)
+SELECT 'HUEVO_PRADERA_EPICO', 'Huevo Épico de la Pradera', 'MATERIAL', 'EPICO', FALSE, 'DROP', 'Huele a hierba recién cortada y está tibio, como si lo hubiera calentado el sol. Incúbalo: nace una mascota épica de la Pradera.', 1.00 WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'HUEVO_PRADERA_EPICO');
+UPDATE items SET name = 'Huevo Épico de la Pradera', item_type = 'MATERIAL', rarity = 'EPICO', is_craftable = FALSE, obtain_method = 'DROP', description = 'Huele a hierba recién cortada y está tibio, como si lo hubiera calentado el sol. Incúbalo: nace una mascota épica de la Pradera.', sell_zone_mult = 1.00 WHERE code = 'HUEVO_PRADERA_EPICO';
+INSERT INTO items (code, name, item_type, rarity, is_craftable, obtain_method, description, sell_zone_mult)
+SELECT 'HUEVO_PRADERA_LEGENDARIO', 'Huevo Legendario de la Pradera', 'MATERIAL', 'LEGENDARIO', FALSE, 'DROP', 'Huele a hierba recién cortada y está tibio, como si lo hubiera calentado el sol. Incúbalo: nace una mascota legendaria de la Pradera.', 1.50 WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'HUEVO_PRADERA_LEGENDARIO');
+UPDATE items SET name = 'Huevo Legendario de la Pradera', item_type = 'MATERIAL', rarity = 'LEGENDARIO', is_craftable = FALSE, obtain_method = 'DROP', description = 'Huele a hierba recién cortada y está tibio, como si lo hubiera calentado el sol. Incúbalo: nace una mascota legendaria de la Pradera.', sell_zone_mult = 1.50 WHERE code = 'HUEVO_PRADERA_LEGENDARIO';
+INSERT INTO items (code, name, item_type, rarity, is_craftable, obtain_method, description, sell_zone_mult)
+SELECT 'HUEVO_MONTANA_COMUN', 'Huevo Común de las Montañas', 'MATERIAL', 'COMUN', FALSE, 'DROP', 'Pesa como una piedra y tiene la punta escarchada. Algo adentro golpea, despacio. Incúbalo: nace una mascota común de las Montañas.', 1.00 WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'HUEVO_MONTANA_COMUN');
+UPDATE items SET name = 'Huevo Común de las Montañas', item_type = 'MATERIAL', rarity = 'COMUN', is_craftable = FALSE, obtain_method = 'DROP', description = 'Pesa como una piedra y tiene la punta escarchada. Algo adentro golpea, despacio. Incúbalo: nace una mascota común de las Montañas.', sell_zone_mult = 1.00 WHERE code = 'HUEVO_MONTANA_COMUN';
+INSERT INTO items (code, name, item_type, rarity, is_craftable, obtain_method, description, sell_zone_mult)
+SELECT 'HUEVO_MONTANA_POCO_COMUN', 'Huevo Poco Común de las Montañas', 'MATERIAL', 'POCO_COMUN', FALSE, 'DROP', 'Pesa como una piedra y tiene la punta escarchada. Algo adentro golpea, despacio. Incúbalo: nace una mascota poco común de las Montañas.', 1.00 WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'HUEVO_MONTANA_POCO_COMUN');
+UPDATE items SET name = 'Huevo Poco Común de las Montañas', item_type = 'MATERIAL', rarity = 'POCO_COMUN', is_craftable = FALSE, obtain_method = 'DROP', description = 'Pesa como una piedra y tiene la punta escarchada. Algo adentro golpea, despacio. Incúbalo: nace una mascota poco común de las Montañas.', sell_zone_mult = 1.00 WHERE code = 'HUEVO_MONTANA_POCO_COMUN';
+INSERT INTO items (code, name, item_type, rarity, is_craftable, obtain_method, description, sell_zone_mult)
+SELECT 'HUEVO_MONTANA_RARO', 'Huevo Raro de las Montañas', 'MATERIAL', 'RARO', FALSE, 'DROP', 'Pesa como una piedra y tiene la punta escarchada. Algo adentro golpea, despacio. Incúbalo: nace una mascota rara de las Montañas.', 1.00 WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'HUEVO_MONTANA_RARO');
+UPDATE items SET name = 'Huevo Raro de las Montañas', item_type = 'MATERIAL', rarity = 'RARO', is_craftable = FALSE, obtain_method = 'DROP', description = 'Pesa como una piedra y tiene la punta escarchada. Algo adentro golpea, despacio. Incúbalo: nace una mascota rara de las Montañas.', sell_zone_mult = 1.00 WHERE code = 'HUEVO_MONTANA_RARO';
+INSERT INTO items (code, name, item_type, rarity, is_craftable, obtain_method, description, sell_zone_mult)
+SELECT 'HUEVO_MONTANA_EPICO', 'Huevo Épico de las Montañas', 'MATERIAL', 'EPICO', FALSE, 'DROP', 'Pesa como una piedra y tiene la punta escarchada. Algo adentro golpea, despacio. Incúbalo: nace una mascota épica de las Montañas.', 1.00 WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'HUEVO_MONTANA_EPICO');
+UPDATE items SET name = 'Huevo Épico de las Montañas', item_type = 'MATERIAL', rarity = 'EPICO', is_craftable = FALSE, obtain_method = 'DROP', description = 'Pesa como una piedra y tiene la punta escarchada. Algo adentro golpea, despacio. Incúbalo: nace una mascota épica de las Montañas.', sell_zone_mult = 1.00 WHERE code = 'HUEVO_MONTANA_EPICO';
+INSERT INTO items (code, name, item_type, rarity, is_craftable, obtain_method, description, sell_zone_mult)
+SELECT 'HUEVO_MONTANA_LEGENDARIO', 'Huevo Legendario de las Montañas', 'MATERIAL', 'LEGENDARIO', FALSE, 'DROP', 'Pesa como una piedra y tiene la punta escarchada. Algo adentro golpea, despacio. Incúbalo: nace una mascota legendaria de las Montañas.', 1.50 WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'HUEVO_MONTANA_LEGENDARIO');
+UPDATE items SET name = 'Huevo Legendario de las Montañas', item_type = 'MATERIAL', rarity = 'LEGENDARIO', is_craftable = FALSE, obtain_method = 'DROP', description = 'Pesa como una piedra y tiene la punta escarchada. Algo adentro golpea, despacio. Incúbalo: nace una mascota legendaria de las Montañas.', sell_zone_mult = 1.50 WHERE code = 'HUEVO_MONTANA_LEGENDARIO';
+INSERT INTO items (code, name, item_type, rarity, is_craftable, obtain_method, description, sell_zone_mult)
+SELECT 'HUEVO_VOLCAN_COMUN', 'Huevo Común del Volcán', 'MATERIAL', 'COMUN', FALSE, 'DROP', 'Negro como la obsidiana, con grietas que brillan. Quema un poco al tocarlo. Incúbalo: nace una mascota común del Volcán.', 1.00 WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'HUEVO_VOLCAN_COMUN');
+UPDATE items SET name = 'Huevo Común del Volcán', item_type = 'MATERIAL', rarity = 'COMUN', is_craftable = FALSE, obtain_method = 'DROP', description = 'Negro como la obsidiana, con grietas que brillan. Quema un poco al tocarlo. Incúbalo: nace una mascota común del Volcán.', sell_zone_mult = 1.00 WHERE code = 'HUEVO_VOLCAN_COMUN';
+INSERT INTO items (code, name, item_type, rarity, is_craftable, obtain_method, description, sell_zone_mult)
+SELECT 'HUEVO_VOLCAN_POCO_COMUN', 'Huevo Poco Común del Volcán', 'MATERIAL', 'POCO_COMUN', FALSE, 'DROP', 'Negro como la obsidiana, con grietas que brillan. Quema un poco al tocarlo. Incúbalo: nace una mascota poco común del Volcán.', 1.00 WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'HUEVO_VOLCAN_POCO_COMUN');
+UPDATE items SET name = 'Huevo Poco Común del Volcán', item_type = 'MATERIAL', rarity = 'POCO_COMUN', is_craftable = FALSE, obtain_method = 'DROP', description = 'Negro como la obsidiana, con grietas que brillan. Quema un poco al tocarlo. Incúbalo: nace una mascota poco común del Volcán.', sell_zone_mult = 1.00 WHERE code = 'HUEVO_VOLCAN_POCO_COMUN';
+INSERT INTO items (code, name, item_type, rarity, is_craftable, obtain_method, description, sell_zone_mult)
+SELECT 'HUEVO_VOLCAN_RARO', 'Huevo Raro del Volcán', 'MATERIAL', 'RARO', FALSE, 'DROP', 'Negro como la obsidiana, con grietas que brillan. Quema un poco al tocarlo. Incúbalo: nace una mascota rara del Volcán.', 1.00 WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'HUEVO_VOLCAN_RARO');
+UPDATE items SET name = 'Huevo Raro del Volcán', item_type = 'MATERIAL', rarity = 'RARO', is_craftable = FALSE, obtain_method = 'DROP', description = 'Negro como la obsidiana, con grietas que brillan. Quema un poco al tocarlo. Incúbalo: nace una mascota rara del Volcán.', sell_zone_mult = 1.00 WHERE code = 'HUEVO_VOLCAN_RARO';
+INSERT INTO items (code, name, item_type, rarity, is_craftable, obtain_method, description, sell_zone_mult)
+SELECT 'HUEVO_VOLCAN_EPICO', 'Huevo Épico del Volcán', 'MATERIAL', 'EPICO', FALSE, 'DROP', 'Negro como la obsidiana, con grietas que brillan. Quema un poco al tocarlo. Incúbalo: nace una mascota épica del Volcán.', 1.00 WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'HUEVO_VOLCAN_EPICO');
+UPDATE items SET name = 'Huevo Épico del Volcán', item_type = 'MATERIAL', rarity = 'EPICO', is_craftable = FALSE, obtain_method = 'DROP', description = 'Negro como la obsidiana, con grietas que brillan. Quema un poco al tocarlo. Incúbalo: nace una mascota épica del Volcán.', sell_zone_mult = 1.00 WHERE code = 'HUEVO_VOLCAN_EPICO';
+INSERT INTO items (code, name, item_type, rarity, is_craftable, obtain_method, description, sell_zone_mult)
+SELECT 'HUEVO_VOLCAN_LEGENDARIO', 'Huevo Legendario del Volcán', 'MATERIAL', 'LEGENDARIO', FALSE, 'DROP', 'Negro como la obsidiana, con grietas que brillan. Quema un poco al tocarlo. Incúbalo: nace una mascota legendaria del Volcán.', 1.50 WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'HUEVO_VOLCAN_LEGENDARIO');
+UPDATE items SET name = 'Huevo Legendario del Volcán', item_type = 'MATERIAL', rarity = 'LEGENDARIO', is_craftable = FALSE, obtain_method = 'DROP', description = 'Negro como la obsidiana, con grietas que brillan. Quema un poco al tocarlo. Incúbalo: nace una mascota legendaria del Volcán.', sell_zone_mult = 1.50 WHERE code = 'HUEVO_VOLCAN_LEGENDARIO';
+INSERT INTO items (code, name, item_type, rarity, is_craftable, obtain_method, description, sell_zone_mult)
+SELECT 'HUEVO_COSTAS_COMUN', 'Huevo Común de las Costas', 'MATERIAL', 'COMUN', FALSE, 'DROP', 'Brilla como el nácar y suena a mar si lo acercas a la oreja. Incúbalo: nace una mascota común de las Costas.', 1.00 WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'HUEVO_COSTAS_COMUN');
+UPDATE items SET name = 'Huevo Común de las Costas', item_type = 'MATERIAL', rarity = 'COMUN', is_craftable = FALSE, obtain_method = 'DROP', description = 'Brilla como el nácar y suena a mar si lo acercas a la oreja. Incúbalo: nace una mascota común de las Costas.', sell_zone_mult = 1.00 WHERE code = 'HUEVO_COSTAS_COMUN';
+INSERT INTO items (code, name, item_type, rarity, is_craftable, obtain_method, description, sell_zone_mult)
+SELECT 'HUEVO_COSTAS_POCO_COMUN', 'Huevo Poco Común de las Costas', 'MATERIAL', 'POCO_COMUN', FALSE, 'DROP', 'Brilla como el nácar y suena a mar si lo acercas a la oreja. Incúbalo: nace una mascota poco común de las Costas.', 1.00 WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'HUEVO_COSTAS_POCO_COMUN');
+UPDATE items SET name = 'Huevo Poco Común de las Costas', item_type = 'MATERIAL', rarity = 'POCO_COMUN', is_craftable = FALSE, obtain_method = 'DROP', description = 'Brilla como el nácar y suena a mar si lo acercas a la oreja. Incúbalo: nace una mascota poco común de las Costas.', sell_zone_mult = 1.00 WHERE code = 'HUEVO_COSTAS_POCO_COMUN';
+INSERT INTO items (code, name, item_type, rarity, is_craftable, obtain_method, description, sell_zone_mult)
+SELECT 'HUEVO_COSTAS_RARO', 'Huevo Raro de las Costas', 'MATERIAL', 'RARO', FALSE, 'DROP', 'Brilla como el nácar y suena a mar si lo acercas a la oreja. Incúbalo: nace una mascota rara de las Costas.', 1.00 WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'HUEVO_COSTAS_RARO');
+UPDATE items SET name = 'Huevo Raro de las Costas', item_type = 'MATERIAL', rarity = 'RARO', is_craftable = FALSE, obtain_method = 'DROP', description = 'Brilla como el nácar y suena a mar si lo acercas a la oreja. Incúbalo: nace una mascota rara de las Costas.', sell_zone_mult = 1.00 WHERE code = 'HUEVO_COSTAS_RARO';
+INSERT INTO items (code, name, item_type, rarity, is_craftable, obtain_method, description, sell_zone_mult)
+SELECT 'HUEVO_COSTAS_EPICO', 'Huevo Épico de las Costas', 'MATERIAL', 'EPICO', FALSE, 'DROP', 'Brilla como el nácar y suena a mar si lo acercas a la oreja. Incúbalo: nace una mascota épica de las Costas.', 1.00 WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'HUEVO_COSTAS_EPICO');
+UPDATE items SET name = 'Huevo Épico de las Costas', item_type = 'MATERIAL', rarity = 'EPICO', is_craftable = FALSE, obtain_method = 'DROP', description = 'Brilla como el nácar y suena a mar si lo acercas a la oreja. Incúbalo: nace una mascota épica de las Costas.', sell_zone_mult = 1.00 WHERE code = 'HUEVO_COSTAS_EPICO';
+INSERT INTO items (code, name, item_type, rarity, is_craftable, obtain_method, description, sell_zone_mult)
+SELECT 'HUEVO_COSTAS_LEGENDARIO', 'Huevo Legendario de las Costas', 'MATERIAL', 'LEGENDARIO', FALSE, 'DROP', 'Brilla como el nácar y suena a mar si lo acercas a la oreja. Incúbalo: nace una mascota legendaria de las Costas.', 1.50 WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'HUEVO_COSTAS_LEGENDARIO');
+UPDATE items SET name = 'Huevo Legendario de las Costas', item_type = 'MATERIAL', rarity = 'LEGENDARIO', is_craftable = FALSE, obtain_method = 'DROP', description = 'Brilla como el nácar y suena a mar si lo acercas a la oreja. Incúbalo: nace una mascota legendaria de las Costas.', sell_zone_mult = 1.50 WHERE code = 'HUEVO_COSTAS_LEGENDARIO';
+INSERT INTO items (code, name, item_type, rarity, is_craftable, obtain_method, description, sell_zone_mult)
+SELECT 'HUEVO_TUNDRA_COMUN', 'Huevo Común de la Tundra', 'MATERIAL', 'COMUN', FALSE, 'DROP', 'Transparente como el hielo del lago. No se derrite ni junto al fuego. Incúbalo: nace una mascota común de la Tundra.', 1.00 WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'HUEVO_TUNDRA_COMUN');
+UPDATE items SET name = 'Huevo Común de la Tundra', item_type = 'MATERIAL', rarity = 'COMUN', is_craftable = FALSE, obtain_method = 'DROP', description = 'Transparente como el hielo del lago. No se derrite ni junto al fuego. Incúbalo: nace una mascota común de la Tundra.', sell_zone_mult = 1.00 WHERE code = 'HUEVO_TUNDRA_COMUN';
+INSERT INTO items (code, name, item_type, rarity, is_craftable, obtain_method, description, sell_zone_mult)
+SELECT 'HUEVO_TUNDRA_POCO_COMUN', 'Huevo Poco Común de la Tundra', 'MATERIAL', 'POCO_COMUN', FALSE, 'DROP', 'Transparente como el hielo del lago. No se derrite ni junto al fuego. Incúbalo: nace una mascota poco común de la Tundra.', 1.00 WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'HUEVO_TUNDRA_POCO_COMUN');
+UPDATE items SET name = 'Huevo Poco Común de la Tundra', item_type = 'MATERIAL', rarity = 'POCO_COMUN', is_craftable = FALSE, obtain_method = 'DROP', description = 'Transparente como el hielo del lago. No se derrite ni junto al fuego. Incúbalo: nace una mascota poco común de la Tundra.', sell_zone_mult = 1.00 WHERE code = 'HUEVO_TUNDRA_POCO_COMUN';
+INSERT INTO items (code, name, item_type, rarity, is_craftable, obtain_method, description, sell_zone_mult)
+SELECT 'HUEVO_TUNDRA_RARO', 'Huevo Raro de la Tundra', 'MATERIAL', 'RARO', FALSE, 'DROP', 'Transparente como el hielo del lago. No se derrite ni junto al fuego. Incúbalo: nace una mascota rara de la Tundra.', 1.00 WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'HUEVO_TUNDRA_RARO');
+UPDATE items SET name = 'Huevo Raro de la Tundra', item_type = 'MATERIAL', rarity = 'RARO', is_craftable = FALSE, obtain_method = 'DROP', description = 'Transparente como el hielo del lago. No se derrite ni junto al fuego. Incúbalo: nace una mascota rara de la Tundra.', sell_zone_mult = 1.00 WHERE code = 'HUEVO_TUNDRA_RARO';
+INSERT INTO items (code, name, item_type, rarity, is_craftable, obtain_method, description, sell_zone_mult)
+SELECT 'HUEVO_TUNDRA_EPICO', 'Huevo Épico de la Tundra', 'MATERIAL', 'EPICO', FALSE, 'DROP', 'Transparente como el hielo del lago. No se derrite ni junto al fuego. Incúbalo: nace una mascota épica de la Tundra.', 1.00 WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'HUEVO_TUNDRA_EPICO');
+UPDATE items SET name = 'Huevo Épico de la Tundra', item_type = 'MATERIAL', rarity = 'EPICO', is_craftable = FALSE, obtain_method = 'DROP', description = 'Transparente como el hielo del lago. No se derrite ni junto al fuego. Incúbalo: nace una mascota épica de la Tundra.', sell_zone_mult = 1.00 WHERE code = 'HUEVO_TUNDRA_EPICO';
+INSERT INTO items (code, name, item_type, rarity, is_craftable, obtain_method, description, sell_zone_mult)
+SELECT 'HUEVO_TUNDRA_LEGENDARIO', 'Huevo Legendario de la Tundra', 'MATERIAL', 'LEGENDARIO', FALSE, 'DROP', 'Transparente como el hielo del lago. No se derrite ni junto al fuego. Incúbalo: nace una mascota legendaria de la Tundra.', 1.50 WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'HUEVO_TUNDRA_LEGENDARIO');
+UPDATE items SET name = 'Huevo Legendario de la Tundra', item_type = 'MATERIAL', rarity = 'LEGENDARIO', is_craftable = FALSE, obtain_method = 'DROP', description = 'Transparente como el hielo del lago. No se derrite ni junto al fuego. Incúbalo: nace una mascota legendaria de la Tundra.', sell_zone_mult = 1.50 WHERE code = 'HUEVO_TUNDRA_LEGENDARIO';
+INSERT INTO items (code, name, item_type, rarity, is_craftable, obtain_method, description, sell_zone_mult)
+SELECT 'HUEVO_CATACUMBAS_COMUN', 'Huevo Común de las Catacumbas', 'MATERIAL', 'COMUN', FALSE, 'DROP', 'Blanco como el hueso, con una gota de cera pegada arriba. Nadie sabe quién lo puso ahí. Incúbalo: nace una mascota común de las Catacumbas.', 1.00 WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'HUEVO_CATACUMBAS_COMUN');
+UPDATE items SET name = 'Huevo Común de las Catacumbas', item_type = 'MATERIAL', rarity = 'COMUN', is_craftable = FALSE, obtain_method = 'DROP', description = 'Blanco como el hueso, con una gota de cera pegada arriba. Nadie sabe quién lo puso ahí. Incúbalo: nace una mascota común de las Catacumbas.', sell_zone_mult = 1.00 WHERE code = 'HUEVO_CATACUMBAS_COMUN';
+INSERT INTO items (code, name, item_type, rarity, is_craftable, obtain_method, description, sell_zone_mult)
+SELECT 'HUEVO_CATACUMBAS_POCO_COMUN', 'Huevo Poco Común de las Catacumbas', 'MATERIAL', 'POCO_COMUN', FALSE, 'DROP', 'Blanco como el hueso, con una gota de cera pegada arriba. Nadie sabe quién lo puso ahí. Incúbalo: nace una mascota poco común de las Catacumbas.', 1.00 WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'HUEVO_CATACUMBAS_POCO_COMUN');
+UPDATE items SET name = 'Huevo Poco Común de las Catacumbas', item_type = 'MATERIAL', rarity = 'POCO_COMUN', is_craftable = FALSE, obtain_method = 'DROP', description = 'Blanco como el hueso, con una gota de cera pegada arriba. Nadie sabe quién lo puso ahí. Incúbalo: nace una mascota poco común de las Catacumbas.', sell_zone_mult = 1.00 WHERE code = 'HUEVO_CATACUMBAS_POCO_COMUN';
+INSERT INTO items (code, name, item_type, rarity, is_craftable, obtain_method, description, sell_zone_mult)
+SELECT 'HUEVO_CATACUMBAS_RARO', 'Huevo Raro de las Catacumbas', 'MATERIAL', 'RARO', FALSE, 'DROP', 'Blanco como el hueso, con una gota de cera pegada arriba. Nadie sabe quién lo puso ahí. Incúbalo: nace una mascota rara de las Catacumbas.', 1.00 WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'HUEVO_CATACUMBAS_RARO');
+UPDATE items SET name = 'Huevo Raro de las Catacumbas', item_type = 'MATERIAL', rarity = 'RARO', is_craftable = FALSE, obtain_method = 'DROP', description = 'Blanco como el hueso, con una gota de cera pegada arriba. Nadie sabe quién lo puso ahí. Incúbalo: nace una mascota rara de las Catacumbas.', sell_zone_mult = 1.00 WHERE code = 'HUEVO_CATACUMBAS_RARO';
+INSERT INTO items (code, name, item_type, rarity, is_craftable, obtain_method, description, sell_zone_mult)
+SELECT 'HUEVO_CATACUMBAS_EPICO', 'Huevo Épico de las Catacumbas', 'MATERIAL', 'EPICO', FALSE, 'DROP', 'Blanco como el hueso, con una gota de cera pegada arriba. Nadie sabe quién lo puso ahí. Incúbalo: nace una mascota épica de las Catacumbas.', 1.00 WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'HUEVO_CATACUMBAS_EPICO');
+UPDATE items SET name = 'Huevo Épico de las Catacumbas', item_type = 'MATERIAL', rarity = 'EPICO', is_craftable = FALSE, obtain_method = 'DROP', description = 'Blanco como el hueso, con una gota de cera pegada arriba. Nadie sabe quién lo puso ahí. Incúbalo: nace una mascota épica de las Catacumbas.', sell_zone_mult = 1.00 WHERE code = 'HUEVO_CATACUMBAS_EPICO';
+INSERT INTO items (code, name, item_type, rarity, is_craftable, obtain_method, description, sell_zone_mult)
+SELECT 'HUEVO_CATACUMBAS_LEGENDARIO', 'Huevo Legendario de las Catacumbas', 'MATERIAL', 'LEGENDARIO', FALSE, 'DROP', 'Blanco como el hueso, con una gota de cera pegada arriba. Nadie sabe quién lo puso ahí. Incúbalo: nace una mascota legendaria de las Catacumbas.', 1.50 WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'HUEVO_CATACUMBAS_LEGENDARIO');
+UPDATE items SET name = 'Huevo Legendario de las Catacumbas', item_type = 'MATERIAL', rarity = 'LEGENDARIO', is_craftable = FALSE, obtain_method = 'DROP', description = 'Blanco como el hueso, con una gota de cera pegada arriba. Nadie sabe quién lo puso ahí. Incúbalo: nace una mascota legendaria de las Catacumbas.', sell_zone_mult = 1.50 WHERE code = 'HUEVO_CATACUMBAS_LEGENDARIO';
+INSERT INTO items (code, name, item_type, rarity, is_craftable, obtain_method, description, sell_zone_mult)
+SELECT 'HUEVO_RUINAS_COMUN', 'Huevo Común de las Ruinas', 'MATERIAL', 'COMUN', FALSE, 'DROP', 'Dorado, con una banda de luz. De noche se le ven estrellas por dentro. Incúbalo: nace una mascota común de las Ruinas.', 1.00 WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'HUEVO_RUINAS_COMUN');
+UPDATE items SET name = 'Huevo Común de las Ruinas', item_type = 'MATERIAL', rarity = 'COMUN', is_craftable = FALSE, obtain_method = 'DROP', description = 'Dorado, con una banda de luz. De noche se le ven estrellas por dentro. Incúbalo: nace una mascota común de las Ruinas.', sell_zone_mult = 1.00 WHERE code = 'HUEVO_RUINAS_COMUN';
+INSERT INTO items (code, name, item_type, rarity, is_craftable, obtain_method, description, sell_zone_mult)
+SELECT 'HUEVO_RUINAS_POCO_COMUN', 'Huevo Poco Común de las Ruinas', 'MATERIAL', 'POCO_COMUN', FALSE, 'DROP', 'Dorado, con una banda de luz. De noche se le ven estrellas por dentro. Incúbalo: nace una mascota poco común de las Ruinas.', 1.00 WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'HUEVO_RUINAS_POCO_COMUN');
+UPDATE items SET name = 'Huevo Poco Común de las Ruinas', item_type = 'MATERIAL', rarity = 'POCO_COMUN', is_craftable = FALSE, obtain_method = 'DROP', description = 'Dorado, con una banda de luz. De noche se le ven estrellas por dentro. Incúbalo: nace una mascota poco común de las Ruinas.', sell_zone_mult = 1.00 WHERE code = 'HUEVO_RUINAS_POCO_COMUN';
+INSERT INTO items (code, name, item_type, rarity, is_craftable, obtain_method, description, sell_zone_mult)
+SELECT 'HUEVO_RUINAS_RARO', 'Huevo Raro de las Ruinas', 'MATERIAL', 'RARO', FALSE, 'DROP', 'Dorado, con una banda de luz. De noche se le ven estrellas por dentro. Incúbalo: nace una mascota rara de las Ruinas.', 1.00 WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'HUEVO_RUINAS_RARO');
+UPDATE items SET name = 'Huevo Raro de las Ruinas', item_type = 'MATERIAL', rarity = 'RARO', is_craftable = FALSE, obtain_method = 'DROP', description = 'Dorado, con una banda de luz. De noche se le ven estrellas por dentro. Incúbalo: nace una mascota rara de las Ruinas.', sell_zone_mult = 1.00 WHERE code = 'HUEVO_RUINAS_RARO';
+INSERT INTO items (code, name, item_type, rarity, is_craftable, obtain_method, description, sell_zone_mult)
+SELECT 'HUEVO_RUINAS_EPICO', 'Huevo Épico de las Ruinas', 'MATERIAL', 'EPICO', FALSE, 'DROP', 'Dorado, con una banda de luz. De noche se le ven estrellas por dentro. Incúbalo: nace una mascota épica de las Ruinas.', 1.00 WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'HUEVO_RUINAS_EPICO');
+UPDATE items SET name = 'Huevo Épico de las Ruinas', item_type = 'MATERIAL', rarity = 'EPICO', is_craftable = FALSE, obtain_method = 'DROP', description = 'Dorado, con una banda de luz. De noche se le ven estrellas por dentro. Incúbalo: nace una mascota épica de las Ruinas.', sell_zone_mult = 1.00 WHERE code = 'HUEVO_RUINAS_EPICO';
+INSERT INTO items (code, name, item_type, rarity, is_craftable, obtain_method, description, sell_zone_mult)
+SELECT 'HUEVO_RUINAS_LEGENDARIO', 'Huevo Legendario de las Ruinas', 'MATERIAL', 'LEGENDARIO', FALSE, 'DROP', 'Dorado, con una banda de luz. De noche se le ven estrellas por dentro. Incúbalo: nace una mascota legendaria de las Ruinas.', 1.50 WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'HUEVO_RUINAS_LEGENDARIO');
+UPDATE items SET name = 'Huevo Legendario de las Ruinas', item_type = 'MATERIAL', rarity = 'LEGENDARIO', is_craftable = FALSE, obtain_method = 'DROP', description = 'Dorado, con una banda de luz. De noche se le ven estrellas por dentro. Incúbalo: nace una mascota legendaria de las Ruinas.', sell_zone_mult = 1.50 WHERE code = 'HUEVO_RUINAS_LEGENDARIO';
+INSERT INTO items (code, name, item_type, rarity, is_craftable, obtain_method, description, sell_zone_mult)
+SELECT 'SOBRE_PRADERA', 'Sobre de Cartas de la Pradera', 'MATERIAL', 'RARO', FALSE, 'Mercader y cofres de mazmorra', 'Un sobre sellado con tres cartas de monstruos de la Pradera. Las de los monstruos raros salen menos. Ábrelo desde la mochila (clic derecho).', 1.00 WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'SOBRE_PRADERA');
+UPDATE items SET name = 'Sobre de Cartas de la Pradera', item_type = 'MATERIAL', rarity = 'RARO', is_craftable = FALSE, obtain_method = 'Mercader y cofres de mazmorra', description = 'Un sobre sellado con tres cartas de monstruos de la Pradera. Las de los monstruos raros salen menos. Ábrelo desde la mochila (clic derecho).', sell_zone_mult = 1.00 WHERE code = 'SOBRE_PRADERA';
+INSERT INTO items (code, name, item_type, rarity, is_craftable, obtain_method, description, sell_zone_mult)
+SELECT 'SOBRE_MONTANA', 'Sobre de Cartas de las Montañas', 'MATERIAL', 'RARO', FALSE, 'Mercader y cofres de mazmorra', 'Un sobre sellado con tres cartas de monstruos de las Montañas. Las de los monstruos raros salen menos. Ábrelo desde la mochila (clic derecho).', 1.00 WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'SOBRE_MONTANA');
+UPDATE items SET name = 'Sobre de Cartas de las Montañas', item_type = 'MATERIAL', rarity = 'RARO', is_craftable = FALSE, obtain_method = 'Mercader y cofres de mazmorra', description = 'Un sobre sellado con tres cartas de monstruos de las Montañas. Las de los monstruos raros salen menos. Ábrelo desde la mochila (clic derecho).', sell_zone_mult = 1.00 WHERE code = 'SOBRE_MONTANA';
+INSERT INTO items (code, name, item_type, rarity, is_craftable, obtain_method, description, sell_zone_mult)
+SELECT 'SOBRE_VOLCAN', 'Sobre de Cartas del Volcán', 'MATERIAL', 'RARO', FALSE, 'Mercader y cofres de mazmorra', 'Un sobre sellado con tres cartas de monstruos del Volcán. Las de los monstruos raros salen menos. Ábrelo desde la mochila (clic derecho).', 1.00 WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'SOBRE_VOLCAN');
+UPDATE items SET name = 'Sobre de Cartas del Volcán', item_type = 'MATERIAL', rarity = 'RARO', is_craftable = FALSE, obtain_method = 'Mercader y cofres de mazmorra', description = 'Un sobre sellado con tres cartas de monstruos del Volcán. Las de los monstruos raros salen menos. Ábrelo desde la mochila (clic derecho).', sell_zone_mult = 1.00 WHERE code = 'SOBRE_VOLCAN';
+INSERT INTO items (code, name, item_type, rarity, is_craftable, obtain_method, description, sell_zone_mult)
+SELECT 'SOBRE_COSTAS', 'Sobre de Cartas de las Costas', 'MATERIAL', 'RARO', FALSE, 'Mercader y cofres de mazmorra', 'Un sobre sellado con tres cartas de monstruos de las Costas. Las de los monstruos raros salen menos. Ábrelo desde la mochila (clic derecho).', 1.00 WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'SOBRE_COSTAS');
+UPDATE items SET name = 'Sobre de Cartas de las Costas', item_type = 'MATERIAL', rarity = 'RARO', is_craftable = FALSE, obtain_method = 'Mercader y cofres de mazmorra', description = 'Un sobre sellado con tres cartas de monstruos de las Costas. Las de los monstruos raros salen menos. Ábrelo desde la mochila (clic derecho).', sell_zone_mult = 1.00 WHERE code = 'SOBRE_COSTAS';
+INSERT INTO items (code, name, item_type, rarity, is_craftable, obtain_method, description, sell_zone_mult)
+SELECT 'SOBRE_TUNDRA', 'Sobre de Cartas de la Tundra', 'MATERIAL', 'RARO', FALSE, 'Mercader y cofres de mazmorra', 'Un sobre sellado con tres cartas de monstruos de la Tundra. Las de los monstruos raros salen menos. Ábrelo desde la mochila (clic derecho).', 1.00 WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'SOBRE_TUNDRA');
+UPDATE items SET name = 'Sobre de Cartas de la Tundra', item_type = 'MATERIAL', rarity = 'RARO', is_craftable = FALSE, obtain_method = 'Mercader y cofres de mazmorra', description = 'Un sobre sellado con tres cartas de monstruos de la Tundra. Las de los monstruos raros salen menos. Ábrelo desde la mochila (clic derecho).', sell_zone_mult = 1.00 WHERE code = 'SOBRE_TUNDRA';
+INSERT INTO items (code, name, item_type, rarity, is_craftable, obtain_method, description, sell_zone_mult)
+SELECT 'SOBRE_CATACUMBAS', 'Sobre de Cartas de las Catacumbas', 'MATERIAL', 'RARO', FALSE, 'Mercader y cofres de mazmorra', 'Un sobre sellado con tres cartas de monstruos de las Catacumbas. Las de los monstruos raros salen menos. Ábrelo desde la mochila (clic derecho).', 1.00 WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'SOBRE_CATACUMBAS');
+UPDATE items SET name = 'Sobre de Cartas de las Catacumbas', item_type = 'MATERIAL', rarity = 'RARO', is_craftable = FALSE, obtain_method = 'Mercader y cofres de mazmorra', description = 'Un sobre sellado con tres cartas de monstruos de las Catacumbas. Las de los monstruos raros salen menos. Ábrelo desde la mochila (clic derecho).', sell_zone_mult = 1.00 WHERE code = 'SOBRE_CATACUMBAS';
+INSERT INTO items (code, name, item_type, rarity, is_craftable, obtain_method, description, sell_zone_mult)
+SELECT 'SOBRE_RUINAS', 'Sobre de Cartas de las Ruinas', 'MATERIAL', 'RARO', FALSE, 'Mercader y cofres de mazmorra', 'Un sobre sellado con tres cartas de monstruos de las Ruinas. Las de los monstruos raros salen menos. Ábrelo desde la mochila (clic derecho).', 1.00 WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'SOBRE_RUINAS');
+UPDATE items SET name = 'Sobre de Cartas de las Ruinas', item_type = 'MATERIAL', rarity = 'RARO', is_craftable = FALSE, obtain_method = 'Mercader y cofres de mazmorra', description = 'Un sobre sellado con tres cartas de monstruos de las Ruinas. Las de los monstruos raros salen menos. Ábrelo desde la mochila (clic derecho).', sell_zone_mult = 1.00 WHERE code = 'SOBRE_RUINAS';
+ALTER TABLE pets ADD COLUMN IF NOT EXISTS zone_id INTEGER REFERENCES monster_zones(id);
+UPDATE pets SET zone_id = v.zone_id FROM (VALUES
+  ('LOBO_CACHORRO', 1),
+  ('CONEJO_SUERTE', 1),
+  ('PERRITO_PRADERA', 1),
+  ('CIERVO_JOVEN', 1),
+  ('ZORRO_ASTUTO', 1),
+  ('ESPIRITU_BOSQUE', 1),
+  ('HALCON_CERTERO', 1),
+  ('CIERVO_SAGRADO', 1),
+  ('TORMENTA_VIVIENTE', 1),
+  ('TEJON_TERCO', 2),
+  ('ARDILLA_AHORRADORA', 2),
+  ('TORTUGA_ESCUDO', 2),
+  ('GOLEM_TIERRA', 2),
+  ('AVE_TRUENO', 2),
+  ('GRIFO_REAL', 2),
+  ('BASILISCO', 2),
+  ('TITAN_PIEDRA', 2),
+  ('POLILLA_VELOZ', 3),
+  ('GRILLO_ESTUDIOSO', 3),
+  ('ESCARABAJO_DORADO', 3),
+  ('SALAMANDRA_FUEGO', 3),
+  ('FENIX_MENOR', 3),
+  ('DRAGON_MENOR', 3),
+  ('FENIX', 3),
+  ('DRAGON_PRIMORDIAL', 3),
+  ('CANGREJO_ROCOSO', 4),
+  ('PULPO_CURIOSO', 4),
+  ('TORTUGUITA', 4),
+  ('NUTRIA_AGIL', 4),
+  ('TIBURON_PROFUNDIDADES', 4),
+  ('ESPIRITU_LUNA', 4),
+  ('KRAKEN_ANCESTRAL', 4),
+  ('LEVIATAN_ABISMO', 4),
+  ('RATON_AGIL', 5),
+  ('MAPACHE_LADRON', 5),
+  ('ERIZO_ESCARCHA', 5),
+  ('COMADREJA_CERTERA', 5),
+  ('SERPIENTE_HIELO', 5),
+  ('BEHEMOT', 5),
+  ('WYRM_TIEMPO', 5),
+  ('BUHO_ARCANO', 6),
+  ('RANA_SALTARINA', 6),
+  ('ARANA_CRISTAL', 6),
+  ('IMP_OSCURO', 6),
+  ('GATO_SOMBRIO', 6),
+  ('HECHICERO_ANCESTRAL', 6),
+  ('SOMBRA_ETERNA', 6),
+  ('COLIBRI_CERTERO', 7),
+  ('LECHUZA_SABIA', 7),
+  ('PALOMA_MENSAJERA', 7),
+  ('CAMALEON_PRISMATICO', 7),
+  ('LOBO_COSMICO', 7),
+  ('FAMILIAR_ARCANO', 7),
+  ('GUARDIAN_COSMICO', 7),
+  ('BEHEMOT_CELESTIAL', 7)
+) AS v(code, zone_id) WHERE pets.code = v.code;
+UPDATE monster_drops d SET item_id = z.id
+FROM monsters m, items g, items z, (VALUES (1, 'PRADERA'), (2, 'MONTANA'), (3, 'VOLCAN'), (4, 'COSTAS'), (5, 'TUNDRA'), (6, 'CATACUMBAS'), (7, 'RUINAS')) AS zn(zone_id, code)
+WHERE d.monster_id = m.id AND d.item_id = g.id AND zn.zone_id = m.zone_id
+  AND g.code IN ('HUEVO_COMUN', 'HUEVO_POCO_COMUN', 'HUEVO_RARO', 'HUEVO_EPICO', 'HUEVO_LEGENDARIO')
+  AND z.code = 'HUEVO_' || zn.code || substr(g.code, 6)
+  AND NOT EXISTS (SELECT 1 FROM monster_drops d2 WHERE d2.monster_id = d.monster_id AND d2.item_id = z.id);
+INSERT INTO monster_drops (monster_id, item_id, drop_chance_percent, min_quantity, max_quantity)
+SELECT m.id, (SELECT id FROM items WHERE code = 'HUEVO_PRADERA_COMUN'), 2, 1, 1 FROM monsters m
+WHERE m.zone_id = 1 AND m.rarity = 'COMMON'
+  AND NOT EXISTS (SELECT 1 FROM monster_drops d JOIN monsters m2 ON m2.id = d.monster_id WHERE d.item_id = (SELECT id FROM items WHERE code = 'HUEVO_PRADERA_COMUN') AND m2.zone_id = 1);
+INSERT INTO monster_drops (monster_id, item_id, drop_chance_percent, min_quantity, max_quantity)
+SELECT m.id, (SELECT id FROM items WHERE code = 'HUEVO_PRADERA_POCO_COMUN'), 3, 1, 1 FROM monsters m
+WHERE m.zone_id = 1 AND m.rarity = 'RARE'
+  AND NOT EXISTS (SELECT 1 FROM monster_drops d JOIN monsters m2 ON m2.id = d.monster_id WHERE d.item_id = (SELECT id FROM items WHERE code = 'HUEVO_PRADERA_POCO_COMUN') AND m2.zone_id = 1);
+INSERT INTO monster_drops (monster_id, item_id, drop_chance_percent, min_quantity, max_quantity)
+SELECT m.id, (SELECT id FROM items WHERE code = 'HUEVO_PRADERA_RARO'), 4, 1, 1 FROM monsters m
+WHERE m.zone_id = 1 AND m.rarity = 'RARE'
+  AND NOT EXISTS (SELECT 1 FROM monster_drops d JOIN monsters m2 ON m2.id = d.monster_id WHERE d.item_id = (SELECT id FROM items WHERE code = 'HUEVO_PRADERA_RARO') AND m2.zone_id = 1);
+INSERT INTO monster_drops (monster_id, item_id, drop_chance_percent, min_quantity, max_quantity)
+SELECT m.id, (SELECT id FROM items WHERE code = 'HUEVO_PRADERA_EPICO'), 3, 1, 1 FROM monsters m
+WHERE m.zone_id = 1 AND m.rarity = 'MINIBOSS'
+  AND NOT EXISTS (SELECT 1 FROM monster_drops d JOIN monsters m2 ON m2.id = d.monster_id WHERE d.item_id = (SELECT id FROM items WHERE code = 'HUEVO_PRADERA_EPICO') AND m2.zone_id = 1);
+INSERT INTO monster_drops (monster_id, item_id, drop_chance_percent, min_quantity, max_quantity)
+SELECT m.id, (SELECT id FROM items WHERE code = 'HUEVO_PRADERA_LEGENDARIO'), 2, 1, 1 FROM monsters m
+WHERE m.zone_id = 1 AND m.rarity = 'LEGENDARY'
+  AND NOT EXISTS (SELECT 1 FROM monster_drops d JOIN monsters m2 ON m2.id = d.monster_id WHERE d.item_id = (SELECT id FROM items WHERE code = 'HUEVO_PRADERA_LEGENDARIO') AND m2.zone_id = 1);
+INSERT INTO monster_drops (monster_id, item_id, drop_chance_percent, min_quantity, max_quantity)
+SELECT m.id, (SELECT id FROM items WHERE code = 'HUEVO_MONTANA_COMUN'), 2, 1, 1 FROM monsters m
+WHERE m.zone_id = 2 AND m.rarity = 'COMMON'
+  AND NOT EXISTS (SELECT 1 FROM monster_drops d JOIN monsters m2 ON m2.id = d.monster_id WHERE d.item_id = (SELECT id FROM items WHERE code = 'HUEVO_MONTANA_COMUN') AND m2.zone_id = 2);
+INSERT INTO monster_drops (monster_id, item_id, drop_chance_percent, min_quantity, max_quantity)
+SELECT m.id, (SELECT id FROM items WHERE code = 'HUEVO_MONTANA_POCO_COMUN'), 3, 1, 1 FROM monsters m
+WHERE m.zone_id = 2 AND m.rarity = 'RARE'
+  AND NOT EXISTS (SELECT 1 FROM monster_drops d JOIN monsters m2 ON m2.id = d.monster_id WHERE d.item_id = (SELECT id FROM items WHERE code = 'HUEVO_MONTANA_POCO_COMUN') AND m2.zone_id = 2);
+INSERT INTO monster_drops (monster_id, item_id, drop_chance_percent, min_quantity, max_quantity)
+SELECT m.id, (SELECT id FROM items WHERE code = 'HUEVO_MONTANA_RARO'), 4, 1, 1 FROM monsters m
+WHERE m.zone_id = 2 AND m.rarity = 'RARE'
+  AND NOT EXISTS (SELECT 1 FROM monster_drops d JOIN monsters m2 ON m2.id = d.monster_id WHERE d.item_id = (SELECT id FROM items WHERE code = 'HUEVO_MONTANA_RARO') AND m2.zone_id = 2);
+INSERT INTO monster_drops (monster_id, item_id, drop_chance_percent, min_quantity, max_quantity)
+SELECT m.id, (SELECT id FROM items WHERE code = 'HUEVO_MONTANA_EPICO'), 3, 1, 1 FROM monsters m
+WHERE m.zone_id = 2 AND m.rarity = 'MINIBOSS'
+  AND NOT EXISTS (SELECT 1 FROM monster_drops d JOIN monsters m2 ON m2.id = d.monster_id WHERE d.item_id = (SELECT id FROM items WHERE code = 'HUEVO_MONTANA_EPICO') AND m2.zone_id = 2);
+INSERT INTO monster_drops (monster_id, item_id, drop_chance_percent, min_quantity, max_quantity)
+SELECT m.id, (SELECT id FROM items WHERE code = 'HUEVO_MONTANA_LEGENDARIO'), 2, 1, 1 FROM monsters m
+WHERE m.zone_id = 2 AND m.rarity = 'LEGENDARY'
+  AND NOT EXISTS (SELECT 1 FROM monster_drops d JOIN monsters m2 ON m2.id = d.monster_id WHERE d.item_id = (SELECT id FROM items WHERE code = 'HUEVO_MONTANA_LEGENDARIO') AND m2.zone_id = 2);
+INSERT INTO monster_drops (monster_id, item_id, drop_chance_percent, min_quantity, max_quantity)
+SELECT m.id, (SELECT id FROM items WHERE code = 'HUEVO_VOLCAN_COMUN'), 2, 1, 1 FROM monsters m
+WHERE m.zone_id = 3 AND m.rarity = 'COMMON'
+  AND NOT EXISTS (SELECT 1 FROM monster_drops d JOIN monsters m2 ON m2.id = d.monster_id WHERE d.item_id = (SELECT id FROM items WHERE code = 'HUEVO_VOLCAN_COMUN') AND m2.zone_id = 3);
+INSERT INTO monster_drops (monster_id, item_id, drop_chance_percent, min_quantity, max_quantity)
+SELECT m.id, (SELECT id FROM items WHERE code = 'HUEVO_VOLCAN_POCO_COMUN'), 3, 1, 1 FROM monsters m
+WHERE m.zone_id = 3 AND m.rarity = 'RARE'
+  AND NOT EXISTS (SELECT 1 FROM monster_drops d JOIN monsters m2 ON m2.id = d.monster_id WHERE d.item_id = (SELECT id FROM items WHERE code = 'HUEVO_VOLCAN_POCO_COMUN') AND m2.zone_id = 3);
+INSERT INTO monster_drops (monster_id, item_id, drop_chance_percent, min_quantity, max_quantity)
+SELECT m.id, (SELECT id FROM items WHERE code = 'HUEVO_VOLCAN_RARO'), 4, 1, 1 FROM monsters m
+WHERE m.zone_id = 3 AND m.rarity = 'RARE'
+  AND NOT EXISTS (SELECT 1 FROM monster_drops d JOIN monsters m2 ON m2.id = d.monster_id WHERE d.item_id = (SELECT id FROM items WHERE code = 'HUEVO_VOLCAN_RARO') AND m2.zone_id = 3);
+INSERT INTO monster_drops (monster_id, item_id, drop_chance_percent, min_quantity, max_quantity)
+SELECT m.id, (SELECT id FROM items WHERE code = 'HUEVO_VOLCAN_EPICO'), 3, 1, 1 FROM monsters m
+WHERE m.zone_id = 3 AND m.rarity = 'MINIBOSS'
+  AND NOT EXISTS (SELECT 1 FROM monster_drops d JOIN monsters m2 ON m2.id = d.monster_id WHERE d.item_id = (SELECT id FROM items WHERE code = 'HUEVO_VOLCAN_EPICO') AND m2.zone_id = 3);
+INSERT INTO monster_drops (monster_id, item_id, drop_chance_percent, min_quantity, max_quantity)
+SELECT m.id, (SELECT id FROM items WHERE code = 'HUEVO_VOLCAN_LEGENDARIO'), 2, 1, 1 FROM monsters m
+WHERE m.zone_id = 3 AND m.rarity = 'LEGENDARY'
+  AND NOT EXISTS (SELECT 1 FROM monster_drops d JOIN monsters m2 ON m2.id = d.monster_id WHERE d.item_id = (SELECT id FROM items WHERE code = 'HUEVO_VOLCAN_LEGENDARIO') AND m2.zone_id = 3);
+INSERT INTO monster_drops (monster_id, item_id, drop_chance_percent, min_quantity, max_quantity)
+SELECT m.id, (SELECT id FROM items WHERE code = 'HUEVO_COSTAS_COMUN'), 2, 1, 1 FROM monsters m
+WHERE m.zone_id = 4 AND m.rarity = 'COMMON'
+  AND NOT EXISTS (SELECT 1 FROM monster_drops d JOIN monsters m2 ON m2.id = d.monster_id WHERE d.item_id = (SELECT id FROM items WHERE code = 'HUEVO_COSTAS_COMUN') AND m2.zone_id = 4);
+INSERT INTO monster_drops (monster_id, item_id, drop_chance_percent, min_quantity, max_quantity)
+SELECT m.id, (SELECT id FROM items WHERE code = 'HUEVO_COSTAS_POCO_COMUN'), 3, 1, 1 FROM monsters m
+WHERE m.zone_id = 4 AND m.rarity = 'RARE'
+  AND NOT EXISTS (SELECT 1 FROM monster_drops d JOIN monsters m2 ON m2.id = d.monster_id WHERE d.item_id = (SELECT id FROM items WHERE code = 'HUEVO_COSTAS_POCO_COMUN') AND m2.zone_id = 4);
+INSERT INTO monster_drops (monster_id, item_id, drop_chance_percent, min_quantity, max_quantity)
+SELECT m.id, (SELECT id FROM items WHERE code = 'HUEVO_COSTAS_RARO'), 4, 1, 1 FROM monsters m
+WHERE m.zone_id = 4 AND m.rarity = 'RARE'
+  AND NOT EXISTS (SELECT 1 FROM monster_drops d JOIN monsters m2 ON m2.id = d.monster_id WHERE d.item_id = (SELECT id FROM items WHERE code = 'HUEVO_COSTAS_RARO') AND m2.zone_id = 4);
+INSERT INTO monster_drops (monster_id, item_id, drop_chance_percent, min_quantity, max_quantity)
+SELECT m.id, (SELECT id FROM items WHERE code = 'HUEVO_COSTAS_EPICO'), 3, 1, 1 FROM monsters m
+WHERE m.zone_id = 4 AND m.rarity = 'MINIBOSS'
+  AND NOT EXISTS (SELECT 1 FROM monster_drops d JOIN monsters m2 ON m2.id = d.monster_id WHERE d.item_id = (SELECT id FROM items WHERE code = 'HUEVO_COSTAS_EPICO') AND m2.zone_id = 4);
+INSERT INTO monster_drops (monster_id, item_id, drop_chance_percent, min_quantity, max_quantity)
+SELECT m.id, (SELECT id FROM items WHERE code = 'HUEVO_COSTAS_LEGENDARIO'), 2, 1, 1 FROM monsters m
+WHERE m.zone_id = 4 AND m.rarity = 'LEGENDARY'
+  AND NOT EXISTS (SELECT 1 FROM monster_drops d JOIN monsters m2 ON m2.id = d.monster_id WHERE d.item_id = (SELECT id FROM items WHERE code = 'HUEVO_COSTAS_LEGENDARIO') AND m2.zone_id = 4);
+INSERT INTO monster_drops (monster_id, item_id, drop_chance_percent, min_quantity, max_quantity)
+SELECT m.id, (SELECT id FROM items WHERE code = 'HUEVO_TUNDRA_COMUN'), 2, 1, 1 FROM monsters m
+WHERE m.zone_id = 5 AND m.rarity = 'COMMON'
+  AND NOT EXISTS (SELECT 1 FROM monster_drops d JOIN monsters m2 ON m2.id = d.monster_id WHERE d.item_id = (SELECT id FROM items WHERE code = 'HUEVO_TUNDRA_COMUN') AND m2.zone_id = 5);
+INSERT INTO monster_drops (monster_id, item_id, drop_chance_percent, min_quantity, max_quantity)
+SELECT m.id, (SELECT id FROM items WHERE code = 'HUEVO_TUNDRA_POCO_COMUN'), 3, 1, 1 FROM monsters m
+WHERE m.zone_id = 5 AND m.rarity = 'RARE'
+  AND NOT EXISTS (SELECT 1 FROM monster_drops d JOIN monsters m2 ON m2.id = d.monster_id WHERE d.item_id = (SELECT id FROM items WHERE code = 'HUEVO_TUNDRA_POCO_COMUN') AND m2.zone_id = 5);
+INSERT INTO monster_drops (monster_id, item_id, drop_chance_percent, min_quantity, max_quantity)
+SELECT m.id, (SELECT id FROM items WHERE code = 'HUEVO_TUNDRA_RARO'), 4, 1, 1 FROM monsters m
+WHERE m.zone_id = 5 AND m.rarity = 'RARE'
+  AND NOT EXISTS (SELECT 1 FROM monster_drops d JOIN monsters m2 ON m2.id = d.monster_id WHERE d.item_id = (SELECT id FROM items WHERE code = 'HUEVO_TUNDRA_RARO') AND m2.zone_id = 5);
+INSERT INTO monster_drops (monster_id, item_id, drop_chance_percent, min_quantity, max_quantity)
+SELECT m.id, (SELECT id FROM items WHERE code = 'HUEVO_TUNDRA_EPICO'), 3, 1, 1 FROM monsters m
+WHERE m.zone_id = 5 AND m.rarity = 'MINIBOSS'
+  AND NOT EXISTS (SELECT 1 FROM monster_drops d JOIN monsters m2 ON m2.id = d.monster_id WHERE d.item_id = (SELECT id FROM items WHERE code = 'HUEVO_TUNDRA_EPICO') AND m2.zone_id = 5);
+INSERT INTO monster_drops (monster_id, item_id, drop_chance_percent, min_quantity, max_quantity)
+SELECT m.id, (SELECT id FROM items WHERE code = 'HUEVO_TUNDRA_LEGENDARIO'), 2, 1, 1 FROM monsters m
+WHERE m.zone_id = 5 AND m.rarity = 'LEGENDARY'
+  AND NOT EXISTS (SELECT 1 FROM monster_drops d JOIN monsters m2 ON m2.id = d.monster_id WHERE d.item_id = (SELECT id FROM items WHERE code = 'HUEVO_TUNDRA_LEGENDARIO') AND m2.zone_id = 5);
+INSERT INTO monster_drops (monster_id, item_id, drop_chance_percent, min_quantity, max_quantity)
+SELECT m.id, (SELECT id FROM items WHERE code = 'HUEVO_CATACUMBAS_COMUN'), 2, 1, 1 FROM monsters m
+WHERE m.zone_id = 6 AND m.rarity = 'COMMON'
+  AND NOT EXISTS (SELECT 1 FROM monster_drops d JOIN monsters m2 ON m2.id = d.monster_id WHERE d.item_id = (SELECT id FROM items WHERE code = 'HUEVO_CATACUMBAS_COMUN') AND m2.zone_id = 6);
+INSERT INTO monster_drops (monster_id, item_id, drop_chance_percent, min_quantity, max_quantity)
+SELECT m.id, (SELECT id FROM items WHERE code = 'HUEVO_CATACUMBAS_POCO_COMUN'), 3, 1, 1 FROM monsters m
+WHERE m.zone_id = 6 AND m.rarity = 'RARE'
+  AND NOT EXISTS (SELECT 1 FROM monster_drops d JOIN monsters m2 ON m2.id = d.monster_id WHERE d.item_id = (SELECT id FROM items WHERE code = 'HUEVO_CATACUMBAS_POCO_COMUN') AND m2.zone_id = 6);
+INSERT INTO monster_drops (monster_id, item_id, drop_chance_percent, min_quantity, max_quantity)
+SELECT m.id, (SELECT id FROM items WHERE code = 'HUEVO_CATACUMBAS_RARO'), 4, 1, 1 FROM monsters m
+WHERE m.zone_id = 6 AND m.rarity = 'RARE'
+  AND NOT EXISTS (SELECT 1 FROM monster_drops d JOIN monsters m2 ON m2.id = d.monster_id WHERE d.item_id = (SELECT id FROM items WHERE code = 'HUEVO_CATACUMBAS_RARO') AND m2.zone_id = 6);
+INSERT INTO monster_drops (monster_id, item_id, drop_chance_percent, min_quantity, max_quantity)
+SELECT m.id, (SELECT id FROM items WHERE code = 'HUEVO_CATACUMBAS_EPICO'), 3, 1, 1 FROM monsters m
+WHERE m.zone_id = 6 AND m.rarity = 'MINIBOSS'
+  AND NOT EXISTS (SELECT 1 FROM monster_drops d JOIN monsters m2 ON m2.id = d.monster_id WHERE d.item_id = (SELECT id FROM items WHERE code = 'HUEVO_CATACUMBAS_EPICO') AND m2.zone_id = 6);
+INSERT INTO monster_drops (monster_id, item_id, drop_chance_percent, min_quantity, max_quantity)
+SELECT m.id, (SELECT id FROM items WHERE code = 'HUEVO_CATACUMBAS_LEGENDARIO'), 2, 1, 1 FROM monsters m
+WHERE m.zone_id = 6 AND m.rarity = 'LEGENDARY'
+  AND NOT EXISTS (SELECT 1 FROM monster_drops d JOIN monsters m2 ON m2.id = d.monster_id WHERE d.item_id = (SELECT id FROM items WHERE code = 'HUEVO_CATACUMBAS_LEGENDARIO') AND m2.zone_id = 6);
+INSERT INTO monster_drops (monster_id, item_id, drop_chance_percent, min_quantity, max_quantity)
+SELECT m.id, (SELECT id FROM items WHERE code = 'HUEVO_RUINAS_COMUN'), 2, 1, 1 FROM monsters m
+WHERE m.zone_id = 7 AND m.rarity = 'COMMON'
+  AND NOT EXISTS (SELECT 1 FROM monster_drops d JOIN monsters m2 ON m2.id = d.monster_id WHERE d.item_id = (SELECT id FROM items WHERE code = 'HUEVO_RUINAS_COMUN') AND m2.zone_id = 7);
+INSERT INTO monster_drops (monster_id, item_id, drop_chance_percent, min_quantity, max_quantity)
+SELECT m.id, (SELECT id FROM items WHERE code = 'HUEVO_RUINAS_POCO_COMUN'), 3, 1, 1 FROM monsters m
+WHERE m.zone_id = 7 AND m.rarity = 'RARE'
+  AND NOT EXISTS (SELECT 1 FROM monster_drops d JOIN monsters m2 ON m2.id = d.monster_id WHERE d.item_id = (SELECT id FROM items WHERE code = 'HUEVO_RUINAS_POCO_COMUN') AND m2.zone_id = 7);
+INSERT INTO monster_drops (monster_id, item_id, drop_chance_percent, min_quantity, max_quantity)
+SELECT m.id, (SELECT id FROM items WHERE code = 'HUEVO_RUINAS_RARO'), 4, 1, 1 FROM monsters m
+WHERE m.zone_id = 7 AND m.rarity = 'RARE'
+  AND NOT EXISTS (SELECT 1 FROM monster_drops d JOIN monsters m2 ON m2.id = d.monster_id WHERE d.item_id = (SELECT id FROM items WHERE code = 'HUEVO_RUINAS_RARO') AND m2.zone_id = 7);
+INSERT INTO monster_drops (monster_id, item_id, drop_chance_percent, min_quantity, max_quantity)
+SELECT m.id, (SELECT id FROM items WHERE code = 'HUEVO_RUINAS_EPICO'), 3, 1, 1 FROM monsters m
+WHERE m.zone_id = 7 AND m.rarity = 'MINIBOSS'
+  AND NOT EXISTS (SELECT 1 FROM monster_drops d JOIN monsters m2 ON m2.id = d.monster_id WHERE d.item_id = (SELECT id FROM items WHERE code = 'HUEVO_RUINAS_EPICO') AND m2.zone_id = 7);
+INSERT INTO monster_drops (monster_id, item_id, drop_chance_percent, min_quantity, max_quantity)
+SELECT m.id, (SELECT id FROM items WHERE code = 'HUEVO_RUINAS_LEGENDARIO'), 2, 1, 1 FROM monsters m
+WHERE m.zone_id = 7 AND m.rarity = 'LEGENDARY'
+  AND NOT EXISTS (SELECT 1 FROM monster_drops d JOIN monsters m2 ON m2.id = d.monster_id WHERE d.item_id = (SELECT id FROM items WHERE code = 'HUEVO_RUINAS_LEGENDARIO') AND m2.zone_id = 7);
+INSERT INTO artisan_shop (artisan_code, item_id, price)
+SELECT 'JOYERO', (SELECT id FROM items WHERE code = 'SOBRE_PRADERA'), 1500 WHERE NOT EXISTS (SELECT 1 FROM artisan_shop WHERE artisan_code = 'JOYERO' AND item_id = (SELECT id FROM items WHERE code = 'SOBRE_PRADERA'));
+UPDATE artisan_shop SET price = 1500 WHERE artisan_code = 'JOYERO' AND item_id = (SELECT id FROM items WHERE code = 'SOBRE_PRADERA');
+INSERT INTO artisan_shop (artisan_code, item_id, price)
+SELECT 'JOYERO', (SELECT id FROM items WHERE code = 'SOBRE_MONTANA'), 2500 WHERE NOT EXISTS (SELECT 1 FROM artisan_shop WHERE artisan_code = 'JOYERO' AND item_id = (SELECT id FROM items WHERE code = 'SOBRE_MONTANA'));
+UPDATE artisan_shop SET price = 2500 WHERE artisan_code = 'JOYERO' AND item_id = (SELECT id FROM items WHERE code = 'SOBRE_MONTANA');
+INSERT INTO artisan_shop (artisan_code, item_id, price)
+SELECT 'MERCADER_ASCUARIA', (SELECT id FROM items WHERE code = 'SOBRE_VOLCAN'), 4000 WHERE NOT EXISTS (SELECT 1 FROM artisan_shop WHERE artisan_code = 'MERCADER_ASCUARIA' AND item_id = (SELECT id FROM items WHERE code = 'SOBRE_VOLCAN'));
+UPDATE artisan_shop SET price = 4000 WHERE artisan_code = 'MERCADER_ASCUARIA' AND item_id = (SELECT id FROM items WHERE code = 'SOBRE_VOLCAN');
+INSERT INTO artisan_shop (artisan_code, item_id, price)
+SELECT 'MERCADER_PUERTO', (SELECT id FROM items WHERE code = 'SOBRE_COSTAS'), 6000 WHERE NOT EXISTS (SELECT 1 FROM artisan_shop WHERE artisan_code = 'MERCADER_PUERTO' AND item_id = (SELECT id FROM items WHERE code = 'SOBRE_COSTAS'));
+UPDATE artisan_shop SET price = 6000 WHERE artisan_code = 'MERCADER_PUERTO' AND item_id = (SELECT id FROM items WHERE code = 'SOBRE_COSTAS');
+INSERT INTO artisan_shop (artisan_code, item_id, price)
+SELECT 'MERCADER_FIORDO', (SELECT id FROM items WHERE code = 'SOBRE_TUNDRA'), 8000 WHERE NOT EXISTS (SELECT 1 FROM artisan_shop WHERE artisan_code = 'MERCADER_FIORDO' AND item_id = (SELECT id FROM items WHERE code = 'SOBRE_TUNDRA'));
+UPDATE artisan_shop SET price = 8000 WHERE artisan_code = 'MERCADER_FIORDO' AND item_id = (SELECT id FROM items WHERE code = 'SOBRE_TUNDRA');
+INSERT INTO artisan_shop (artisan_code, item_id, price)
+SELECT 'MERCADER_VELA', (SELECT id FROM items WHERE code = 'SOBRE_CATACUMBAS'), 10000 WHERE NOT EXISTS (SELECT 1 FROM artisan_shop WHERE artisan_code = 'MERCADER_VELA' AND item_id = (SELECT id FROM items WHERE code = 'SOBRE_CATACUMBAS'));
+UPDATE artisan_shop SET price = 10000 WHERE artisan_code = 'MERCADER_VELA' AND item_id = (SELECT id FROM items WHERE code = 'SOBRE_CATACUMBAS');
+INSERT INTO artisan_shop (artisan_code, item_id, price)
+SELECT 'MERCADER_SANTUARIO', (SELECT id FROM items WHERE code = 'SOBRE_RUINAS'), 12000 WHERE NOT EXISTS (SELECT 1 FROM artisan_shop WHERE artisan_code = 'MERCADER_SANTUARIO' AND item_id = (SELECT id FROM items WHERE code = 'SOBRE_RUINAS'));
+UPDATE artisan_shop SET price = 12000 WHERE artisan_code = 'MERCADER_SANTUARIO' AND item_id = (SELECT id FROM items WHERE code = 'SOBRE_RUINAS');
+
+-- ================================================================ la elección de la cerca (Pradera)
+-- (generado por gpr/_respaldo_claude/cerca/gen_cerca.js)
+INSERT INTO items (code, name, item_type, slot, is_two_handed, rarity, required_level, is_craftable, obtain_method, description)
+SELECT 'HERRADURA_GORETH', 'Herradura de Goreth', 'EQUIPMENT', 'ACCESSORY', FALSE, 'RARO', 8, FALSE, 'Regalo de Goreth (la cerca)',
+  'Una herradura forjada a mano y colgada de un cordón de cuero. «Para la suerte. Y para que te acuerdes de quién te avisó primero.» —Goreth'
+WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'HERRADURA_GORETH');
+UPDATE items SET name = 'Herradura de Goreth', item_type = 'EQUIPMENT', slot = 'ACCESSORY', rarity = 'RARO', required_level = 8,
+  description = 'Una herradura forjada a mano y colgada de un cordón de cuero. «Para la suerte. Y para que te acuerdes de quién te avisó primero.» —Goreth'
+WHERE code = 'HERRADURA_GORETH';
+DELETE FROM item_stat_bonuses WHERE item_id = (SELECT id FROM items WHERE code = 'HERRADURA_GORETH');
+INSERT INTO item_stat_bonuses (item_id, stat_code, amount, is_percent)
+SELECT (SELECT id FROM items WHERE code = 'HERRADURA_GORETH'), v.* FROM (VALUES ('HP', 12, FALSE), ('DEF', 5, FALSE), ('MAGIC_DEF', 4, FALSE), ('CRIT_CHANCE', 2, TRUE)) AS v(stat_code, amount, is_percent);
+UPDATE quests SET name = 'Un regalo envenenado',
+  description = '«Je. Tengo un plan. Tráeme dos Glándulas de Sapo del lago. Las echo en el guiso de Goreth y se pasa una semana con la panza revuelta. Así aprende.» Puedes no seguirle el juego: llévale las glándulas a Goreth y avísale lo que Bruno trama. Esta elección es para siempre: si aceptas esta misión, la otra desaparece.',
+  turn_in_npc = 'goreth',
+  dialog = '{"entrega":"*Goreth mira las glándulas y suelta una carcajada que hace temblar el yunque* ¡En mi guiso! Ese viejo… Bueno. Me avisaste. Eso no lo hace cualquiera. Toma: la forjé anoche, pensando en a quién dársela. Ya sé a quién."}'::jsonb
+WHERE code = 'PRADERA_SEC_CERCA_3';
+UPDATE quest_objectives SET objective_type = 'DELIVER', item_id = (SELECT id FROM items WHERE code = 'GLANDULA_SAPO'), target_count = 2, target_code = 'goreth',
+  description = 'Llévale 2 Glándulas de Sapo a Goreth y avísale',
+  params = '{"dialog":"Hmph. Así que el viejo Bruno quería envenenarme. ¿Sabes qué? Casi me da risa.","speaker":"Goreth"}'::jsonb
+WHERE quest_id = (SELECT id FROM quests WHERE code = 'PRADERA_SEC_CERCA_3') AND step = 1;
+DELETE FROM quest_objectives WHERE quest_id = (SELECT id FROM quests WHERE code = 'PRADERA_SEC_CERCA_3') AND step > 1;
+DELETE FROM quest_item_rewards WHERE quest_id = (SELECT id FROM quests WHERE code = 'PRADERA_SEC_CERCA_3');
+INSERT INTO quest_item_rewards (quest_id, item_id, quantity) SELECT (SELECT id FROM quests WHERE code = 'PRADERA_SEC_CERCA_3'), (SELECT id FROM items WHERE code = 'HERRADURA_GORETH'), 1;
+INSERT INTO quests (code, name, quest_type, zone_id, chain_position, is_boss_quest, requires_quest_id, min_level, max_level, difficulty_stars, npc_name, location_name, is_repeatable, reputation_reward, gold_reward, xp_reward, description, is_personal, giver_npc, turn_in_npc, dialog)
+SELECT 'PRADERA_SEC_CERCA_3_BRUNO', 'La broma de Bruno', 'SECUNDARIA', 1, 3, FALSE, (SELECT id FROM quests WHERE code = 'PRADERA_SEC_CERCA_2'), 7, 15, 2, 'Bruno', 'Aldea Espiga', FALSE, 50, 420, 1600, '«Je. Tengo un plan. Tráeme dos Glándulas de Sapo del lago. Las echo en el guiso de Goreth y se pasa una semana con la panza revuelta. Así aprende.» Puedes seguirle el juego: tráele las glándulas y échalas tú mismo en el guiso de Goreth. Esta elección es para siempre: si aceptas esta misión, la otra desaparece.', FALSE, 'bruno', 'bruno', '{"entrega":"*Bruno se ríe tanto que tiene que sentarse en la cerca* ¿Lo oíste? ¿Lo OÍSTE? «¿Quién le echó sapo a mi guiso?» ¡JA! Tú eres de los míos. Toma, de mi granja: pan de mi trigo, asado y miel. Lo mejor que tengo. No se lo digas a nadie."}'::jsonb WHERE NOT EXISTS (SELECT 1 FROM quests WHERE code = 'PRADERA_SEC_CERCA_3_BRUNO');
+UPDATE quests SET name = 'La broma de Bruno', quest_type = 'SECUNDARIA', zone_id = 1, chain_position = 3, is_boss_quest = FALSE, requires_quest_id = (SELECT id FROM quests WHERE code = 'PRADERA_SEC_CERCA_2'), min_level = 7, max_level = 15, difficulty_stars = 2, npc_name = 'Bruno', location_name = 'Aldea Espiga', is_repeatable = FALSE, reputation_reward = 50, gold_reward = 420, xp_reward = 1600, description = '«Je. Tengo un plan. Tráeme dos Glándulas de Sapo del lago. Las echo en el guiso de Goreth y se pasa una semana con la panza revuelta. Así aprende.» Puedes seguirle el juego: tráele las glándulas y échalas tú mismo en el guiso de Goreth. Esta elección es para siempre: si aceptas esta misión, la otra desaparece.', is_personal = FALSE, giver_npc = 'bruno', turn_in_npc = 'bruno', dialog = '{"entrega":"*Bruno se ríe tanto que tiene que sentarse en la cerca* ¿Lo oíste? ¿Lo OÍSTE? «¿Quién le echó sapo a mi guiso?» ¡JA! Tú eres de los míos. Toma, de mi granja: pan de mi trigo, asado y miel. Lo mejor que tengo. No se lo digas a nadie."}'::jsonb WHERE code = 'PRADERA_SEC_CERCA_3_BRUNO';
+DELETE FROM quest_objectives WHERE quest_id = (SELECT id FROM quests WHERE code = 'PRADERA_SEC_CERCA_3_BRUNO');
+INSERT INTO quest_objectives (quest_id, objective_type, item_id, target_count, description, step, target_code, params) VALUES
+  ((SELECT id FROM quests WHERE code = 'PRADERA_SEC_CERCA_3_BRUNO'), 'DELIVER', (SELECT id FROM items WHERE code = 'GLANDULA_SAPO'), 2, 'Lleva 2 Glándulas de Sapo a Bruno', 1, 'bruno',
+   '{"dialog":"Je, je. Perfectas. Viscosas. Ahora tú: la olla está en la fragua, y Goreth sale a buscar agua al pozo a esta hora. Rápido.","speaker":"Bruno"}'::jsonb),
+  ((SELECT id FROM quests WHERE code = 'PRADERA_SEC_CERCA_3_BRUNO'), 'INVESTIGATE', NULL, 1, 'Echa las glándulas en el guiso de Goreth', 2, NULL,
+   '{"x":82,"y":53,"zone":"pradera","label":"Echar las glándulas en el guiso","dialog":"El guiso de Goreth burbujea junto a la fragua. Huele bien. Echas las dos glándulas, revuelves y te alejas silbando. Desde el pozo se oye a Goreth tararear.","radius":3,"sprite":"olla_robada","speaker":"Tú"}'::jsonb);
+DELETE FROM quest_item_rewards WHERE quest_id = (SELECT id FROM quests WHERE code = 'PRADERA_SEC_CERCA_3_BRUNO');
+INSERT INTO quest_item_rewards (quest_id, item_id, quantity) VALUES
+  ((SELECT id FROM quests WHERE code = 'PRADERA_SEC_CERCA_3_BRUNO'), (SELECT id FROM items WHERE code = 'PAN_CAMPO'), 6),
+  ((SELECT id FROM quests WHERE code = 'PRADERA_SEC_CERCA_3_BRUNO'), (SELECT id FROM items WHERE code = 'ASADO_JABALI'), 4),
+  ((SELECT id FROM quests WHERE code = 'PRADERA_SEC_CERCA_3_BRUNO'), (SELECT id FROM items WHERE code = 'TONICO_MIEL'), 3);
+UPDATE quests SET description = '«¿Una vaca con cinta azul y cencerro? ¡Es Margarita! ¡Es mía! Se me escapa todas las semanas… Ay, no. ¿Bruno y Goreth se están peleando por MI vaca? Y encima uno de los dos ya ni le habla al otro. Ayúdame a arreglar este lío.»'
+WHERE code = 'PRADERA_SEC_CERCA_4';

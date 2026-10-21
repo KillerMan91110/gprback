@@ -3,6 +3,7 @@ const db = require('../db/db');
 const { requireAuth, requireSelf } = require('../lib/auth');
 const { getActivePetBonuses } = require('../lib/pets');
 const { parseQuantity } = require('../lib/currency');
+const huevos = require('../lib/huevos');
 
 const router = express.Router({ mergeParams: true });
 router.use(requireAuth);
@@ -12,10 +13,7 @@ const HATCH_HOURS = {
   COMUN: 0.25, POCO_COMUN: 0.75, RARO: 1.5, EPICO: 2, LEGENDARIO: 4,
 };
 
-const EGG_CODE_TO_RARITY = {
-  HUEVO_COMUN: 'COMUN', HUEVO_POCO_COMUN: 'POCO_COMUN',
-  HUEVO_RARO: 'RARO', HUEVO_EPICO: 'EPICO', HUEVO_LEGENDARIO: 'LEGENDARIO',
-};
+// los huevos de siempre (HUEVO_RARO) y los de cada zona (HUEVO_TUNDRA_RARO): ver lib/huevos.js
 
 // Tienda del World Boss: sube el tope de nivel de UNA mascota puntual en vez de darle bond
 // normal — por eso se maneja aparte del calculo de bond_points/nivel de mas abajo.
@@ -202,7 +200,7 @@ router.post('/incubator', async (req, res, next) => {
       return res.status(400).json({ error: 'No tienes ese huevo' });
     }
 
-    const eggRarity = EGG_CODE_TO_RARITY[invRes.rows[0].code];
+    const eggRarity = huevos.huevo(invRes.rows[0].code)?.rarity;
     if (!eggRarity) return res.status(400).json({ error: 'Ese item no es un huevo válido' });
 
     await db.query(
@@ -237,17 +235,16 @@ router.post('/incubator/claim', async (req, res, next) => {
     if (!incRes.rows.length) {
       return res.status(400).json({ error: 'No hay huevo listo para eclosionar' });
     }
-    const { egg_rarity } = incRes.rows[0];
+    const { egg_rarity, egg_item_id } = incRes.rows[0];
 
-    const petRes = await db.query(
-      'SELECT id FROM pets WHERE rarity = $1 ORDER BY random() LIMIT 1',
-      [egg_rarity]
-    );
-    if (!petRes.rows.length) return res.status(500).json({ error: 'No hay mascotas de esa rareza' });
+    // el huevo de una zona da una mascota de esa zona (lib/huevos.js)
+    const eggCode = (await db.query('SELECT code FROM items WHERE id = $1', [egg_item_id])).rows[0]?.code;
+    const petId = await huevos.mascotaDe(eggCode, egg_rarity);
+    if (!petId) return res.status(500).json({ error: 'No hay mascotas de esa rareza' });
 
     const newPetRes = await db.query(
       'INSERT INTO player_pets(player_id, pet_id) VALUES($1, $2) RETURNING id',
-      [playerId, petRes.rows[0].id]
+      [playerId, petId]
     );
 
     await db.query('DELETE FROM player_incubator WHERE player_id = $1', [playerId]);

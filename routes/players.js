@@ -1845,7 +1845,7 @@ router.get('/:playerId/craft/available', async (req, res, next) => {
               cr.scroll_item_id, si.name AS scroll_item_name, si.code AS scroll_item_code,
               cr.required_class_id, c.name AS required_class_name, c.code AS required_class_code,
               i.item_type AS result_item_type, i.id AS result_item_id, i.slot AS result_slot, i.required_level, i.is_two_handed,
-              pk.recipe_id IS NOT NULL AS known, COALESCE(pk.seen, TRUE) AS seen,
+              i.rarity AS result_rarity, pk.recipe_id IS NOT NULL AS known, COALESCE(pk.seen, TRUE) AS seen,
               EXISTS (SELECT 1 FROM player_learned_recipes plr WHERE plr.player_id = $1 AND plr.recipe_id = cr.id) AS learned
        FROM crafting_recipes cr
        JOIN items i ON i.id = cr.result_item_id
@@ -1934,6 +1934,8 @@ router.get('/:playerId/craft/available', async (req, res, next) => {
       }
       // con candado: con su pergamino al alcance (lo suelta un jefe de una zona que ya abriste)
       if (locked && (!libro || !scrollSources.has(recipe.scroll_item_id))) continue;
+      // un arma única de otra clase (la Lágrima de Aethra): no se puede hacer, no se muestra (ver lib/recetas.js)
+      if (recipe.result_rarity === 'UNICO' && recipe.required_class_code && !heroClassCodes.has(recipe.required_class_code)) continue;
       const ingredients = await db.query(
         `SELECT ri.item_id, it.name AS item_name, ri.quantity
          FROM crafting_recipe_ingredients ri

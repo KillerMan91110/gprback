@@ -12,6 +12,15 @@ const { spendCurrency, withTransaction, parseQuantity } = require('../lib/curren
 const combatEngine = require('./combat');
 
 const globalRouter = express.Router();
+
+// el final del juego: la misión que abre al Devorador y el nivel de su clon
+const WORLD_BOSS_QUEST = 'RUINAS_HISTORIA_14_VIGIA';
+const WORLD_BOSS_LEVEL = 100;
+const esVigia = async (playerId) => (await db.query(
+  `SELECT 1 FROM player_quest_completions c JOIN quests q ON q.id = c.quest_id
+   WHERE c.player_id = $1 AND q.code = $2`,
+  [playerId, WORLD_BOSS_QUEST]
+)).rows.length > 0;
 globalRouter.use(requireAuth);
 
 const playerRouter = express.Router({ mergeParams: true });
@@ -68,11 +77,14 @@ async function getTop3(eventId) {
 // GET /api/worldboss/status
 globalRouter.get('/status', async (req, res, next) => {
   try {
+    // vigia: si quien pregunta ya puede enfrentarlo (terminó la historia; ver /enter)
+    const vigia = await esVigia(req.playerId);
     let event = await getActiveOrLastEvent();
-    if (!event) return res.json({ active: false, status: null });
+    if (!event) return res.json({ active: false, status: null, vigia });
     event = await expireIfNeeded(event);
     const top3 = await getTop3(event.id);
     res.json({
+      vigia,
       active: event.status === 'ACTIVE',
       status: event.status,
       monsterCode: event.monster_code,
@@ -107,9 +119,6 @@ globalRouter.get('/leaderboard', async (req, res, next) => {
 // player_coop_group_members), con 3 diferencias: valida nivel mínimo + cooldown de intento,
 // arranca el clon con hp_remaining REAL del evento en vez del HP escalado por nivel, y marca la
 // sesión con world_boss_event_id para que finalizeSession sepa qué hacer al cerrarse.
-// el final del juego: la misión que abre al Devorador y el nivel de su clon
-const WORLD_BOSS_QUEST = 'RUINAS_HISTORIA_14_VIGIA';
-const WORLD_BOSS_LEVEL = 100;
 
 playerRouter.post('/enter', async (req, res, next) => {
   try {
@@ -121,12 +130,7 @@ playerRouter.post('/enter', async (req, res, next) => {
     }
     // el Devorador de Estrellas es el final del juego: solo lo enfrenta quien renovó los Sellos (la R14 de las
     // Ruinas Ancestrales, «El Vigía de Etheria»), y siempre a nivel 100 (gprback/docs/zona7_ruinas.md)
-    const vigia = await db.query(
-      `SELECT 1 FROM player_quest_completions c JOIN quests q ON q.id = c.quest_id
-       WHERE c.player_id = $1 AND q.code = $2`,
-      [req.playerId, WORLD_BOSS_QUEST]
-    );
-    if (!vigia.rows.length) {
+    if (!(await esVigia(req.playerId))) {
       return res.status(403).json({ error: 'Solo el Vigía de Etheria puede enfrentar al Devorador de Estrellas: termina la historia de las Ruinas Ancestrales.' });
     }
 

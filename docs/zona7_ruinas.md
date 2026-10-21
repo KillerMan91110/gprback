@@ -969,3 +969,76 @@ las Ruinas Ancestrales, y la historia del juego, quedan completas.
     mochila y el epílogo.
 - **Queda para después** (de la sección 12): los maestros de evolución aethrinos, y los huevos con tema y los
   sobres de cartas por zona.
+
+**Tanda 8 — después del final: cabos sueltos, huevos y sobres por zona, la cerca de la Pradera y el Paso de las
+Cumbres: hecha** (sin commit).
+
+- **Cabos sueltos del final:**
+  - **Los aliados en combate** (`battleGear.js` `ALLY_SETS`, `BattleScene.spawnHero`): cada uno va con la ropa del
+    color de su gente, como el equipo pinta a tu héroe. Ren: pradera; Tilo: acero; Rhaegar: costas; Eirik: escarcha;
+    Hela: reina; Velkan: lich; Liora: catacumbas; Aldren: sagrado.
+  - **Epílogo:** líneas nuevas después de la R13 para Ren, Tilo (Pradera, Puerto y Tundra), Rhaegar (Puerto y
+    Fiordo), Eirik, Hela (con el perdón peleó; con la justicia lo vio desde la enfermería), Velkan y Gaspar
+    (Volcán y Costas). Seraphine, después de la R14, cuenta que el Velo se abrió al este.
+  - **La página del Jefe Mundial** ya no dice «nivel 10»: `GET /worldboss/status` trae `vigia` y, sin la R14, la
+    página explica que hay que terminar la historia de las Ruinas.
+  - **La justicia, probada:** en el tercer combate pelean Liora y Aldren (`_respaldo_claude/ruinas/probar_justicia.js`).
+  - **Arreglado:** el Taller mostraba las cinco recetas de la Lágrima (al conseguir la Lágrima Cristalizada se
+    descubrían todas). Ahora las de un arma única de clase solo se descubren y se muestran para tu clase
+    (`lib/recetas.js` y `GET /craft/available`).
+- **Huevos por zona** (`lib/huevos.js`):
+  - 35 huevos: siete zonas por cinco rarezas (`HUEVO_TUNDRA_RARO`, «Huevo Raro de la Tundra»…).
+  - Cada una de las 55 mascotas tiene su zona (`pets.zone_id`). Del huevo de una zona nace una mascota de esa
+    zona y esa rareza; si la zona no tiene ninguna de esa rareza, una cualquiera. Los huevos de siempre siguen
+    igual.
+  - Los monstruos de cada zona sueltan el huevo de su zona en vez del de siempre (misma rareza y chance). Las
+    rarezas que nadie soltaba en una zona las sueltan sus comunes (el común, 2%), sus minijefes (el épico, 3%) y
+    su jefe legendario (el legendario, 2%): las 35 se pueden conseguir. Los recursos del mapa siguen dando los
+    de siempre.
+  - Íconos en `crear_objetos.lua`: un huevo con dibujo por zona y la gema de su rareza, más los cinco de
+    siempre (ahora con pixel art propio).
+- **Sobres de cartas por zona:** `SOBRE_<ZONA>`.
+  - Clic derecho en la mochila (o «Abrir sobre» en el inventario): da 3 cartas de monstruos de la zona.
+    Probabilidad por rareza: comunes 70, raros 22, minijefes 6, legendarios 2. Ruta `POST /coleccion/cartas/sobre`.
+  - Precios: Pradera 1.500 y Montañas 2.500 (los vende Cedric el Joyero: esas zonas no tienen mercader propio),
+    Volcán 4.000 (Marga), Costas 6.000 (Salitre), Tundra 8.000 (Bjorn), Catacumbas 10.000 (Hollin) y Ruinas
+    12.000 (Casio).
+  - El cofre de cada mazmorra trae, además, el sobre de su zona una de cada cinco veces (`lib/mazmorra.js`).
+  - Los sobres no se dan de comer a las mascotas.
+- **La cerca de la Pradera:** en la parte 3 eliges (`lib/eleccion.js`, como el perdón y la justicia).
+  - **«Un regalo envenenado»** (`PRADERA_SEC_CERCA_3`): le llevas las glándulas a Goreth. Te da la
+    **Herradura de Goreth**, un accesorio raro para cualquier clase (nivel 8: +12 vida, +5 defensa, +4 defensa
+    mágica, +2% crítico), con ícono propio.
+  - **«La broma de Bruno»** (`PRADERA_SEC_CERCA_3_BRUNO`, nueva): le llevas las glándulas a Bruno y las echas en
+    el guiso de Goreth, junto a la fragua. Te da 6 Panes de Campo, 4 Asados de Jabalí y 3 Tónicos de Miel.
+  - El elegido te habla como amigo; el otro, ofendido (`dialogues.js`). La parte 4, la vaca de Mirna, sale con
+    cualquiera de las dos, y al final se reconcilian igual.
+  - Quien ya había hecho la parte 3 queda del lado de Goreth: esa parte siempre terminaba avisándole.
+- **El Paso de las Cumbres:** después de la R14 se cruza a pie de las Ruinas a la Tundra.
+  - Del lado de las Ruinas, tres filas de calzada (y 88-90) hasta el borde este. Las tapan tres nieblas del Velo
+    con fase `!RUINAS_HISTORIA_14_VIGIA`.
+  - Del lado de la Tundra, un puente de hielo sobre el mar helado del borde oeste, en las mismas filas.
+  - Los dos generadores abren el paso **al final**, después de todo lo que usa el azar. Así el resto de los
+    mapas salió idéntico: solo cambian 37 casillas en las Ruinas y 13 en la Tundra. En la Tundra, además, se
+    actualizó la referencia al tileset, que creció con las zonas nuevas.
+  - `etheria.json` cuenta el paso nuevo.
+- **SQL:** dos bloques nuevos al final de `schema.sql` y de `pendiente_supabase.sql`, los dos repetibles:
+  «huevos y sobres de cartas por zona» y «la elección de la cerca (Pradera)». Se aplicaron dos veces seguidas
+  sin errores. Generadores: `_respaldo_claude/huevos/gen_huevos_sobres.js` y `_respaldo_claude/cerca/gen_cerca.js`.
+- **Probado por API**, con Brisa, que quedó como estaba:
+  - `probar_justicia.js`: con la justicia, Liora y Aldren en el tercer combate; en el Taller, solo la receta de
+    su clase.
+  - `probar_huevos.js`:
+    - tres Huevos Raros de la Tundra dan la Serpiente de Hielo, la única rara de la Tundra;
+    - el huevo común de siempre sigue andando;
+    - dos sobres de las Ruinas dan 3 cartas cada uno, todas de las Ruinas;
+    - sin sobre, da error;
+    - el joyero vende los de la Pradera y las Montañas.
+  - `probar_cerca.js`: los dos caminos. Al aceptar uno, el otro desaparece; cada uno da su regalo; después
+    aparece la parte 4.
+  - `/worldboss/status` trae `vigia: false` para Brisa.
+  - `revisar_misiones.js` de las zonas 1, 5 y 7: sin problemas.
+- **No probado:**
+  - el sobre en el cofre de una mazmorra (no se jugó un jefe de mazmorra entero);
+  - en el navegador: el color de los aliados, los íconos nuevos en la mochila, abrir un sobre con clic derecho,
+    la niebla del Paso de las Cumbres y el cruce a pie a la Tundra.

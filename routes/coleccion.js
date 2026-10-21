@@ -5,6 +5,8 @@ const db = require('../db/db');
 const { requireAuth, requireSelf } = require('../lib/auth');
 const { withTransaction } = require('../lib/currency');
 const col = require('../lib/coleccion');
+const huevos = require('../lib/huevos');
+const inventory = require('../lib/inventory');
 const mythic = require('../lib/mythic');
 const mazmorras = require('../lib/mazmorras');
 const combatEngine = require('./combat');
@@ -198,6 +200,32 @@ router.post('/cartas/quitar', async (req, res, next) => {
       if (prev.rows[0]) await col.giveCard(req.playerId, prev.rows[0].monster_id, 1, client);
     });
     res.json(await cardsState(req.playerId));
+  } catch (err) { next(err); }
+});
+
+// POST /api/player/:playerId/coleccion/cartas/sobre { itemId } — abre un sobre de cartas de una zona
+// (lib/huevos.js): se gasta y da tres cartas de monstruos de esa zona.
+router.post('/cartas/sobre', async (req, res, next) => {
+  try {
+    await col.ensureTables();
+    const itemId = Number(req.body?.itemId);
+    const item = itemId ? (await db.query('SELECT id, code, name FROM items WHERE id = $1', [itemId])).rows[0] : null;
+    const zoneId = huevos.sobreZona(item?.code);
+    if (!zoneId) return res.status(400).json({ error: 'Eso no es un sobre de cartas' });
+    const out = await withTransaction(async (client) => {
+      const have = await client.query(
+        'SELECT COALESCE(SUM(quantity), 0)::int AS n FROM player_inventory WHERE player_id = $1 AND item_id = $2',
+        [req.playerId, itemId]
+      );
+      if (have.rows[0].n < 1) return { error: 'No tienes ese sobre' };
+      await inventory.removeItem(req.playerId, itemId, 1, 0, null, client);
+      return { cards: await huevos.abrirSobre(req.playerId, zoneId, client) };
+    });
+    if (out.error) return res.status(400).json({ error: out.error });
+    res.json({
+      cards: out.cards,
+      message: `Abriste el ${item.name}: ${out.cards.map((c) => c.name).join(', ')}.`,
+    });
   } catch (err) { next(err); }
 });
 
