@@ -288,14 +288,14 @@ cumplir con sus habilidades. Se arreglaron así:
   | Mago | Llamar Familiar | 14 | Invocador |
   | Mago | Destello Arcano (luz) | 12 | Mago Divino, Mago Luminoso |
   | Arquero | Flecha Sombría (oscuridad) | 12 | Arquero Umbrío |
-  | Arquero | Flecha Venenosa | 16 | Tirador de Veneno |
+  | Arquero | Flecha Ponzoñosa | 16 | Tirador de Veneno |
   | Arquero | Flecha de Trueno (rayo) | 25 | Arquero del Rayo |
   | Pícaro | Trampa de Cuerda | 12 | Especialista en Trampas |
 
 - **Tres reglas del combate** (`routes/combat.js`):
   - los tajos del Guerrero cuentan «de un tajo» (`CUT_SKILL_CODES`);
   - la Trampa de Cuerda funciona como la del Especialista (`TRAP_SKILL_CODES`);
-  - la Flecha Venenosa cuenta como envenenamiento (`POISON_SKILL_CODES`).
+  - la Flecha Ponzoñosa cuenta como envenenamiento (`POISON_SKILL_CODES`).
 - **Condiciones cambiadas** en el escalón 2 y 3:
 
   | Rama | Antes pedía | Ahora pide |

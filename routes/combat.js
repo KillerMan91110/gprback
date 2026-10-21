@@ -2,6 +2,7 @@ const express = require('express');
 const db = require('../db/db');
 const combat = require('../lib/combat');
 const mecanicas = require('../lib/mecanicas');
+const armas = require('../lib/armas');
 const inventory = require('../lib/inventory');
 const leveling = require('../lib/leveling');
 const { getEquipmentBonuses, getNpcEquipmentBonuses } = require('../lib/equipment');
@@ -1469,6 +1470,8 @@ const ensureSkillCodeColumn = () => (skillCodeColumn ??= db.query('ALTER TABLE c
 
 async function insertLog(sessionId, round, entry) {
   await ensureSkillCodeColumn();
+  // un golpe que no llega (barrera, clon, contragolpe: lib/mecanicas.js) no dice «0 de daño»
+  if (entry.description) entry.description = entry.description.replace(/, (haciéndole|infligiéndole) 0 de daño/g, ' sin hacerle daño');
   await db.query(
     `INSERT INTO combat_log(session_id, round, actor_participant_id, action, target_participant_id, item_id, damage, heal, evaded, crit, success, description, hp_after, mana_after, skill_code)
      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15)`,
@@ -3847,6 +3850,13 @@ router.post('/sessions/:id/action', async (req, res, next) => {
           if (attackImbueElemCode) attackBonusPercent += actorPetBonuses.elemental_damage;
         }
       }
+      // sin arma en la mano el héroe pega con los puños: la mitad (los monjes pelean así: lib/armas.js)
+      if (actor.player_id && !actor.npc_id) {
+        const clase = await db.query('SELECT COALESCE(evolution_class_id, current_class_id) AS c FROM players WHERE id = $1', [actor.player_id]);
+        if (!armas.CLASES_MONJE.has(Number(clase.rows[0]?.c)) && !(await armas.armasDe(actor.player_id)).has('ARMA')) {
+          attackBonusPercent += armas.BASICO_SIN_ARMA_PCT;
+        }
+      }
       // Bonuses de pasivas de clase (aplican a cualquier actor PLAYER, incluyendo NPCs)
       if (isMagicAttack) attackBonusPercent += Number(actor.magic_damage_bonus || 0);
       else attackBonusPercent += Number(actor.physical_damage_bonus || 0);
@@ -3954,6 +3964,9 @@ router.post('/sessions/:id/action', async (req, res, next) => {
           if (!learned.rows.length) return res.status(400).json({ error: 'Todavía no aprendiste esa habilidad' });
         }
         actorClassId = playerRow.evolution_class_id || playerRow.current_class_id;
+        // flechas sin arco, dagas sin daga… (skills.arma_requerida, lib/armas.js)
+        const sinArma = armas.motivo(skill, await armas.armasDe(actor.player_id));
+        if (sinArma) return res.status(400).json({ error: sinArma });
       }
 
       if (actor.mana < skill.mana_cost) {

@@ -33658,3 +33658,97 @@ UPDATE skills SET scaling_stat = 'HYBRID', scaling_multiplier = v.mult FROM (VAL
 ) AS v(code, mult) WHERE skills.code = v.code;
 UPDATE skills SET learn_level = 56 WHERE code IN ('MAGO_ESPADA_ATAQUE', 'ARQUEOLOGO_MAGICO_ATAQUE');
 UPDATE skills SET learn_level = 74 WHERE code IN ('MAGO_ESPADA_AOE', 'ARQUEOLOGO_MAGICO_AOE');
+
+-- ============================================================================================
+-- Arreglos de la revisión del front (repetible):
+--  * Tres habilidades de monstruo sin clase ni dueño se aprendían solas en el nivel 1: las tenía todo jugador. Pasan
+--    a no aprenderse solas (ningún monstruo las usa: no cambia ningún combate).
+--  * El Invocador recibe Sacrificio al evolucionar: su invocación propia llega también al evolucionar (nivel 20).
+--  * Cinco habilidades firma tenían el mismo nombre que otra de su misma línea de clase.
+--  * Las misiones de práctica de cada clase tienen el lugar de su maestro (el diario muestra «Aurelia» en vez de
+--    «Pradera Dorada» para las misiones de los NPCs de la capital: src/components/world/QuestPanels.js).
+-- ============================================================================================
+UPDATE skills SET learn_method = 'DROP' WHERE code IN ('MONSTRUO_ALIENTO_FUEGO', 'MONSTRUO_ERUPCION', 'MONSTRUO_VENENO_COLMILLO')
+  AND class_id IS NULL AND NOT EXISTS (SELECT 1 FROM monster_skills ms WHERE ms.skill_id = skills.id);
+DELETE FROM player_skills WHERE skill_id IN (SELECT id FROM skills WHERE code IN ('MONSTRUO_ALIENTO_FUEGO', 'MONSTRUO_ERUPCION', 'MONSTRUO_VENENO_COLMILLO'));
+
+UPDATE skills SET learn_level = 20 WHERE code = 'INVOCADOR_INVOCAR_ESPIRITU';
+
+UPDATE skills SET name = v.nombre FROM (VALUES
+  ('PIROMANTICO_COMBUSTION', 'Fuego Voraz'), ('INQUISIDOR_SAGRADO_EXORCISMO', 'Destierro Sagrado'),
+  ('ARQUERO_FLECHA_VENENOSA', 'Flecha Ponzoñosa'), ('PALADIN_DIVINO_JUICIO_FINAL', 'Ira del Cielo'),
+  ('MAESTRO_ASESINO_SENTENCIA_DE_MUERTE', 'Último Suspiro')
+) AS v(code, nombre) WHERE skills.code = v.code;
+UPDATE skill_effects e SET description = s.name FROM skills s
+WHERE e.skill_id = s.id AND e.effect_type = 'MECANICA'
+  AND s.code IN ('PIROMANTICO_COMBUSTION', 'INQUISIDOR_SAGRADO_EXORCISMO', 'PALADIN_DIVINO_JUICIO_FINAL', 'MAESTRO_ASESINO_SENTENCIA_DE_MUERTE');
+
+UPDATE quests q SET location_name = v.lugar FROM (VALUES (1, 'Cuartel del Acero'), (2, 'Torre Arcana'), (3, 'Campo del Halcón'), (4, 'Aurelia'), (5, 'Capilla de la Luz'))
+  AS v(clase, lugar)
+WHERE q.required_class_id = v.clase AND q.location_name IS NULL
+  AND q.code IN ('GUERRERO_ENTRENAMIENTO_DEFENSA', 'GUERRERO_DUELO_CAMPEON', 'MAGO_MAESTRO_OSCURO', 'MAGO_DOMINIO_ELEMENTAL', 'ARQUERO_CAZADOR',
+    'ARQUERO_TIRADOR_PERFECTO', 'PICARO_ASESINO_SILENCIOSO', 'PICARO_CONTRATO', 'SACERDOTE_PURGA', 'SACERDOTE_PODER_DIVINO');
+
+-- ============================================================================================
+-- Habilidades que piden un arma (repetible). Una habilidad de flechas necesita un arco (o una ballesta), una de
+-- dagas necesita una daga, un tajo necesita un arma de filo y un golpe de escudo necesita un escudo. Sin el arma,
+-- el botón sale apagado en combate y el servidor la rechaza (lib/armas.js, routes/combat.js).
+--   ARCO   = arco o ballesta en la mano
+--   DAGA   = daga o estilete (en la mano o la Daga Gemela en la mano izquierda)
+--   FILO   = espada, hacha, filo, Excálibur o daga
+--   ESCUDO = escudo en la mano izquierda
+--   ARMA   = cualquier arma en la mano
+-- Se clasifica por la clase dueña (y el arma que usa su equipo) y por el nombre. Los monjes pelean con los puños y
+-- los magos y sacerdotes con hechizos: nunca piden arma. Las clases cuyo equipo propio es otro (el Elfo Señor del
+-- Bosque y el Guardián Silvestre usan espada, el Maestro Asesino Oscuro dagas) piden «un arma», no un arco.
+-- ============================================================================================
+ALTER TABLE skills ADD COLUMN IF NOT EXISTS arma_requerida TEXT;
+UPDATE skills SET arma_requerida = NULL WHERE arma_requerida IS NOT NULL;
+
+-- arqueros con arco o ballesta: todos sus disparos
+UPDATE skills s SET arma_requerida = 'ARCO' FROM classes c
+WHERE c.id = s.class_id AND NOT s.is_passive
+  AND c.code IN ('ARQUERO', 'ARQUERO_CELESTIAL', 'ARQUERO_DEL_RAYO', 'ASESINO_ARCANO', 'BALLESTERO', 'CAZADOR', 'ELFO_ANTIGUO',
+    'ELFO_SILVESTRE', 'FRANCOTIRADOR', 'FRANCOTIRADOR_FANTASMAL', 'MAESTRO_CAZADOR', 'RANGER', 'RANGER_PRIMORDIAL',
+    'TIRADOR_EXPLOSIVO', 'TIRADOR_VENENO')
+  AND ((s.skill_type IN ('ATAQUE', 'ESTADO_ALTERADO') AND s.damage_school = 'FISICO') OR s.name ~* '(flecha|disparo|tiro)')
+  AND s.name !~* 'barril';
+
+-- la línea del arquero que pelea con otra arma
+UPDATE skills s SET arma_requerida = 'ARMA' FROM classes c
+WHERE c.id = s.class_id AND NOT s.is_passive
+  AND c.code IN ('ELFO_SENOR_BOSQUE', 'GUARDIAN_SILVESTRE', 'MAESTRO_ASESINO_OSCURO')
+  AND s.skill_type IN ('ATAQUE', 'ESTADO_ALTERADO') AND s.damage_school = 'FISICO';
+
+-- pícaros (dagas): las cuchilladas piden daga; los demás golpes, un arma; trampas, venenos y explosiones, nada
+UPDATE skills s SET arma_requerida = CASE WHEN s.name ~* '(cuchill|puñal|apuñal|apunal|daga|filo|tajo|corte|inyecc|estocada|degoll)'
+    THEN 'DAGA' ELSE 'ARMA' END
+FROM classes c
+WHERE c.id = s.class_id AND NOT s.is_passive
+  AND c.code IN ('PICARO', 'ACROBATA', 'ASESINO', 'ASESINO_DE_ELITE', 'BUSCADOR_DE_TRAMPAS', 'ENVENENADOR', 'ESPECIALISTA_TRAMPAS',
+    'EXPLORADOR_MAZMORRAS', 'LADRON_LEGENDARIO', 'LADRON_MAESTRO', 'MAESTRO_ASESINO', 'MAESTRO_DEL_SIGILO', 'MAESTRO_ENVENENADOR',
+    'NINJA', 'NINJA_MAESTRO', 'NINJA_SOMBRA', 'PICARO_ELEMENTAL', 'SAQUEADOR_DE_TESOROS')
+  AND s.skill_type = 'ATAQUE' AND s.damage_school = 'FISICO'
+  AND s.name !~* '(trampa|minado|nube|veneno|plaga|toxina|explosi|detona|bomba)';
+
+-- guerreros con espada o hacha: los golpes de escudo piden escudo; los tajos, filo; los demás golpes, un arma
+UPDATE skills s SET arma_requerida = CASE
+    WHEN s.name ~* 'escudo' THEN 'ESCUDO'
+    WHEN s.name ~* '(corte|tajo|filo|espada|desgarr|torbellino|vendaval de acero|runa grabada)' THEN 'FILO'
+    ELSE 'ARMA' END
+FROM classes c
+WHERE c.id = s.class_id AND NOT s.is_passive
+  AND c.code IN ('GUERRERO', 'ESPADACHIN', 'MAESTRO_ESPADACHIN', 'CABALLERO', 'CABALLERO_BLINDADO', 'CABALLERO_OSCURO',
+    'DRAGON_CABALLERO', 'BERSERKER', 'BERSERKER_DEL_CAOS', 'TITAN_FURIOSO', 'GUERRERO_MAGUS', 'MAGO_ESPADA', 'ARQUEOLOGO_MAGICO',
+    'PALADIN_OSCURO', 'MERCENARIO')
+  AND (
+    (s.name ~* 'escudo' AND s.skill_type IN ('ATAQUE', 'BUFF'))
+    OR (s.skill_type IN ('ATAQUE', 'ESTADO_ALTERADO') AND s.damage_school IN ('FISICO', 'HIBRIDO')
+        AND s.name ~* '(corte|tajo|filo|espada|desgarr|torbellino|vendaval de acero|runa grabada)')
+    OR (s.skill_type = 'ATAQUE' AND s.damage_school = 'FISICO' AND s.name !~* '(aliento|zarpa)')
+  );
+
+-- caballeros de la fe (cetro): sus golpes físicos piden un arma
+UPDATE skills s SET arma_requerida = 'ARMA' FROM classes c
+WHERE c.id = s.class_id AND NOT s.is_passive AND c.code IN ('CABALLERO_SAGRADO', 'PALADIN')
+  AND s.skill_type = 'ATAQUE' AND s.damage_school = 'FISICO';

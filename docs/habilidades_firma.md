@@ -89,7 +89,7 @@ Se aprenden solas al llegar a la rama. Usan las mismas mecánicas y estas nuevas
 
 | Rama (código) | Habilidad | Qué hace |
 |---|---|---|
-| MAGO_PIROMANTICO | Combustión | Fuego que se alimenta de fuego: si el enemigo ya ardía, estalla (+80% de daño). Si no, lo deja ardiendo (6% de su vida por ronda). |
+| MAGO_PIROMANTICO | Fuego Voraz | Fuego que se alimenta de fuego: si el enemigo ya ardía, estalla (+80% de daño). Si no, lo deja ardiendo (6% de su vida por ronda). |
 | MAGO_CRIOMANTICO | Cero Absoluto | Una ola de frío sobre todos: 35% de probabilidad de congelar a cada uno (pierde el turno). Contra los mojados, congela seguro. |
 | MAGO_ELECTROMANTICO | Rayo Encadenado | Un rayo que salta a dos enemigos más con el 60% del daño. Sobre un enemigo mojado, el salto hace el doble. |
 | MAGO_HIDROMANTE | Marea Sanadora | Agua clara que cura a todo el grupo y se lleva un mal de cada uno. |
@@ -125,7 +125,7 @@ Se aprenden solas al llegar a la rama. Usan las mismas mecánicas y estas nuevas
 | RANGER_PRIMORDIAL | Enredaderas | Enredaderas con espinas en todo el campo: 40% de atrapar a cada enemigo y todos sangran savia (3% por ronda). |
 | GUARDIAN_SILVESTRE | Guardia del Bosque | Juras proteger a un aliado (recibes la mitad de su daño) y le plantas una semilla que lo cura con cada golpe. |
 | MAESTRO_ASESINO_OSCURO | Flecha del Vacío | Una flecha que se traga la voz y la magia: silencia 2 rondas y roba el 20% de la magia. |
-| MAESTRO_ASESINO | Sentencia de Muerte | Contra un enemigo con menos del 35% de vida, triple daño. Si lo mata, no gastas el turno. |
+| MAESTRO_ASESINO | Último Suspiro | Contra un enemigo con menos del 35% de vida, triple daño. Si lo mata, no gastas el turno. |
 | MAESTRO_ENVENENADOR | Detonar Toxinas | Haces estallar todos los venenos: +150% de daño contra cada enemigo envenenado o con plaga (y se lleva el veneno). |
 | NINJA_MAESTRO | Danza de Clones | Dos clones de sombra te rodean durante 3 rondas: cada uno se lleva un golpe entero. Y +20% de velocidad. |
 | NINJA_SOMBRA | Sello de Sombra | Un sello en los ojos y en la boca: silenciado 2 rondas y ciego (30%). |
@@ -160,9 +160,9 @@ Un golpe enorme que se carga con el combate: se puede usar **desde la ronda 3 y 
 | MAGO_COSMICO | Colapso Estelar | Una estrella cae y se apaga: el tiempo se detiene y todos los enemigos pierden su próximo turno. |
 | ELFO_SENOR_BOSQUE | Bosque Eterno | El bosque entero despierta: cura al grupo el 20%, una semilla en cada uno (8% por golpe) y +20% de velocidad. |
 | ASESINO_DE_ELITE | Marca de la Muerte | Ignora toda la defensa. Contra un enemigo con menos del 40% de vida, triple daño; si muere, no gastas el turno. |
-| PALADIN_DIVINO | Juicio Final | La luz juzga a todos: quedan ciegos (30%) y sentenciados (cada vez que actúen, tu magia los quema). |
+| PALADIN_DIVINO | Ira del Cielo | La luz juzga a todos: quedan ciegos (30%) y sentenciados (cada vez que actúen, tu magia los quema). |
 | ASCETA | Iluminación | Levantas a los caídos con el 60% de su vida y repartes la vida del grupo, sumando un 30% a cada uno. |
-| EXORCISTA | Exorcismo Supremo | Echas al mal de todos: silenciados 3 rondas y pierden hasta tres mejoras cada uno. |
+| EXORCISTA | Destierro Sagrado | Echas al mal de todos: silenciados 3 rondas y pierden hasta tres mejoras cada uno. |
 | HERBOLARIO_SAGRADO | Elixir de la Vida | El elixir perfecto: cura al grupo el 35%, le quita tres males a cada uno y planta una semilla. |
 | SACERDOTE_DEL_CAOS | Eclipse | El sol se apaga: todos reciben cinco capas de plaga de golpe y quedan silenciados 2 rondas. |
 | APOSTOL | Segunda Venida | Todos los caídos vuelven con la vida entera y el grupo queda cubierto por una barrera del 20%. |

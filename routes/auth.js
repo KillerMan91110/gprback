@@ -61,6 +61,16 @@ router.post('/register', async (req, res, next) => {
     // del Viajero de Aurelia (es un paso de la guía). Si fallara no impide crear la cuenta.
     await piedra.entregar(player.id).catch(() => {});
 
+    // Y el arma de Pradera de su clase, ya equipada: las habilidades de flechas, dagas y tajos piden su arma
+    // (lib/armas.js) y sin arma el básico pega la mitad. Si fallara no impide crear la cuenta.
+    await db.query(
+      `INSERT INTO player_equipment(player_id, slot, item_id, enchant_level, quality_tier)
+       SELECT $1, 'WEAPON', i.id, 0, 0 FROM items i JOIN classes c ON c.id = $2
+       WHERE i.code = c.code || '_WEAPON_PRADERA'
+       ON CONFLICT (player_id, slot) DO NOTHING`,
+      [player.id, classId]
+    ).catch(() => {});
+
     // Pradera Dorada desbloqueada desde el inicio para todos los jugadores nuevos.
     await db.query(
       `INSERT INTO player_zone_unlocks(player_id, zone_id)

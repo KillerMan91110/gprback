@@ -35,6 +35,7 @@ const npcSell = require('../lib/npcSell');
 const recetas = require('../lib/recetas');
 const fuentes = require('../lib/fuentes');
 const desmantelar = require('../lib/desmantelar');
+const armas = require('../lib/armas');
 const comida = require('../lib/comida');
 
 const router = express.Router();
@@ -337,10 +338,12 @@ router.get('/:playerId/skills', async (req, res, next) => {
     }
     const player = playerResult.rows[0];
     const classIds = await evolution.getClassAncestorChain(player.evolution_class_id || player.current_class_id);
+    await armas.asegurarColumna();
+    const etiquetas = await armas.armasDe(playerId);
 
     const skillsResult = await db.query(
       `SELECT s.id, s.code, s.name, s.skill_type, s.damage_school, s.target_type, s.mana_cost,
-              s.hits, s.description, s.cooldown_rounds, e.code AS element_code
+              s.hits, s.description, s.cooldown_rounds, s.arma_requerida, e.code AS element_code
        FROM skills s
        LEFT JOIN elements e ON e.id = s.element_id
        WHERE s.is_passive = FALSE AND s.skill_type != 'PASIVA'
@@ -369,6 +372,11 @@ router.get('/:playerId/skills', async (req, res, next) => {
         cooldownRounds: s.cooldown_rounds,
         supported,
         unsupportedReason: supported ? null : 'Esta habilidad todavía no está disponible en combate.',
+        // el arma que pide (null = ninguna) y si la tiene equipada ahora
+        armaRequerida: s.arma_requerida,
+        armaNombre: s.arma_requerida ? armas.NOMBRE[s.arma_requerida] : null,
+        armaOk: armas.cumple(s.arma_requerida, etiquetas),
+        armaMotivo: armas.motivo(s, etiquetas),
       };
     });
 
@@ -389,6 +397,7 @@ router.get('/:playerId/class-skills', async (req, res, next) => {
 
   try {
     let classIds, level, isNpc;
+    await armas.asegurarColumna();
 
     if (npcId) {
       const npcRes = await db.query(
@@ -415,7 +424,7 @@ router.get('/:playerId/class-skills', async (req, res, next) => {
     if (isNpc) {
       skillsRes = await db.query(
         `SELECT s.id, s.name, s.skill_type, s.is_passive, s.learn_method, s.learn_level, s.cooldown_rounds,
-                s.mana_cost, s.target_type, s.damage_school, s.hits, s.description,
+                s.mana_cost, s.target_type, s.damage_school, s.hits, s.description, s.arma_requerida,
                 TRUE AS learned
          FROM skills s
          WHERE (s.class_id = ANY($1::int[])
@@ -428,7 +437,7 @@ router.get('/:playerId/class-skills', async (req, res, next) => {
     } else {
       skillsRes = await db.query(
         `SELECT s.id, s.name, s.skill_type, s.is_passive, s.learn_method, s.learn_level, s.cooldown_rounds,
-                s.mana_cost, s.target_type, s.damage_school, s.hits, s.description,
+                s.mana_cost, s.target_type, s.damage_school, s.hits, s.description, s.arma_requerida,
                 ((s.learn_method = 'LEVEL' AND s.learn_level <= $2)
                  OR EXISTS(SELECT 1 FROM player_skills ps WHERE ps.player_id = $1 AND ps.skill_id = s.id)
                 ) AS learned
@@ -441,6 +450,8 @@ router.get('/:playerId/class-skills', async (req, res, next) => {
     }
 
     if (!skillsRes.rows.length) return res.json([]);
+    // el arma del héroe (los compañeros no se revisan: pelean con lo de su clase)
+    const etiquetas = isNpc ? null : await armas.armasDe(playerId);
 
     const skillIds = skillsRes.rows.map((s) => s.id);
     const effectsRes = await db.query(
@@ -482,6 +493,8 @@ router.get('/:playerId/class-skills', async (req, res, next) => {
       hits: s.hits,
       description: s.description,
       effects: effectsBySkillId[s.id] || [],
+      armaNombre: s.arma_requerida ? armas.NOMBRE[s.arma_requerida] : null,
+      armaOk: etiquetas ? armas.cumple(s.arma_requerida, etiquetas) : true,
     })));
   } catch (error) { next(error); }
 });
@@ -1204,6 +1217,7 @@ router.post('/:playerId/equip', async (req, res, next) => {
     // para aplicar solo el delta a players.hp/max_hp, sin importar cuantos slots cambiaron
     // (ej. equipar un arma a dos manos tambien libera el offhand).
     const bonusBefore = await getEquipmentBonuses(playerId);
+    const sinArmaAntes = await armas.habilidadesSinArma(playerId, await armas.armasDe(playerId)).catch(() => []);
 
     // Todo el swap (desequipar lo viejo, sacar lo nuevo del inventario, equiparlo) en una sola
     // transaccion -- antes cada paso confirmaba por separado, asi que un fallo a mitad de camino
@@ -1257,7 +1271,11 @@ router.post('/:playerId/equip', async (req, res, next) => {
     const bonusAfter = await getEquipmentBonuses(playerId);
     await applyHpBonusDelta(playerId, (bonusAfter.hp || 0) - (bonusBefore.hp || 0));
 
-    res.json({ slot: item.slot, itemId: item.id, name: item.name });
+    // las habilidades que este cambio deja sin poder usarse (arco por espada: las flechas se apagan)
+    const sinArmaAhora = await armas.habilidadesSinArma(playerId, await armas.armasDe(playerId)).catch(() => []);
+    const avisoArmas = sinArmaAhora.filter((n) => !sinArmaAntes.includes(n));
+
+    res.json({ slot: item.slot, itemId: item.id, name: item.name, avisoArmas });
   } catch (error) {
     next(error);
   }
@@ -1273,6 +1291,7 @@ router.post('/:playerId/unequip', async (req, res, next) => {
   }
 
   try {
+    const sinArmaAntes = await armas.habilidadesSinArma(playerId, await armas.armasDe(playerId)).catch(() => []);
     const removed = await db.query(
       `DELETE FROM player_equipment WHERE player_id = $1 AND slot = $2 RETURNING item_id, enchant_level, quality_tier`,
       [playerId, slot]
@@ -1289,7 +1308,10 @@ router.post('/:playerId/unequip', async (req, res, next) => {
     );
     await applyHpBonusDelta(playerId, -Number(removedHpBonus.rows[0].hp_bonus));
 
-    res.json({ slot, unequippedItemId: removed.rows[0].item_id });
+    const sinArmaAhora = await armas.habilidadesSinArma(playerId, await armas.armasDe(playerId)).catch(() => []);
+    const avisoArmas = sinArmaAhora.filter((n) => !sinArmaAntes.includes(n));
+
+    res.json({ slot, unequippedItemId: removed.rows[0].item_id, avisoArmas });
   } catch (error) {
     next(error);
   }

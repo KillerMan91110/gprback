@@ -61,6 +61,8 @@ router.get('/', async (req, res, next) => {
 router.get('/mine', async (req, res, next) => {
   try {
     const guild = await getPlayerGuildRow(req.playerId);
+    // ?opcional=1: sin gremio no es un error (el chat y las ventanas del mundo lo preguntan siempre)
+    if (!guild && req.query.opcional) return res.json(null);
     if (!guild) return res.status(404).json({ error: 'No estás en ningún gremio' });
 
     const [membersRes, combatStatsRes] = await Promise.all([
