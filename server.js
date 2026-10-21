@@ -554,12 +554,13 @@ app.get('/api/leaderboard/guilds', async (req, res, next) => {
 app.get('/api/leaderboard', async (req, res, next) => {
   try {
     const result = await db.query(
-      `SELECT p.id, p.nickname, p.level, p.xp, c.name AS class_name, p.rank
+      `SELECT p.id, p.nickname, p.level, p.xp, c.name AS class_name, p.rank, p.titulo_logro
        FROM players p
        JOIN classes c ON c.id = COALESCE(p.evolution_class_id, p.current_class_id)
        ORDER BY p.level DESC, p.xp DESC
        LIMIT 30`
     );
+    const { BY_CODE } = require('./lib/logros');
     res.json(result.rows.map((r, i) => ({
       position: i + 1,
       playerId: r.id,
@@ -567,6 +568,8 @@ app.get('/api/leaderboard', async (req, res, next) => {
       level: r.level,
       className: r.class_name,
       rank: r.rank,
+      // el título de logro que lleva puesto (lib/logros.js)
+      titulo: r.titulo_logro ? BY_CODE.get(r.titulo_logro)?.nombre ?? null : null,
     })));
   } catch (error) {
     next(error);

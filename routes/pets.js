@@ -108,6 +108,10 @@ router.post('/:playerPetId/feed', async (req, res, next) => {
     if (!petRes.rows.length) return res.status(404).json({ error: 'Mascota no encontrada' });
     const pet = petRes.rows[0];
 
+    // lo que tiene candado en la mochila no se le da de comer (lib/mochila.js)
+    if (await require('../lib/mochila').esFavorito(Number(playerId), Number(itemId))) {
+      return res.status(400).json({ error: 'Eso tiene candado en tu mochila: quítaselo para dárselo a tu mascota.' });
+    }
     const itemRes = await db.query('SELECT code FROM items WHERE id = $1', [itemId]);
     if (!itemRes.rows.length) return res.status(404).json({ error: 'Ítem no encontrado' });
     const itemCode = itemRes.rows[0].code;
@@ -172,28 +176,56 @@ router.get('/catalogo', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-// GET /api/player/:playerId/incubator
-// seconds_left / total_seconds: los segundos los cuenta la base (las horas se guardan sin zona horaria y el
-// navegador las leía corridas); el panel arma la cuenta regresiva con su propio reloj.
+// La incubadora tiene lugares (ranuras): uno siempre y un segundo con el hito de 150 Puntos de Gesta
+// (lib/logros.js HITOS). Las horas se guardan sin zona horaria: los segundos los cuenta la base
+// (seconds_left / total_seconds) y el panel arma la cuenta regresiva con su propio reloj.
+let incubadoraLista = null;
+function ensureIncubadora() {
+  incubadoraLista ??= db.query(`
+    ALTER TABLE player_incubator ADD COLUMN IF NOT EXISTS ranura SMALLINT NOT NULL DEFAULT 1;
+    DO $$ BEGIN
+      IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'player_incubator_pkey'
+                     AND pg_get_constraintdef(oid) LIKE '%ranura%') THEN
+        ALTER TABLE player_incubator DROP CONSTRAINT IF EXISTS player_incubator_pkey;
+        ALTER TABLE player_incubator ADD CONSTRAINT player_incubator_pkey PRIMARY KEY (player_id, ranura);
+      END IF;
+    END $$`).catch((err) => { incubadoraLista = null; throw err; });
+  return incubadoraLista;
+}
+const ranurasDe = async (playerId) => 1 + ((await logros.puntosDe(Number(playerId)).catch(() => 0)) >= logros.PUNTOS_INCUBADORA_DOBLE ? 1 : 0);
+async function huevosIncubando(playerId) {
+  await ensureIncubadora();
+  return (await db.query(
+    `SELECT pi.ranura, pi.egg_item_id, i.name AS egg_name, i.code AS egg_code, pi.egg_rarity,
+            pi.started_at, pi.hatch_ready_at,
+            GREATEST(0, EXTRACT(EPOCH FROM pi.hatch_ready_at - now()))::int AS seconds_left,
+            GREATEST(1, EXTRACT(EPOCH FROM pi.hatch_ready_at - pi.started_at))::int AS total_seconds,
+            (now() >= pi.hatch_ready_at) AS ready
+     FROM player_incubator pi
+     JOIN items i ON i.id = pi.egg_item_id
+     WHERE pi.player_id = $1 ORDER BY pi.ranura`,
+    [playerId]
+  )).rows;
+}
+
+// GET /api/player/:playerId/pets/incubator — el huevo de la incubadora (si hay dos, el que esté listo primero);
+// lo usa el aviso global de huevo listo
 router.get('/incubator', async (req, res, next) => {
   try {
-    const { playerId } = req.params;
-    const result = await db.query(
-      `SELECT pi.egg_item_id, i.name AS egg_name, i.code AS egg_code, pi.egg_rarity,
-              pi.started_at, pi.hatch_ready_at,
-              GREATEST(0, EXTRACT(EPOCH FROM pi.hatch_ready_at - now()))::int AS seconds_left,
-              GREATEST(1, EXTRACT(EPOCH FROM pi.hatch_ready_at - pi.started_at))::int AS total_seconds,
-              (now() >= pi.hatch_ready_at) AS ready
-       FROM player_incubator pi
-       JOIN items i ON i.id = pi.egg_item_id
-       WHERE pi.player_id = $1`,
-      [playerId]
-    );
-    res.json(result.rows[0] ?? null);
+    const rows = await huevosIncubando(req.params.playerId);
+    res.json(rows.find((r) => r.ready) ?? rows[0] ?? null);
   } catch (err) { next(err); }
 });
 
-// POST /api/player/:playerId/incubator  — poner huevo en incubadora
+// GET /api/player/:playerId/pets/incubadoras — todos los lugares: { max, huevos: [...], puntosParaOtra }
+router.get('/incubadoras', async (req, res, next) => {
+  try {
+    const [huevosEnCurso, max] = await Promise.all([huevosIncubando(req.params.playerId), ranurasDe(req.params.playerId)]);
+    res.json({ max, huevos: huevosEnCurso, puntosParaOtra: max < 2 ? logros.PUNTOS_INCUBADORA_DOBLE : null });
+  } catch (err) { next(err); }
+});
+
+// POST /api/player/:playerId/pets/incubator  — poner un huevo en un lugar libre
 // body: { itemId }
 router.post('/incubator', async (req, res, next) => {
   try {
@@ -201,8 +233,9 @@ router.post('/incubator', async (req, res, next) => {
     const { itemId } = req.body;
     if (!itemId) return res.status(400).json({ error: 'Falta itemId' });
 
-    const slot = await db.query('SELECT 1 FROM player_incubator WHERE player_id = $1', [playerId]);
-    if (slot.rows.length) return res.status(400).json({ error: 'La incubadora ya está ocupada' });
+    const [ocupadas, max] = await Promise.all([huevosIncubando(playerId), ranurasDe(playerId)]);
+    const libre = [1, 2].slice(0, max).find((n) => !ocupadas.some((o) => o.ranura === n));
+    if (!libre) return res.status(400).json({ error: max > 1 ? 'Los dos lugares de la incubadora están ocupados' : 'La incubadora ya está ocupada' });
 
     const invRes = await db.query(
       `SELECT pi.quantity, i.code
@@ -228,29 +261,32 @@ router.post('/incubator', async (req, res, next) => {
     );
 
     const hatchRes = await db.query(
-      `INSERT INTO player_incubator(player_id, egg_item_id, egg_rarity, hatch_ready_at)
-       VALUES($1, $2, $3, now() + ($4 || ' hours')::interval)
+      `INSERT INTO player_incubator(player_id, ranura, egg_item_id, egg_rarity, hatch_ready_at)
+       VALUES($1, $2, $3, $4, now() + ($5 || ' hours')::interval)
        RETURNING hatch_ready_at`,
-      [playerId, itemId, eggRarity, HATCH_HOURS[eggRarity]]
+      [playerId, libre, itemId, eggRarity, HATCH_HOURS[eggRarity]]
     );
 
-    res.status(201).json({ egg_rarity: eggRarity, hatch_ready_at: hatchRes.rows[0].hatch_ready_at });
+    res.status(201).json({ egg_rarity: eggRarity, ranura: libre, hatch_ready_at: hatchRes.rows[0].hatch_ready_at });
   } catch (err) { next(err); }
 });
 
-// POST /api/player/:playerId/incubator/claim  — reclamar mascota eclosionada
+// POST /api/player/:playerId/pets/incubator/claim { ranura? } — reclamar la mascota (de ese lugar, o del primero listo)
 router.post('/incubator/claim', async (req, res, next) => {
   try {
     const { playerId } = req.params;
+    const ranura = req.body?.ranura ? Number(req.body.ranura) : null;
+    await ensureIncubadora();
 
     const incRes = await db.query(
-      'SELECT * FROM player_incubator WHERE player_id = $1 AND now() >= hatch_ready_at',
-      [playerId]
+      `SELECT * FROM player_incubator WHERE player_id = $1 AND now() >= hatch_ready_at AND ($2::int IS NULL OR ranura = $2)
+       ORDER BY ranura LIMIT 1`,
+      [playerId, ranura]
     );
     if (!incRes.rows.length) {
       return res.status(400).json({ error: 'No hay huevo listo para eclosionar' });
     }
-    const { egg_rarity, egg_item_id } = incRes.rows[0];
+    const { egg_rarity, egg_item_id, ranura: lugar } = incRes.rows[0];
 
     // el huevo de una zona da una mascota de esa zona (lib/huevos.js)
     const eggCode = (await db.query('SELECT code FROM items WHERE id = $1', [egg_item_id])).rows[0]?.code;
@@ -262,7 +298,7 @@ router.post('/incubator/claim', async (req, res, next) => {
       [playerId, petId]
     );
 
-    await db.query('DELETE FROM player_incubator WHERE player_id = $1', [playerId]);
+    await db.query('DELETE FROM player_incubator WHERE player_id = $1 AND ranura = $2', [playerId, lugar]);
     await incrementCounter(playerId, 'MASCOTAS_NACIDAS');
     const logrosNuevos = await logros.revisarSeguro(Number(playerId));
 

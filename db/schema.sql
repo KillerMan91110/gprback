@@ -31033,3 +31033,2628 @@ UPDATE achievements SET name = 'Buen Diente', description = 'Comer 100 comidas',
 INSERT INTO achievements (code, name, description, grupo, lore, puntos, secreto, orden, condition_type, threshold, bonus_type, bonus_category, bonus_stat, bonus_percent, quest_id)
 SELECT 'LOG_NIVEL_100', '¿Y Ahora Qué?', 'Llegar al nivel 100', 'secretos', 'Salvaste el mundo. Te queda toda la vida por delante.', 25, TRUE, 62, 'LOGRO', 1, NULL, NULL, NULL, 0, NULL WHERE NOT EXISTS (SELECT 1 FROM achievements WHERE code = 'LOG_NIVEL_100');
 UPDATE achievements SET name = '¿Y Ahora Qué?', description = 'Llegar al nivel 100', grupo = 'secretos', lore = 'Salvaste el mundo. Te queda toda la vida por delante.', puntos = 25, secreto = TRUE, orden = 62, condition_type = 'LOGRO', threshold = 1, bonus_type = NULL, bonus_category = NULL, bonus_stat = NULL, bonus_percent = 0, quest_id = NULL WHERE code = 'LOG_NIVEL_100';
+
+-- ================================================================ mochila: candado e incubadora doble
+-- (gprback/lib/mochila.js y routes/pets.js; repetible)
+ALTER TABLE player_inventory ADD COLUMN IF NOT EXISTS favorito BOOLEAN NOT NULL DEFAULT FALSE;
+ALTER TABLE player_incubator ADD COLUMN IF NOT EXISTS ranura SMALLINT NOT NULL DEFAULT 1;
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'player_incubator_pkey'
+                 AND pg_get_constraintdef(oid) LIKE '%ranura%') THEN
+    ALTER TABLE player_incubator DROP CONSTRAINT IF EXISTS player_incubator_pkey;
+    ALTER TABLE player_incubator ADD CONSTRAINT player_incubator_pkey PRIMARY KEY (player_id, ranura);
+  END IF;
+END $$;
+
+-- ============================================================================================
+-- Evoluciones: las Pruebas de la Orden (docs/evoluciones_pruebas.md). Primero los requisitos nuevos de cada rama y
+-- los símbolos; después las 15 pruebas y sus monstruos.
+-- ============================================================================================
+-- ================================================================ evoluciones: las Pruebas de la Orden
+-- (gprback/docs/evoluciones_pruebas.md; generado por gpr/_respaldo_claude/evoluciones/gen_evoluciones.js)
+ALTER TABLE class_evolution_requirements ADD COLUMN IF NOT EXISTS quest_code TEXT;
+ALTER TABLE class_evolution_requirements DROP CONSTRAINT IF EXISTS class_evolution_requirements_requirement_type_check;
+ALTER TABLE class_evolution_requirements ADD CONSTRAINT class_evolution_requirements_requirement_type_check CHECK (requirement_type IN
+  ('COUNTER', 'ITEM', 'EQUIPMENT', 'NO_WEAPON', 'STAT_THRESHOLD', 'QUEST', 'KILLS_CATEGORIA', 'SUBZONAS', 'SECRETOS', 'JEFES_ZONA', 'MAZMORRAS_DISTINTAS', 'EQUIPO_FORMA'));
+INSERT INTO items (code, name, item_type, rarity, is_craftable, obtain_method, description, is_quest_item)
+SELECT 'CALIZ_DE_LA_FURIA', 'Cáliz de la Furia', 'MATERIAL', 'EPICO', FALSE, 'Drop', 'Una copa de obsidiana que todavía hierve. El Señor de la Caldera bebía de ella antes de cada batalla.', FALSE WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'CALIZ_DE_LA_FURIA');
+UPDATE items SET name = 'Cáliz de la Furia', item_type = 'MATERIAL', rarity = 'EPICO', description = 'Una copa de obsidiana que todavía hierve. El Señor de la Caldera bebía de ella antes de cada batalla.', is_quest_item = FALSE WHERE code = 'CALIZ_DE_LA_FURIA';
+INSERT INTO monster_drops (monster_id, item_id, drop_chance_percent, min_quantity, max_quantity)
+SELECT m.id, i.id, 12, 1, 1 FROM monsters m, items i WHERE m.code = 'SENOR_CALDERA' AND i.code = 'CALIZ_DE_LA_FURIA'
+  AND NOT EXISTS (SELECT 1 FROM monster_drops d WHERE d.monster_id = m.id AND d.item_id = i.id);
+INSERT INTO items (code, name, item_type, rarity, is_craftable, obtain_method, description, is_quest_item)
+SELECT 'CORAZA_TITAN_PIEDRA', 'Coraza del Titán de Piedra', 'MATERIAL', 'EPICO', FALSE, 'Drop', 'Un trozo del pecho del Rey de la Montaña. No se raya ni con diamante.', FALSE WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'CORAZA_TITAN_PIEDRA');
+UPDATE items SET name = 'Coraza del Titán de Piedra', item_type = 'MATERIAL', rarity = 'EPICO', description = 'Un trozo del pecho del Rey de la Montaña. No se raya ni con diamante.', is_quest_item = FALSE WHERE code = 'CORAZA_TITAN_PIEDRA';
+INSERT INTO monster_drops (monster_id, item_id, drop_chance_percent, min_quantity, max_quantity)
+SELECT m.id, i.id, 12, 1, 1 FROM monsters m, items i WHERE m.code = 'REY_MONTANA' AND i.code = 'CORAZA_TITAN_PIEDRA'
+  AND NOT EXISTS (SELECT 1 FROM monster_drops d WHERE d.monster_id = m.id AND d.item_id = i.id);
+INSERT INTO items (code, name, item_type, rarity, is_craftable, obtain_method, description, is_quest_item)
+SELECT 'PIEDRA_FILOSOFAL', 'Piedra Filosofal', 'MATERIAL', 'EPICO', FALSE, 'Drop', 'Morvak la forjaba para engañar a la muerte. Late como un corazón.', FALSE WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'PIEDRA_FILOSOFAL');
+UPDATE items SET name = 'Piedra Filosofal', item_type = 'MATERIAL', rarity = 'EPICO', description = 'Morvak la forjaba para engañar a la muerte. Late como un corazón.', is_quest_item = FALSE WHERE code = 'PIEDRA_FILOSOFAL';
+INSERT INTO monster_drops (monster_id, item_id, drop_chance_percent, min_quantity, max_quantity)
+SELECT m.id, i.id, 12, 1, 1 FROM monsters m, items i WHERE m.code = 'FISURA_MORVAK' AND i.code = 'PIEDRA_FILOSOFAL'
+  AND NOT EXISTS (SELECT 1 FROM monster_drops d WHERE d.monster_id = m.id AND d.item_id = i.id);
+INSERT INTO items (code, name, item_type, rarity, is_craftable, obtain_method, description, is_quest_item)
+SELECT 'PERLA_ESTRELLAS', 'Perla de las Estrellas', 'MATERIAL', 'EPICO', FALSE, 'Drop', 'La Bestia de las Profundidades la guardaba bajo la lengua. Adentro se mueven constelaciones.', FALSE WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'PERLA_ESTRELLAS');
+UPDATE items SET name = 'Perla de las Estrellas', item_type = 'MATERIAL', rarity = 'EPICO', description = 'La Bestia de las Profundidades la guardaba bajo la lengua. Adentro se mueven constelaciones.', is_quest_item = FALSE WHERE code = 'PERLA_ESTRELLAS';
+INSERT INTO monster_drops (monster_id, item_id, drop_chance_percent, min_quantity, max_quantity)
+SELECT m.id, i.id, 12, 1, 1 FROM monsters m, items i WHERE m.code = 'BESTIA_PROFUNDIDADES' AND i.code = 'PERLA_ESTRELLAS'
+  AND NOT EXISTS (SELECT 1 FROM monster_drops d WHERE d.monster_id = m.id AND d.item_id = i.id);
+INSERT INTO items (code, name, item_type, rarity, is_craftable, obtain_method, description, is_quest_item)
+SELECT 'RAMA_ROBLEVIEJO', 'Rama de Robleviejo', 'MATERIAL', 'EPICO', FALSE, 'Historia', 'Una rama viva del roble enfermo del bosque. Los arqueros de antes tallaban sus arcos con ella.', FALSE WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'RAMA_ROBLEVIEJO');
+UPDATE items SET name = 'Rama de Robleviejo', item_type = 'MATERIAL', rarity = 'EPICO', description = 'Una rama viva del roble enfermo del bosque. Los arqueros de antes tallaban sus arcos con ella.', is_quest_item = FALSE WHERE code = 'RAMA_ROBLEVIEJO';
+INSERT INTO items (code, name, item_type, rarity, is_craftable, obtain_method, description, is_quest_item)
+SELECT 'ARCO_DE_LOS_ANTIGUOS', 'Arco de los Antiguos', 'MATERIAL', 'EPICO', FALSE, 'Drop', 'Un arco élfico sin cuerda, encontrado en el nido del Señor del Acantilado. La madera recuerda a sus dueños.', FALSE WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'ARCO_DE_LOS_ANTIGUOS');
+UPDATE items SET name = 'Arco de los Antiguos', item_type = 'MATERIAL', rarity = 'EPICO', description = 'Un arco élfico sin cuerda, encontrado en el nido del Señor del Acantilado. La madera recuerda a sus dueños.', is_quest_item = FALSE WHERE code = 'ARCO_DE_LOS_ANTIGUOS';
+INSERT INTO monster_drops (monster_id, item_id, drop_chance_percent, min_quantity, max_quantity)
+SELECT m.id, i.id, 10, 1, 1 FROM monsters m, items i WHERE m.code = 'SENOR_ACANTILADO' AND i.code = 'ARCO_DE_LOS_ANTIGUOS'
+  AND NOT EXISTS (SELECT 1 FROM monster_drops d WHERE d.monster_id = m.id AND d.item_id = i.id);
+INSERT INTO items (code, name, item_type, rarity, is_craftable, obtain_method, description, is_quest_item)
+SELECT 'CUERNO_TORMENTA', 'Cuerno de la Tormenta', 'MATERIAL', 'EPICO', FALSE, 'Drop', 'El Señor del Acantilado lo soplaba para llamar a los rayos. Todavía chispea.', FALSE WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'CUERNO_TORMENTA');
+UPDATE items SET name = 'Cuerno de la Tormenta', item_type = 'MATERIAL', rarity = 'EPICO', description = 'El Señor del Acantilado lo soplaba para llamar a los rayos. Todavía chispea.', is_quest_item = FALSE WHERE code = 'CUERNO_TORMENTA';
+INSERT INTO monster_drops (monster_id, item_id, drop_chance_percent, min_quantity, max_quantity)
+SELECT m.id, i.id, 12, 1, 1 FROM monsters m, items i WHERE m.code = 'SENOR_ACANTILADO' AND i.code = 'CUERNO_TORMENTA'
+  AND NOT EXISTS (SELECT 1 FROM monster_drops d WHERE d.monster_id = m.id AND d.item_id = i.id);
+INSERT INTO items (code, name, item_type, rarity, is_craftable, obtain_method, description, is_quest_item)
+SELECT 'CALIZ_DE_CORAL', 'Cáliz de Coral', 'MATERIAL', 'EPICO', FALSE, 'Drop', 'El agua que cae en él cura cualquier herida. El Señor del Océano lo robó de un templo hundido.', FALSE WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'CALIZ_DE_CORAL');
+UPDATE items SET name = 'Cáliz de Coral', item_type = 'MATERIAL', rarity = 'EPICO', description = 'El agua que cae en él cura cualquier herida. El Señor del Océano lo robó de un templo hundido.', is_quest_item = FALSE WHERE code = 'CALIZ_DE_CORAL';
+INSERT INTO monster_drops (monster_id, item_id, drop_chance_percent, min_quantity, max_quantity)
+SELECT m.id, i.id, 12, 1, 1 FROM monsters m, items i WHERE m.code = 'SENOR_OCEANO' AND i.code = 'CALIZ_DE_CORAL'
+  AND NOT EXISTS (SELECT 1 FROM monster_drops d WHERE d.monster_id = m.id AND d.item_id = i.id);
+INSERT INTO items (code, name, item_type, rarity, is_craftable, obtain_method, description, is_quest_item)
+SELECT 'CADENA_DEL_TRONO', 'Cadena del Trono', 'MATERIAL', 'EPICO', FALSE, 'Drop', 'Un eslabón de la cadena que ataba al Coloso al Trono de Huesos. Pesa más de lo que debería.', FALSE WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'CADENA_DEL_TRONO');
+UPDATE items SET name = 'Cadena del Trono', item_type = 'MATERIAL', rarity = 'EPICO', description = 'Un eslabón de la cadena que ataba al Coloso al Trono de Huesos. Pesa más de lo que debería.', is_quest_item = FALSE WHERE code = 'CADENA_DEL_TRONO';
+INSERT INTO monster_drops (monster_id, item_id, drop_chance_percent, min_quantity, max_quantity)
+SELECT m.id, i.id, 12, 1, 1 FROM monsters m, items i WHERE m.code = 'TRONOH_COLOSO' AND i.code = 'CADENA_DEL_TRONO'
+  AND NOT EXISTS (SELECT 1 FROM monster_drops d WHERE d.monster_id = m.id AND d.item_id = i.id);
+INSERT INTO items (code, name, item_type, rarity, is_craftable, obtain_method, description, is_quest_item)
+SELECT 'ALA_DEL_TEMPLO', 'Ala del Templo', 'MATERIAL', 'EPICO', FALSE, 'Drop', 'Una pluma de mármol de las estatuas del Templo Sagrado. Brilla cuando alguien reza cerca.', FALSE WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'ALA_DEL_TEMPLO');
+UPDATE items SET name = 'Ala del Templo', item_type = 'MATERIAL', rarity = 'EPICO', description = 'Una pluma de mármol de las estatuas del Templo Sagrado. Brilla cuando alguien reza cerca.', is_quest_item = FALSE WHERE code = 'ALA_DEL_TEMPLO';
+INSERT INTO monster_drops (monster_id, item_id, drop_chance_percent, min_quantity, max_quantity)
+SELECT m.id, i.id, 10, 1, 1 FROM monsters m, items i WHERE m.code = 'ENTIDAD_CORRUPTA_TEMPLO' AND i.code = 'ALA_DEL_TEMPLO'
+  AND NOT EXISTS (SELECT 1 FROM monster_drops d WHERE d.monster_id = m.id AND d.item_id = i.id);
+INSERT INTO items (code, name, item_type, rarity, is_craftable, obtain_method, description, is_quest_item)
+SELECT 'ESCAMA_SIERPE', 'Escama de la Sierpe', 'MATERIAL', 'EPICO', FALSE, 'Drop', 'Una escama de Escarcha, la sierpe de la Reina. Fría como el primer invierno.', FALSE WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'ESCAMA_SIERPE');
+UPDATE items SET name = 'Escama de la Sierpe', item_type = 'MATERIAL', rarity = 'EPICO', description = 'Una escama de Escarcha, la sierpe de la Reina. Fría como el primer invierno.', is_quest_item = FALSE WHERE code = 'ESCAMA_SIERPE';
+INSERT INTO monster_drops (monster_id, item_id, drop_chance_percent, min_quantity, max_quantity)
+SELECT m.id, i.id, 12, 1, 1 FROM monsters m, items i WHERE m.code = 'CRIPTAH_ESCARCHA' AND i.code = 'ESCAMA_SIERPE'
+  AND NOT EXISTS (SELECT 1 FROM monster_drops d WHERE d.monster_id = m.id AND d.item_id = i.id);
+INSERT INTO items (code, name, item_type, rarity, is_craftable, obtain_method, description, is_quest_item)
+SELECT 'CORAZON_ECLIPSE', 'Corazón del Eclipse', 'MATERIAL', 'EPICO', FALSE, 'Drop', 'Lo que queda de un Avatar cuando el sol vuelve. Negro, tibio y hambriento.', FALSE WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'CORAZON_ECLIPSE');
+UPDATE items SET name = 'Corazón del Eclipse', item_type = 'MATERIAL', rarity = 'EPICO', description = 'Lo que queda de un Avatar cuando el sol vuelve. Negro, tibio y hambriento.', is_quest_item = FALSE WHERE code = 'CORAZON_ECLIPSE';
+INSERT INTO monster_drops (monster_id, item_id, drop_chance_percent, min_quantity, max_quantity)
+SELECT m.id, i.id, 8, 1, 1 FROM monsters m, items i WHERE m.code = 'AVATAR_ECLIPSE' AND i.code = 'CORAZON_ECLIPSE'
+  AND NOT EXISTS (SELECT 1 FROM monster_drops d WHERE d.monster_id = m.id AND d.item_id = i.id);
+INSERT INTO items (code, name, item_type, rarity, is_craftable, obtain_method, description, is_quest_item)
+SELECT 'ROSARIO_PRIMER_VIGIA', 'Rosario del Primer Vigía', 'MATERIAL', 'EPICO', FALSE, 'Drop', 'Siete cuentas de piedra, una por Sello. El primer Vigía rezaba con él antes de pelear.', FALSE WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'ROSARIO_PRIMER_VIGIA');
+UPDATE items SET name = 'Rosario del Primer Vigía', item_type = 'MATERIAL', rarity = 'EPICO', description = 'Siete cuentas de piedra, una por Sello. El primer Vigía rezaba con él antes de pelear.', is_quest_item = FALSE WHERE code = 'ROSARIO_PRIMER_VIGIA';
+INSERT INTO monster_drops (monster_id, item_id, drop_chance_percent, min_quantity, max_quantity)
+SELECT m.id, i.id, 10, 1, 1 FROM monsters m, items i WHERE m.code = 'GUARDIAN_ANCESTRAL' AND i.code = 'ROSARIO_PRIMER_VIGIA'
+  AND NOT EXISTS (SELECT 1 FROM monster_drops d WHERE d.monster_id = m.id AND d.item_id = i.id);
+INSERT INTO items (code, name, item_type, rarity, is_craftable, obtain_method, description, is_quest_item)
+SELECT 'CORONA_FLORES_LUMINOSAS', 'Corona de Flores Luminosas', 'MATERIAL', 'EPICO', FALSE, 'Drop', 'Tejida con las flores del jardín de Aethra. No se marchita nunca.', FALSE WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'CORONA_FLORES_LUMINOSAS');
+UPDATE items SET name = 'Corona de Flores Luminosas', item_type = 'MATERIAL', rarity = 'EPICO', description = 'Tejida con las flores del jardín de Aethra. No se marchita nunca.', is_quest_item = FALSE WHERE code = 'CORONA_FLORES_LUMINOSAS';
+INSERT INTO monster_drops (monster_id, item_id, drop_chance_percent, min_quantity, max_quantity)
+SELECT m.id, i.id, 10, 1, 1 FROM monsters m, items i WHERE m.code = 'GUARDIAN_ANCESTRAL' AND i.code = 'CORONA_FLORES_LUMINOSAS'
+  AND NOT EXISTS (SELECT 1 FROM monster_drops d WHERE d.monster_id = m.id AND d.item_id = i.id);
+INSERT INTO items (code, name, item_type, rarity, is_craftable, obtain_method, description, is_quest_item)
+SELECT 'NUCLEO_ESTELAR', 'Núcleo Estelar', 'MATERIAL', 'EPICO', FALSE, 'Drop', 'El centro del Ojo del Devorador, apagado. Si lo miras mucho, te mira.', FALSE WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'NUCLEO_ESTELAR');
+UPDATE items SET name = 'Núcleo Estelar', item_type = 'MATERIAL', rarity = 'EPICO', description = 'El centro del Ojo del Devorador, apagado. Si lo miras mucho, te mira.', is_quest_item = FALSE WHERE code = 'NUCLEO_ESTELAR';
+INSERT INTO monster_drops (monster_id, item_id, drop_chance_percent, min_quantity, max_quantity)
+SELECT m.id, i.id, 12, 1, 1 FROM monsters m, items i WHERE m.code = 'OBSERV_OJO' AND i.code = 'NUCLEO_ESTELAR'
+  AND NOT EXISTS (SELECT 1 FROM monster_drops d WHERE d.monster_id = m.id AND d.item_id = i.id);
+INSERT INTO items (code, name, item_type, rarity, is_craftable, obtain_method, description, is_quest_item)
+SELECT 'LIBRO_CUENTAS_PIRATA', 'Libro de cuentas pirata', 'MATERIAL', 'EPICO', FALSE, 'Historia', 'Todo lo que robaron los piratas de la Cala, con fechas y nombres. Nox lo quería. Ahora es tuyo.', FALSE WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'LIBRO_CUENTAS_PIRATA');
+UPDATE items SET name = 'Libro de cuentas pirata', item_type = 'MATERIAL', rarity = 'EPICO', description = 'Todo lo que robaron los piratas de la Cala, con fechas y nombres. Nox lo quería. Ahora es tuyo.', is_quest_item = FALSE WHERE code = 'LIBRO_CUENTAS_PIRATA';
+-- el escalón de cada evolución (1, 2 o 3) sale de la profundidad de su clase destino
+CREATE TEMP TABLE IF NOT EXISTS _evo_escalon (evolution_id INT PRIMARY KEY, escalon INT, base TEXT);
+TRUNCATE _evo_escalon;
+WITH RECURSIVE arbol AS (
+  SELECT e.id, e.evolves_to_class_id AS cls, 1 AS escalon, c.code AS base
+  FROM class_evolutions e JOIN classes c ON c.id = e.class_id WHERE c.code IN ('GUERRERO', 'MAGO', 'ARQUERO', 'PICARO', 'SACERDOTE')
+  UNION ALL
+  SELECT e.id, e.evolves_to_class_id, a.escalon + 1, a.base FROM class_evolutions e JOIN arbol a ON e.class_id = a.cls
+)
+INSERT INTO _evo_escalon SELECT id, escalon, base FROM arbol;
+UPDATE class_evolutions e SET required_level = CASE x.escalon WHEN 1 THEN 20 WHEN 2 THEN 50 ELSE 90 END
+FROM _evo_escalon x WHERE x.evolution_id = e.id;
+DELETE FROM class_evolution_requirements;
+INSERT INTO class_evolution_requirements (evolution_id, requirement_type, quest_code, comparison, target_value, description)
+SELECT x.evolution_id, 'QUEST', 'PRUEBA_' || x.base || '_' || x.escalon, '>=', 1,
+  'Supera ' || CASE x.escalon WHEN 1 THEN 'la Prueba del Aprendiz' WHEN 2 THEN 'la Prueba del Maestro' ELSE 'la Ascensión' END || ' de tu orden'
+FROM _evo_escalon x;
+INSERT INTO class_evolution_requirements (evolution_id, requirement_type, counter_code, item_code, equipment_type, comparison, target_value, description)
+SELECT e.id, v.tipo, v.counter_code, v.item_code, v.equipment_type, '>=', v.target, v.descr
+FROM (VALUES
+('MONJE', 'COUNTER', 'COMBATES_SIN_ARMA', NULL, NULL, 25, 'Gana 25 combates con las manos vacías'),
+('ESPADACHIN', 'COUNTER', 'KILLS_CORTE', NULL, NULL, 100, 'Derrota a 100 enemigos de un tajo'),
+('ESPADACHIN', 'EQUIPO_FORMA', NULL, NULL, 'ESPADA', NULL, 'Lleva una espada'),
+('CABALLERO', 'COUNTER', 'ALIADOS_PROTEGIDOS', NULL, NULL, 20, 'Protege a un aliado 20 veces'),
+('CABALLERO', 'EQUIPO_FORMA', NULL, NULL, 'ARMADURA_PESADA', NULL, 'Lleva una armadura pesada'),
+('BERSERKER', 'COUNTER', 'CRITICOS_REALIZADOS', NULL, NULL, 80, 'Da 80 golpes críticos'),
+('BERSERKER', 'COUNTER', 'COMBATES_LIMITE_SOBREVIVIDOS', NULL, NULL, 10, 'Gana 10 combates al borde de la muerte'),
+('GUERRERO_MAGUS', 'COUNTER', 'KILLS_ELEMENTAL', NULL, NULL, 60, 'Derrota a 60 enemigos con un golpe elemental'),
+('GUERRERO_MAGUS', 'ITEM', NULL, 'RUNA_MENHIR', NULL, 1, 'Entrega una Runa de Menhir (Círculo de Piedras)'),
+('MAESTRO_MONJE', 'COUNTER', 'KILLS_GOLPE_PUNO', NULL, NULL, 200, 'Derrota a 200 enemigos con el puño'),
+('MAESTRO_MONJE', 'COUNTER', 'JEFES_SIN_ARMA', NULL, NULL, 1, 'Vence a un jefe sin arma'),
+('MONJE_OSCURO', 'KILLS_CATEGORIA', 'MUERTO_VIVIENTE,ESPECTRO', NULL, NULL, 120, 'Derrota a 120 muertos vivientes o espectros'),
+('MONJE_OSCURO', 'ITEM', NULL, 'MEDALLA_VIGIA', NULL, 1, 'Entrega la Medalla del Vigía (Cripta del Vigía)'),
+('MONJE_SISMICO', 'COUNTER', 'KILLS_EARTH', NULL, NULL, 150, 'Derrota a 150 enemigos con golpes de tierra'),
+('MONJE_SISMICO', 'ITEM', NULL, 'CORAZON_HIERRO_NEGRO', NULL, 1, 'Entrega un Corazón de Hierro Negro (Mina Profunda)'),
+('MONJE_DIVINO', 'COUNTER', 'KILLS_LIGHT', NULL, NULL, 100, 'Derrota a 100 enemigos con luz'),
+('MONJE_DIVINO', 'COUNTER', 'CUROS_REALIZADOS', NULL, NULL, 50, 'Cura 50 veces'),
+('MAESTRO_ESPADACHIN', 'COUNTER', 'KILLS_CORTE', NULL, NULL, 400, 'Derrota a 400 enemigos de un tajo'),
+('CABALLERO_OSCURO', 'KILLS_CATEGORIA', 'MUERTO_VIVIENTE', NULL, NULL, 150, 'Derrota a 150 muertos vivientes'),
+('CABALLERO_OSCURO', 'ITEM', NULL, 'FRAGMENTO_ECLIPSE', NULL, 1, 'Entrega un Fragmento de Eclipse'),
+('PALADIN', 'COUNTER', 'KILLS_LIGHT', NULL, NULL, 150, 'Derrota a 150 enemigos con luz'),
+('PALADIN', 'COUNTER', 'ALIADOS_PROTEGIDOS', NULL, NULL, 60, 'Protege a un aliado 60 veces'),
+('CABALLERO_BLINDADO', 'COUNTER', 'COMBATES_LIMITE_SOBREVIVIDOS', NULL, NULL, 40, 'Sobrevive a 40 combates al límite'),
+('CABALLERO_BLINDADO', 'ITEM', NULL, 'CORAZA_TITAN_PIEDRA', NULL, 1, 'Entrega la Coraza del Titán de Piedra (Rey de la Montaña)'),
+('TITAN_FURIOSO', 'COUNTER', 'CRITICOS_REALIZADOS', NULL, NULL, 300, 'Da 300 golpes críticos'),
+('TITAN_FURIOSO', 'ITEM', NULL, 'CALIZ_DE_LA_FURIA', NULL, 1, 'Bebe del Cáliz de la Furia (Señor de la Caldera)'),
+('MAGO_ESPADA', 'COUNTER', 'KILLS_ELEMENTAL', NULL, NULL, 200, 'Derrota a 200 enemigos con un golpe elemental'),
+('MAGO_ESPADA', 'EQUIPO_FORMA', NULL, NULL, 'ESPADA_RUNICA', NULL, 'Lleva una espada rúnica'),
+('ARQUEOLOGO_MAGICO', 'COUNTER', 'HISTORIAS_DEL_ABISMO_LEIDAS', NULL, NULL, 12, 'Lee las 12 Historias del Abismo'),
+('ARQUEOLOGO_MAGICO', 'COUNTER', 'KILLS_ELEMENTAL', NULL, NULL, 200, 'Derrota a 200 enemigos con un golpe elemental'),
+('PALADIN_OSCURO', 'KILLS_CATEGORIA', 'MUERTO_VIVIENTE', NULL, NULL, 500, 'Derrota a 500 muertos vivientes'),
+('PALADIN_OSCURO', 'ITEM', NULL, 'CADENA_DEL_TRONO', NULL, 1, 'Entrega la Cadena del Trono (Coloso de Huesos)'),
+('CABALLERO_SAGRADO', 'COUNTER', 'CUROS_REALIZADOS', NULL, NULL, 300, 'Cura 300 veces'),
+('CABALLERO_SAGRADO', 'ITEM', NULL, 'ALA_DEL_TEMPLO', NULL, 1, 'Entrega el Ala del Templo (Entidad Corrupta del Templo)'),
+('DRAGON_CABALLERO', 'KILLS_CATEGORIA', 'DRACOIDE', NULL, NULL, 100, 'Derrota a 100 dracoides'),
+('DRAGON_CABALLERO', 'ITEM', NULL, 'ESCAMA_SIERPE', NULL, 1, 'Entrega la Escama de la Sierpe (Escarcha, Cripta Congelada)'),
+('BERSERKER_DEL_CAOS', 'COUNTER', 'COMBATES_LIMITE_SOBREVIVIDOS', NULL, NULL, 30, 'Gana 30 combates al borde de la muerte'),
+('BERSERKER_DEL_CAOS', 'ITEM', NULL, 'CORAZON_ECLIPSE', NULL, 1, 'Entrega el Corazón del Eclipse (Avatar del Eclipse)'),
+('MAESTRO_MONJE_SUPREMO', 'COUNTER', 'KILLS_GOLPE_PUNO', NULL, NULL, 600, 'Derrota a 600 enemigos con el puño'),
+('MAESTRO_MONJE_SUPREMO', 'ITEM', NULL, 'ROSARIO_PRIMER_VIGIA', NULL, 1, 'Entrega el Rosario del Primer Vigía (Guardián Ancestral)'),
+('NIGROMANTE', 'KILLS_CATEGORIA', 'MUERTO_VIVIENTE', NULL, NULL, 40, 'Derrota a 40 muertos vivientes'),
+('NIGROMANTE', 'ITEM', NULL, 'MEDALLA_VIGIA', NULL, 1, 'Entrega la Medalla del Vigía (Cripta del Vigía)'),
+('INVOCADOR', 'COUNTER', 'INVOCACIONES_REALIZADAS', NULL, NULL, 40, 'Invoca 40 veces'),
+('ELEMENTAL', 'COUNTER', 'ELEMENTOS_DOMINADOS', NULL, NULL, 3, 'Domina 3 elementos'),
+('MAGO_DIVINO', 'COUNTER', 'KILLS_LIGHT', NULL, NULL, 50, 'Derrota a 50 enemigos con luz'),
+('MAGO_DIVINO', 'ITEM', NULL, 'AGUA_PURIFICADA', NULL, 3, 'Entrega 3 Aguas Purificadas del Pilar'),
+('MAGO_PIROMANTICO', 'COUNTER', 'KILLS_FIRE', NULL, NULL, 250, 'Derrota a 250 enemigos con fuego'),
+('MAGO_PIROMANTICO', 'ITEM', NULL, 'ESCAMA_DE_FUEGO', NULL, 1, 'Entrega una Escama de Salamandra'),
+('MAGO_CRIOMANTICO', 'COUNTER', 'KILLS_ICE', NULL, NULL, 250, 'Derrota a 250 enemigos con hielo'),
+('MAGO_CRIOMANTICO', 'ITEM', NULL, 'PIEL_LOBO_NIEVE', NULL, 1, 'Entrega una Piel de Lobo de las Nieves'),
+('MAGO_ELECTROMANTICO', 'COUNTER', 'KILLS_LIGHTNING', NULL, NULL, 250, 'Derrota a 250 enemigos con rayo'),
+('MAGO_ELECTROMANTICO', 'ITEM', NULL, 'CUERNO_TORMENTA', NULL, 1, 'Entrega el Cuerno de la Tormenta (Señor del Acantilado)'),
+('MAGO_HIDROMANTE', 'COUNTER', 'KILLS_WATER', NULL, NULL, 250, 'Derrota a 250 enemigos con agua'),
+('MAGO_HIDROMANTE', 'ITEM', NULL, 'PERLA_MARINA', NULL, 1, 'Entrega una Perla Marina'),
+('MAGO_GEOMANTICO', 'COUNTER', 'KILLS_EARTH', NULL, NULL, 250, 'Derrota a 250 enemigos con tierra'),
+('MAGO_GEOMANTICO', 'ITEM', NULL, 'CORAZON_HIERRO_NEGRO', NULL, 1, 'Entrega un Corazón de Hierro Negro (Mina Profunda)'),
+('MAGO_AEROMANTE', 'COUNTER', 'KILLS_WIND', NULL, NULL, 250, 'Derrota a 250 enemigos con viento'),
+('MAGO_AEROMANTE', 'ITEM', NULL, 'PLUMA_ARPIA_ECO', NULL, 1, 'Entrega una Pluma de Arpía del Eco'),
+('MAGO_LUMINOSO', 'COUNTER', 'KILLS_LIGHT', NULL, NULL, 250, 'Derrota a 250 enemigos con luz'),
+('MAGO_LUMINOSO', 'ITEM', NULL, 'AGUA_PURIFICADA', NULL, 5, 'Entrega 5 Aguas Purificadas del Pilar'),
+('REY_NIGROMANTE', 'KILLS_CATEGORIA', 'MUERTO_VIVIENTE', NULL, NULL, 300, 'Derrota a 300 muertos vivientes'),
+('REY_NIGROMANTE', 'ITEM', NULL, 'MEDALLA_VIGIA', NULL, 1, 'Entrega la Medalla del Vigía (Cripta del Vigía)'),
+('LICH', 'COUNTER', 'COMBATES_LIMITE_SOBREVIVIDOS', NULL, NULL, 50, 'Sobrevive a 50 combates al límite'),
+('LICH', 'ITEM', NULL, 'PIEDRA_FILOSOFAL', NULL, 1, 'Entrega la Piedra Filosofal (Morvak, Fisura Infernal)'),
+('INVOCADOR_DEMONIACO', 'COUNTER', 'INVOCACIONES_REALIZADAS', NULL, NULL, 100, 'Invoca 100 veces'),
+('INVOCADOR_DEMONIACO', 'KILLS_CATEGORIA', 'DEMONIO', NULL, NULL, 150, 'Derrota a 150 demonios'),
+('INVOCADOR_CELESTIAL', 'COUNTER', 'INVOCACIONES_REALIZADAS', NULL, NULL, 100, 'Invoca 100 veces'),
+('INVOCADOR_CELESTIAL', 'COUNTER', 'KILLS_LIGHT', NULL, NULL, 150, 'Derrota a 150 enemigos con luz'),
+('INVOCADOR_SALVAJE', 'COUNTER', 'INVOCACIONES_REALIZADAS', NULL, NULL, 100, 'Invoca 100 veces'),
+('INVOCADOR_SALVAJE', 'KILLS_CATEGORIA', 'BESTIA', NULL, NULL, 200, 'Derrota a 200 bestias'),
+('MAESTRO_ELEMENTAL', 'COUNTER', 'ELEMENTOS_DOMINADOS', NULL, NULL, 8, 'Domina los 8 elementos'),
+('MAGO_ESTELAR', 'COUNTER', 'KILLS_LIGHT', NULL, NULL, 200, 'Derrota a 200 enemigos con luz'),
+('MAGO_ESTELAR', 'ITEM', NULL, 'PERLA_ESTRELLAS', NULL, 1, 'Entrega la Perla de las Estrellas (Bestia de las Profundidades)'),
+('MAGO_COSMICO', 'KILLS_CATEGORIA', 'COSMICO', NULL, NULL, 150, 'Derrota a 150 cósmicos'),
+('MAGO_COSMICO', 'ITEM', NULL, 'NUCLEO_ESTELAR', NULL, 1, 'Entrega el Núcleo Estelar (Ojo del Devorador, Observatorio)'),
+('CAZADOR', 'KILLS_CATEGORIA', 'BESTIA', NULL, NULL, 60, 'Derrota a 60 bestias'),
+('FRANCOTIRADOR', 'COUNTER', 'CRITICOS_ARCO', NULL, NULL, 80, 'Da 80 críticos con el arco'),
+('RANGER', 'SUBZONAS', 'pradera', NULL, NULL, NULL, 'Pisa todas las subzonas de la Pradera'),
+('ASESINO_ARCANO', 'COUNTER', 'KILLS_DARK', NULL, NULL, 40, 'Derrota a 40 enemigos con oscuridad'),
+('ASESINO_ARCANO', 'ITEM', NULL, 'FRAGMENTO_ECLIPSE', NULL, 1, 'Entrega un Fragmento de Eclipse'),
+('ELFO_SILVESTRE', 'KILLS_CATEGORIA', 'BESTIA', NULL, NULL, 50, 'Derrota a 50 bestias'),
+('ELFO_SILVESTRE', 'ITEM', NULL, 'RAMA_ROBLEVIEJO', NULL, 1, 'Trae la Rama de Robleviejo (el roble viejo del bosque)'),
+('BALLESTERO', 'EQUIPO_FORMA', NULL, NULL, 'BALLESTA', NULL, 'Lleva una ballesta'),
+('BALLESTERO', 'COUNTER', 'CRITICOS_ARCO', NULL, NULL, 200, 'Da 200 críticos con el arco'),
+('MAESTRO_CAZADOR', 'KILLS_CATEGORIA', 'BESTIA', NULL, NULL, 300, 'Derrota a 300 bestias'),
+('MAESTRO_CAZADOR', 'ITEM', NULL, 'CORONA_REY_MONTANA', NULL, 1, 'Entrega la Corona del Rey de Montaña'),
+('FRANCOTIRADOR_FANTASMAL', 'COUNTER', 'SEGUNDOS_OCULTO', NULL, NULL, 300, 'Permanece oculto 300 segundos'),
+('TIRADOR_EXPLOSIVO', 'COUNTER', 'KILLS_EXPLOSIVO', NULL, NULL, 100, 'Derrota a 100 enemigos con flecha explosiva'),
+('TIRADOR_VENENO', 'COUNTER', 'ENVENENAMIENTOS', NULL, NULL, 150, 'Envenena 150 veces'),
+('ARQUERO_DEL_RAYO', 'COUNTER', 'KILLS_LIGHTNING', NULL, NULL, 200, 'Derrota a 200 enemigos con rayo'),
+('ARQUERO_DEL_RAYO', 'ITEM', NULL, 'CUERNO_TORMENTA', NULL, 1, 'Entrega el Cuerno de la Tormenta (Señor del Acantilado)'),
+('RANGER_PRIMORDIAL', 'SUBZONAS', 'montanas,volcan,costas', NULL, NULL, NULL, 'Pisa todas las subzonas de las Montañas, el Volcán y las Costas'),
+('GUARDIAN_SILVESTRE', 'COUNTER', 'ALIADOS_PROTEGIDOS', NULL, NULL, 80, 'Protege a un aliado 80 veces'),
+('GUARDIAN_SILVESTRE', 'KILLS_CATEGORIA', 'BESTIA', NULL, NULL, 150, 'Derrota a 150 bestias'),
+('ARQUERO_CELESTIAL', 'COUNTER', 'KILLS_LIGHT', NULL, NULL, 150, 'Derrota a 150 enemigos con luz'),
+('MAESTRO_ASESINO_OSCURO', 'COUNTER', 'KILLS_DARK', NULL, NULL, 150, 'Derrota a 150 enemigos con oscuridad'),
+('MAESTRO_ASESINO_OSCURO', 'COUNTER', 'GOLPES_LETALES', NULL, NULL, 100, 'Da 100 golpes letales'),
+('ELFO_ANTIGUO', 'KILLS_CATEGORIA', 'BESTIA', NULL, NULL, 200, 'Derrota a 200 bestias'),
+('ELFO_ANTIGUO', 'ITEM', NULL, 'ARCO_DE_LOS_ANTIGUOS', NULL, 1, 'Trae el Arco de los Antiguos (Señor del Acantilado)'),
+('ELFO_SENOR_BOSQUE', 'KILLS_CATEGORIA', 'BESTIA', NULL, NULL, 500, 'Derrota a 500 bestias'),
+('ELFO_SENOR_BOSQUE', 'ITEM', NULL, 'CORONA_FLORES_LUMINOSAS', NULL, 1, 'Entrega la Corona de Flores Luminosas (Guardián Ancestral)'),
+('NINJA', 'COUNTER', 'ATAQUES_ESQUIVADOS', NULL, NULL, 50, 'Esquiva 50 ataques'),
+('ASESINO', 'COUNTER', 'GOLPES_LETALES', NULL, NULL, 50, 'Da 50 golpes letales'),
+('LADRON_MAESTRO', 'COUNTER', 'ITEMS_ROBADOS', NULL, NULL, 40, 'Roba 40 objetos'),
+('ENVENENADOR', 'COUNTER', 'ENVENENAMIENTOS', NULL, NULL, 50, 'Envenena 50 veces'),
+('ESPECIALISTA_TRAMPAS', 'COUNTER', 'TRAMPAS_DESPLEGADAS', NULL, NULL, 40, 'Coloca 40 trampas'),
+('NINJA_MAESTRO', 'COUNTER', 'KILLS_EN_INVISIBILIDAD', NULL, NULL, 150, 'Derrota a 150 enemigos sin ser visto'),
+('NINJA_SOMBRA', 'COUNTER', 'KILLS_DARK', NULL, NULL, 150, 'Derrota a 150 enemigos con oscuridad'),
+('NINJA_SOMBRA', 'COUNTER', 'ATAQUES_ESQUIVADOS', NULL, NULL, 200, 'Esquiva 200 ataques'),
+('ACROBATA', 'COUNTER', 'ATAQUES_ESQUIVADOS', NULL, NULL, 400, 'Esquiva 400 ataques'),
+('MAESTRO_ASESINO', 'COUNTER', 'GOLPES_LETALES', NULL, NULL, 200, 'Da 200 golpes letales'),
+('MAESTRO_ASESINO', 'COUNTER', 'JEFES_SOLO', NULL, NULL, 1, 'Vence a un jefe de zona tú solo'),
+('LADRON_LEGENDARIO', 'COUNTER', 'ITEMS_ROBADOS', NULL, NULL, 200, 'Roba 200 objetos'),
+('LADRON_LEGENDARIO', 'ITEM', NULL, 'LIBRO_CUENTAS_PIRATA', NULL, 1, 'Entrega el libro de cuentas de los piratas'),
+('SAQUEADOR_DE_TESOROS', 'SECRETOS', NULL, NULL, NULL, 15, 'Abre 15 secretos del mundo'),
+('MAESTRO_ENVENENADOR', 'COUNTER', 'ENVENENAMIENTOS', NULL, NULL, 300, 'Envenena 300 veces'),
+('MAESTRO_ENVENENADOR', 'ITEM', NULL, 'GLANDULA_SAPO', NULL, 10, 'Entrega 10 Glándulas de Sapo'),
+('PICARO_ELEMENTAL', 'COUNTER', 'ELEMENTOS_DOMINADOS', NULL, NULL, 2, 'Domina 2 elementos'),
+('PICARO_ELEMENTAL', 'COUNTER', 'ENVENENAMIENTOS', NULL, NULL, 150, 'Envenena 150 veces'),
+('MERCENARIO', 'COUNTER', 'MISIONES_COMBATE_COMPLETADAS', NULL, NULL, 50, 'Completa 50 misiones de combate'),
+('MERCENARIO', 'SECRETOS', NULL, NULL, NULL, 10, 'Abre 10 secretos del mundo'),
+('EXPLORADOR_MAZMORRAS', 'MAZMORRAS_DISTINTAS', NULL, NULL, NULL, 4, 'Vence al jefe de 4 mazmorras distintas'),
+('MAESTRO_DEL_SIGILO', 'COUNTER', 'SEGUNDOS_OCULTO', NULL, NULL, 300, 'Permanece oculto 300 segundos'),
+('MAESTRO_DEL_SIGILO', 'COUNTER', 'TRAMPAS_DESPLEGADAS', NULL, NULL, 50, 'Coloca 50 trampas'),
+('BUSCADOR_DE_TRAMPAS', 'COUNTER', 'TRAMPAS_DETECTADAS', NULL, NULL, 60, 'Detecta 60 trampas'),
+('BUSCADOR_DE_TRAMPAS', 'COUNTER', 'TRAMPAS_DESPLEGADAS', NULL, NULL, 100, 'Coloca 100 trampas'),
+('ASESINO_DE_ELITE', 'JEFES_ZONA', NULL, NULL, NULL, 5, 'Derrota a 5 jefes de zona distintos'),
+('ASESINO_DE_ELITE', 'COUNTER', 'JEFES_SOLO', NULL, NULL, 3, 'Vence a 3 jefes de zona tú solo'),
+('CLERIGO', 'COUNTER', 'CUROS_REALIZADOS', NULL, NULL, 100, 'Cura 100 veces'),
+('DRUIDA', 'COUNTER', 'RECURSOS_RECOGIDOS', NULL, NULL, 30, 'Recoge 30 recursos del mapa'),
+('DRUIDA', 'KILLS_CATEGORIA', 'BESTIA', NULL, NULL, 40, 'Derrota a 40 bestias'),
+('TEMPLARIO', 'EQUIPO_FORMA', NULL, NULL, 'ARMADURA_PESADA', NULL, 'Lleva una armadura pesada'),
+('TEMPLARIO', 'COUNTER', 'CUROS_Y_ATAQUES', NULL, NULL, 60, 'Cura y ataca en 60 combates'),
+('SANADOR_DIVINO', 'COUNTER', 'CUROS_REALIZADOS', NULL, NULL, 200, 'Cura 200 veces'),
+('SANADOR_DIVINO', 'COUNTER', 'ALIADOS_SALVADOS', NULL, NULL, 5, 'Salva a 5 aliados'),
+('INQUISIDOR', 'KILLS_CATEGORIA', 'MUERTO_VIVIENTE,DEMONIO', NULL, NULL, 80, 'Derrota a 80 muertos vivientes o demonios'),
+('OBISPO', 'COUNTER', 'CUROS_REALIZADOS', NULL, NULL, 400, 'Cura 400 veces'),
+('BENDITO', 'COUNTER', 'BENDICIONES_DADAS', NULL, NULL, 150, 'Da 150 bendiciones'),
+('DRUIDA_PRIMORDIAL', 'COUNTER', 'KILLS_EARTH', NULL, NULL, 150, 'Derrota a 150 enemigos con tierra'),
+('DRUIDA_PRIMORDIAL', 'COUNTER', 'RECURSOS_RECOGIDOS', NULL, NULL, 100, 'Recoge 100 recursos del mapa'),
+('PROTECTOR_DEL_BOSQUE', 'COUNTER', 'ALIADOS_PROTEGIDOS', NULL, NULL, 100, 'Protege a un aliado 100 veces'),
+('PROTECTOR_DEL_BOSQUE', 'KILLS_CATEGORIA', 'BESTIA', NULL, NULL, 200, 'Derrota a 200 bestias'),
+('CABALLERO_TEMPLARIO', 'COUNTER', 'CUROS_REALIZADOS', NULL, NULL, 300, 'Cura 300 veces'),
+('CABALLERO_TEMPLARIO', 'COUNTER', 'COMBATES_LIMITE_SOBREVIVIDOS', NULL, NULL, 30, 'Sobrevive a 30 combates al límite'),
+('SANADOR_LEGENDARIO', 'COUNTER', 'ALIADOS_SALVADOS', NULL, NULL, 40, 'Salva a 40 aliados'),
+('SANADOR_LEGENDARIO', 'ITEM', NULL, 'CALIZ_DE_CORAL', NULL, 1, 'Entrega el Cáliz de Coral (Señor del Océano, Arrecife Hundido)'),
+('VIDENTE', 'COUNTER', 'PREDICCIONES_USADAS', NULL, NULL, 150, 'Usa 150 predicciones'),
+('GRAN_INQUISIDOR', 'KILLS_CATEGORIA', 'MUERTO_VIVIENTE,DEMONIO', NULL, NULL, 300, 'Derrota a 300 muertos vivientes o demonios'),
+('APOSTOL', 'COUNTER', 'CUROS_REALIZADOS', NULL, NULL, 800, 'Cura 800 veces'),
+('APOSTOL', 'ITEM', NULL, 'LAGRIMA_AETHRA', NULL, 1, 'Entrega una Lágrima de Aethra'),
+('HERBOLARIO_SAGRADO', 'COUNTER', 'POCIONES_CRAFTEADAS', NULL, NULL, 100, 'Prepara 100 pociones'),
+('HERBOLARIO_SAGRADO', 'COUNTER', 'RECURSOS_RECOGIDOS', NULL, NULL, 300, 'Recoge 300 recursos del mapa'),
+('PALADIN_DIVINO', 'COUNTER', 'CUROS_REALIZADOS', NULL, NULL, 500, 'Cura 500 veces'),
+('PALADIN_DIVINO', 'COUNTER', 'ALIADOS_PROTEGIDOS', NULL, NULL, 200, 'Protege a un aliado 200 veces'),
+('ASCETA', 'COUNTER', 'MEDITACIONES_USADAS', NULL, NULL, 100, 'Medita 100 veces'),
+('ASCETA', 'ITEM', NULL, 'LAGRIMA_AETHRA', NULL, 1, 'Entrega una Lágrima de Aethra'),
+('SACERDOTE_DEL_CAOS', 'COUNTER', 'KILLS_DARK', NULL, NULL, 200, 'Derrota a 200 enemigos con oscuridad'),
+('SACERDOTE_DEL_CAOS', 'ITEM', NULL, 'CORAZON_ECLIPSE', NULL, 1, 'Entrega el Corazón del Eclipse (Avatar del Eclipse)'),
+('EXORCISTA', 'COUNTER', 'EXORCISMOS_EXITOSOS', NULL, NULL, 100, 'Logra 100 exorcismos'),
+('EXORCISTA', 'KILLS_CATEGORIA', 'MUERTO_VIVIENTE', NULL, NULL, 500, 'Derrota a 500 muertos vivientes')
+) AS v(cls, tipo, counter_code, item_code, equipment_type, target, descr)
+JOIN classes c ON c.code = v.cls JOIN class_evolutions e ON e.evolves_to_class_id = c.id;
+
+-- ============================================================================================
+-- Las Pruebas de la Orden (repetible; sin ON CONFLICT): 15 misiones PRUEBA_<CLASE>_<1|2|3> que abren las
+-- evoluciones de cada escalón (requisito QUEST), y los monstruos nuevos de las pruebas (Recluta y Campeón del
+-- Cuartel, Gólem de Runas, Sombra de Nox y la Sombra del héroe de la Ascensión). Diseño: docs/evoluciones_pruebas.md.
+-- ============================================================================================
+
+-- monstruos nuevos: copian las estadísticas de uno parecido de su nivel
+INSERT INTO monsters (code, name, zone_id, element_id, rarity, base_level, min_spawn_level, max_spawn_level, base_hp, base_atk, base_def,
+  base_magic_atk, base_magic_def, base_spd, base_evasion, base_crit_chance, base_crit_damage, xp_reward, gold_reward, description, category)
+SELECT 'RECLUTA_CUARTEL', 'Recluta del Cuartel', NULL, t.element_id, 'COMMON', 16, 16, 22, ROUND(t.base_hp * 0.8), ROUND(t.base_atk * 0.85), t.base_def,
+  ROUND(t.base_magic_atk * 0.85), t.base_magic_def, t.base_spd, t.base_evasion, t.base_crit_chance, t.base_crit_damage, ROUND(t.xp_reward * 0.5), ROUND(t.gold_reward * 0.5), 'Un recluta del Cuartel del Acero con casco de práctica y espada sin filo. Pega con más ganas que puntería.', 'HUMANOIDE'
+FROM monsters t WHERE t.code = 'ORCO_MONTANA' AND NOT EXISTS (SELECT 1 FROM monsters WHERE code = 'RECLUTA_CUARTEL');
+UPDATE monsters SET name = 'Recluta del Cuartel', rarity = 'COMMON', category = 'HUMANOIDE', description = 'Un recluta del Cuartel del Acero con casco de práctica y espada sin filo. Pega con más ganas que puntería.', min_spawn_level = 16, max_spawn_level = 22 WHERE code = 'RECLUTA_CUARTEL';
+DELETE FROM monster_level_scalings WHERE monster_id = (SELECT id FROM monsters WHERE code = 'RECLUTA_CUARTEL');
+INSERT INTO monster_level_scalings (monster_id, level, hp, atk, def, magic_atk, magic_def, spd, evasion, crit_chance, crit_damage, elemental_damage)
+SELECT (SELECT id FROM monsters WHERE code = 'RECLUTA_CUARTEL'), s.level, ROUND(s.hp * 0.8), ROUND(s.atk * 0.85), s.def, ROUND(s.magic_atk * 0.85), s.magic_def, s.spd,
+  s.evasion, s.crit_chance, s.crit_damage, s.elemental_damage
+FROM monster_level_scalings s WHERE s.monster_id = (SELECT id FROM monsters WHERE code = 'ORCO_MONTANA');
+DELETE FROM monster_skills WHERE monster_id = (SELECT id FROM monsters WHERE code = 'RECLUTA_CUARTEL');
+INSERT INTO monster_skills (monster_id, skill_id, use_chance_percent)
+SELECT (SELECT id FROM monsters WHERE code = 'RECLUTA_CUARTEL'), ms.skill_id, ms.use_chance_percent
+FROM monster_skills ms WHERE ms.monster_id = (SELECT id FROM monsters WHERE code = 'ORCO_MONTANA');
+INSERT INTO monsters (code, name, zone_id, element_id, rarity, base_level, min_spawn_level, max_spawn_level, base_hp, base_atk, base_def,
+  base_magic_atk, base_magic_def, base_spd, base_evasion, base_crit_chance, base_crit_damage, xp_reward, gold_reward, description, category)
+SELECT 'CAMPEON_CUARTEL', 'Campeón del Cuartel', NULL, t.element_id, 'MINIBOSS', 20, 20, 26, ROUND(t.base_hp * 2.2), ROUND(t.base_atk * 1.1), t.base_def,
+  ROUND(t.base_magic_atk * 1.1), t.base_magic_def, t.base_spd, t.base_evasion, t.base_crit_chance, t.base_crit_damage, ROUND(t.xp_reward * 3), ROUND(t.gold_reward * 3), 'El mejor espadachín de la guardia de Aurelia. Nunca perdió un duelo en el patio. Eso dice él.', 'HUMANOIDE'
+FROM monsters t WHERE t.code = 'TROLL_SALVAJE' AND NOT EXISTS (SELECT 1 FROM monsters WHERE code = 'CAMPEON_CUARTEL');
+UPDATE monsters SET name = 'Campeón del Cuartel', rarity = 'MINIBOSS', category = 'HUMANOIDE', description = 'El mejor espadachín de la guardia de Aurelia. Nunca perdió un duelo en el patio. Eso dice él.', min_spawn_level = 20, max_spawn_level = 26 WHERE code = 'CAMPEON_CUARTEL';
+DELETE FROM monster_level_scalings WHERE monster_id = (SELECT id FROM monsters WHERE code = 'CAMPEON_CUARTEL');
+INSERT INTO monster_level_scalings (monster_id, level, hp, atk, def, magic_atk, magic_def, spd, evasion, crit_chance, crit_damage, elemental_damage)
+SELECT (SELECT id FROM monsters WHERE code = 'CAMPEON_CUARTEL'), s.level, ROUND(s.hp * 2.2), ROUND(s.atk * 1.1), s.def, ROUND(s.magic_atk * 1.1), s.magic_def, s.spd,
+  s.evasion, s.crit_chance, s.crit_damage, s.elemental_damage
+FROM monster_level_scalings s WHERE s.monster_id = (SELECT id FROM monsters WHERE code = 'TROLL_SALVAJE');
+DELETE FROM monster_skills WHERE monster_id = (SELECT id FROM monsters WHERE code = 'CAMPEON_CUARTEL');
+INSERT INTO monster_skills (monster_id, skill_id, use_chance_percent)
+SELECT (SELECT id FROM monsters WHERE code = 'CAMPEON_CUARTEL'), ms.skill_id, ms.use_chance_percent
+FROM monster_skills ms WHERE ms.monster_id = (SELECT id FROM monsters WHERE code = 'TROLL_SALVAJE');
+INSERT INTO monsters (code, name, zone_id, element_id, rarity, base_level, min_spawn_level, max_spawn_level, base_hp, base_atk, base_def,
+  base_magic_atk, base_magic_def, base_spd, base_evasion, base_crit_chance, base_crit_damage, xp_reward, gold_reward, description, category)
+SELECT 'GOLEM_RUNAS', 'Gólem de Runas', NULL, t.element_id, 'MINIBOSS', 20, 20, 26, ROUND(t.base_hp * 2.2), ROUND(t.base_atk * 1.1), t.base_def,
+  ROUND(t.base_magic_atk * 1.1), t.base_magic_def, t.base_spd, t.base_evasion, t.base_crit_chance, t.base_crit_damage, ROUND(t.xp_reward * 3), ROUND(t.gold_reward * 3), 'Un guardián de piedra de la Torre Arcana, con runas que arden. Lo despertó el fuego de un aprendiz descuidado.', 'ELEMENTAL'
+FROM monsters t WHERE t.code = 'CENTINELA_PIEDRA' AND NOT EXISTS (SELECT 1 FROM monsters WHERE code = 'GOLEM_RUNAS');
+UPDATE monsters SET name = 'Gólem de Runas', rarity = 'MINIBOSS', category = 'ELEMENTAL', description = 'Un guardián de piedra de la Torre Arcana, con runas que arden. Lo despertó el fuego de un aprendiz descuidado.', min_spawn_level = 20, max_spawn_level = 26 WHERE code = 'GOLEM_RUNAS';
+DELETE FROM monster_level_scalings WHERE monster_id = (SELECT id FROM monsters WHERE code = 'GOLEM_RUNAS');
+INSERT INTO monster_level_scalings (monster_id, level, hp, atk, def, magic_atk, magic_def, spd, evasion, crit_chance, crit_damage, elemental_damage)
+SELECT (SELECT id FROM monsters WHERE code = 'GOLEM_RUNAS'), s.level, ROUND(s.hp * 2.2), ROUND(s.atk * 1.1), s.def, ROUND(s.magic_atk * 1.1), s.magic_def, s.spd,
+  s.evasion, s.crit_chance, s.crit_damage, s.elemental_damage
+FROM monster_level_scalings s WHERE s.monster_id = (SELECT id FROM monsters WHERE code = 'CENTINELA_PIEDRA');
+DELETE FROM monster_skills WHERE monster_id = (SELECT id FROM monsters WHERE code = 'GOLEM_RUNAS');
+INSERT INTO monster_skills (monster_id, skill_id, use_chance_percent)
+SELECT (SELECT id FROM monsters WHERE code = 'GOLEM_RUNAS'), ms.skill_id, ms.use_chance_percent
+FROM monster_skills ms WHERE ms.monster_id = (SELECT id FROM monsters WHERE code = 'CENTINELA_PIEDRA');
+INSERT INTO monsters (code, name, zone_id, element_id, rarity, base_level, min_spawn_level, max_spawn_level, base_hp, base_atk, base_def,
+  base_magic_atk, base_magic_def, base_spd, base_evasion, base_crit_chance, base_crit_damage, xp_reward, gold_reward, description, category)
+SELECT 'SOMBRA_NOX', 'Sombra de Nox', NULL, t.element_id, 'MINIBOSS', 20, 20, 26, ROUND(t.base_hp * 1.8), ROUND(t.base_atk * 1.05), t.base_def,
+  ROUND(t.base_magic_atk * 1.05), t.base_magic_def, t.base_spd, t.base_evasion, t.base_crit_chance, t.base_crit_damage, ROUND(t.xp_reward * 1.2), ROUND(t.gold_reward * 1.2), 'Una copia de Nox hecha de humo y de malas costumbres. Nadie sabe si Nox la manda o si se le escapó.', 'ESPECTRO'
+FROM monsters t WHERE t.code = 'BRUJO_MONTANA' AND NOT EXISTS (SELECT 1 FROM monsters WHERE code = 'SOMBRA_NOX');
+UPDATE monsters SET name = 'Sombra de Nox', rarity = 'MINIBOSS', category = 'ESPECTRO', description = 'Una copia de Nox hecha de humo y de malas costumbres. Nadie sabe si Nox la manda o si se le escapó.', min_spawn_level = 20, max_spawn_level = 26 WHERE code = 'SOMBRA_NOX';
+DELETE FROM monster_level_scalings WHERE monster_id = (SELECT id FROM monsters WHERE code = 'SOMBRA_NOX');
+INSERT INTO monster_level_scalings (monster_id, level, hp, atk, def, magic_atk, magic_def, spd, evasion, crit_chance, crit_damage, elemental_damage)
+SELECT (SELECT id FROM monsters WHERE code = 'SOMBRA_NOX'), s.level, ROUND(s.hp * 1.8), ROUND(s.atk * 1.05), s.def, ROUND(s.magic_atk * 1.05), s.magic_def, s.spd,
+  s.evasion, s.crit_chance, s.crit_damage, s.elemental_damage
+FROM monster_level_scalings s WHERE s.monster_id = (SELECT id FROM monsters WHERE code = 'BRUJO_MONTANA');
+DELETE FROM monster_skills WHERE monster_id = (SELECT id FROM monsters WHERE code = 'SOMBRA_NOX');
+INSERT INTO monster_skills (monster_id, skill_id, use_chance_percent)
+SELECT (SELECT id FROM monsters WHERE code = 'SOMBRA_NOX'), ms.skill_id, ms.use_chance_percent
+FROM monster_skills ms WHERE ms.monster_id = (SELECT id FROM monsters WHERE code = 'BRUJO_MONTANA');
+INSERT INTO monsters (code, name, zone_id, element_id, rarity, base_level, min_spawn_level, max_spawn_level, base_hp, base_atk, base_def,
+  base_magic_atk, base_magic_def, base_spd, base_evasion, base_crit_chance, base_crit_damage, xp_reward, gold_reward, description, category)
+SELECT 'SOMBRA_HEROE', 'Tu Sombra', NULL, t.element_id, 'MINIBOSS', 88, 88, 100, ROUND(t.base_hp * 1), ROUND(t.base_atk * 1), t.base_def,
+  ROUND(t.base_magic_atk * 1), t.base_magic_def, t.base_spd, t.base_evasion, t.base_crit_chance, t.base_crit_damage, ROUND(t.xp_reward * 1), ROUND(t.gold_reward * 1), 'Todo lo que eres, sin nada de lo que te importa. Sabe lo que vas a hacer, porque lo haría igual.', 'ESPECTRO'
+FROM monsters t WHERE t.code = 'GUARDIAN_ANCESTRAL' AND NOT EXISTS (SELECT 1 FROM monsters WHERE code = 'SOMBRA_HEROE');
+UPDATE monsters SET name = 'Tu Sombra', rarity = 'MINIBOSS', category = 'ESPECTRO', description = 'Todo lo que eres, sin nada de lo que te importa. Sabe lo que vas a hacer, porque lo haría igual.', min_spawn_level = 88, max_spawn_level = 100 WHERE code = 'SOMBRA_HEROE';
+DELETE FROM monster_level_scalings WHERE monster_id = (SELECT id FROM monsters WHERE code = 'SOMBRA_HEROE');
+INSERT INTO monster_level_scalings (monster_id, level, hp, atk, def, magic_atk, magic_def, spd, evasion, crit_chance, crit_damage, elemental_damage)
+SELECT (SELECT id FROM monsters WHERE code = 'SOMBRA_HEROE'), s.level, ROUND(s.hp * 1), ROUND(s.atk * 1), s.def, ROUND(s.magic_atk * 1), s.magic_def, s.spd,
+  s.evasion, s.crit_chance, s.crit_damage, s.elemental_damage
+FROM monster_level_scalings s WHERE s.monster_id = (SELECT id FROM monsters WHERE code = 'GUARDIAN_ANCESTRAL');
+DELETE FROM monster_skills WHERE monster_id = (SELECT id FROM monsters WHERE code = 'SOMBRA_HEROE');
+
+-- El Patio del Acero (Sir Aldric, escalón 1)
+INSERT INTO quests (code, name, quest_type, zone_id, min_level, max_level, difficulty_stars, npc_name, location_name, is_repeatable, repeat_cooldown_hours, reputation_reward, gold_reward, xp_reward, description, is_personal, is_boss_quest, giver_npc, turn_in_npc, required_class_id, dialog, chain_position, chain_total)
+SELECT 'PRUEBA_GUERRERO_1', 'El Patio del Acero', 'SECUNDARIA', 1, 20, 100, 2, 'Sir Aldric', 'Cuartel del Acero', FALSE, NULL, 60, 1200, 4000, '«Cualquiera levanta una espada. Lo difícil es seguir de pie cuando te la bajan en la cabeza. Mis reclutas te van a probar en el patio, de a muchos. Si sigues parado al final, el Campeón quiere un duelo.»', TRUE, FALSE, 'aldric', 'aldric', 1, '{"entrega":"*Aldric te pone la mano en el hombro, pesada como un escudo* De pie. Con golpes, con barro y de pie. Eso es un guerrero. Desde hoy eres soldado de la Orden del Acero. Ahora ve y elige qué clase de soldado quieres ser."}'::jsonb, 1, 3
+WHERE NOT EXISTS (SELECT 1 FROM quests WHERE code = 'PRUEBA_GUERRERO_1');
+UPDATE quests SET name = 'El Patio del Acero', quest_type = 'SECUNDARIA', zone_id = 1, min_level = 20, max_level = 100, difficulty_stars = 2, npc_name = 'Sir Aldric', location_name = 'Cuartel del Acero', is_repeatable = FALSE, repeat_cooldown_hours = NULL, reputation_reward = 60, gold_reward = 1200, xp_reward = 4000, description = '«Cualquiera levanta una espada. Lo difícil es seguir de pie cuando te la bajan en la cabeza. Mis reclutas te van a probar en el patio, de a muchos. Si sigues parado al final, el Campeón quiere un duelo.»', is_personal = TRUE, is_boss_quest = FALSE, giver_npc = 'aldric', turn_in_npc = 'aldric', required_class_id = 1, dialog = '{"entrega":"*Aldric te pone la mano en el hombro, pesada como un escudo* De pie. Con golpes, con barro y de pie. Eso es un guerrero. Desde hoy eres soldado de la Orden del Acero. Ahora ve y elige qué clase de soldado quieres ser."}'::jsonb, chain_position = 1, chain_total = 3 WHERE code = 'PRUEBA_GUERRERO_1';
+DELETE FROM quest_objectives WHERE quest_id = (SELECT id FROM quests WHERE code = 'PRUEBA_GUERRERO_1');
+INSERT INTO quest_objectives (quest_id, objective_type, step, target_code, monster_id, item_id, target_count, params, description)
+SELECT (SELECT id FROM quests WHERE code = 'PRUEBA_GUERRERO_1'), v.t, v.step, v.target, (SELECT id FROM monsters WHERE code = v.monster), (SELECT id FROM items WHERE code = v.item), v.n, v.params::jsonb, v.descr
+FROM (VALUES
+  ('TALK', 1, 'aldric', NULL, NULL, 1, '{"speaker":"Sir Aldric","dialog":"Tres asaltos. No te pido que ganes con estilo: te pido que no te caigas. Escudo arriba."}', 'Escucha a Sir Aldric'),
+  ('AMBUSH', 2, NULL, NULL, NULL, 1, '{"zone":"aurelia","x":13,"y":46,"radius":3,"label":"El primer asalto","speaker":"Recluta","dialog":"¡Por el Cuartel! ¡Todos juntos, que es grande!","monsters":[{"code":"RECLUTA_CUARTEL","level":18},{"code":"RECLUTA_CUARTEL","level":18}]}', 'Resiste el primer asalto de los reclutas'),
+  ('AMBUSH', 2, NULL, NULL, NULL, 1, '{"zone":"aurelia","x":13,"y":42,"radius":3,"label":"El segundo asalto","speaker":"Recluta","dialog":"¡Esta vez somos más! ¡Y tenemos un plan! Bueno, casi.","monsters":[{"code":"RECLUTA_CUARTEL","level":19},{"code":"RECLUTA_CUARTEL","level":19}]}', 'Resiste el segundo asalto'),
+  ('AMBUSH', 2, NULL, NULL, NULL, 1, '{"zone":"aurelia","x":9,"y":47,"radius":3,"label":"El tercer asalto","speaker":"Recluta","dialog":"¡El último! ¡Si lo tiramos, Aldric nos da el día libre!","monsters":[{"code":"RECLUTA_CUARTEL","level":20},{"code":"RECLUTA_CUARTEL","level":20},{"code":"RECLUTA_CUARTEL","level":20}]}', 'Resiste el tercer asalto'),
+  ('AMBUSH', 3, NULL, NULL, NULL, 1, '{"zone":"aurelia","x":15,"y":44,"radius":3,"label":"El duelo","speaker":"Campeón del Cuartel","dialog":"Aguantaste a los chicos. Bien. Ahora aguántame a mí. Sin rencores: es mi trabajo.","monsters":[{"code":"CAMPEON_CUARTEL","level":22}]}', 'Duelo con el Campeón del Cuartel'),
+  ('TALK', 4, 'aldric', NULL, NULL, 1, NULL, 'Vuelve con Sir Aldric')
+) AS v(t, step, target, monster, item, n, params, descr);
+DELETE FROM quest_npc_spots WHERE quest_id = (SELECT id FROM quests WHERE code = 'PRUEBA_GUERRERO_1');
+DELETE FROM quest_item_rewards WHERE quest_id = (SELECT id FROM quests WHERE code = 'PRUEBA_GUERRERO_1');
+
+-- La Biblioteca que Arde (Isolde, escalón 1)
+INSERT INTO quests (code, name, quest_type, zone_id, min_level, max_level, difficulty_stars, npc_name, location_name, is_repeatable, repeat_cooldown_hours, reputation_reward, gold_reward, xp_reward, description, is_personal, is_boss_quest, giver_npc, turn_in_npc, required_class_id, dialog, chain_position, chain_total)
+SELECT 'PRUEBA_MAGO_1', 'La Biblioteca que Arde', 'SECUNDARIA', 1, 20, 100, 2, 'Isolde', 'Torre Arcana', FALSE, NULL, 60, 1200, 4000, '«Un aprendiz quiso leer un libro que no debía y le salió fuego. Fuego arcano: no se apaga con agua, se apaga entendiéndolo. Hay tres llamas sueltas en los pisos de la Torre. Y el ruido despertó a algo de piedra. Arréglalo y te dejo leer ese mismo libro.»', TRUE, FALSE, 'isolde', 'isolde', 2, '{"entrega":"*Isolde te alcanza un libro de tapas negras, todavía tibio* El libro prohibido. No porque sea peligroso: porque obliga a elegir. Fuego, hielo, muerte, luz… Léelo. Y después elige qué tipo de mago quieres ser."}'::jsonb, 1, 3
+WHERE NOT EXISTS (SELECT 1 FROM quests WHERE code = 'PRUEBA_MAGO_1');
+UPDATE quests SET name = 'La Biblioteca que Arde', quest_type = 'SECUNDARIA', zone_id = 1, min_level = 20, max_level = 100, difficulty_stars = 2, npc_name = 'Isolde', location_name = 'Torre Arcana', is_repeatable = FALSE, repeat_cooldown_hours = NULL, reputation_reward = 60, gold_reward = 1200, xp_reward = 4000, description = '«Un aprendiz quiso leer un libro que no debía y le salió fuego. Fuego arcano: no se apaga con agua, se apaga entendiéndolo. Hay tres llamas sueltas en los pisos de la Torre. Y el ruido despertó a algo de piedra. Arréglalo y te dejo leer ese mismo libro.»', is_personal = TRUE, is_boss_quest = FALSE, giver_npc = 'isolde', turn_in_npc = 'isolde', required_class_id = 2, dialog = '{"entrega":"*Isolde te alcanza un libro de tapas negras, todavía tibio* El libro prohibido. No porque sea peligroso: porque obliga a elegir. Fuego, hielo, muerte, luz… Léelo. Y después elige qué tipo de mago quieres ser."}'::jsonb, chain_position = 1, chain_total = 3 WHERE code = 'PRUEBA_MAGO_1';
+DELETE FROM quest_objectives WHERE quest_id = (SELECT id FROM quests WHERE code = 'PRUEBA_MAGO_1');
+INSERT INTO quest_objectives (quest_id, objective_type, step, target_code, monster_id, item_id, target_count, params, description)
+SELECT (SELECT id FROM quests WHERE code = 'PRUEBA_MAGO_1'), v.t, v.step, v.target, (SELECT id FROM monsters WHERE code = v.monster), (SELECT id FROM items WHERE code = v.item), v.n, v.params::jsonb, v.descr
+FROM (VALUES
+  ('INVESTIGATE', 1, NULL, NULL, NULL, 1, '{"zone":"aurelia","x":18,"y":41,"radius":3,"label":"Apagar la llama","speaker":"Tú","sprite":"llama_arcana","dialog":"La llama es azul y canta bajito. Repites la palabra que la hizo, al revés, y se encoge hasta ser una chispa."}', 'Apaga la llama arcana del primer piso'),
+  ('INVESTIGATE', 1, NULL, NULL, NULL, 1, '{"zone":"aurelia","x":21,"y":42,"radius":3,"label":"Apagar la llama","speaker":"Tú","sprite":"llama_arcana","dialog":"Esta quema un estante entero sin consumirlo. Los libros gritan. Le explicas que el fuego no es suyo, y se va."}', 'Apaga la llama del segundo piso'),
+  ('INVESTIGATE', 1, NULL, NULL, NULL, 1, '{"zone":"aurelia","x":22,"y":46,"radius":3,"label":"Apagar la llama","speaker":"Tú","sprite":"llama_arcana","dialog":"La última se te sube a la mano, curiosa. La dejas mirar un momento y la cierras en el puño. No duele. Casi."}', 'Apaga la llama del tercer piso'),
+  ('AMBUSH', 2, NULL, NULL, NULL, 1, '{"zone":"aurelia","x":16,"y":47,"radius":3,"label":"El Gólem de Runas","speaker":"Tú","dialog":"El suelo tiembla. Un guardián de piedra con runas encendidas baja la escalera, buscando quién hizo el fuego.","monsters":[{"code":"GOLEM_RUNAS","level":22}]}', 'Vence al Gólem de Runas que despertó el fuego'),
+  ('TALK', 3, 'isolde', NULL, NULL, 1, NULL, 'Vuelve con Isolde')
+) AS v(t, step, target, monster, item, n, params, descr);
+DELETE FROM quest_npc_spots WHERE quest_id = (SELECT id FROM quests WHERE code = 'PRUEBA_MAGO_1');
+DELETE FROM quest_item_rewards WHERE quest_id = (SELECT id FROM quests WHERE code = 'PRUEBA_MAGO_1');
+
+-- Cien Pasos (Sylwen, escalón 1)
+INSERT INTO quests (code, name, quest_type, zone_id, min_level, max_level, difficulty_stars, npc_name, location_name, is_repeatable, repeat_cooldown_hours, reputation_reward, gold_reward, xp_reward, description, is_personal, is_boss_quest, giver_npc, turn_in_npc, required_class_id, dialog, chain_position, chain_total)
+SELECT 'PRUEBA_ARQUERO_1', 'Cien Pasos', 'SECUNDARIA', 1, 20, 100, 2, 'Sylwen', 'Campo del Halcón', FALSE, NULL, 60, 1200, 4000, '«Tres flechas marcadas, tres blancos a cien pasos. Si fallas una, vuelves mañana. Si aciertas las tres, te mando a cazar algo que también apunta: el Capitán de los Lobos, en la Pradera.»', TRUE, FALSE, 'sylwen', 'sylwen', 3, '{"entrega":"*Sylwen te prende una pluma gris en el carcaj* Pluma de halcón. Las tienen solo los que cazaron con la cabeza fría. Ahora ve: hay muchas formas de tirar una flecha, y ya puedes elegir la tuya."}'::jsonb, 1, 3
+WHERE NOT EXISTS (SELECT 1 FROM quests WHERE code = 'PRUEBA_ARQUERO_1');
+UPDATE quests SET name = 'Cien Pasos', quest_type = 'SECUNDARIA', zone_id = 1, min_level = 20, max_level = 100, difficulty_stars = 2, npc_name = 'Sylwen', location_name = 'Campo del Halcón', is_repeatable = FALSE, repeat_cooldown_hours = NULL, reputation_reward = 60, gold_reward = 1200, xp_reward = 4000, description = '«Tres flechas marcadas, tres blancos a cien pasos. Si fallas una, vuelves mañana. Si aciertas las tres, te mando a cazar algo que también apunta: el Capitán de los Lobos, en la Pradera.»', is_personal = TRUE, is_boss_quest = FALSE, giver_npc = 'sylwen', turn_in_npc = 'sylwen', required_class_id = 3, dialog = '{"entrega":"*Sylwen te prende una pluma gris en el carcaj* Pluma de halcón. Las tienen solo los que cazaron con la cabeza fría. Ahora ve: hay muchas formas de tirar una flecha, y ya puedes elegir la tuya."}'::jsonb, chain_position = 1, chain_total = 3 WHERE code = 'PRUEBA_ARQUERO_1';
+DELETE FROM quest_objectives WHERE quest_id = (SELECT id FROM quests WHERE code = 'PRUEBA_ARQUERO_1');
+INSERT INTO quest_objectives (quest_id, objective_type, step, target_code, monster_id, item_id, target_count, params, description)
+SELECT (SELECT id FROM quests WHERE code = 'PRUEBA_ARQUERO_1'), v.t, v.step, v.target, (SELECT id FROM monsters WHERE code = v.monster), (SELECT id FROM items WHERE code = v.item), v.n, v.params::jsonb, v.descr
+FROM (VALUES
+  ('INVESTIGATE', 1, NULL, NULL, NULL, 1, '{"zone":"aurelia","x":28,"y":46,"radius":3,"label":"Tirar al blanco","speaker":"Tú","sprite":"blanco_tiro","dialog":"Respiras, apuntas, sueltas. La flecha marcada se clava en el centro y tiembla."}', 'Acierta el primer blanco'),
+  ('INVESTIGATE', 1, NULL, NULL, NULL, 1, '{"zone":"aurelia","x":30,"y":44,"radius":3,"label":"Tirar al blanco","speaker":"Tú","sprite":"blanco_tiro","dialog":"Hay viento. Lo esperas. Cuando para, sueltas. Centro."}', 'Acierta el segundo blanco'),
+  ('INVESTIGATE', 1, NULL, NULL, NULL, 1, '{"zone":"aurelia","x":29,"y":48,"radius":3,"label":"Tirar al blanco","speaker":"Tú","sprite":"blanco_tiro","dialog":"El último blanco se mueve: lo empuja un aprendiz con una cuerda. Sylwen sonríe. Tiras donde va a estar, no donde está."}', 'Acierta el tercer blanco'),
+  ('DEFEAT_BOSS', 2, 'CAPITAN_LOBOS', 'CAPITAN_LOBOS', NULL, 1, NULL, 'Caza al Capitán de los Lobos en la Pradera'),
+  ('TALK', 3, 'sylwen', NULL, NULL, 1, NULL, 'Vuelve con Sylwen')
+) AS v(t, step, target, monster, item, n, params, descr);
+DELETE FROM quest_npc_spots WHERE quest_id = (SELECT id FROM quests WHERE code = 'PRUEBA_ARQUERO_1');
+DELETE FROM quest_item_rewards WHERE quest_id = (SELECT id FROM quests WHERE code = 'PRUEBA_ARQUERO_1');
+
+-- La Llave de Nox (Nox, escalón 1)
+INSERT INTO quests (code, name, quest_type, zone_id, min_level, max_level, difficulty_stars, npc_name, location_name, is_repeatable, repeat_cooldown_hours, reputation_reward, gold_reward, xp_reward, description, is_personal, is_boss_quest, giver_npc, turn_in_npc, required_class_id, dialog, chain_position, chain_total)
+SELECT 'PRUEBA_PICARO_1', 'La Llave de Nox', 'SECUNDARIA', 1, 20, 100, 2, 'Nox', 'Aurelia', FALSE, NULL, 60, 1200, 4000, '«Escondí una llave en la ciudad. Dejé tres pistas, porque soy generoso. Y a mi sombra le di la llave, porque no soy tan generoso. Quítasela. Y después devuélvemela sin que te vea. Esa es la parte difícil.»', TRUE, FALSE, 'nox', 'nox', 4, '{"entrega":"*Nox se da vuelta y la llave ya está en su cinturón. No sabes cuándo la tomó* Mm. No te vi. Bueno, te vi un poco. Suficiente. Desde hoy las sombras de Aurelia te conocen. Elige qué clase de sombra quieres ser."}'::jsonb, 1, 3
+WHERE NOT EXISTS (SELECT 1 FROM quests WHERE code = 'PRUEBA_PICARO_1');
+UPDATE quests SET name = 'La Llave de Nox', quest_type = 'SECUNDARIA', zone_id = 1, min_level = 20, max_level = 100, difficulty_stars = 2, npc_name = 'Nox', location_name = 'Aurelia', is_repeatable = FALSE, repeat_cooldown_hours = NULL, reputation_reward = 60, gold_reward = 1200, xp_reward = 4000, description = '«Escondí una llave en la ciudad. Dejé tres pistas, porque soy generoso. Y a mi sombra le di la llave, porque no soy tan generoso. Quítasela. Y después devuélvemela sin que te vea. Esa es la parte difícil.»', is_personal = TRUE, is_boss_quest = FALSE, giver_npc = 'nox', turn_in_npc = 'nox', required_class_id = 4, dialog = '{"entrega":"*Nox se da vuelta y la llave ya está en su cinturón. No sabes cuándo la tomó* Mm. No te vi. Bueno, te vi un poco. Suficiente. Desde hoy las sombras de Aurelia te conocen. Elige qué clase de sombra quieres ser."}'::jsonb, chain_position = 1, chain_total = 3 WHERE code = 'PRUEBA_PICARO_1';
+DELETE FROM quest_objectives WHERE quest_id = (SELECT id FROM quests WHERE code = 'PRUEBA_PICARO_1');
+INSERT INTO quest_objectives (quest_id, objective_type, step, target_code, monster_id, item_id, target_count, params, description)
+SELECT (SELECT id FROM quests WHERE code = 'PRUEBA_PICARO_1'), v.t, v.step, v.target, (SELECT id FROM monsters WHERE code = v.monster), (SELECT id FROM items WHERE code = v.item), v.n, v.params::jsonb, v.descr
+FROM (VALUES
+  ('INVESTIGATE', 1, NULL, NULL, NULL, 1, '{"zone":"aurelia","x":31,"y":55,"radius":3,"label":"Mirar la pista","speaker":"Tú","sprite":"huellas_botas","dialog":"Huellas de botas que no hacen ruido: van hacia el mercado y se borran en un charco a propósito."}', 'Sigue la primera pista'),
+  ('INVESTIGATE', 1, NULL, NULL, NULL, 1, '{"zone":"aurelia","x":42,"y":60,"radius":3,"label":"Mirar la pista","speaker":"Tú","sprite":"nota_suelo","dialog":"Una nota doblada: «Muy lento. Al callejón de los toneles». Tiene un dibujo de un gato burlándose."}', 'Sigue la segunda pista'),
+  ('INVESTIGATE', 1, NULL, NULL, NULL, 1, '{"zone":"aurelia","x":50,"y":54,"radius":3,"label":"Mirar la pista","speaker":"Tú","sprite":"moneda_suelo","dialog":"Una moneda falsa, de las que usa Nox para distraer guardias. Debajo, una flecha de tiza hacia el sur."}', 'Sigue la tercera pista'),
+  ('AMBUSH', 2, NULL, NULL, NULL, 1, '{"zone":"aurelia","x":36,"y":62,"radius":3,"label":"El callejón","speaker":"Sombra de Nox","dialog":"*una figura de humo con la cara de Nox hace girar una llave en el dedo* ¿Esto buscas? Ven a buscarlo, gatito.","monsters":[{"code":"SOMBRA_NOX","level":22}]}', 'Quítale la llave a la Sombra de Nox en el callejón'),
+  ('TALK', 3, 'nox', NULL, NULL, 1, NULL, 'Devuélvele la llave a Nox sin que te vea')
+) AS v(t, step, target, monster, item, n, params, descr);
+DELETE FROM quest_npc_spots WHERE quest_id = (SELECT id FROM quests WHERE code = 'PRUEBA_PICARO_1');
+DELETE FROM quest_item_rewards WHERE quest_id = (SELECT id FROM quests WHERE code = 'PRUEBA_PICARO_1');
+
+-- La Vigilia (Padre Anselm, escalón 1)
+INSERT INTO quests (code, name, quest_type, zone_id, min_level, max_level, difficulty_stars, npc_name, location_name, is_repeatable, repeat_cooldown_hours, reputation_reward, gold_reward, xp_reward, description, is_personal, is_boss_quest, giver_npc, turn_in_npc, required_class_id, dialog, chain_position, chain_total)
+SELECT 'PRUEBA_SACERDOTE_1', 'La Vigilia', 'SECUNDARIA', 1, 20, 100, 2, 'Padre Anselm', 'Capilla de la Luz', FALSE, NULL, 60, 1200, 4000, '«Curar no empieza con un milagro, hijo: empieza con vendas limpias y agua buena. Lleva tres de cada a Elenya, a la enfermería de la Catedral. Y esta noche vela junto al Pilar, sin dormirte. Mañana hablamos.»', TRUE, FALSE, 'anselm', 'anselm', 5, '{"entrega":"*Anselm te hace la señal de Aethra en la frente* Vendaste a los que nadie quería vendar y velaste sin que nadie te mirara. Eso es la fe: lo que haces cuando no hay público. Ve en paz, y elige qué luz quieres ser."}'::jsonb, 1, 3
+WHERE NOT EXISTS (SELECT 1 FROM quests WHERE code = 'PRUEBA_SACERDOTE_1');
+UPDATE quests SET name = 'La Vigilia', quest_type = 'SECUNDARIA', zone_id = 1, min_level = 20, max_level = 100, difficulty_stars = 2, npc_name = 'Padre Anselm', location_name = 'Capilla de la Luz', is_repeatable = FALSE, repeat_cooldown_hours = NULL, reputation_reward = 60, gold_reward = 1200, xp_reward = 4000, description = '«Curar no empieza con un milagro, hijo: empieza con vendas limpias y agua buena. Lleva tres de cada a Elenya, a la enfermería de la Catedral. Y esta noche vela junto al Pilar, sin dormirte. Mañana hablamos.»', is_personal = TRUE, is_boss_quest = FALSE, giver_npc = 'anselm', turn_in_npc = 'anselm', required_class_id = 5, dialog = '{"entrega":"*Anselm te hace la señal de Aethra en la frente* Vendaste a los que nadie quería vendar y velaste sin que nadie te mirara. Eso es la fe: lo que haces cuando no hay público. Ve en paz, y elige qué luz quieres ser."}'::jsonb, chain_position = 1, chain_total = 3 WHERE code = 'PRUEBA_SACERDOTE_1';
+DELETE FROM quest_objectives WHERE quest_id = (SELECT id FROM quests WHERE code = 'PRUEBA_SACERDOTE_1');
+INSERT INTO quest_objectives (quest_id, objective_type, step, target_code, monster_id, item_id, target_count, params, description)
+SELECT (SELECT id FROM quests WHERE code = 'PRUEBA_SACERDOTE_1'), v.t, v.step, v.target, (SELECT id FROM monsters WHERE code = v.monster), (SELECT id FROM items WHERE code = v.item), v.n, v.params::jsonb, v.descr
+FROM (VALUES
+  ('DELIVER', 1, 'elenya', NULL, 'VENDAJE', 3, NULL, 'Lleva 3 Vendajes a Elenya, en la Catedral'),
+  ('DELIVER', 1, 'elenya', NULL, 'AGUA_PURIFICADA', 3, NULL, 'Lleva 3 Aguas Purificadas a Elenya'),
+  ('INVESTIGATE', 2, NULL, NULL, NULL, 1, '{"zone":"aurelia","x":60,"y":47,"radius":3,"label":"Velar junto al Pilar","speaker":"Tú","sprite":"vela_peregrino","dialog":"Enciendes una vela y te sientas en los escalones del Pilar. Pasan guardias, gatos, un borracho que canta. La vela no se apaga. Tú tampoco. Cuando sale el sol, la luz del Pilar parece un poco más tibia."}', 'Vela una noche junto al Pilar de Aethra'),
+  ('TALK', 3, 'anselm', NULL, NULL, 1, NULL, 'Vuelve con el Padre Anselm')
+) AS v(t, step, target, monster, item, n, params, descr);
+DELETE FROM quest_npc_spots WHERE quest_id = (SELECT id FROM quests WHERE code = 'PRUEBA_SACERDOTE_1');
+DELETE FROM quest_item_rewards WHERE quest_id = (SELECT id FROM quests WHERE code = 'PRUEBA_SACERDOTE_1');
+
+-- El Juramento del Yunque (Sir Aldric, escalón 2)
+INSERT INTO quests (code, name, quest_type, zone_id, min_level, max_level, difficulty_stars, npc_name, location_name, is_repeatable, repeat_cooldown_hours, reputation_reward, gold_reward, xp_reward, description, is_personal, is_boss_quest, giver_npc, turn_in_npc, required_class_id, dialog, chain_position, chain_total)
+SELECT 'PRUEBA_GUERRERO_2', 'El Juramento del Yunque', 'SECUNDARIA', 1, 50, 100, 3, 'Sir Aldric', 'Bastión de Hierro', FALSE, NULL, 120, 3000, 11000, '«Los guerreros de verdad juran en el yunque de Durgan, en el Bastión de Hierro. Golpeas el hierro y dices en voz alta qué vas a proteger. Después lo demuestras: el Señor de la Caldera lleva años quemando a los que suben al Volcán.»', TRUE, FALSE, 'aldric', 'aldric', 1, '{"entrega":"*Aldric mira la marca del yunque que te quedó en la palma* Lo juraste y lo cumpliste. Ya no eres soldado de nadie: eres maestro de tu propia espada. Ve a elegir cómo la vas a usar."}'::jsonb, 2, 3
+WHERE NOT EXISTS (SELECT 1 FROM quests WHERE code = 'PRUEBA_GUERRERO_2');
+UPDATE quests SET name = 'El Juramento del Yunque', quest_type = 'SECUNDARIA', zone_id = 1, min_level = 50, max_level = 100, difficulty_stars = 3, npc_name = 'Sir Aldric', location_name = 'Bastión de Hierro', is_repeatable = FALSE, repeat_cooldown_hours = NULL, reputation_reward = 120, gold_reward = 3000, xp_reward = 11000, description = '«Los guerreros de verdad juran en el yunque de Durgan, en el Bastión de Hierro. Golpeas el hierro y dices en voz alta qué vas a proteger. Después lo demuestras: el Señor de la Caldera lleva años quemando a los que suben al Volcán.»', is_personal = TRUE, is_boss_quest = FALSE, giver_npc = 'aldric', turn_in_npc = 'aldric', required_class_id = 1, dialog = '{"entrega":"*Aldric mira la marca del yunque que te quedó en la palma* Lo juraste y lo cumpliste. Ya no eres soldado de nadie: eres maestro de tu propia espada. Ve a elegir cómo la vas a usar."}'::jsonb, chain_position = 2, chain_total = 3 WHERE code = 'PRUEBA_GUERRERO_2';
+DELETE FROM quest_objectives WHERE quest_id = (SELECT id FROM quests WHERE code = 'PRUEBA_GUERRERO_2');
+INSERT INTO quest_objectives (quest_id, objective_type, step, target_code, monster_id, item_id, target_count, params, description)
+SELECT (SELECT id FROM quests WHERE code = 'PRUEBA_GUERRERO_2'), v.t, v.step, v.target, (SELECT id FROM monsters WHERE code = v.monster), (SELECT id FROM items WHERE code = v.item), v.n, v.params::jsonb, v.descr
+FROM (VALUES
+  ('TALK', 1, 'durgan', NULL, NULL, 1, '{"speaker":"Durgan","dialog":"¿Te manda Aldric? Ese viejo testarudo juró aquí hace cuarenta años. Ahí está el yunque. Golpea fuerte y di la verdad: el hierro sabe cuando mientes."}', 'Habla con Durgan en el Bastión de Hierro (Montañas)'),
+  ('INVESTIGATE', 2, NULL, NULL, NULL, 1, '{"zone":"montanas","x":60,"y":38,"radius":3,"label":"Golpear el yunque","speaker":"Tú","sprite":"yunque_juramento","dialog":"Golpeas el yunque una vez y dices en voz alta lo que vas a proteger. El hierro suena como una campana. Durgan asiente: dijiste la verdad."}', 'Forja tu juramento en el yunque del Bastión'),
+  ('DEFEAT_BOSS', 3, 'SENOR_CALDERA', 'SENOR_CALDERA', NULL, 1, NULL, 'Vence al Señor de la Caldera (Volcán Rojo)'),
+  ('TALK', 4, 'aldric', NULL, NULL, 1, NULL, 'Vuelve con Sir Aldric')
+) AS v(t, step, target, monster, item, n, params, descr);
+DELETE FROM quest_npc_spots WHERE quest_id = (SELECT id FROM quests WHERE code = 'PRUEBA_GUERRERO_2');
+DELETE FROM quest_item_rewards WHERE quest_id = (SELECT id FROM quests WHERE code = 'PRUEBA_GUERRERO_2');
+
+-- Las Tres Llamas (Isolde, escalón 2)
+INSERT INTO quests (code, name, quest_type, zone_id, min_level, max_level, difficulty_stars, npc_name, location_name, is_repeatable, repeat_cooldown_hours, reputation_reward, gold_reward, xp_reward, description, is_personal, is_boss_quest, giver_npc, turn_in_npc, required_class_id, dialog, chain_position, chain_total)
+SELECT 'PRUEBA_MAGO_2', 'Las Tres Llamas', 'SECUNDARIA', 1, 50, 100, 3, 'Isolde', 'Torre Arcana', FALSE, NULL, 120, 3000, 11000, '«Hay tres altares elementales que los magos encendían hace siglos: el hielo en el Lago Helado, el fuego en los Ríos de Lava y el agua en el Delta de Vapor. Se apagaron cuando dejamos de ir. Enciéndelos. Un mago que no visitó los tres no es maestro de nada.»', TRUE, FALSE, 'isolde', 'isolde', 2, '{"entrega":"*Isolde mira por la ventana de la torre: muy lejos, tres luces brillan en el horizonte* Hace cien años que no se veían las tres desde aquí. Ya eres maestro. Ahora elige: un elemento, los muertos, las estrellas… lo que te llame."}'::jsonb, 2, 3
+WHERE NOT EXISTS (SELECT 1 FROM quests WHERE code = 'PRUEBA_MAGO_2');
+UPDATE quests SET name = 'Las Tres Llamas', quest_type = 'SECUNDARIA', zone_id = 1, min_level = 50, max_level = 100, difficulty_stars = 3, npc_name = 'Isolde', location_name = 'Torre Arcana', is_repeatable = FALSE, repeat_cooldown_hours = NULL, reputation_reward = 120, gold_reward = 3000, xp_reward = 11000, description = '«Hay tres altares elementales que los magos encendían hace siglos: el hielo en el Lago Helado, el fuego en los Ríos de Lava y el agua en el Delta de Vapor. Se apagaron cuando dejamos de ir. Enciéndelos. Un mago que no visitó los tres no es maestro de nada.»', is_personal = TRUE, is_boss_quest = FALSE, giver_npc = 'isolde', turn_in_npc = 'isolde', required_class_id = 2, dialog = '{"entrega":"*Isolde mira por la ventana de la torre: muy lejos, tres luces brillan en el horizonte* Hace cien años que no se veían las tres desde aquí. Ya eres maestro. Ahora elige: un elemento, los muertos, las estrellas… lo que te llame."}'::jsonb, chain_position = 2, chain_total = 3 WHERE code = 'PRUEBA_MAGO_2';
+DELETE FROM quest_objectives WHERE quest_id = (SELECT id FROM quests WHERE code = 'PRUEBA_MAGO_2');
+INSERT INTO quest_objectives (quest_id, objective_type, step, target_code, monster_id, item_id, target_count, params, description)
+SELECT (SELECT id FROM quests WHERE code = 'PRUEBA_MAGO_2'), v.t, v.step, v.target, (SELECT id FROM monsters WHERE code = v.monster), (SELECT id FROM items WHERE code = v.item), v.n, v.params::jsonb, v.descr
+FROM (VALUES
+  ('INVESTIGATE', 1, NULL, NULL, NULL, 1, '{"zone":"montanas","x":124,"y":26,"radius":3,"label":"Encender el altar","speaker":"Tú","sprite":"llama_arcana","dialog":"El altar está cubierto de escarcha. Le hablas en la lengua del frío y se enciende una llama blanca que no derrite nada."}', 'Enciende el altar del hielo en el Lago Helado (Montañas)'),
+  ('INVESTIGATE', 2, NULL, NULL, NULL, 1, '{"zone":"volcan","x":85,"y":64,"radius":3,"label":"Encender el altar","speaker":"Tú","sprite":"llama_arcana","dialog":"Aquí el fuego sobra. Lo difícil es convencerlo de quedarse quieto en el altar. Lo logras, y la llama se vuelve roja y tranquila."}', 'Enciende el altar del fuego en los Ríos de Lava (Volcán)'),
+  ('INVESTIGATE', 3, NULL, NULL, NULL, 1, '{"zone":"costas","x":77,"y":22,"radius":3,"label":"Encender el altar","speaker":"Tú","sprite":"llama_arcana","dialog":"Una llama de agua: imposible, dicen los libros. Pones las manos en el vapor y la llama sale azul, mojada y viva."}', 'Enciende el altar del agua en el Delta de Vapor (Costas)'),
+  ('TALK', 4, 'isolde', NULL, NULL, 1, NULL, 'Vuelve a la Torre Arcana')
+) AS v(t, step, target, monster, item, n, params, descr);
+DELETE FROM quest_npc_spots WHERE quest_id = (SELECT id FROM quests WHERE code = 'PRUEBA_MAGO_2');
+DELETE FROM quest_item_rewards WHERE quest_id = (SELECT id FROM quests WHERE code = 'PRUEBA_MAGO_2');
+
+-- El Ojo del Faro (Sylwen, escalón 2)
+INSERT INTO quests (code, name, quest_type, zone_id, min_level, max_level, difficulty_stars, npc_name, location_name, is_repeatable, repeat_cooldown_hours, reputation_reward, gold_reward, xp_reward, description, is_personal, is_boss_quest, giver_npc, turn_in_npc, required_class_id, dialog, chain_position, chain_total)
+SELECT 'PRUEBA_ARQUERO_2', 'El Ojo del Faro', 'SECUNDARIA', 1, 50, 100, 3, 'Sylwen', 'Faro de las Costas', FALSE, NULL, 120, 3000, 11000, '«Desde lo más alto del Faro de las Costas se ve todo el mar. Hace años, un arquero derribó desde ahí a un capitán pirata en la cubierta de su barco. Sube. El Almirante Ahogado anda cerca y nadie le dio todavía.»', TRUE, FALSE, 'sylwen', 'sylwen', 3, '{"entrega":"*Sylwen escucha la historia sin interrumpirte, y al final se ríe* ¿Desde el Faro? Eso no lo hacía nadie desde mi maestro. Ya no te enseño nada: ahora la flecha que te falta la aprendes por tu cuenta. Ve a elegirla."}'::jsonb, 2, 3
+WHERE NOT EXISTS (SELECT 1 FROM quests WHERE code = 'PRUEBA_ARQUERO_2');
+UPDATE quests SET name = 'El Ojo del Faro', quest_type = 'SECUNDARIA', zone_id = 1, min_level = 50, max_level = 100, difficulty_stars = 3, npc_name = 'Sylwen', location_name = 'Faro de las Costas', is_repeatable = FALSE, repeat_cooldown_hours = NULL, reputation_reward = 120, gold_reward = 3000, xp_reward = 11000, description = '«Desde lo más alto del Faro de las Costas se ve todo el mar. Hace años, un arquero derribó desde ahí a un capitán pirata en la cubierta de su barco. Sube. El Almirante Ahogado anda cerca y nadie le dio todavía.»', is_personal = TRUE, is_boss_quest = FALSE, giver_npc = 'sylwen', turn_in_npc = 'sylwen', required_class_id = 3, dialog = '{"entrega":"*Sylwen escucha la historia sin interrumpirte, y al final se ríe* ¿Desde el Faro? Eso no lo hacía nadie desde mi maestro. Ya no te enseño nada: ahora la flecha que te falta la aprendes por tu cuenta. Ve a elegirla."}'::jsonb, chain_position = 2, chain_total = 3 WHERE code = 'PRUEBA_ARQUERO_2';
+DELETE FROM quest_objectives WHERE quest_id = (SELECT id FROM quests WHERE code = 'PRUEBA_ARQUERO_2');
+INSERT INTO quest_objectives (quest_id, objective_type, step, target_code, monster_id, item_id, target_count, params, description)
+SELECT (SELECT id FROM quests WHERE code = 'PRUEBA_ARQUERO_2'), v.t, v.step, v.target, (SELECT id FROM monsters WHERE code = v.monster), (SELECT id FROM items WHERE code = v.item), v.n, v.params::jsonb, v.descr
+FROM (VALUES
+  ('VISIT', 1, NULL, NULL, NULL, 1, '{"zone":"costas","x":71,"y":108,"radius":3,"label":"Lo alto del Faro","speaker":"Tú","dialog":"El viento sopla tan fuerte que tienes que agarrarte de la baranda. Desde aquí se ve toda la costa, las velas negras y, entre la niebla, un barco hundido que no se termina de hundir."}', 'Sube a lo más alto del Faro (Costas Muertas)'),
+  ('DEFEAT_BOSS', 2, 'ALMIRANTE_AHOGADO', 'ALMIRANTE_AHOGADO', NULL, 1, NULL, 'Derriba al Almirante Ahogado'),
+  ('TALK', 3, 'sylwen', NULL, NULL, 1, NULL, 'Vuelve con Sylwen')
+) AS v(t, step, target, monster, item, n, params, descr);
+DELETE FROM quest_npc_spots WHERE quest_id = (SELECT id FROM quests WHERE code = 'PRUEBA_ARQUERO_2');
+DELETE FROM quest_item_rewards WHERE quest_id = (SELECT id FROM quests WHERE code = 'PRUEBA_ARQUERO_2');
+
+-- El Robo del Siglo (Nox, escalón 2)
+INSERT INTO quests (code, name, quest_type, zone_id, min_level, max_level, difficulty_stars, npc_name, location_name, is_repeatable, repeat_cooldown_hours, reputation_reward, gold_reward, xp_reward, description, is_personal, is_boss_quest, giver_npc, turn_in_npc, required_class_id, dialog, chain_position, chain_total)
+SELECT 'PRUEBA_PICARO_2', 'El Robo del Siglo', 'SECUNDARIA', 1, 50, 100, 3, 'Nox', 'Cala de los Piratas', FALSE, NULL, 120, 3000, 11000, '«Los piratas de la Cala llevan un libro de cuentas: todo lo que robaron, a quién y cuándo. Quiero leerlo. No quiero el oro: quiero los nombres. Entra, sácalo y sal vivo. En ese orden, si puedes.»', TRUE, FALSE, 'nox', 'nox', 4, '{"entrega":"*Nox hojea el libro con una sonrisa que no le habías visto* Tres concejales de Aurelia. Un sacerdote. Y mi ex socio. *te lo devuelve* Quédatelo. Un libro así es una llave, y ya sabes abrir puertas. Elige qué clase de ladrón quieres ser."}'::jsonb, 2, 3
+WHERE NOT EXISTS (SELECT 1 FROM quests WHERE code = 'PRUEBA_PICARO_2');
+UPDATE quests SET name = 'El Robo del Siglo', quest_type = 'SECUNDARIA', zone_id = 1, min_level = 50, max_level = 100, difficulty_stars = 3, npc_name = 'Nox', location_name = 'Cala de los Piratas', is_repeatable = FALSE, repeat_cooldown_hours = NULL, reputation_reward = 120, gold_reward = 3000, xp_reward = 11000, description = '«Los piratas de la Cala llevan un libro de cuentas: todo lo que robaron, a quién y cuándo. Quiero leerlo. No quiero el oro: quiero los nombres. Entra, sácalo y sal vivo. En ese orden, si puedes.»', is_personal = TRUE, is_boss_quest = FALSE, giver_npc = 'nox', turn_in_npc = 'nox', required_class_id = 4, dialog = '{"entrega":"*Nox hojea el libro con una sonrisa que no le habías visto* Tres concejales de Aurelia. Un sacerdote. Y mi ex socio. *te lo devuelve* Quédatelo. Un libro así es una llave, y ya sabes abrir puertas. Elige qué clase de ladrón quieres ser."}'::jsonb, chain_position = 2, chain_total = 3 WHERE code = 'PRUEBA_PICARO_2';
+DELETE FROM quest_objectives WHERE quest_id = (SELECT id FROM quests WHERE code = 'PRUEBA_PICARO_2');
+INSERT INTO quest_objectives (quest_id, objective_type, step, target_code, monster_id, item_id, target_count, params, description)
+SELECT (SELECT id FROM quests WHERE code = 'PRUEBA_PICARO_2'), v.t, v.step, v.target, (SELECT id FROM monsters WHERE code = v.monster), (SELECT id FROM items WHERE code = v.item), v.n, v.params::jsonb, v.descr
+FROM (VALUES
+  ('INVESTIGATE', 1, NULL, NULL, NULL, 1, '{"zone":"costas","x":27,"y":22,"radius":3,"label":"Robar el libro","speaker":"Tú","sprite":"mapa_fondeadero","gives":{"item":"LIBRO_CUENTAS_PIRATA","qty":1},"dialog":"El libro está debajo de una botella vacía, en la mesa del capitán. Lo cambias por un libro de recetas que trajiste. Nadie lo nota. Todavía."}', 'Roba el libro de cuentas en la Cala de los Piratas (Costas)'),
+  ('AMBUSH', 2, NULL, NULL, NULL, 1, '{"zone":"costas","x":30,"y":25,"radius":3,"label":"La salida de la Cala","speaker":"Capitana Velanegra","dialog":"¿Recetas? ¿¡RECETAS!? ¡Que nadie salga de la Cala!","monsters":[{"code":"PIRATA_SIN_NOMBRE","level":50},{"code":"CAPITAN_PIRATA","level":52},{"code":"PIRATA_SIN_NOMBRE","level":50}]}', 'Sal vivo de la emboscada de la tripulación'),
+  ('TALK', 3, 'nox', NULL, NULL, 1, NULL, 'Entrégale el libro a Nox')
+) AS v(t, step, target, monster, item, n, params, descr);
+DELETE FROM quest_npc_spots WHERE quest_id = (SELECT id FROM quests WHERE code = 'PRUEBA_PICARO_2');
+DELETE FROM quest_item_rewards WHERE quest_id = (SELECT id FROM quests WHERE code = 'PRUEBA_PICARO_2');
+
+-- La Peregrinación (Padre Anselm, escalón 2)
+INSERT INTO quests (code, name, quest_type, zone_id, min_level, max_level, difficulty_stars, npc_name, location_name, is_repeatable, repeat_cooldown_hours, reputation_reward, gold_reward, xp_reward, description, is_personal, is_boss_quest, giver_npc, turn_in_npc, required_class_id, dialog, chain_position, chain_total)
+SELECT 'PRUEBA_SACERDOTE_2', 'La Peregrinación', 'SECUNDARIA', 1, 50, 100, 3, 'Padre Anselm', 'Capilla de la Luz', FALSE, NULL, 120, 3000, 11000, '«Toma estas tres velas. Los primeros sacerdotes las encendían en los lugares donde Aethra lloró: el Círculo de Piedras de la Pradera, el Lago Helado de las Montañas y la Ofrenda de Ascuaria, en el Volcán. Camina. La fe también se gasta en los pies.»', TRUE, FALSE, 'anselm', 'anselm', 5, '{"entrega":"*Anselm cierra los ojos y sonríe* Lo sentí. Tres veces esta semana el Pilar brilló sin razón. Ya no necesitas que nadie te diga dónde está la luz. Elige la tuya."}'::jsonb, 2, 3
+WHERE NOT EXISTS (SELECT 1 FROM quests WHERE code = 'PRUEBA_SACERDOTE_2');
+UPDATE quests SET name = 'La Peregrinación', quest_type = 'SECUNDARIA', zone_id = 1, min_level = 50, max_level = 100, difficulty_stars = 3, npc_name = 'Padre Anselm', location_name = 'Capilla de la Luz', is_repeatable = FALSE, repeat_cooldown_hours = NULL, reputation_reward = 120, gold_reward = 3000, xp_reward = 11000, description = '«Toma estas tres velas. Los primeros sacerdotes las encendían en los lugares donde Aethra lloró: el Círculo de Piedras de la Pradera, el Lago Helado de las Montañas y la Ofrenda de Ascuaria, en el Volcán. Camina. La fe también se gasta en los pies.»', is_personal = TRUE, is_boss_quest = FALSE, giver_npc = 'anselm', turn_in_npc = 'anselm', required_class_id = 5, dialog = '{"entrega":"*Anselm cierra los ojos y sonríe* Lo sentí. Tres veces esta semana el Pilar brilló sin razón. Ya no necesitas que nadie te diga dónde está la luz. Elige la tuya."}'::jsonb, chain_position = 2, chain_total = 3 WHERE code = 'PRUEBA_SACERDOTE_2';
+DELETE FROM quest_objectives WHERE quest_id = (SELECT id FROM quests WHERE code = 'PRUEBA_SACERDOTE_2');
+INSERT INTO quest_objectives (quest_id, objective_type, step, target_code, monster_id, item_id, target_count, params, description)
+SELECT (SELECT id FROM quests WHERE code = 'PRUEBA_SACERDOTE_2'), v.t, v.step, v.target, (SELECT id FROM monsters WHERE code = v.monster), (SELECT id FROM items WHERE code = v.item), v.n, v.params::jsonb, v.descr
+FROM (VALUES
+  ('INVESTIGATE', 1, NULL, NULL, NULL, 1, '{"zone":"pradera","x":80,"y":96,"radius":3,"label":"Encender la vela","speaker":"Tú","sprite":"vela_peregrino","dialog":"Entre los menhires el aire está quieto. La vela se enciende sola cuando la apoyas en la piedra del centro."}', 'Enciende una vela en el Círculo de Piedras (Pradera)'),
+  ('INVESTIGATE', 1, NULL, NULL, NULL, 1, '{"zone":"montanas","x":124,"y":26,"radius":3,"label":"Encender la vela","speaker":"Tú","sprite":"vela_peregrino","dialog":"El viento la apaga dos veces. La tercera la proteges con el cuerpo y aguanta. El hielo del lago brilla un momento, como si sonriera."}', 'Enciende una vela en el Lago Helado (Montañas)'),
+  ('INVESTIGATE', 1, NULL, NULL, NULL, 1, '{"zone":"volcan","x":112,"y":30,"radius":3,"label":"Encender la vela","speaker":"Tú","sprite":"vela_peregrino","dialog":"Los dracónidos te miran poner una vela en su ofrenda de fuego. Uno se acerca y la enciende con su aliento. Así se hace aquí."}', 'Enciende una vela en la Ofrenda de Ascuaria (Volcán)'),
+  ('TALK', 2, 'anselm', NULL, NULL, 1, NULL, 'Vuelve a la Capilla de la Luz')
+) AS v(t, step, target, monster, item, n, params, descr);
+DELETE FROM quest_npc_spots WHERE quest_id = (SELECT id FROM quests WHERE code = 'PRUEBA_SACERDOTE_2');
+DELETE FROM quest_item_rewards WHERE quest_id = (SELECT id FROM quests WHERE code = 'PRUEBA_SACERDOTE_2');
+
+-- La Ascensión del Acero (Thalor, escalón 3)
+INSERT INTO quests (code, name, quest_type, zone_id, min_level, max_level, difficulty_stars, npc_name, location_name, is_repeatable, repeat_cooldown_hours, reputation_reward, gold_reward, xp_reward, description, is_personal, is_boss_quest, giver_npc, turn_in_npc, required_class_id, dialog, chain_position, chain_total)
+SELECT 'PRUEBA_GUERRERO_3', 'La Ascensión del Acero', 'SECUNDARIA', 7, 90, 100, 5, 'Thalor', 'Santuario de las Lágrimas', FALSE, NULL, 250, 8000, 26000, '«El primer Vigía guerrero se llamaba Borin. No tenía escudo: ponía el cuerpo. Murió de pie delante del Tercer Sello. Antes de enseñarte lo que él sabía, tráeme la corona de un rey que también murió de pie: el Rey de la Montaña. Y después sube a pelear con quien más te conoce.»', TRUE, FALSE, 'thalor', 'thalor', 1, '{"entrega":"*Thalor apoya dos dedos en tu frente y sientes calor: la marca de oro de los Vigías* Le ganaste a lo único que nunca se cansa. Ya eres lo que fue Borin. Elige tu último camino, Vigía."}'::jsonb, 3, 3
+WHERE NOT EXISTS (SELECT 1 FROM quests WHERE code = 'PRUEBA_GUERRERO_3');
+UPDATE quests SET name = 'La Ascensión del Acero', quest_type = 'SECUNDARIA', zone_id = 7, min_level = 90, max_level = 100, difficulty_stars = 5, npc_name = 'Thalor', location_name = 'Santuario de las Lágrimas', is_repeatable = FALSE, repeat_cooldown_hours = NULL, reputation_reward = 250, gold_reward = 8000, xp_reward = 26000, description = '«El primer Vigía guerrero se llamaba Borin. No tenía escudo: ponía el cuerpo. Murió de pie delante del Tercer Sello. Antes de enseñarte lo que él sabía, tráeme la corona de un rey que también murió de pie: el Rey de la Montaña. Y después sube a pelear con quien más te conoce.»', is_personal = TRUE, is_boss_quest = FALSE, giver_npc = 'thalor', turn_in_npc = 'thalor', required_class_id = 1, dialog = '{"entrega":"*Thalor apoya dos dedos en tu frente y sientes calor: la marca de oro de los Vigías* Le ganaste a lo único que nunca se cansa. Ya eres lo que fue Borin. Elige tu último camino, Vigía."}'::jsonb, chain_position = 3, chain_total = 3 WHERE code = 'PRUEBA_GUERRERO_3';
+DELETE FROM quest_objectives WHERE quest_id = (SELECT id FROM quests WHERE code = 'PRUEBA_GUERRERO_3');
+INSERT INTO quest_objectives (quest_id, objective_type, step, target_code, monster_id, item_id, target_count, params, description)
+SELECT (SELECT id FROM quests WHERE code = 'PRUEBA_GUERRERO_3'), v.t, v.step, v.target, (SELECT id FROM monsters WHERE code = v.monster), (SELECT id FROM items WHERE code = v.item), v.n, v.params::jsonb, v.descr
+FROM (VALUES
+  ('TALK', 1, 'thalor', NULL, NULL, 1, '{"speaker":"Thalor","dialog":"Borin decía que un guerrero no pelea contra el enemigo: pelea contra las ganas de rendirse. Por eso la última prueba es contra ti."}', 'Escucha a Thalor'),
+  ('DELIVER', 2, 'thalor', NULL, 'CORONA_REY_MONTANA', 1, NULL, 'Lleva una Corona del Rey de Montaña a Thalor'),
+  ('AMBUSH', 3, NULL, NULL, NULL, 1, '{"zone":"ruinas","x":60,"y":46,"radius":3,"label":"La sombra del guerrero","speaker":"Tu Sombra","dialog":"*al pie de la escalinata hay alguien esperándote. Tiene tu cara, tu ropa y tu arma, pero los ojos vacíos* Llegaste lejos. Yo también. Veamos cuál de los dos se lo merece.","monsters":[{"code":"SOMBRA_HEROE","level":90}]}', 'Sube por la Escalinata de Luz del Patio y pelea contra tu sombra'),
+  ('TALK', 4, 'thalor', NULL, NULL, 1, NULL, 'Vuelve con Thalor')
+) AS v(t, step, target, monster, item, n, params, descr);
+DELETE FROM quest_npc_spots WHERE quest_id = (SELECT id FROM quests WHERE code = 'PRUEBA_GUERRERO_3');
+DELETE FROM quest_item_rewards WHERE quest_id = (SELECT id FROM quests WHERE code = 'PRUEBA_GUERRERO_3');
+
+-- La Ascensión Arcana (Lyssandra, escalón 3)
+INSERT INTO quests (code, name, quest_type, zone_id, min_level, max_level, difficulty_stars, npc_name, location_name, is_repeatable, repeat_cooldown_hours, reputation_reward, gold_reward, xp_reward, description, is_personal, is_boss_quest, giver_npc, turn_in_npc, required_class_id, dialog, chain_position, chain_total)
+SELECT 'PRUEBA_MAGO_3', 'La Ascensión Arcana', 'SECUNDARIA', 7, 90, 100, 5, 'Lyssandra', 'Santuario de las Lágrimas', FALSE, NULL, 250, 8000, 26000, '«La primera Vigía maga leyó las estrellas hasta que las estrellas la leyeron a ella. Se llamaba Ilyra. Sabía que el Devorador volvería por un eclipse. Tráeme un fragmento de uno, y después sube: tu sombra sabe todos tus hechizos.»', TRUE, FALSE, 'lyssandra', 'lyssandra', 2, '{"entrega":"*Lyssandra te toca la frente con la punta del sombrero, y la marca de oro de los Vigías se enciende* Ilyra estaría contenta. Bueno, no: Ilyra nunca estaba contenta. Pero asentiría. Elige tu último camino."}'::jsonb, 3, 3
+WHERE NOT EXISTS (SELECT 1 FROM quests WHERE code = 'PRUEBA_MAGO_3');
+UPDATE quests SET name = 'La Ascensión Arcana', quest_type = 'SECUNDARIA', zone_id = 7, min_level = 90, max_level = 100, difficulty_stars = 5, npc_name = 'Lyssandra', location_name = 'Santuario de las Lágrimas', is_repeatable = FALSE, repeat_cooldown_hours = NULL, reputation_reward = 250, gold_reward = 8000, xp_reward = 26000, description = '«La primera Vigía maga leyó las estrellas hasta que las estrellas la leyeron a ella. Se llamaba Ilyra. Sabía que el Devorador volvería por un eclipse. Tráeme un fragmento de uno, y después sube: tu sombra sabe todos tus hechizos.»', is_personal = TRUE, is_boss_quest = FALSE, giver_npc = 'lyssandra', turn_in_npc = 'lyssandra', required_class_id = 2, dialog = '{"entrega":"*Lyssandra te toca la frente con la punta del sombrero, y la marca de oro de los Vigías se enciende* Ilyra estaría contenta. Bueno, no: Ilyra nunca estaba contenta. Pero asentiría. Elige tu último camino."}'::jsonb, chain_position = 3, chain_total = 3 WHERE code = 'PRUEBA_MAGO_3';
+DELETE FROM quest_objectives WHERE quest_id = (SELECT id FROM quests WHERE code = 'PRUEBA_MAGO_3');
+INSERT INTO quest_objectives (quest_id, objective_type, step, target_code, monster_id, item_id, target_count, params, description)
+SELECT (SELECT id FROM quests WHERE code = 'PRUEBA_MAGO_3'), v.t, v.step, v.target, (SELECT id FROM monsters WHERE code = v.monster), (SELECT id FROM items WHERE code = v.item), v.n, v.params::jsonb, v.descr
+FROM (VALUES
+  ('TALK', 1, 'lyssandra', NULL, NULL, 1, '{"speaker":"Lyssandra","dialog":"Un hechizo es una pregunta. Tu sombra va a hacerte las mismas preguntas que tú. Gana quien conteste mejor."}', 'Escucha a Lyssandra'),
+  ('DELIVER', 2, 'lyssandra', NULL, 'FRAGMENTO_ECLIPSE', 1, NULL, 'Lleva un Fragmento de Eclipse a Lyssandra'),
+  ('AMBUSH', 3, NULL, NULL, NULL, 1, '{"zone":"ruinas","x":60,"y":46,"radius":3,"label":"La sombra del mago","speaker":"Tu Sombra","dialog":"*al pie de la escalinata hay alguien esperándote. Tiene tu cara, tu ropa y tu arma, pero los ojos vacíos* Llegaste lejos. Yo también. Veamos cuál de los dos se lo merece.","monsters":[{"code":"SOMBRA_HEROE","level":90}]}', 'Sube por la Escalinata de Luz del Patio y pelea contra tu sombra'),
+  ('TALK', 4, 'lyssandra', NULL, NULL, 1, NULL, 'Vuelve con Lyssandra')
+) AS v(t, step, target, monster, item, n, params, descr);
+DELETE FROM quest_npc_spots WHERE quest_id = (SELECT id FROM quests WHERE code = 'PRUEBA_MAGO_3');
+DELETE FROM quest_item_rewards WHERE quest_id = (SELECT id FROM quests WHERE code = 'PRUEBA_MAGO_3');
+
+-- La Ascensión del Halcón (Eryndel, escalón 3)
+INSERT INTO quests (code, name, quest_type, zone_id, min_level, max_level, difficulty_stars, npc_name, location_name, is_repeatable, repeat_cooldown_hours, reputation_reward, gold_reward, xp_reward, description, is_personal, is_boss_quest, giver_npc, turn_in_npc, required_class_id, dialog, chain_position, chain_total)
+SELECT 'PRUEBA_ARQUERO_3', 'La Ascensión del Halcón', 'SECUNDARIA', 7, 90, 100, 5, 'Eryndel', 'Santuario de las Lágrimas', FALSE, NULL, 250, 8000, 26000, '«El primer Vigía arquero, Taren, cazaba grifos en las cumbres del norte sin matarlos: les tiraba a una pluma. Decía que un arquero que no puede elegir dónde pega, no es arquero. Tráeme una pluma de grifo. Y después tira contra quien apunta igual que tú.»', TRUE, FALSE, 'eryndel', 'eryndel', 3, '{"entrega":"*Eryndel te marca la frente con oro y luego mira tu carcaj* Taren tiraba a la pluma. Tú le diste a tu sombra en el corazón. Supongo que los tiempos cambian. Elige tu último camino, Vigía."}'::jsonb, 3, 3
+WHERE NOT EXISTS (SELECT 1 FROM quests WHERE code = 'PRUEBA_ARQUERO_3');
+UPDATE quests SET name = 'La Ascensión del Halcón', quest_type = 'SECUNDARIA', zone_id = 7, min_level = 90, max_level = 100, difficulty_stars = 5, npc_name = 'Eryndel', location_name = 'Santuario de las Lágrimas', is_repeatable = FALSE, repeat_cooldown_hours = NULL, reputation_reward = 250, gold_reward = 8000, xp_reward = 26000, description = '«El primer Vigía arquero, Taren, cazaba grifos en las cumbres del norte sin matarlos: les tiraba a una pluma. Decía que un arquero que no puede elegir dónde pega, no es arquero. Tráeme una pluma de grifo. Y después tira contra quien apunta igual que tú.»', is_personal = TRUE, is_boss_quest = FALSE, giver_npc = 'eryndel', turn_in_npc = 'eryndel', required_class_id = 3, dialog = '{"entrega":"*Eryndel te marca la frente con oro y luego mira tu carcaj* Taren tiraba a la pluma. Tú le diste a tu sombra en el corazón. Supongo que los tiempos cambian. Elige tu último camino, Vigía."}'::jsonb, chain_position = 3, chain_total = 3 WHERE code = 'PRUEBA_ARQUERO_3';
+DELETE FROM quest_objectives WHERE quest_id = (SELECT id FROM quests WHERE code = 'PRUEBA_ARQUERO_3');
+INSERT INTO quest_objectives (quest_id, objective_type, step, target_code, monster_id, item_id, target_count, params, description)
+SELECT (SELECT id FROM quests WHERE code = 'PRUEBA_ARQUERO_3'), v.t, v.step, v.target, (SELECT id FROM monsters WHERE code = v.monster), (SELECT id FROM items WHERE code = v.item), v.n, v.params::jsonb, v.descr
+FROM (VALUES
+  ('TALK', 1, 'eryndel', NULL, NULL, 1, '{"speaker":"Eryndel","dialog":"Tu sombra no falla. Nunca. Solo hay una forma de ganarle: no fallar tú tampoco."}', 'Escucha a Eryndel'),
+  ('DELIVER', 2, 'eryndel', NULL, 'PLUMA_GRIFO', 1, NULL, 'Lleva una Pluma de Grifo a Eryndel'),
+  ('AMBUSH', 3, NULL, NULL, NULL, 1, '{"zone":"ruinas","x":60,"y":46,"radius":3,"label":"La sombra del arquero","speaker":"Tu Sombra","dialog":"*al pie de la escalinata hay alguien esperándote. Tiene tu cara, tu ropa y tu arma, pero los ojos vacíos* Llegaste lejos. Yo también. Veamos cuál de los dos se lo merece.","monsters":[{"code":"SOMBRA_HEROE","level":90}]}', 'Sube por la Escalinata de Luz del Patio y pelea contra tu sombra'),
+  ('TALK', 4, 'eryndel', NULL, NULL, 1, NULL, 'Vuelve con Eryndel')
+) AS v(t, step, target, monster, item, n, params, descr);
+DELETE FROM quest_npc_spots WHERE quest_id = (SELECT id FROM quests WHERE code = 'PRUEBA_ARQUERO_3');
+DELETE FROM quest_item_rewards WHERE quest_id = (SELECT id FROM quests WHERE code = 'PRUEBA_ARQUERO_3');
+
+-- La Ascensión de la Sombra (Velis, escalón 3)
+INSERT INTO quests (code, name, quest_type, zone_id, min_level, max_level, difficulty_stars, npc_name, location_name, is_repeatable, repeat_cooldown_hours, reputation_reward, gold_reward, xp_reward, description, is_personal, is_boss_quest, giver_npc, turn_in_npc, required_class_id, dialog, chain_position, chain_total)
+SELECT 'PRUEBA_PICARO_3', 'La Ascensión de la Sombra', 'SECUNDARIA', 7, 90, 100, 5, 'Velis', 'Santuario de las Lágrimas', FALSE, NULL, 250, 8000, 26000, '«La primera Vigía pícara, Sael, le robó una moneda al barquero de los muertos y la usó para volver. Dicen. Yo estaba ahí y fue peor. Pídele una moneda a Óbolo, el barquero de las Catacumbas: si te la da, es que te respeta. Después sube a pelear contra la única sombra que no puedes esquivar.»', TRUE, FALSE, 'velis', 'velis', 4, '{"entrega":"*Velis te marca la frente con oro tan rápido que casi no lo sientes* Sael se reiría de ti. Después te invitaría un trago. Es lo mismo, viniendo de ella. Elige tu último camino, Vigía."}'::jsonb, 3, 3
+WHERE NOT EXISTS (SELECT 1 FROM quests WHERE code = 'PRUEBA_PICARO_3');
+UPDATE quests SET name = 'La Ascensión de la Sombra', quest_type = 'SECUNDARIA', zone_id = 7, min_level = 90, max_level = 100, difficulty_stars = 5, npc_name = 'Velis', location_name = 'Santuario de las Lágrimas', is_repeatable = FALSE, repeat_cooldown_hours = NULL, reputation_reward = 250, gold_reward = 8000, xp_reward = 26000, description = '«La primera Vigía pícara, Sael, le robó una moneda al barquero de los muertos y la usó para volver. Dicen. Yo estaba ahí y fue peor. Pídele una moneda a Óbolo, el barquero de las Catacumbas: si te la da, es que te respeta. Después sube a pelear contra la única sombra que no puedes esquivar.»', is_personal = TRUE, is_boss_quest = FALSE, giver_npc = 'velis', turn_in_npc = 'velis', required_class_id = 4, dialog = '{"entrega":"*Velis te marca la frente con oro tan rápido que casi no lo sientes* Sael se reiría de ti. Después te invitaría un trago. Es lo mismo, viniendo de ella. Elige tu último camino, Vigía."}'::jsonb, chain_position = 3, chain_total = 3 WHERE code = 'PRUEBA_PICARO_3';
+DELETE FROM quest_objectives WHERE quest_id = (SELECT id FROM quests WHERE code = 'PRUEBA_PICARO_3');
+INSERT INTO quest_objectives (quest_id, objective_type, step, target_code, monster_id, item_id, target_count, params, description)
+SELECT (SELECT id FROM quests WHERE code = 'PRUEBA_PICARO_3'), v.t, v.step, v.target, (SELECT id FROM monsters WHERE code = v.monster), (SELECT id FROM items WHERE code = v.item), v.n, v.params::jsonb, v.descr
+FROM (VALUES
+  ('TALK', 1, 'obolo', NULL, NULL, 1, '{"speaker":"Óbolo","gives":{"item":"MONEDA_OBOLO","qty":1},"dialog":"*el barquero te mira largo rato con sus ojos de farol* Una moneda. Para alguien que sigue a Sael. Hace mil años que nadie me la pedía con esa cara. Toma. Y no me la devuelvas: ya me la devolvieron una vez."}', 'Pídele una moneda a Óbolo, en el muelle de Vela Eterna (Catacumbas)'),
+  ('DELIVER', 2, 'velis', NULL, 'MONEDA_OBOLO', 1, NULL, 'Lleva la Moneda del barquero a Velis'),
+  ('AMBUSH', 3, NULL, NULL, NULL, 1, '{"zone":"ruinas","x":60,"y":46,"radius":3,"label":"La sombra del pícaro","speaker":"Tu Sombra","dialog":"*al pie de la escalinata hay alguien esperándote. Tiene tu cara, tu ropa y tu arma, pero los ojos vacíos* Llegaste lejos. Yo también. Veamos cuál de los dos se lo merece.","monsters":[{"code":"SOMBRA_HEROE","level":90}]}', 'Sube por la Escalinata de Luz del Patio y pelea contra tu sombra'),
+  ('TALK', 4, 'velis', NULL, NULL, 1, NULL, 'Vuelve con Velis')
+) AS v(t, step, target, monster, item, n, params, descr);
+DELETE FROM quest_npc_spots WHERE quest_id = (SELECT id FROM quests WHERE code = 'PRUEBA_PICARO_3');
+DELETE FROM quest_item_rewards WHERE quest_id = (SELECT id FROM quests WHERE code = 'PRUEBA_PICARO_3');
+
+-- La Ascensión de la Luz (Seren, escalón 3)
+INSERT INTO quests (code, name, quest_type, zone_id, min_level, max_level, difficulty_stars, npc_name, location_name, is_repeatable, repeat_cooldown_hours, reputation_reward, gold_reward, xp_reward, description, is_personal, is_boss_quest, giver_npc, turn_in_npc, required_class_id, dialog, chain_position, chain_total)
+SELECT 'PRUEBA_SACERDOTE_3', 'La Ascensión de la Luz', 'SECUNDARIA', 7, 90, 100, 5, 'Seren', 'Santuario de las Lágrimas', FALSE, NULL, 250, 8000, 26000, '«El primer Vigía sacerdote, Edrin, juntó las lágrimas de Aethra una por una para hacer el agua de la fuente. Tráeme una lágrima. Después sube: tu sombra cura igual que tú, y no se cansa de curarse.»', TRUE, FALSE, 'seren', 'seren', 5, '{"entrega":"*Seren te pone la mano en la frente y la marca de oro se enciende, tibia* Edrin decía que la luz no se tiene: se presta. Ya te la prestaron del todo. Elige tu último camino, Vigía."}'::jsonb, 3, 3
+WHERE NOT EXISTS (SELECT 1 FROM quests WHERE code = 'PRUEBA_SACERDOTE_3');
+UPDATE quests SET name = 'La Ascensión de la Luz', quest_type = 'SECUNDARIA', zone_id = 7, min_level = 90, max_level = 100, difficulty_stars = 5, npc_name = 'Seren', location_name = 'Santuario de las Lágrimas', is_repeatable = FALSE, repeat_cooldown_hours = NULL, reputation_reward = 250, gold_reward = 8000, xp_reward = 26000, description = '«El primer Vigía sacerdote, Edrin, juntó las lágrimas de Aethra una por una para hacer el agua de la fuente. Tráeme una lágrima. Después sube: tu sombra cura igual que tú, y no se cansa de curarse.»', is_personal = TRUE, is_boss_quest = FALSE, giver_npc = 'seren', turn_in_npc = 'seren', required_class_id = 5, dialog = '{"entrega":"*Seren te pone la mano en la frente y la marca de oro se enciende, tibia* Edrin decía que la luz no se tiene: se presta. Ya te la prestaron del todo. Elige tu último camino, Vigía."}'::jsonb, chain_position = 3, chain_total = 3 WHERE code = 'PRUEBA_SACERDOTE_3';
+DELETE FROM quest_objectives WHERE quest_id = (SELECT id FROM quests WHERE code = 'PRUEBA_SACERDOTE_3');
+INSERT INTO quest_objectives (quest_id, objective_type, step, target_code, monster_id, item_id, target_count, params, description)
+SELECT (SELECT id FROM quests WHERE code = 'PRUEBA_SACERDOTE_3'), v.t, v.step, v.target, (SELECT id FROM monsters WHERE code = v.monster), (SELECT id FROM items WHERE code = v.item), v.n, v.params::jsonb, v.descr
+FROM (VALUES
+  ('TALK', 1, 'seren', NULL, NULL, 1, '{"speaker":"Seren","dialog":"Curar a los otros es fácil. Lo difícil es mirarse sin piedad. Tu sombra no va a tener ninguna."}', 'Escucha a Seren'),
+  ('DELIVER', 2, 'seren', NULL, 'LAGRIMA_AETHRA', 1, NULL, 'Lleva una Lágrima de Aethra a Seren'),
+  ('AMBUSH', 3, NULL, NULL, NULL, 1, '{"zone":"ruinas","x":60,"y":46,"radius":3,"label":"La sombra del sacerdote","speaker":"Tu Sombra","dialog":"*al pie de la escalinata hay alguien esperándote. Tiene tu cara, tu ropa y tu arma, pero los ojos vacíos* Llegaste lejos. Yo también. Veamos cuál de los dos se lo merece.","monsters":[{"code":"SOMBRA_HEROE","level":90}]}', 'Sube por la Escalinata de Luz del Patio y pelea contra tu sombra'),
+  ('TALK', 4, 'seren', NULL, NULL, 1, NULL, 'Vuelve con Seren')
+) AS v(t, step, target, monster, item, n, params, descr);
+DELETE FROM quest_npc_spots WHERE quest_id = (SELECT id FROM quests WHERE code = 'PRUEBA_SACERDOTE_3');
+DELETE FROM quest_item_rewards WHERE quest_id = (SELECT id FROM quests WHERE code = 'PRUEBA_SACERDOTE_3');
+
+-- cada escalón pide el anterior
+UPDATE quests SET requires_quest_id = NULL WHERE code = 'PRUEBA_GUERRERO_1';
+UPDATE quests SET requires_quest_id = NULL WHERE code = 'PRUEBA_MAGO_1';
+UPDATE quests SET requires_quest_id = NULL WHERE code = 'PRUEBA_ARQUERO_1';
+UPDATE quests SET requires_quest_id = NULL WHERE code = 'PRUEBA_PICARO_1';
+UPDATE quests SET requires_quest_id = NULL WHERE code = 'PRUEBA_SACERDOTE_1';
+UPDATE quests SET requires_quest_id = (SELECT id FROM quests WHERE code = 'PRUEBA_GUERRERO_1') WHERE code = 'PRUEBA_GUERRERO_2';
+UPDATE quests SET requires_quest_id = (SELECT id FROM quests WHERE code = 'PRUEBA_MAGO_1') WHERE code = 'PRUEBA_MAGO_2';
+UPDATE quests SET requires_quest_id = (SELECT id FROM quests WHERE code = 'PRUEBA_ARQUERO_1') WHERE code = 'PRUEBA_ARQUERO_2';
+UPDATE quests SET requires_quest_id = (SELECT id FROM quests WHERE code = 'PRUEBA_PICARO_1') WHERE code = 'PRUEBA_PICARO_2';
+UPDATE quests SET requires_quest_id = (SELECT id FROM quests WHERE code = 'PRUEBA_SACERDOTE_1') WHERE code = 'PRUEBA_SACERDOTE_2';
+UPDATE quests SET requires_quest_id = (SELECT id FROM quests WHERE code = 'PRUEBA_GUERRERO_2') WHERE code = 'PRUEBA_GUERRERO_3';
+UPDATE quests SET requires_quest_id = (SELECT id FROM quests WHERE code = 'PRUEBA_MAGO_2') WHERE code = 'PRUEBA_MAGO_3';
+UPDATE quests SET requires_quest_id = (SELECT id FROM quests WHERE code = 'PRUEBA_ARQUERO_2') WHERE code = 'PRUEBA_ARQUERO_3';
+UPDATE quests SET requires_quest_id = (SELECT id FROM quests WHERE code = 'PRUEBA_PICARO_2') WHERE code = 'PRUEBA_PICARO_3';
+UPDATE quests SET requires_quest_id = (SELECT id FROM quests WHERE code = 'PRUEBA_SACERDOTE_2') WHERE code = 'PRUEBA_SACERDOTE_3';
+-- las emboscadas sin dibujo muestran a su primer monstruo
+UPDATE quest_objectives SET params = params || jsonb_build_object('sprite', 'mon:' || (params->'monsters'->0->>'code'))
+WHERE objective_type = 'AMBUSH' AND params ? 'monsters' AND jsonb_array_length(params->'monsters') > 0 AND NOT params ? 'sprite'
+  AND quest_id IN (SELECT id FROM quests WHERE code LIKE 'PRUEBA\_%');
+
+-- ============================================================================================
+-- Evoluciones: las 25 condiciones imposibles (siete habilidades nuevas de las clases base y las condiciones
+-- cambiadas del escalón 2 y 3). Reemplaza los requisitos de arriba: docs/evoluciones_pruebas.md.
+-- ============================================================================================
+
+-- ============================================================================================
+-- Siete habilidades de las clases base para las ramas de evolución (repetible; sin ON CONFLICT): Filo Rúnico,
+-- Llamar Familiar, Destello Arcano, Flecha Sombría, Flecha Venenosa, Flecha de Trueno y Trampa de Cuerda.
+-- Diseño: docs/evoluciones_pruebas.md.
+-- ============================================================================================
+
+-- Filo Rúnico
+INSERT INTO skills (code, class_id, name, skill_type, damage_school, element_id, target_type, base_value, scaling_stat, scaling_multiplier, hits, mana_cost, is_passive, learn_method, learn_level, learn_gold_cost, description, cooldown_rounds)
+SELECT 'GUERRERO_FILO_RUNICO', 1, 'Filo Rúnico', 'ATAQUE', 'FISICO', 1, 'ENEMY', 35, 'ATK', 1.45, 1, 35, FALSE, 'GOLD', 12, 1200, 'Grabas una runa de fuego en la hoja y cortas: un golpe con daño de fuego. Los guerreros que quieren aprender magia empiezan por aquí.', 2
+WHERE NOT EXISTS (SELECT 1 FROM skills WHERE code = 'GUERRERO_FILO_RUNICO');
+UPDATE skills SET class_id = 1, name = 'Filo Rúnico', skill_type = 'ATAQUE', damage_school = 'FISICO', element_id = 1, target_type = 'ENEMY', base_value = 35, scaling_stat = 'ATK', scaling_multiplier = 1.45, hits = 1, mana_cost = 35, is_passive = FALSE, learn_method = 'GOLD', learn_level = 12, learn_gold_cost = 1200, description = 'Grabas una runa de fuego en la hoja y cortas: un golpe con daño de fuego. Los guerreros que quieren aprender magia empiezan por aquí.', cooldown_rounds = 2 WHERE code = 'GUERRERO_FILO_RUNICO';
+DELETE FROM skill_effects WHERE skill_id = (SELECT id FROM skills WHERE code = 'GUERRERO_FILO_RUNICO');
+
+-- Llamar Familiar
+INSERT INTO skills (code, class_id, name, skill_type, damage_school, element_id, target_type, base_value, scaling_stat, scaling_multiplier, hits, mana_cost, is_passive, learn_method, learn_level, learn_gold_cost, description, cooldown_rounds)
+SELECT 'MAGO_FAMILIAR', 2, 'Llamar Familiar', 'ESPECIAL', NULL, NULL, 'SELF', NULL, NULL, NULL, 1, 60, FALSE, 'GOLD', 14, 1500, 'Llamas a un familiar arcano que pelea a tu lado 3 rondas, con el 75% de tu magia, y le da al grupo un poco de resistencia mágica.', 4
+WHERE NOT EXISTS (SELECT 1 FROM skills WHERE code = 'MAGO_FAMILIAR');
+UPDATE skills SET class_id = 2, name = 'Llamar Familiar', skill_type = 'ESPECIAL', damage_school = NULL, element_id = NULL, target_type = 'SELF', base_value = NULL, scaling_stat = NULL, scaling_multiplier = NULL, hits = 1, mana_cost = 60, is_passive = FALSE, learn_method = 'GOLD', learn_level = 14, learn_gold_cost = 1500, description = 'Llamas a un familiar arcano que pelea a tu lado 3 rondas, con el 75% de tu magia, y le da al grupo un poco de resistencia mágica.', cooldown_rounds = 4 WHERE code = 'MAGO_FAMILIAR';
+DELETE FROM skill_effects WHERE skill_id = (SELECT id FROM skills WHERE code = 'MAGO_FAMILIAR');
+INSERT INTO skill_effects (skill_id, effect_type, stat_code, percent_amount, duration_turns, description, chance_percent, status_code)
+SELECT id, 'SUMMON', 'Familiar Arcano', 15, 3, 'Invoca un Familiar Arcano por 3 rondas; aura +15% de resistencia.', NULL, NULL FROM skills WHERE code = 'MAGO_FAMILIAR';
+
+-- Destello Arcano
+INSERT INTO skills (code, class_id, name, skill_type, damage_school, element_id, target_type, base_value, scaling_stat, scaling_multiplier, hits, mana_cost, is_passive, learn_method, learn_level, learn_gold_cost, description, cooldown_rounds)
+SELECT 'MAGO_DESTELLO', 2, 'Destello Arcano', 'ATAQUE', 'MAGICO', 7, 'ENEMY', 30, 'MAG', 1.35, 1, 30, FALSE, 'GOLD', 12, 1200, 'Un destello de luz pura que quema a los que viven en la oscuridad. La magia de los sacerdotes, aprendida en los libros.', 1
+WHERE NOT EXISTS (SELECT 1 FROM skills WHERE code = 'MAGO_DESTELLO');
+UPDATE skills SET class_id = 2, name = 'Destello Arcano', skill_type = 'ATAQUE', damage_school = 'MAGICO', element_id = 7, target_type = 'ENEMY', base_value = 30, scaling_stat = 'MAG', scaling_multiplier = 1.35, hits = 1, mana_cost = 30, is_passive = FALSE, learn_method = 'GOLD', learn_level = 12, learn_gold_cost = 1200, description = 'Un destello de luz pura que quema a los que viven en la oscuridad. La magia de los sacerdotes, aprendida en los libros.', cooldown_rounds = 1 WHERE code = 'MAGO_DESTELLO';
+DELETE FROM skill_effects WHERE skill_id = (SELECT id FROM skills WHERE code = 'MAGO_DESTELLO');
+
+-- Flecha Sombría
+INSERT INTO skills (code, class_id, name, skill_type, damage_school, element_id, target_type, base_value, scaling_stat, scaling_multiplier, hits, mana_cost, is_passive, learn_method, learn_level, learn_gold_cost, description, cooldown_rounds)
+SELECT 'ARQUERO_FLECHA_SOMBRIA', 3, 'Flecha Sombría', 'ATAQUE', 'FISICO', 8, 'ENEMY', 35, 'ATK', 1.45, 1, 35, FALSE, 'GOLD', 12, 1200, 'Una flecha mojada en sombra que no hace ruido ni brilla. 30% de probabilidad de cegar al enemigo 2 turnos.', 2
+WHERE NOT EXISTS (SELECT 1 FROM skills WHERE code = 'ARQUERO_FLECHA_SOMBRIA');
+UPDATE skills SET class_id = 3, name = 'Flecha Sombría', skill_type = 'ATAQUE', damage_school = 'FISICO', element_id = 8, target_type = 'ENEMY', base_value = 35, scaling_stat = 'ATK', scaling_multiplier = 1.45, hits = 1, mana_cost = 35, is_passive = FALSE, learn_method = 'GOLD', learn_level = 12, learn_gold_cost = 1200, description = 'Una flecha mojada en sombra que no hace ruido ni brilla. 30% de probabilidad de cegar al enemigo 2 turnos.', cooldown_rounds = 2 WHERE code = 'ARQUERO_FLECHA_SOMBRIA';
+DELETE FROM skill_effects WHERE skill_id = (SELECT id FROM skills WHERE code = 'ARQUERO_FLECHA_SOMBRIA');
+INSERT INTO skill_effects (skill_id, effect_type, stat_code, percent_amount, duration_turns, description, chance_percent, status_code)
+SELECT id, 'BLIND', NULL, 20, 2, '30%: ceguera por 2 turnos (20% de fallar).', 30, 'BLIND' FROM skills WHERE code = 'ARQUERO_FLECHA_SOMBRIA';
+
+-- Flecha Venenosa
+INSERT INTO skills (code, class_id, name, skill_type, damage_school, element_id, target_type, base_value, scaling_stat, scaling_multiplier, hits, mana_cost, is_passive, learn_method, learn_level, learn_gold_cost, description, cooldown_rounds)
+SELECT 'ARQUERO_FLECHA_VENENOSA', 3, 'Flecha Venenosa', 'ESTADO_ALTERADO', 'FISICO', NULL, 'ENEMY', NULL, NULL, NULL, 1, 25, FALSE, 'GOLD', 16, 1600, 'Una flecha con la punta untada en veneno: el enemigo pierde 5% de su vida máxima por turno durante 4 turnos.', 3
+WHERE NOT EXISTS (SELECT 1 FROM skills WHERE code = 'ARQUERO_FLECHA_VENENOSA');
+UPDATE skills SET class_id = 3, name = 'Flecha Venenosa', skill_type = 'ESTADO_ALTERADO', damage_school = 'FISICO', element_id = NULL, target_type = 'ENEMY', base_value = NULL, scaling_stat = NULL, scaling_multiplier = NULL, hits = 1, mana_cost = 25, is_passive = FALSE, learn_method = 'GOLD', learn_level = 16, learn_gold_cost = 1600, description = 'Una flecha con la punta untada en veneno: el enemigo pierde 5% de su vida máxima por turno durante 4 turnos.', cooldown_rounds = 3 WHERE code = 'ARQUERO_FLECHA_VENENOSA';
+DELETE FROM skill_effects WHERE skill_id = (SELECT id FROM skills WHERE code = 'ARQUERO_FLECHA_VENENOSA');
+INSERT INTO skill_effects (skill_id, effect_type, stat_code, percent_amount, duration_turns, description, chance_percent, status_code)
+SELECT id, 'DOT', NULL, 5, 4, 'Veneno: 5% de vida por turno durante 4 turnos.', NULL, 'POISON' FROM skills WHERE code = 'ARQUERO_FLECHA_VENENOSA';
+
+-- Flecha de Trueno
+INSERT INTO skills (code, class_id, name, skill_type, damage_school, element_id, target_type, base_value, scaling_stat, scaling_multiplier, hits, mana_cost, is_passive, learn_method, learn_level, learn_gold_cost, description, cooldown_rounds)
+SELECT 'ARQUERO_FLECHA_TRUENO', 3, 'Flecha de Trueno', 'ATAQUE', 'FISICO', 3, 'ENEMY', 40, 'ATK', 1.55, 1, 40, FALSE, 'GOLD', 25, 2500, 'Una flecha que atrae al rayo antes de llegar. 25% de probabilidad de paralizar al enemigo 2 turnos.', 2
+WHERE NOT EXISTS (SELECT 1 FROM skills WHERE code = 'ARQUERO_FLECHA_TRUENO');
+UPDATE skills SET class_id = 3, name = 'Flecha de Trueno', skill_type = 'ATAQUE', damage_school = 'FISICO', element_id = 3, target_type = 'ENEMY', base_value = 40, scaling_stat = 'ATK', scaling_multiplier = 1.55, hits = 1, mana_cost = 40, is_passive = FALSE, learn_method = 'GOLD', learn_level = 25, learn_gold_cost = 2500, description = 'Una flecha que atrae al rayo antes de llegar. 25% de probabilidad de paralizar al enemigo 2 turnos.', cooldown_rounds = 2 WHERE code = 'ARQUERO_FLECHA_TRUENO';
+DELETE FROM skill_effects WHERE skill_id = (SELECT id FROM skills WHERE code = 'ARQUERO_FLECHA_TRUENO');
+INSERT INTO skill_effects (skill_id, effect_type, stat_code, percent_amount, duration_turns, description, chance_percent, status_code)
+SELECT id, 'PARALYZE', NULL, NULL, 2, '25%: parálisis por 2 turnos (25% de perder el turno).', 25, 'PARALYZE' FROM skills WHERE code = 'ARQUERO_FLECHA_TRUENO';
+
+-- Trampa de Cuerda
+INSERT INTO skills (code, class_id, name, skill_type, damage_school, element_id, target_type, base_value, scaling_stat, scaling_multiplier, hits, mana_cost, is_passive, learn_method, learn_level, learn_gold_cost, description, cooldown_rounds)
+SELECT 'PICARO_TRAMPA', 4, 'Trampa de Cuerda', 'ESPECIAL', NULL, NULL, 'SELF', NULL, NULL, NULL, 1, 25, FALSE, 'GOLD', 12, 1200, 'Tiendes una cuerda con un cuchillo atado entre las sombras: en tu próximo turno salta sola y hiere a un enemigo al azar.', 3
+WHERE NOT EXISTS (SELECT 1 FROM skills WHERE code = 'PICARO_TRAMPA');
+UPDATE skills SET class_id = 4, name = 'Trampa de Cuerda', skill_type = 'ESPECIAL', damage_school = NULL, element_id = NULL, target_type = 'SELF', base_value = NULL, scaling_stat = NULL, scaling_multiplier = NULL, hits = 1, mana_cost = 25, is_passive = FALSE, learn_method = 'GOLD', learn_level = 12, learn_gold_cost = 1200, description = 'Tiendes una cuerda con un cuchillo atado entre las sombras: en tu próximo turno salta sola y hiere a un enemigo al azar.', cooldown_rounds = 3 WHERE code = 'PICARO_TRAMPA';
+DELETE FROM skill_effects WHERE skill_id = (SELECT id FROM skills WHERE code = 'PICARO_TRAMPA');
+-- ================================================================ evoluciones: las Pruebas de la Orden
+-- (gprback/docs/evoluciones_pruebas.md; generado por gpr/_respaldo_claude/evoluciones/gen_evoluciones.js)
+ALTER TABLE class_evolution_requirements ADD COLUMN IF NOT EXISTS quest_code TEXT;
+ALTER TABLE class_evolution_requirements DROP CONSTRAINT IF EXISTS class_evolution_requirements_requirement_type_check;
+ALTER TABLE class_evolution_requirements ADD CONSTRAINT class_evolution_requirements_requirement_type_check CHECK (requirement_type IN
+  ('COUNTER', 'ITEM', 'EQUIPMENT', 'NO_WEAPON', 'STAT_THRESHOLD', 'QUEST', 'KILLS_CATEGORIA', 'SUBZONAS', 'SECRETOS', 'JEFES_ZONA', 'MAZMORRAS_DISTINTAS', 'EQUIPO_FORMA'));
+INSERT INTO items (code, name, item_type, rarity, is_craftable, obtain_method, description, is_quest_item)
+SELECT 'CALIZ_DE_LA_FURIA', 'Cáliz de la Furia', 'MATERIAL', 'EPICO', FALSE, 'Drop', 'Una copa de obsidiana que todavía hierve. El Señor de la Caldera bebía de ella antes de cada batalla.', FALSE WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'CALIZ_DE_LA_FURIA');
+UPDATE items SET name = 'Cáliz de la Furia', item_type = 'MATERIAL', rarity = 'EPICO', description = 'Una copa de obsidiana que todavía hierve. El Señor de la Caldera bebía de ella antes de cada batalla.', is_quest_item = FALSE WHERE code = 'CALIZ_DE_LA_FURIA';
+INSERT INTO monster_drops (monster_id, item_id, drop_chance_percent, min_quantity, max_quantity)
+SELECT m.id, i.id, 12, 1, 1 FROM monsters m, items i WHERE m.code = 'SENOR_CALDERA' AND i.code = 'CALIZ_DE_LA_FURIA'
+  AND NOT EXISTS (SELECT 1 FROM monster_drops d WHERE d.monster_id = m.id AND d.item_id = i.id);
+INSERT INTO items (code, name, item_type, rarity, is_craftable, obtain_method, description, is_quest_item)
+SELECT 'CORAZA_TITAN_PIEDRA', 'Coraza del Titán de Piedra', 'MATERIAL', 'EPICO', FALSE, 'Drop', 'Un trozo del pecho del Rey de la Montaña. No se raya ni con diamante.', FALSE WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'CORAZA_TITAN_PIEDRA');
+UPDATE items SET name = 'Coraza del Titán de Piedra', item_type = 'MATERIAL', rarity = 'EPICO', description = 'Un trozo del pecho del Rey de la Montaña. No se raya ni con diamante.', is_quest_item = FALSE WHERE code = 'CORAZA_TITAN_PIEDRA';
+INSERT INTO monster_drops (monster_id, item_id, drop_chance_percent, min_quantity, max_quantity)
+SELECT m.id, i.id, 12, 1, 1 FROM monsters m, items i WHERE m.code = 'REY_MONTANA' AND i.code = 'CORAZA_TITAN_PIEDRA'
+  AND NOT EXISTS (SELECT 1 FROM monster_drops d WHERE d.monster_id = m.id AND d.item_id = i.id);
+INSERT INTO items (code, name, item_type, rarity, is_craftable, obtain_method, description, is_quest_item)
+SELECT 'PIEDRA_FILOSOFAL', 'Piedra Filosofal', 'MATERIAL', 'EPICO', FALSE, 'Drop', 'Morvak la forjaba para engañar a la muerte. Late como un corazón.', FALSE WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'PIEDRA_FILOSOFAL');
+UPDATE items SET name = 'Piedra Filosofal', item_type = 'MATERIAL', rarity = 'EPICO', description = 'Morvak la forjaba para engañar a la muerte. Late como un corazón.', is_quest_item = FALSE WHERE code = 'PIEDRA_FILOSOFAL';
+INSERT INTO monster_drops (monster_id, item_id, drop_chance_percent, min_quantity, max_quantity)
+SELECT m.id, i.id, 12, 1, 1 FROM monsters m, items i WHERE m.code = 'FISURA_MORVAK' AND i.code = 'PIEDRA_FILOSOFAL'
+  AND NOT EXISTS (SELECT 1 FROM monster_drops d WHERE d.monster_id = m.id AND d.item_id = i.id);
+INSERT INTO items (code, name, item_type, rarity, is_craftable, obtain_method, description, is_quest_item)
+SELECT 'PERLA_ESTRELLAS', 'Perla de las Estrellas', 'MATERIAL', 'EPICO', FALSE, 'Drop', 'La Bestia de las Profundidades la guardaba bajo la lengua. Adentro se mueven constelaciones.', FALSE WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'PERLA_ESTRELLAS');
+UPDATE items SET name = 'Perla de las Estrellas', item_type = 'MATERIAL', rarity = 'EPICO', description = 'La Bestia de las Profundidades la guardaba bajo la lengua. Adentro se mueven constelaciones.', is_quest_item = FALSE WHERE code = 'PERLA_ESTRELLAS';
+INSERT INTO monster_drops (monster_id, item_id, drop_chance_percent, min_quantity, max_quantity)
+SELECT m.id, i.id, 12, 1, 1 FROM monsters m, items i WHERE m.code = 'BESTIA_PROFUNDIDADES' AND i.code = 'PERLA_ESTRELLAS'
+  AND NOT EXISTS (SELECT 1 FROM monster_drops d WHERE d.monster_id = m.id AND d.item_id = i.id);
+INSERT INTO items (code, name, item_type, rarity, is_craftable, obtain_method, description, is_quest_item)
+SELECT 'RAMA_ROBLEVIEJO', 'Rama de Robleviejo', 'MATERIAL', 'EPICO', FALSE, 'Historia', 'Una rama viva del roble enfermo del bosque. Los arqueros de antes tallaban sus arcos con ella.', FALSE WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'RAMA_ROBLEVIEJO');
+UPDATE items SET name = 'Rama de Robleviejo', item_type = 'MATERIAL', rarity = 'EPICO', description = 'Una rama viva del roble enfermo del bosque. Los arqueros de antes tallaban sus arcos con ella.', is_quest_item = FALSE WHERE code = 'RAMA_ROBLEVIEJO';
+INSERT INTO items (code, name, item_type, rarity, is_craftable, obtain_method, description, is_quest_item)
+SELECT 'ARCO_DE_LOS_ANTIGUOS', 'Arco de los Antiguos', 'MATERIAL', 'EPICO', FALSE, 'Drop', 'Un arco élfico sin cuerda, encontrado en el nido del Señor del Acantilado. La madera recuerda a sus dueños.', FALSE WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'ARCO_DE_LOS_ANTIGUOS');
+UPDATE items SET name = 'Arco de los Antiguos', item_type = 'MATERIAL', rarity = 'EPICO', description = 'Un arco élfico sin cuerda, encontrado en el nido del Señor del Acantilado. La madera recuerda a sus dueños.', is_quest_item = FALSE WHERE code = 'ARCO_DE_LOS_ANTIGUOS';
+INSERT INTO monster_drops (monster_id, item_id, drop_chance_percent, min_quantity, max_quantity)
+SELECT m.id, i.id, 10, 1, 1 FROM monsters m, items i WHERE m.code = 'SENOR_ACANTILADO' AND i.code = 'ARCO_DE_LOS_ANTIGUOS'
+  AND NOT EXISTS (SELECT 1 FROM monster_drops d WHERE d.monster_id = m.id AND d.item_id = i.id);
+INSERT INTO items (code, name, item_type, rarity, is_craftable, obtain_method, description, is_quest_item)
+SELECT 'CUERNO_TORMENTA', 'Cuerno de la Tormenta', 'MATERIAL', 'EPICO', FALSE, 'Drop', 'El Señor del Acantilado lo soplaba para llamar a los rayos. Todavía chispea.', FALSE WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'CUERNO_TORMENTA');
+UPDATE items SET name = 'Cuerno de la Tormenta', item_type = 'MATERIAL', rarity = 'EPICO', description = 'El Señor del Acantilado lo soplaba para llamar a los rayos. Todavía chispea.', is_quest_item = FALSE WHERE code = 'CUERNO_TORMENTA';
+INSERT INTO monster_drops (monster_id, item_id, drop_chance_percent, min_quantity, max_quantity)
+SELECT m.id, i.id, 12, 1, 1 FROM monsters m, items i WHERE m.code = 'SENOR_ACANTILADO' AND i.code = 'CUERNO_TORMENTA'
+  AND NOT EXISTS (SELECT 1 FROM monster_drops d WHERE d.monster_id = m.id AND d.item_id = i.id);
+INSERT INTO items (code, name, item_type, rarity, is_craftable, obtain_method, description, is_quest_item)
+SELECT 'CALIZ_DE_CORAL', 'Cáliz de Coral', 'MATERIAL', 'EPICO', FALSE, 'Drop', 'El agua que cae en él cura cualquier herida. El Señor del Océano lo robó de un templo hundido.', FALSE WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'CALIZ_DE_CORAL');
+UPDATE items SET name = 'Cáliz de Coral', item_type = 'MATERIAL', rarity = 'EPICO', description = 'El agua que cae en él cura cualquier herida. El Señor del Océano lo robó de un templo hundido.', is_quest_item = FALSE WHERE code = 'CALIZ_DE_CORAL';
+INSERT INTO monster_drops (monster_id, item_id, drop_chance_percent, min_quantity, max_quantity)
+SELECT m.id, i.id, 12, 1, 1 FROM monsters m, items i WHERE m.code = 'SENOR_OCEANO' AND i.code = 'CALIZ_DE_CORAL'
+  AND NOT EXISTS (SELECT 1 FROM monster_drops d WHERE d.monster_id = m.id AND d.item_id = i.id);
+INSERT INTO items (code, name, item_type, rarity, is_craftable, obtain_method, description, is_quest_item)
+SELECT 'CADENA_DEL_TRONO', 'Cadena del Trono', 'MATERIAL', 'EPICO', FALSE, 'Drop', 'Un eslabón de la cadena que ataba al Coloso al Trono de Huesos. Pesa más de lo que debería.', FALSE WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'CADENA_DEL_TRONO');
+UPDATE items SET name = 'Cadena del Trono', item_type = 'MATERIAL', rarity = 'EPICO', description = 'Un eslabón de la cadena que ataba al Coloso al Trono de Huesos. Pesa más de lo que debería.', is_quest_item = FALSE WHERE code = 'CADENA_DEL_TRONO';
+INSERT INTO monster_drops (monster_id, item_id, drop_chance_percent, min_quantity, max_quantity)
+SELECT m.id, i.id, 12, 1, 1 FROM monsters m, items i WHERE m.code = 'TRONOH_COLOSO' AND i.code = 'CADENA_DEL_TRONO'
+  AND NOT EXISTS (SELECT 1 FROM monster_drops d WHERE d.monster_id = m.id AND d.item_id = i.id);
+INSERT INTO items (code, name, item_type, rarity, is_craftable, obtain_method, description, is_quest_item)
+SELECT 'ALA_DEL_TEMPLO', 'Ala del Templo', 'MATERIAL', 'EPICO', FALSE, 'Drop', 'Una pluma de mármol de las estatuas del Templo Sagrado. Brilla cuando alguien reza cerca.', FALSE WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'ALA_DEL_TEMPLO');
+UPDATE items SET name = 'Ala del Templo', item_type = 'MATERIAL', rarity = 'EPICO', description = 'Una pluma de mármol de las estatuas del Templo Sagrado. Brilla cuando alguien reza cerca.', is_quest_item = FALSE WHERE code = 'ALA_DEL_TEMPLO';
+INSERT INTO monster_drops (monster_id, item_id, drop_chance_percent, min_quantity, max_quantity)
+SELECT m.id, i.id, 10, 1, 1 FROM monsters m, items i WHERE m.code = 'ENTIDAD_CORRUPTA_TEMPLO' AND i.code = 'ALA_DEL_TEMPLO'
+  AND NOT EXISTS (SELECT 1 FROM monster_drops d WHERE d.monster_id = m.id AND d.item_id = i.id);
+INSERT INTO items (code, name, item_type, rarity, is_craftable, obtain_method, description, is_quest_item)
+SELECT 'ESCAMA_SIERPE', 'Escama de la Sierpe', 'MATERIAL', 'EPICO', FALSE, 'Drop', 'Una escama de Escarcha, la sierpe de la Reina. Fría como el primer invierno.', FALSE WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'ESCAMA_SIERPE');
+UPDATE items SET name = 'Escama de la Sierpe', item_type = 'MATERIAL', rarity = 'EPICO', description = 'Una escama de Escarcha, la sierpe de la Reina. Fría como el primer invierno.', is_quest_item = FALSE WHERE code = 'ESCAMA_SIERPE';
+INSERT INTO monster_drops (monster_id, item_id, drop_chance_percent, min_quantity, max_quantity)
+SELECT m.id, i.id, 12, 1, 1 FROM monsters m, items i WHERE m.code = 'CRIPTAH_ESCARCHA' AND i.code = 'ESCAMA_SIERPE'
+  AND NOT EXISTS (SELECT 1 FROM monster_drops d WHERE d.monster_id = m.id AND d.item_id = i.id);
+INSERT INTO items (code, name, item_type, rarity, is_craftable, obtain_method, description, is_quest_item)
+SELECT 'CORAZON_ECLIPSE', 'Corazón del Eclipse', 'MATERIAL', 'EPICO', FALSE, 'Drop', 'Lo que queda de un Avatar cuando el sol vuelve. Negro, tibio y hambriento.', FALSE WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'CORAZON_ECLIPSE');
+UPDATE items SET name = 'Corazón del Eclipse', item_type = 'MATERIAL', rarity = 'EPICO', description = 'Lo que queda de un Avatar cuando el sol vuelve. Negro, tibio y hambriento.', is_quest_item = FALSE WHERE code = 'CORAZON_ECLIPSE';
+INSERT INTO monster_drops (monster_id, item_id, drop_chance_percent, min_quantity, max_quantity)
+SELECT m.id, i.id, 8, 1, 1 FROM monsters m, items i WHERE m.code = 'AVATAR_ECLIPSE' AND i.code = 'CORAZON_ECLIPSE'
+  AND NOT EXISTS (SELECT 1 FROM monster_drops d WHERE d.monster_id = m.id AND d.item_id = i.id);
+INSERT INTO items (code, name, item_type, rarity, is_craftable, obtain_method, description, is_quest_item)
+SELECT 'ROSARIO_PRIMER_VIGIA', 'Rosario del Primer Vigía', 'MATERIAL', 'EPICO', FALSE, 'Drop', 'Siete cuentas de piedra, una por Sello. El primer Vigía rezaba con él antes de pelear.', FALSE WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'ROSARIO_PRIMER_VIGIA');
+UPDATE items SET name = 'Rosario del Primer Vigía', item_type = 'MATERIAL', rarity = 'EPICO', description = 'Siete cuentas de piedra, una por Sello. El primer Vigía rezaba con él antes de pelear.', is_quest_item = FALSE WHERE code = 'ROSARIO_PRIMER_VIGIA';
+INSERT INTO monster_drops (monster_id, item_id, drop_chance_percent, min_quantity, max_quantity)
+SELECT m.id, i.id, 10, 1, 1 FROM monsters m, items i WHERE m.code = 'GUARDIAN_ANCESTRAL' AND i.code = 'ROSARIO_PRIMER_VIGIA'
+  AND NOT EXISTS (SELECT 1 FROM monster_drops d WHERE d.monster_id = m.id AND d.item_id = i.id);
+INSERT INTO items (code, name, item_type, rarity, is_craftable, obtain_method, description, is_quest_item)
+SELECT 'CORONA_FLORES_LUMINOSAS', 'Corona de Flores Luminosas', 'MATERIAL', 'EPICO', FALSE, 'Drop', 'Tejida con las flores del jardín de Aethra. No se marchita nunca.', FALSE WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'CORONA_FLORES_LUMINOSAS');
+UPDATE items SET name = 'Corona de Flores Luminosas', item_type = 'MATERIAL', rarity = 'EPICO', description = 'Tejida con las flores del jardín de Aethra. No se marchita nunca.', is_quest_item = FALSE WHERE code = 'CORONA_FLORES_LUMINOSAS';
+INSERT INTO monster_drops (monster_id, item_id, drop_chance_percent, min_quantity, max_quantity)
+SELECT m.id, i.id, 10, 1, 1 FROM monsters m, items i WHERE m.code = 'GUARDIAN_ANCESTRAL' AND i.code = 'CORONA_FLORES_LUMINOSAS'
+  AND NOT EXISTS (SELECT 1 FROM monster_drops d WHERE d.monster_id = m.id AND d.item_id = i.id);
+INSERT INTO items (code, name, item_type, rarity, is_craftable, obtain_method, description, is_quest_item)
+SELECT 'NUCLEO_ESTELAR', 'Núcleo Estelar', 'MATERIAL', 'EPICO', FALSE, 'Drop', 'El centro del Ojo del Devorador, apagado. Si lo miras mucho, te mira.', FALSE WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'NUCLEO_ESTELAR');
+UPDATE items SET name = 'Núcleo Estelar', item_type = 'MATERIAL', rarity = 'EPICO', description = 'El centro del Ojo del Devorador, apagado. Si lo miras mucho, te mira.', is_quest_item = FALSE WHERE code = 'NUCLEO_ESTELAR';
+INSERT INTO monster_drops (monster_id, item_id, drop_chance_percent, min_quantity, max_quantity)
+SELECT m.id, i.id, 12, 1, 1 FROM monsters m, items i WHERE m.code = 'OBSERV_OJO' AND i.code = 'NUCLEO_ESTELAR'
+  AND NOT EXISTS (SELECT 1 FROM monster_drops d WHERE d.monster_id = m.id AND d.item_id = i.id);
+INSERT INTO items (code, name, item_type, rarity, is_craftable, obtain_method, description, is_quest_item)
+SELECT 'LIBRO_CUENTAS_PIRATA', 'Libro de cuentas pirata', 'MATERIAL', 'EPICO', FALSE, 'Historia', 'Todo lo que robaron los piratas de la Cala, con fechas y nombres. Nox lo quería. Ahora es tuyo.', FALSE WHERE NOT EXISTS (SELECT 1 FROM items WHERE code = 'LIBRO_CUENTAS_PIRATA');
+UPDATE items SET name = 'Libro de cuentas pirata', item_type = 'MATERIAL', rarity = 'EPICO', description = 'Todo lo que robaron los piratas de la Cala, con fechas y nombres. Nox lo quería. Ahora es tuyo.', is_quest_item = FALSE WHERE code = 'LIBRO_CUENTAS_PIRATA';
+-- el escalón de cada evolución (1, 2 o 3) sale de la profundidad de su clase destino
+CREATE TEMP TABLE IF NOT EXISTS _evo_escalon (evolution_id INT PRIMARY KEY, escalon INT, base TEXT);
+TRUNCATE _evo_escalon;
+WITH RECURSIVE arbol AS (
+  SELECT e.id, e.evolves_to_class_id AS cls, 1 AS escalon, c.code AS base
+  FROM class_evolutions e JOIN classes c ON c.id = e.class_id WHERE c.code IN ('GUERRERO', 'MAGO', 'ARQUERO', 'PICARO', 'SACERDOTE')
+  UNION ALL
+  SELECT e.id, e.evolves_to_class_id, a.escalon + 1, a.base FROM class_evolutions e JOIN arbol a ON e.class_id = a.cls
+)
+INSERT INTO _evo_escalon SELECT id, escalon, base FROM arbol;
+UPDATE class_evolutions e SET required_level = CASE x.escalon WHEN 1 THEN 20 WHEN 2 THEN 50 ELSE 90 END
+FROM _evo_escalon x WHERE x.evolution_id = e.id;
+DELETE FROM class_evolution_requirements;
+INSERT INTO class_evolution_requirements (evolution_id, requirement_type, quest_code, comparison, target_value, description)
+SELECT x.evolution_id, 'QUEST', 'PRUEBA_' || x.base || '_' || x.escalon, '>=', 1,
+  'Supera ' || CASE x.escalon WHEN 1 THEN 'la Prueba del Aprendiz' WHEN 2 THEN 'la Prueba del Maestro' ELSE 'la Ascensión' END || ' de tu orden'
+FROM _evo_escalon x;
+INSERT INTO class_evolution_requirements (evolution_id, requirement_type, counter_code, item_code, equipment_type, comparison, target_value, description)
+SELECT e.id, v.tipo, v.counter_code, v.item_code, v.equipment_type, '>=', v.target, v.descr
+FROM (VALUES
+('MONJE', 'COUNTER', 'COMBATES_SIN_ARMA', NULL, NULL, 25, 'Gana 25 combates con las manos vacías'),
+('ESPADACHIN', 'COUNTER', 'KILLS_CORTE', NULL, NULL, 100, 'Derrota a 100 enemigos de un tajo'),
+('ESPADACHIN', 'EQUIPO_FORMA', NULL, NULL, 'ESPADA', NULL, 'Lleva una espada'),
+('CABALLERO', 'COUNTER', 'ALIADOS_PROTEGIDOS', NULL, NULL, 20, 'Protege a un aliado 20 veces'),
+('CABALLERO', 'EQUIPO_FORMA', NULL, NULL, 'ARMADURA_PESADA', NULL, 'Lleva una armadura pesada'),
+('BERSERKER', 'COUNTER', 'CRITICOS_REALIZADOS', NULL, NULL, 80, 'Da 80 golpes críticos'),
+('BERSERKER', 'COUNTER', 'COMBATES_LIMITE_SOBREVIVIDOS', NULL, NULL, 10, 'Gana 10 combates al borde de la muerte'),
+('GUERRERO_MAGUS', 'COUNTER', 'KILLS_ELEMENTAL', NULL, NULL, 60, 'Derrota a 60 enemigos con un golpe elemental'),
+('GUERRERO_MAGUS', 'ITEM', NULL, 'RUNA_MENHIR', NULL, 1, 'Entrega una Runa de Menhir (Círculo de Piedras)'),
+('MAESTRO_MONJE', 'COUNTER', 'KILLS_GOLPE_PUNO', NULL, NULL, 200, 'Derrota a 200 enemigos con el puño'),
+('MAESTRO_MONJE', 'COUNTER', 'JEFES_SIN_ARMA', NULL, NULL, 1, 'Vence a un jefe sin arma'),
+('MONJE_OSCURO', 'KILLS_CATEGORIA', 'MUERTO_VIVIENTE,ESPECTRO', NULL, NULL, 120, 'Derrota a 120 muertos vivientes o espectros'),
+('MONJE_OSCURO', 'ITEM', NULL, 'MEDALLA_VIGIA', NULL, 1, 'Entrega la Medalla del Vigía (Cripta del Vigía)'),
+('MONJE_SISMICO', 'KILLS_CATEGORIA', 'ELEMENTAL', NULL, NULL, 150, 'Derrota a 150 elementales (gólems, centinelas y espíritus de roca)'),
+('MONJE_SISMICO', 'ITEM', NULL, 'CORAZON_HIERRO_NEGRO', NULL, 1, 'Entrega un Corazón de Hierro Negro (Mina Profunda)'),
+('MONJE_DIVINO', 'KILLS_CATEGORIA', 'MUERTO_VIVIENTE,ESPECTRO,DEMONIO', NULL, NULL, 150, 'Derrota a 150 muertos vivientes, espectros o demonios'),
+('MONJE_DIVINO', 'ITEM', NULL, 'AGUA_PURIFICADA', NULL, 5, 'Entrega 5 Aguas Purificadas del Pilar'),
+('MAESTRO_ESPADACHIN', 'COUNTER', 'KILLS_CORTE', NULL, NULL, 400, 'Derrota a 400 enemigos de un tajo'),
+('CABALLERO_OSCURO', 'KILLS_CATEGORIA', 'MUERTO_VIVIENTE', NULL, NULL, 150, 'Derrota a 150 muertos vivientes'),
+('CABALLERO_OSCURO', 'ITEM', NULL, 'FRAGMENTO_ECLIPSE', NULL, 1, 'Entrega un Fragmento de Eclipse'),
+('PALADIN', 'KILLS_CATEGORIA', 'MUERTO_VIVIENTE,DEMONIO', NULL, NULL, 150, 'Derrota a 150 muertos vivientes o demonios'),
+('PALADIN', 'COUNTER', 'ALIADOS_PROTEGIDOS', NULL, NULL, 60, 'Protege a un aliado 60 veces'),
+('CABALLERO_BLINDADO', 'COUNTER', 'COMBATES_LIMITE_SOBREVIVIDOS', NULL, NULL, 40, 'Sobrevive a 40 combates al límite'),
+('CABALLERO_BLINDADO', 'ITEM', NULL, 'CORAZA_TITAN_PIEDRA', NULL, 1, 'Entrega la Coraza del Titán de Piedra (Rey de la Montaña)'),
+('TITAN_FURIOSO', 'COUNTER', 'CRITICOS_REALIZADOS', NULL, NULL, 300, 'Da 300 golpes críticos'),
+('TITAN_FURIOSO', 'ITEM', NULL, 'CALIZ_DE_LA_FURIA', NULL, 1, 'Bebe del Cáliz de la Furia (Señor de la Caldera)'),
+('MAGO_ESPADA', 'COUNTER', 'KILLS_ELEMENTAL', NULL, NULL, 200, 'Derrota a 200 enemigos con un golpe elemental'),
+('MAGO_ESPADA', 'EQUIPO_FORMA', NULL, NULL, 'ESPADA_RUNICA', NULL, 'Lleva una espada rúnica'),
+('ARQUEOLOGO_MAGICO', 'COUNTER', 'HISTORIAS_DEL_ABISMO_LEIDAS', NULL, NULL, 12, 'Lee las 12 Historias del Abismo'),
+('ARQUEOLOGO_MAGICO', 'COUNTER', 'KILLS_ELEMENTAL', NULL, NULL, 200, 'Derrota a 200 enemigos con un golpe elemental'),
+('PALADIN_OSCURO', 'KILLS_CATEGORIA', 'MUERTO_VIVIENTE', NULL, NULL, 500, 'Derrota a 500 muertos vivientes'),
+('PALADIN_OSCURO', 'ITEM', NULL, 'CADENA_DEL_TRONO', NULL, 1, 'Entrega la Cadena del Trono (Coloso de Huesos)'),
+('CABALLERO_SAGRADO', 'COUNTER', 'ALIADOS_PROTEGIDOS', NULL, NULL, 150, 'Protege a un aliado 150 veces'),
+('CABALLERO_SAGRADO', 'ITEM', NULL, 'ALA_DEL_TEMPLO', NULL, 1, 'Entrega el Ala del Templo (Entidad Corrupta del Templo)'),
+('DRAGON_CABALLERO', 'KILLS_CATEGORIA', 'DRACOIDE', NULL, NULL, 100, 'Derrota a 100 dracoides'),
+('DRAGON_CABALLERO', 'ITEM', NULL, 'ESCAMA_SIERPE', NULL, 1, 'Entrega la Escama de la Sierpe (Escarcha, Cripta Congelada)'),
+('BERSERKER_DEL_CAOS', 'COUNTER', 'COMBATES_LIMITE_SOBREVIVIDOS', NULL, NULL, 30, 'Gana 30 combates al borde de la muerte'),
+('BERSERKER_DEL_CAOS', 'ITEM', NULL, 'CORAZON_ECLIPSE', NULL, 1, 'Entrega el Corazón del Eclipse (Avatar del Eclipse)'),
+('MAESTRO_MONJE_SUPREMO', 'COUNTER', 'KILLS_GOLPE_PUNO', NULL, NULL, 600, 'Derrota a 600 enemigos con el puño'),
+('MAESTRO_MONJE_SUPREMO', 'ITEM', NULL, 'ROSARIO_PRIMER_VIGIA', NULL, 1, 'Entrega el Rosario del Primer Vigía (Guardián Ancestral)'),
+('NIGROMANTE', 'KILLS_CATEGORIA', 'MUERTO_VIVIENTE', NULL, NULL, 40, 'Derrota a 40 muertos vivientes'),
+('NIGROMANTE', 'ITEM', NULL, 'MEDALLA_VIGIA', NULL, 1, 'Entrega la Medalla del Vigía (Cripta del Vigía)'),
+('INVOCADOR', 'COUNTER', 'INVOCACIONES_REALIZADAS', NULL, NULL, 40, 'Invoca 40 veces'),
+('ELEMENTAL', 'COUNTER', 'ELEMENTOS_DOMINADOS', NULL, NULL, 3, 'Domina 3 elementos'),
+('MAGO_DIVINO', 'COUNTER', 'KILLS_LIGHT', NULL, NULL, 50, 'Derrota a 50 enemigos con luz'),
+('MAGO_DIVINO', 'ITEM', NULL, 'AGUA_PURIFICADA', NULL, 3, 'Entrega 3 Aguas Purificadas del Pilar'),
+('MAGO_PIROMANTICO', 'COUNTER', 'KILLS_FIRE', NULL, NULL, 250, 'Derrota a 250 enemigos con fuego'),
+('MAGO_PIROMANTICO', 'ITEM', NULL, 'ESCAMA_DE_FUEGO', NULL, 1, 'Entrega una Escama de Salamandra'),
+('MAGO_CRIOMANTICO', 'COUNTER', 'KILLS_ICE', NULL, NULL, 250, 'Derrota a 250 enemigos con hielo'),
+('MAGO_CRIOMANTICO', 'ITEM', NULL, 'PIEL_LOBO_NIEVE', NULL, 1, 'Entrega una Piel de Lobo de las Nieves'),
+('MAGO_ELECTROMANTICO', 'COUNTER', 'KILLS_LIGHTNING', NULL, NULL, 250, 'Derrota a 250 enemigos con rayo'),
+('MAGO_ELECTROMANTICO', 'ITEM', NULL, 'CUERNO_TORMENTA', NULL, 1, 'Entrega el Cuerno de la Tormenta (Señor del Acantilado)'),
+('MAGO_HIDROMANTE', 'KILLS_CATEGORIA', 'ACUATICO', NULL, NULL, 250, 'Derrota a 250 criaturas del agua'),
+('MAGO_HIDROMANTE', 'ITEM', NULL, 'PERLA_MARINA', NULL, 1, 'Entrega una Perla Marina'),
+('MAGO_GEOMANTICO', 'COUNTER', 'KILLS_EARTH', NULL, NULL, 250, 'Derrota a 250 enemigos con tierra'),
+('MAGO_GEOMANTICO', 'ITEM', NULL, 'CORAZON_HIERRO_NEGRO', NULL, 1, 'Entrega un Corazón de Hierro Negro (Mina Profunda)'),
+('MAGO_AEROMANTE', 'SUBZONAS', 'montanas', NULL, NULL, NULL, 'Pisa todas las subzonas de las Montañas, donde nace el viento'),
+('MAGO_AEROMANTE', 'ITEM', NULL, 'PLUMA_ARPIA_ECO', NULL, 1, 'Entrega una Pluma de Arpía del Eco'),
+('MAGO_LUMINOSO', 'COUNTER', 'KILLS_LIGHT', NULL, NULL, 250, 'Derrota a 250 enemigos con luz'),
+('MAGO_LUMINOSO', 'ITEM', NULL, 'AGUA_PURIFICADA', NULL, 5, 'Entrega 5 Aguas Purificadas del Pilar'),
+('REY_NIGROMANTE', 'KILLS_CATEGORIA', 'MUERTO_VIVIENTE', NULL, NULL, 300, 'Derrota a 300 muertos vivientes'),
+('REY_NIGROMANTE', 'ITEM', NULL, 'MEDALLA_VIGIA', NULL, 1, 'Entrega la Medalla del Vigía (Cripta del Vigía)'),
+('LICH', 'COUNTER', 'COMBATES_LIMITE_SOBREVIVIDOS', NULL, NULL, 50, 'Sobrevive a 50 combates al límite'),
+('LICH', 'ITEM', NULL, 'PIEDRA_FILOSOFAL', NULL, 1, 'Entrega la Piedra Filosofal (Morvak, Fisura Infernal)'),
+('INVOCADOR_DEMONIACO', 'COUNTER', 'INVOCACIONES_REALIZADAS', NULL, NULL, 100, 'Invoca 100 veces'),
+('INVOCADOR_DEMONIACO', 'KILLS_CATEGORIA', 'DEMONIO', NULL, NULL, 150, 'Derrota a 150 demonios'),
+('INVOCADOR_CELESTIAL', 'COUNTER', 'INVOCACIONES_REALIZADAS', NULL, NULL, 100, 'Invoca 100 veces'),
+('INVOCADOR_CELESTIAL', 'COUNTER', 'KILLS_LIGHT', NULL, NULL, 150, 'Derrota a 150 enemigos con luz'),
+('INVOCADOR_SALVAJE', 'COUNTER', 'INVOCACIONES_REALIZADAS', NULL, NULL, 100, 'Invoca 100 veces'),
+('INVOCADOR_SALVAJE', 'KILLS_CATEGORIA', 'BESTIA', NULL, NULL, 200, 'Derrota a 200 bestias'),
+('MAESTRO_ELEMENTAL', 'COUNTER', 'ELEMENTOS_DOMINADOS', NULL, NULL, 5, 'Domina 5 elementos (50 enemigos con cada uno)'),
+('MAGO_ESTELAR', 'COUNTER', 'KILLS_LIGHT', NULL, NULL, 200, 'Derrota a 200 enemigos con luz'),
+('MAGO_ESTELAR', 'ITEM', NULL, 'PERLA_ESTRELLAS', NULL, 1, 'Entrega la Perla de las Estrellas (Bestia de las Profundidades)'),
+('MAGO_COSMICO', 'KILLS_CATEGORIA', 'COSMICO', NULL, NULL, 150, 'Derrota a 150 cósmicos'),
+('MAGO_COSMICO', 'ITEM', NULL, 'NUCLEO_ESTELAR', NULL, 1, 'Entrega el Núcleo Estelar (Ojo del Devorador, Observatorio)'),
+('CAZADOR', 'KILLS_CATEGORIA', 'BESTIA', NULL, NULL, 60, 'Derrota a 60 bestias'),
+('FRANCOTIRADOR', 'COUNTER', 'CRITICOS_ARCO', NULL, NULL, 80, 'Da 80 críticos con el arco'),
+('RANGER', 'SUBZONAS', 'pradera', NULL, NULL, NULL, 'Pisa todas las subzonas de la Pradera'),
+('ASESINO_ARCANO', 'COUNTER', 'KILLS_DARK', NULL, NULL, 40, 'Derrota a 40 enemigos con oscuridad'),
+('ASESINO_ARCANO', 'ITEM', NULL, 'FRAGMENTO_ECLIPSE', NULL, 1, 'Entrega un Fragmento de Eclipse'),
+('ELFO_SILVESTRE', 'KILLS_CATEGORIA', 'BESTIA', NULL, NULL, 50, 'Derrota a 50 bestias'),
+('ELFO_SILVESTRE', 'ITEM', NULL, 'RAMA_ROBLEVIEJO', NULL, 1, 'Trae la Rama de Robleviejo (el roble viejo del bosque)'),
+('BALLESTERO', 'EQUIPO_FORMA', NULL, NULL, 'BALLESTA', NULL, 'Lleva una ballesta'),
+('BALLESTERO', 'COUNTER', 'CRITICOS_ARCO', NULL, NULL, 200, 'Da 200 críticos con el arco'),
+('MAESTRO_CAZADOR', 'KILLS_CATEGORIA', 'BESTIA', NULL, NULL, 300, 'Derrota a 300 bestias'),
+('MAESTRO_CAZADOR', 'ITEM', NULL, 'CORONA_REY_MONTANA', NULL, 1, 'Entrega la Corona del Rey de Montaña'),
+('FRANCOTIRADOR_FANTASMAL', 'COUNTER', 'ATAQUES_ESQUIVADOS', NULL, NULL, 150, 'Esquiva 150 ataques'),
+('TIRADOR_EXPLOSIVO', 'COUNTER', 'KILLS_EXPLOSIVO', NULL, NULL, 100, 'Derrota a 100 enemigos con flecha explosiva'),
+('TIRADOR_VENENO', 'COUNTER', 'ENVENENAMIENTOS', NULL, NULL, 150, 'Envenena 150 veces'),
+('ARQUERO_DEL_RAYO', 'COUNTER', 'KILLS_LIGHTNING', NULL, NULL, 200, 'Derrota a 200 enemigos con rayo'),
+('ARQUERO_DEL_RAYO', 'ITEM', NULL, 'CUERNO_TORMENTA', NULL, 1, 'Entrega el Cuerno de la Tormenta (Señor del Acantilado)'),
+('RANGER_PRIMORDIAL', 'SUBZONAS', 'montanas,volcan,costas', NULL, NULL, NULL, 'Pisa todas las subzonas de las Montañas, el Volcán y las Costas'),
+('GUARDIAN_SILVESTRE', 'COUNTER', 'ALIADOS_PROTEGIDOS', NULL, NULL, 80, 'Protege a un aliado 80 veces'),
+('GUARDIAN_SILVESTRE', 'KILLS_CATEGORIA', 'BESTIA', NULL, NULL, 150, 'Derrota a 150 bestias'),
+('ARQUERO_CELESTIAL', 'KILLS_CATEGORIA', 'MUERTO_VIVIENTE,ESPECTRO', NULL, NULL, 150, 'Derrota a 150 muertos vivientes o espectros'),
+('MAESTRO_ASESINO_OSCURO', 'COUNTER', 'KILLS_DARK', NULL, NULL, 150, 'Derrota a 150 enemigos con oscuridad'),
+('MAESTRO_ASESINO_OSCURO', 'COUNTER', 'CRITICOS_ARCO', NULL, NULL, 200, 'Haz 200 críticos con arco'),
+('ELFO_ANTIGUO', 'KILLS_CATEGORIA', 'BESTIA', NULL, NULL, 200, 'Derrota a 200 bestias'),
+('ELFO_ANTIGUO', 'ITEM', NULL, 'ARCO_DE_LOS_ANTIGUOS', NULL, 1, 'Trae el Arco de los Antiguos (Señor del Acantilado)'),
+('ELFO_SENOR_BOSQUE', 'KILLS_CATEGORIA', 'BESTIA', NULL, NULL, 500, 'Derrota a 500 bestias'),
+('ELFO_SENOR_BOSQUE', 'ITEM', NULL, 'CORONA_FLORES_LUMINOSAS', NULL, 1, 'Entrega la Corona de Flores Luminosas (Guardián Ancestral)'),
+('NINJA', 'COUNTER', 'ATAQUES_ESQUIVADOS', NULL, NULL, 50, 'Esquiva 50 ataques'),
+('ASESINO', 'COUNTER', 'GOLPES_LETALES', NULL, NULL, 50, 'Da 50 golpes letales'),
+('LADRON_MAESTRO', 'COUNTER', 'ITEMS_ROBADOS', NULL, NULL, 40, 'Roba 40 objetos'),
+('ENVENENADOR', 'COUNTER', 'ENVENENAMIENTOS', NULL, NULL, 50, 'Envenena 50 veces'),
+('ESPECIALISTA_TRAMPAS', 'COUNTER', 'TRAMPAS_DESPLEGADAS', NULL, NULL, 40, 'Coloca 40 trampas'),
+('NINJA_MAESTRO', 'COUNTER', 'KILLS_EN_INVISIBILIDAD', NULL, NULL, 150, 'Derrota a 150 enemigos sin ser visto'),
+('NINJA_SOMBRA', 'COUNTER', 'KILLS_DARK', NULL, NULL, 150, 'Derrota a 150 enemigos con oscuridad'),
+('NINJA_SOMBRA', 'COUNTER', 'ATAQUES_ESQUIVADOS', NULL, NULL, 200, 'Esquiva 200 ataques'),
+('ACROBATA', 'COUNTER', 'ATAQUES_ESQUIVADOS', NULL, NULL, 400, 'Esquiva 400 ataques'),
+('MAESTRO_ASESINO', 'COUNTER', 'GOLPES_LETALES', NULL, NULL, 200, 'Da 200 golpes letales'),
+('MAESTRO_ASESINO', 'COUNTER', 'JEFES_SOLO', NULL, NULL, 1, 'Vence a un jefe de zona tú solo'),
+('LADRON_LEGENDARIO', 'COUNTER', 'ITEMS_ROBADOS', NULL, NULL, 200, 'Roba 200 objetos'),
+('LADRON_LEGENDARIO', 'ITEM', NULL, 'LIBRO_CUENTAS_PIRATA', NULL, 1, 'Entrega el libro de cuentas de los piratas'),
+('SAQUEADOR_DE_TESOROS', 'SECRETOS', NULL, NULL, NULL, 15, 'Abre 15 secretos del mundo'),
+('MAESTRO_ENVENENADOR', 'COUNTER', 'ENVENENAMIENTOS', NULL, NULL, 300, 'Envenena 300 veces'),
+('MAESTRO_ENVENENADOR', 'ITEM', NULL, 'GLANDULA_SAPO', NULL, 10, 'Entrega 10 Glándulas de Sapo'),
+('PICARO_ELEMENTAL', 'JEFES_ZONA', NULL, NULL, NULL, 3, 'Derrota a 3 jefes de zona distintos'),
+('PICARO_ELEMENTAL', 'COUNTER', 'ENVENENAMIENTOS', NULL, NULL, 150, 'Envenena 150 veces'),
+('MERCENARIO', 'COUNTER', 'MISIONES_COMBATE_COMPLETADAS', NULL, NULL, 50, 'Completa 50 misiones de combate'),
+('MERCENARIO', 'SECRETOS', NULL, NULL, NULL, 10, 'Abre 10 secretos del mundo'),
+('EXPLORADOR_MAZMORRAS', 'MAZMORRAS_DISTINTAS', NULL, NULL, NULL, 4, 'Vence al jefe de 4 mazmorras distintas'),
+('MAESTRO_DEL_SIGILO', 'COUNTER', 'SEGUNDOS_OCULTO', NULL, NULL, 300, 'Permanece oculto 300 segundos'),
+('MAESTRO_DEL_SIGILO', 'COUNTER', 'TRAMPAS_DESPLEGADAS', NULL, NULL, 50, 'Coloca 50 trampas'),
+('BUSCADOR_DE_TRAMPAS', 'COUNTER', 'TRAMPAS_DETECTADAS', NULL, NULL, 60, 'Detecta 60 trampas'),
+('BUSCADOR_DE_TRAMPAS', 'COUNTER', 'TRAMPAS_DESPLEGADAS', NULL, NULL, 100, 'Coloca 100 trampas'),
+('ASESINO_DE_ELITE', 'JEFES_ZONA', NULL, NULL, NULL, 5, 'Derrota a 5 jefes de zona distintos'),
+('ASESINO_DE_ELITE', 'COUNTER', 'JEFES_SOLO', NULL, NULL, 3, 'Vence a 3 jefes de zona tú solo'),
+('CLERIGO', 'COUNTER', 'CUROS_REALIZADOS', NULL, NULL, 100, 'Cura 100 veces'),
+('DRUIDA', 'COUNTER', 'RECURSOS_RECOGIDOS', NULL, NULL, 30, 'Recoge 30 recursos del mapa'),
+('DRUIDA', 'KILLS_CATEGORIA', 'BESTIA', NULL, NULL, 40, 'Derrota a 40 bestias'),
+('TEMPLARIO', 'EQUIPO_FORMA', NULL, NULL, 'ARMADURA_PESADA', NULL, 'Lleva una armadura pesada'),
+('TEMPLARIO', 'COUNTER', 'CUROS_Y_ATAQUES', NULL, NULL, 60, 'Cura y ataca en 60 combates'),
+('SANADOR_DIVINO', 'COUNTER', 'CUROS_REALIZADOS', NULL, NULL, 200, 'Cura 200 veces'),
+('SANADOR_DIVINO', 'COUNTER', 'ALIADOS_SALVADOS', NULL, NULL, 5, 'Salva a 5 aliados'),
+('INQUISIDOR', 'KILLS_CATEGORIA', 'MUERTO_VIVIENTE,DEMONIO', NULL, NULL, 80, 'Derrota a 80 muertos vivientes o demonios'),
+('OBISPO', 'COUNTER', 'CUROS_REALIZADOS', NULL, NULL, 400, 'Cura 400 veces'),
+('BENDITO', 'COUNTER', 'BENDICIONES_DADAS', NULL, NULL, 150, 'Da 150 bendiciones'),
+('DRUIDA_PRIMORDIAL', 'COUNTER', 'KILLS_EARTH', NULL, NULL, 150, 'Derrota a 150 enemigos con tierra'),
+('DRUIDA_PRIMORDIAL', 'COUNTER', 'RECURSOS_RECOGIDOS', NULL, NULL, 100, 'Recoge 100 recursos del mapa'),
+('PROTECTOR_DEL_BOSQUE', 'COUNTER', 'ALIADOS_PROTEGIDOS', NULL, NULL, 100, 'Protege a un aliado 100 veces'),
+('PROTECTOR_DEL_BOSQUE', 'KILLS_CATEGORIA', 'BESTIA', NULL, NULL, 200, 'Derrota a 200 bestias'),
+('CABALLERO_TEMPLARIO', 'COUNTER', 'CUROS_REALIZADOS', NULL, NULL, 300, 'Cura 300 veces'),
+('CABALLERO_TEMPLARIO', 'COUNTER', 'COMBATES_LIMITE_SOBREVIVIDOS', NULL, NULL, 30, 'Sobrevive a 30 combates al límite'),
+('SANADOR_LEGENDARIO', 'COUNTER', 'ALIADOS_SALVADOS', NULL, NULL, 40, 'Salva a 40 aliados'),
+('SANADOR_LEGENDARIO', 'ITEM', NULL, 'CALIZ_DE_CORAL', NULL, 1, 'Entrega el Cáliz de Coral (Señor del Océano, Arrecife Hundido)'),
+('VIDENTE', 'COUNTER', 'PREDICCIONES_USADAS', NULL, NULL, 150, 'Usa 150 predicciones'),
+('GRAN_INQUISIDOR', 'KILLS_CATEGORIA', 'MUERTO_VIVIENTE,DEMONIO', NULL, NULL, 300, 'Derrota a 300 muertos vivientes o demonios'),
+('APOSTOL', 'COUNTER', 'CUROS_REALIZADOS', NULL, NULL, 800, 'Cura 800 veces'),
+('APOSTOL', 'ITEM', NULL, 'LAGRIMA_AETHRA', NULL, 1, 'Entrega una Lágrima de Aethra'),
+('HERBOLARIO_SAGRADO', 'COUNTER', 'POCIONES_CRAFTEADAS', NULL, NULL, 100, 'Prepara 100 pociones'),
+('HERBOLARIO_SAGRADO', 'COUNTER', 'RECURSOS_RECOGIDOS', NULL, NULL, 300, 'Recoge 300 recursos del mapa'),
+('PALADIN_DIVINO', 'COUNTER', 'CUROS_REALIZADOS', NULL, NULL, 500, 'Cura 500 veces'),
+('PALADIN_DIVINO', 'COUNTER', 'ALIADOS_PROTEGIDOS', NULL, NULL, 200, 'Protege a un aliado 200 veces'),
+('ASCETA', 'COUNTER', 'MEDITACIONES_USADAS', NULL, NULL, 100, 'Medita 100 veces'),
+('ASCETA', 'ITEM', NULL, 'LAGRIMA_AETHRA', NULL, 1, 'Entrega una Lágrima de Aethra'),
+('SACERDOTE_DEL_CAOS', 'KILLS_CATEGORIA', 'COSMICO,DEMONIO', NULL, NULL, 200, 'Derrota a 200 criaturas cósmicas o demonios'),
+('SACERDOTE_DEL_CAOS', 'ITEM', NULL, 'CORAZON_ECLIPSE', NULL, 1, 'Entrega el Corazón del Eclipse (Avatar del Eclipse)'),
+('EXORCISTA', 'COUNTER', 'KILLS_LIGHT', NULL, NULL, 300, 'Derrota a 300 enemigos con luz'),
+('EXORCISTA', 'KILLS_CATEGORIA', 'MUERTO_VIVIENTE', NULL, NULL, 500, 'Derrota a 500 muertos vivientes')
+) AS v(cls, tipo, counter_code, item_code, equipment_type, target, descr)
+JOIN classes c ON c.code = v.cls JOIN class_evolutions e ON e.evolves_to_class_id = c.id;
+
+-- ============================================================================================
+-- Habilidades firma del escalón 1 (repetible; sin ON CONFLICT): las mecánicas nuevas del combate
+-- (lib/mecanicas.js) y una habilidad por cada una de las 24 ramas. Diseño: docs/habilidades_firma.md.
+-- ============================================================================================
+ALTER TABLE skill_effects DROP CONSTRAINT IF EXISTS skill_effects_effect_type_check;
+ALTER TABLE skill_effects ADD CONSTRAINT skill_effects_effect_type_check CHECK (effect_type = ANY (ARRAY['STAT_MOD', 'DOT', 'HOT', 'REVIVE',
+  'CLEANSE', 'NO_DAMAGE_WINDOW', 'GUARANTEED_CRIT', 'CONDITIONAL_DAMAGE', 'SUMMON', 'PARALYZE', 'BLIND', 'TAUNT', 'MECANICA']));
+
+-- Palma Liberada (MONJE)
+INSERT INTO skills (code, class_id, name, skill_type, damage_school, element_id, target_type, base_value, scaling_stat, scaling_multiplier, hits, mana_cost, is_passive, learn_method, learn_level, learn_gold_cost, description, cooldown_rounds)
+SELECT 'MONJE_PALMA_LIBERADA', (SELECT id FROM classes WHERE code = 'MONJE'), 'Palma Liberada', 'ATAQUE', 'FISICO', NULL, 'ENEMY', 200, 'ATK', 1.2, 1, 40, FALSE, 'LEVEL', 20, NULL, 'Cada golpe del monje junta una carga de chi (hasta 5). La Palma Liberada las gasta todas: +40% de daño por carga e ignora la mitad de la defensa.', 2
+WHERE NOT EXISTS (SELECT 1 FROM skills WHERE code = 'MONJE_PALMA_LIBERADA');
+UPDATE skills SET class_id = (SELECT id FROM classes WHERE code = 'MONJE'), name = 'Palma Liberada', skill_type = 'ATAQUE', damage_school = 'FISICO', element_id = NULL, target_type = 'ENEMY', base_value = 200, scaling_stat = 'ATK', scaling_multiplier = 1.2, hits = 1, mana_cost = 40, is_passive = FALSE, learn_method = 'LEVEL', learn_level = 20, learn_gold_cost = NULL, description = 'Cada golpe del monje junta una carga de chi (hasta 5). La Palma Liberada las gasta todas: +40% de daño por carga e ignora la mitad de la defensa.', cooldown_rounds = 2 WHERE code = 'MONJE_PALMA_LIBERADA';
+DELETE FROM skill_effects WHERE skill_id = (SELECT id FROM skills WHERE code = 'MONJE_PALMA_LIBERADA');
+INSERT INTO skill_effects (skill_id, effect_type, stat_code, percent_amount, flat_amount, duration_turns, status_code, description)
+SELECT id, 'MECANICA', 'LIBERAR', 40, NULL, NULL, NULL, 'Palma Liberada' FROM skills WHERE code = 'MONJE_PALMA_LIBERADA';
+
+-- Contragolpe (ESPADACHIN)
+INSERT INTO skills (code, class_id, name, skill_type, damage_school, element_id, target_type, base_value, scaling_stat, scaling_multiplier, hits, mana_cost, is_passive, learn_method, learn_level, learn_gold_cost, description, cooldown_rounds)
+SELECT 'ESPADACHIN_CONTRAGOLPE', (SELECT id FROM classes WHERE code = 'ESPADACHIN'), 'Contragolpe', 'BUFF', NULL, NULL, 'SELF', NULL, NULL, NULL, 1, 30, FALSE, 'LEVEL', 20, NULL, 'Tomas postura durante 2 rondas: el próximo golpe físico que recibas lo desvías y lo devuelves al 120%.', 3
+WHERE NOT EXISTS (SELECT 1 FROM skills WHERE code = 'ESPADACHIN_CONTRAGOLPE');
+UPDATE skills SET class_id = (SELECT id FROM classes WHERE code = 'ESPADACHIN'), name = 'Contragolpe', skill_type = 'BUFF', damage_school = NULL, element_id = NULL, target_type = 'SELF', base_value = NULL, scaling_stat = NULL, scaling_multiplier = NULL, hits = 1, mana_cost = 30, is_passive = FALSE, learn_method = 'LEVEL', learn_level = 20, learn_gold_cost = NULL, description = 'Tomas postura durante 2 rondas: el próximo golpe físico que recibas lo desvías y lo devuelves al 120%.', cooldown_rounds = 3 WHERE code = 'ESPADACHIN_CONTRAGOLPE';
+DELETE FROM skill_effects WHERE skill_id = (SELECT id FROM skills WHERE code = 'ESPADACHIN_CONTRAGOLPE');
+INSERT INTO skill_effects (skill_id, effect_type, stat_code, percent_amount, flat_amount, duration_turns, status_code, description)
+SELECT id, 'MECANICA', 'CONTRA', 120, NULL, 2, NULL, 'Contragolpe' FROM skills WHERE code = 'ESPADACHIN_CONTRAGOLPE';
+
+-- Juramento (CABALLERO)
+INSERT INTO skills (code, class_id, name, skill_type, damage_school, element_id, target_type, base_value, scaling_stat, scaling_multiplier, hits, mana_cost, is_passive, learn_method, learn_level, learn_gold_cost, description, cooldown_rounds)
+SELECT 'CABALLERO_JURAMENTO', (SELECT id FROM classes WHERE code = 'CABALLERO'), 'Juramento', 'BUFF', NULL, NULL, 'ALLY', NULL, NULL, NULL, 1, 35, FALSE, 'LEVEL', 20, NULL, 'Juras proteger a un aliado durante 3 rondas: recibes la mitad de todo el daño que le hagan. Si no eliges a nadie, proteges al más herido.', 3
+WHERE NOT EXISTS (SELECT 1 FROM skills WHERE code = 'CABALLERO_JURAMENTO');
+UPDATE skills SET class_id = (SELECT id FROM classes WHERE code = 'CABALLERO'), name = 'Juramento', skill_type = 'BUFF', damage_school = NULL, element_id = NULL, target_type = 'ALLY', base_value = NULL, scaling_stat = NULL, scaling_multiplier = NULL, hits = 1, mana_cost = 35, is_passive = FALSE, learn_method = 'LEVEL', learn_level = 20, learn_gold_cost = NULL, description = 'Juras proteger a un aliado durante 3 rondas: recibes la mitad de todo el daño que le hagan. Si no eliges a nadie, proteges al más herido.', cooldown_rounds = 3 WHERE code = 'CABALLERO_JURAMENTO';
+DELETE FROM skill_effects WHERE skill_id = (SELECT id FROM skills WHERE code = 'CABALLERO_JURAMENTO');
+INSERT INTO skill_effects (skill_id, effect_type, stat_code, percent_amount, flat_amount, duration_turns, status_code, description)
+SELECT id, 'MECANICA', 'VINCULO', 50, NULL, 3, NULL, 'Juramento' FROM skills WHERE code = 'CABALLERO_JURAMENTO';
+
+-- Sed de Sangre (BERSERKER)
+INSERT INTO skills (code, class_id, name, skill_type, damage_school, element_id, target_type, base_value, scaling_stat, scaling_multiplier, hits, mana_cost, is_passive, learn_method, learn_level, learn_gold_cost, description, cooldown_rounds)
+SELECT 'BERSERKER_SED_DE_SANGRE', (SELECT id FROM classes WHERE code = 'BERSERKER'), 'Sed de Sangre', 'ATAQUE', 'FISICO', NULL, 'ENEMY', 260, 'ATK', 1.5, 1, 20, FALSE, 'LEVEL', 20, NULL, 'Pagas el 15% de tu vida para pegar con todo: +1% de daño por cada 1% de vida que te falta, y te curas el 30% de lo que hiciste.', 2
+WHERE NOT EXISTS (SELECT 1 FROM skills WHERE code = 'BERSERKER_SED_DE_SANGRE');
+UPDATE skills SET class_id = (SELECT id FROM classes WHERE code = 'BERSERKER'), name = 'Sed de Sangre', skill_type = 'ATAQUE', damage_school = 'FISICO', element_id = NULL, target_type = 'ENEMY', base_value = 260, scaling_stat = 'ATK', scaling_multiplier = 1.5, hits = 1, mana_cost = 20, is_passive = FALSE, learn_method = 'LEVEL', learn_level = 20, learn_gold_cost = NULL, description = 'Pagas el 15% de tu vida para pegar con todo: +1% de daño por cada 1% de vida que te falta, y te curas el 30% de lo que hiciste.', cooldown_rounds = 2 WHERE code = 'BERSERKER_SED_DE_SANGRE';
+DELETE FROM skill_effects WHERE skill_id = (SELECT id FROM skills WHERE code = 'BERSERKER_SED_DE_SANGRE');
+INSERT INTO skill_effects (skill_id, effect_type, stat_code, percent_amount, flat_amount, duration_turns, status_code, description)
+SELECT id, 'MECANICA', 'SED', 15, 30, NULL, NULL, 'Sed de Sangre' FROM skills WHERE code = 'BERSERKER_SED_DE_SANGRE';
+
+-- Runa Grabada (GUERRERO_MAGUS)
+INSERT INTO skills (code, class_id, name, skill_type, damage_school, element_id, target_type, base_value, scaling_stat, scaling_multiplier, hits, mana_cost, is_passive, learn_method, learn_level, learn_gold_cost, description, cooldown_rounds)
+SELECT 'GUERRERO_MAGUS_RUNA_GRABADA', (SELECT id FROM classes WHERE code = 'GUERRERO_MAGUS'), 'Runa Grabada', 'ATAQUE', 'HIBRIDO', NULL, 'ENEMY', 180, 'HYBRID', 1.1, 1, 40, FALSE, 'LEVEL', 20, NULL, 'Un corte que deja una runa en el enemigo durante 3 rondas. El próximo golpe con elemento (tuyo o de un aliado) la hace estallar: +60% de daño.', 2
+WHERE NOT EXISTS (SELECT 1 FROM skills WHERE code = 'GUERRERO_MAGUS_RUNA_GRABADA');
+UPDATE skills SET class_id = (SELECT id FROM classes WHERE code = 'GUERRERO_MAGUS'), name = 'Runa Grabada', skill_type = 'ATAQUE', damage_school = 'HIBRIDO', element_id = NULL, target_type = 'ENEMY', base_value = 180, scaling_stat = 'HYBRID', scaling_multiplier = 1.1, hits = 1, mana_cost = 40, is_passive = FALSE, learn_method = 'LEVEL', learn_level = 20, learn_gold_cost = NULL, description = 'Un corte que deja una runa en el enemigo durante 3 rondas. El próximo golpe con elemento (tuyo o de un aliado) la hace estallar: +60% de daño.', cooldown_rounds = 2 WHERE code = 'GUERRERO_MAGUS_RUNA_GRABADA';
+DELETE FROM skill_effects WHERE skill_id = (SELECT id FROM skills WHERE code = 'GUERRERO_MAGUS_RUNA_GRABADA');
+INSERT INTO skill_effects (skill_id, effect_type, stat_code, percent_amount, flat_amount, duration_turns, status_code, description)
+SELECT id, 'MECANICA', 'RUNA', 60, NULL, 3, NULL, 'Runa Grabada' FROM skills WHERE code = 'GUERRERO_MAGUS_RUNA_GRABADA';
+
+-- Alzar Caído (NIGROMANTE)
+INSERT INTO skills (code, class_id, name, skill_type, damage_school, element_id, target_type, base_value, scaling_stat, scaling_multiplier, hits, mana_cost, is_passive, learn_method, learn_level, learn_gold_cost, description, cooldown_rounds)
+SELECT 'NIGROMANTE_ALZAR_CAIDO', (SELECT id FROM classes WHERE code = 'NIGROMANTE'), 'Alzar Caído', 'ESPECIAL', NULL, NULL, 'SELF', NULL, NULL, NULL, 1, 70, FALSE, 'LEVEL', 20, NULL, 'El último enemigo que cayó se levanta y pelea para ti durante 3 rondas, con el 60% de lo que tenía en vida.', 5
+WHERE NOT EXISTS (SELECT 1 FROM skills WHERE code = 'NIGROMANTE_ALZAR_CAIDO');
+UPDATE skills SET class_id = (SELECT id FROM classes WHERE code = 'NIGROMANTE'), name = 'Alzar Caído', skill_type = 'ESPECIAL', damage_school = NULL, element_id = NULL, target_type = 'SELF', base_value = NULL, scaling_stat = NULL, scaling_multiplier = NULL, hits = 1, mana_cost = 70, is_passive = FALSE, learn_method = 'LEVEL', learn_level = 20, learn_gold_cost = NULL, description = 'El último enemigo que cayó se levanta y pelea para ti durante 3 rondas, con el 60% de lo que tenía en vida.', cooldown_rounds = 5 WHERE code = 'NIGROMANTE_ALZAR_CAIDO';
+DELETE FROM skill_effects WHERE skill_id = (SELECT id FROM skills WHERE code = 'NIGROMANTE_ALZAR_CAIDO');
+INSERT INTO skill_effects (skill_id, effect_type, stat_code, percent_amount, flat_amount, duration_turns, status_code, description)
+SELECT id, 'MECANICA', 'ALZAR', 60, NULL, 3, NULL, 'Alzar Caído' FROM skills WHERE code = 'NIGROMANTE_ALZAR_CAIDO';
+
+-- Sacrificio (INVOCADOR)
+INSERT INTO skills (code, class_id, name, skill_type, damage_school, element_id, target_type, base_value, scaling_stat, scaling_multiplier, hits, mana_cost, is_passive, learn_method, learn_level, learn_gold_cost, description, cooldown_rounds)
+SELECT 'INVOCADOR_SACRIFICIO', (SELECT id FROM classes WHERE code = 'INVOCADOR'), 'Sacrificio', 'ESPECIAL', NULL, NULL, 'ALL_ENEMIES', NULL, NULL, NULL, 1, 30, FALSE, 'LEVEL', 20, NULL, 'Tu invocación estalla en luz: cada enemigo recibe el 80% de la vida que le quedaba.', 3
+WHERE NOT EXISTS (SELECT 1 FROM skills WHERE code = 'INVOCADOR_SACRIFICIO');
+UPDATE skills SET class_id = (SELECT id FROM classes WHERE code = 'INVOCADOR'), name = 'Sacrificio', skill_type = 'ESPECIAL', damage_school = NULL, element_id = NULL, target_type = 'ALL_ENEMIES', base_value = NULL, scaling_stat = NULL, scaling_multiplier = NULL, hits = 1, mana_cost = 30, is_passive = FALSE, learn_method = 'LEVEL', learn_level = 20, learn_gold_cost = NULL, description = 'Tu invocación estalla en luz: cada enemigo recibe el 80% de la vida que le quedaba.', cooldown_rounds = 3 WHERE code = 'INVOCADOR_SACRIFICIO';
+DELETE FROM skill_effects WHERE skill_id = (SELECT id FROM skills WHERE code = 'INVOCADOR_SACRIFICIO');
+INSERT INTO skill_effects (skill_id, effect_type, stat_code, percent_amount, flat_amount, duration_turns, status_code, description)
+SELECT id, 'MECANICA', 'SACRIFICIO', 80, NULL, NULL, NULL, 'Sacrificio' FROM skills WHERE code = 'INVOCADOR_SACRIFICIO';
+
+-- Catalizador (ELEMENTAL)
+INSERT INTO skills (code, class_id, name, skill_type, damage_school, element_id, target_type, base_value, scaling_stat, scaling_multiplier, hits, mana_cost, is_passive, learn_method, learn_level, learn_gold_cost, description, cooldown_rounds)
+SELECT 'ELEMENTAL_CATALIZADOR', (SELECT id FROM classes WHERE code = 'ELEMENTAL'), 'Catalizador', 'ATAQUE', 'MAGICO', 6, 'ALL_ENEMIES', 120, 'MAG', 0.8, 1, 45, FALSE, 'LEVEL', 20, NULL, 'Una ola que moja a todos los enemigos. Lo mojado reacciona: el rayo electrocuta, el hielo congela y la tierra lo vuelve barro. Contra los que arden, hace vapor.', 2
+WHERE NOT EXISTS (SELECT 1 FROM skills WHERE code = 'ELEMENTAL_CATALIZADOR');
+UPDATE skills SET class_id = (SELECT id FROM classes WHERE code = 'ELEMENTAL'), name = 'Catalizador', skill_type = 'ATAQUE', damage_school = 'MAGICO', element_id = 6, target_type = 'ALL_ENEMIES', base_value = 120, scaling_stat = 'MAG', scaling_multiplier = 0.8, hits = 1, mana_cost = 45, is_passive = FALSE, learn_method = 'LEVEL', learn_level = 20, learn_gold_cost = NULL, description = 'Una ola que moja a todos los enemigos. Lo mojado reacciona: el rayo electrocuta, el hielo congela y la tierra lo vuelve barro. Contra los que arden, hace vapor.', cooldown_rounds = 2 WHERE code = 'ELEMENTAL_CATALIZADOR';
+DELETE FROM skill_effects WHERE skill_id = (SELECT id FROM skills WHERE code = 'ELEMENTAL_CATALIZADOR');
+INSERT INTO skill_effects (skill_id, effect_type, stat_code, percent_amount, flat_amount, duration_turns, status_code, description)
+SELECT id, 'MECANICA', 'MOJAR', NULL, NULL, 3, NULL, 'Catalizador' FROM skills WHERE code = 'ELEMENTAL_CATALIZADOR';
+
+-- Sentencia (MAGO_DIVINO)
+INSERT INTO skills (code, class_id, name, skill_type, damage_school, element_id, target_type, base_value, scaling_stat, scaling_multiplier, hits, mana_cost, is_passive, learn_method, learn_level, learn_gold_cost, description, cooldown_rounds)
+SELECT 'MAGO_DIVINO_SENTENCIA', (SELECT id FROM classes WHERE code = 'MAGO_DIVINO'), 'Sentencia', 'DEBUFF', NULL, NULL, 'ENEMY', NULL, NULL, NULL, 1, 40, FALSE, 'LEVEL', 20, NULL, 'Sentencias a un enemigo durante 3 rondas: cada vez que actúe, la luz lo quema por el 150% de tu magia.', 3
+WHERE NOT EXISTS (SELECT 1 FROM skills WHERE code = 'MAGO_DIVINO_SENTENCIA');
+UPDATE skills SET class_id = (SELECT id FROM classes WHERE code = 'MAGO_DIVINO'), name = 'Sentencia', skill_type = 'DEBUFF', damage_school = NULL, element_id = NULL, target_type = 'ENEMY', base_value = NULL, scaling_stat = NULL, scaling_multiplier = NULL, hits = 1, mana_cost = 40, is_passive = FALSE, learn_method = 'LEVEL', learn_level = 20, learn_gold_cost = NULL, description = 'Sentencias a un enemigo durante 3 rondas: cada vez que actúe, la luz lo quema por el 150% de tu magia.', cooldown_rounds = 3 WHERE code = 'MAGO_DIVINO_SENTENCIA';
+DELETE FROM skill_effects WHERE skill_id = (SELECT id FROM skills WHERE code = 'MAGO_DIVINO_SENTENCIA');
+INSERT INTO skill_effects (skill_id, effect_type, stat_code, percent_amount, flat_amount, duration_turns, status_code, description)
+SELECT id, 'MECANICA', 'SENTENCIA', 150, NULL, 3, NULL, 'Sentencia' FROM skills WHERE code = 'MAGO_DIVINO_SENTENCIA';
+
+-- Marca de Presa (CAZADOR)
+INSERT INTO skills (code, class_id, name, skill_type, damage_school, element_id, target_type, base_value, scaling_stat, scaling_multiplier, hits, mana_cost, is_passive, learn_method, learn_level, learn_gold_cost, description, cooldown_rounds)
+SELECT 'CAZADOR_MARCA_DE_PRESA', (SELECT id FROM classes WHERE code = 'CAZADOR'), 'Marca de Presa', 'DEBUFF', NULL, NULL, 'ENEMY', NULL, NULL, NULL, 1, 30, FALSE, 'LEVEL', 20, NULL, 'Marcas a la presa durante 4 rondas: recibe +20% de daño de todos. Si muere marcada, recuperas el 15% de tu maná.', 3
+WHERE NOT EXISTS (SELECT 1 FROM skills WHERE code = 'CAZADOR_MARCA_DE_PRESA');
+UPDATE skills SET class_id = (SELECT id FROM classes WHERE code = 'CAZADOR'), name = 'Marca de Presa', skill_type = 'DEBUFF', damage_school = NULL, element_id = NULL, target_type = 'ENEMY', base_value = NULL, scaling_stat = NULL, scaling_multiplier = NULL, hits = 1, mana_cost = 30, is_passive = FALSE, learn_method = 'LEVEL', learn_level = 20, learn_gold_cost = NULL, description = 'Marcas a la presa durante 4 rondas: recibe +20% de daño de todos. Si muere marcada, recuperas el 15% de tu maná.', cooldown_rounds = 3 WHERE code = 'CAZADOR_MARCA_DE_PRESA';
+DELETE FROM skill_effects WHERE skill_id = (SELECT id FROM skills WHERE code = 'CAZADOR_MARCA_DE_PRESA');
+INSERT INTO skill_effects (skill_id, effect_type, stat_code, percent_amount, flat_amount, duration_turns, status_code, description)
+SELECT id, 'MECANICA', 'PRESA', 20, NULL, 4, NULL, 'Marca de Presa' FROM skills WHERE code = 'CAZADOR_MARCA_DE_PRESA';
+
+-- Tiro Perforante (FRANCOTIRADOR)
+INSERT INTO skills (code, class_id, name, skill_type, damage_school, element_id, target_type, base_value, scaling_stat, scaling_multiplier, hits, mana_cost, is_passive, learn_method, learn_level, learn_gold_cost, description, cooldown_rounds)
+SELECT 'FRANCOTIRADOR_TIRO_PERFORANTE', (SELECT id FROM classes WHERE code = 'FRANCOTIRADOR'), 'Tiro Perforante', 'ATAQUE', 'FISICO', NULL, 'ENEMY', 280, 'ATK', 1.5, 1, 50, FALSE, 'LEVEL', 20, NULL, 'Un disparo que atraviesa la armadura: ignora la mitad de la defensa y rompe las barreras.', 2
+WHERE NOT EXISTS (SELECT 1 FROM skills WHERE code = 'FRANCOTIRADOR_TIRO_PERFORANTE');
+UPDATE skills SET class_id = (SELECT id FROM classes WHERE code = 'FRANCOTIRADOR'), name = 'Tiro Perforante', skill_type = 'ATAQUE', damage_school = 'FISICO', element_id = NULL, target_type = 'ENEMY', base_value = 280, scaling_stat = 'ATK', scaling_multiplier = 1.5, hits = 1, mana_cost = 50, is_passive = FALSE, learn_method = 'LEVEL', learn_level = 20, learn_gold_cost = NULL, description = 'Un disparo que atraviesa la armadura: ignora la mitad de la defensa y rompe las barreras.', cooldown_rounds = 2 WHERE code = 'FRANCOTIRADOR_TIRO_PERFORANTE';
+DELETE FROM skill_effects WHERE skill_id = (SELECT id FROM skills WHERE code = 'FRANCOTIRADOR_TIRO_PERFORANTE');
+INSERT INTO skill_effects (skill_id, effect_type, stat_code, percent_amount, flat_amount, duration_turns, status_code, description)
+SELECT id, 'MECANICA', 'PERFORAR', 50, NULL, NULL, NULL, 'Tiro Perforante' FROM skills WHERE code = 'FRANCOTIRADOR_TIRO_PERFORANTE';
+
+-- Red (RANGER)
+INSERT INTO skills (code, class_id, name, skill_type, damage_school, element_id, target_type, base_value, scaling_stat, scaling_multiplier, hits, mana_cost, is_passive, learn_method, learn_level, learn_gold_cost, description, cooldown_rounds)
+SELECT 'RANGER_RED', (SELECT id FROM classes WHERE code = 'RANGER'), 'Red', 'DEBUFF', NULL, NULL, 'ENEMY', NULL, NULL, NULL, 1, 35, FALSE, 'LEVEL', 20, NULL, 'Una red que atrapa al enemigo: pierde su próximo turno y esquiva 10 puntos menos durante 3 rondas.', 4
+WHERE NOT EXISTS (SELECT 1 FROM skills WHERE code = 'RANGER_RED');
+UPDATE skills SET class_id = (SELECT id FROM classes WHERE code = 'RANGER'), name = 'Red', skill_type = 'DEBUFF', damage_school = NULL, element_id = NULL, target_type = 'ENEMY', base_value = NULL, scaling_stat = NULL, scaling_multiplier = NULL, hits = 1, mana_cost = 35, is_passive = FALSE, learn_method = 'LEVEL', learn_level = 20, learn_gold_cost = NULL, description = 'Una red que atrapa al enemigo: pierde su próximo turno y esquiva 10 puntos menos durante 3 rondas.', cooldown_rounds = 4 WHERE code = 'RANGER_RED';
+DELETE FROM skill_effects WHERE skill_id = (SELECT id FROM skills WHERE code = 'RANGER_RED');
+INSERT INTO skill_effects (skill_id, effect_type, stat_code, percent_amount, flat_amount, duration_turns, status_code, description)
+SELECT id, 'MECANICA', 'ENRAIZAR', NULL, NULL, 2, NULL, 'Red' FROM skills WHERE code = 'RANGER_RED';
+INSERT INTO skill_effects (skill_id, effect_type, stat_code, percent_amount, flat_amount, duration_turns, status_code, description)
+SELECT id, 'MECANICA', 'BAJAR', NULL, 10, 3, 'EVASION', 'Red' FROM skills WHERE code = 'RANGER_RED';
+
+-- Flecha Sifón (ASESINO_ARCANO)
+INSERT INTO skills (code, class_id, name, skill_type, damage_school, element_id, target_type, base_value, scaling_stat, scaling_multiplier, hits, mana_cost, is_passive, learn_method, learn_level, learn_gold_cost, description, cooldown_rounds)
+SELECT 'ARQUERO_UMBRIO_FLECHA_SIFON', (SELECT id FROM classes WHERE code = 'ASESINO_ARCANO'), 'Flecha Sifón', 'ATAQUE', 'FISICO', 8, 'ENEMY', 200, 'ATK', 1.3, 1, 45, FALSE, 'LEVEL', 20, NULL, 'Una flecha de sombra que le chupa la magia al enemigo: le roba el 15% de su magia durante 3 rondas.', 2
+WHERE NOT EXISTS (SELECT 1 FROM skills WHERE code = 'ARQUERO_UMBRIO_FLECHA_SIFON');
+UPDATE skills SET class_id = (SELECT id FROM classes WHERE code = 'ASESINO_ARCANO'), name = 'Flecha Sifón', skill_type = 'ATAQUE', damage_school = 'FISICO', element_id = 8, target_type = 'ENEMY', base_value = 200, scaling_stat = 'ATK', scaling_multiplier = 1.3, hits = 1, mana_cost = 45, is_passive = FALSE, learn_method = 'LEVEL', learn_level = 20, learn_gold_cost = NULL, description = 'Una flecha de sombra que le chupa la magia al enemigo: le roba el 15% de su magia durante 3 rondas.', cooldown_rounds = 2 WHERE code = 'ARQUERO_UMBRIO_FLECHA_SIFON';
+DELETE FROM skill_effects WHERE skill_id = (SELECT id FROM skills WHERE code = 'ARQUERO_UMBRIO_FLECHA_SIFON');
+INSERT INTO skill_effects (skill_id, effect_type, stat_code, percent_amount, flat_amount, duration_turns, status_code, description)
+SELECT id, 'MECANICA', 'HURTO', 15, NULL, 3, 'MAG', 'Flecha Sifón' FROM skills WHERE code = 'ARQUERO_UMBRIO_FLECHA_SIFON';
+
+-- Semilla (ELFO_SILVESTRE)
+INSERT INTO skills (code, class_id, name, skill_type, damage_school, element_id, target_type, base_value, scaling_stat, scaling_multiplier, hits, mana_cost, is_passive, learn_method, learn_level, learn_gold_cost, description, cooldown_rounds)
+SELECT 'ELFO_SILVESTRE_SEMILLA', (SELECT id FROM classes WHERE code = 'ELFO_SILVESTRE'), 'Semilla', 'BUFF', NULL, NULL, 'ALLY', NULL, NULL, NULL, 1, 40, FALSE, 'LEVEL', 20, NULL, 'Plantas una semilla en un aliado durante 3 rondas: cada golpe que reciba lo cura el 6% de su vida máxima.', 3
+WHERE NOT EXISTS (SELECT 1 FROM skills WHERE code = 'ELFO_SILVESTRE_SEMILLA');
+UPDATE skills SET class_id = (SELECT id FROM classes WHERE code = 'ELFO_SILVESTRE'), name = 'Semilla', skill_type = 'BUFF', damage_school = NULL, element_id = NULL, target_type = 'ALLY', base_value = NULL, scaling_stat = NULL, scaling_multiplier = NULL, hits = 1, mana_cost = 40, is_passive = FALSE, learn_method = 'LEVEL', learn_level = 20, learn_gold_cost = NULL, description = 'Plantas una semilla en un aliado durante 3 rondas: cada golpe que reciba lo cura el 6% de su vida máxima.', cooldown_rounds = 3 WHERE code = 'ELFO_SILVESTRE_SEMILLA';
+DELETE FROM skill_effects WHERE skill_id = (SELECT id FROM skills WHERE code = 'ELFO_SILVESTRE_SEMILLA');
+INSERT INTO skill_effects (skill_id, effect_type, stat_code, percent_amount, flat_amount, duration_turns, status_code, description)
+SELECT id, 'MECANICA', 'SEMILLA', 6, NULL, 3, NULL, 'Semilla' FROM skills WHERE code = 'ELFO_SILVESTRE_SEMILLA';
+
+-- Clon de Sombra (NINJA)
+INSERT INTO skills (code, class_id, name, skill_type, damage_school, element_id, target_type, base_value, scaling_stat, scaling_multiplier, hits, mana_cost, is_passive, learn_method, learn_level, learn_gold_cost, description, cooldown_rounds)
+SELECT 'NINJA_CLON_DE_SOMBRA', (SELECT id FROM classes WHERE code = 'NINJA'), 'Clon de Sombra', 'ESPECIAL', NULL, NULL, 'SELF', NULL, NULL, NULL, 1, 35, FALSE, 'LEVEL', 20, NULL, 'Dejas un clon de sombra delante durante 2 rondas: recibe el próximo golpe entero y se deshace.', 3
+WHERE NOT EXISTS (SELECT 1 FROM skills WHERE code = 'NINJA_CLON_DE_SOMBRA');
+UPDATE skills SET class_id = (SELECT id FROM classes WHERE code = 'NINJA'), name = 'Clon de Sombra', skill_type = 'ESPECIAL', damage_school = NULL, element_id = NULL, target_type = 'SELF', base_value = NULL, scaling_stat = NULL, scaling_multiplier = NULL, hits = 1, mana_cost = 35, is_passive = FALSE, learn_method = 'LEVEL', learn_level = 20, learn_gold_cost = NULL, description = 'Dejas un clon de sombra delante durante 2 rondas: recibe el próximo golpe entero y se deshace.', cooldown_rounds = 3 WHERE code = 'NINJA_CLON_DE_SOMBRA';
+DELETE FROM skill_effects WHERE skill_id = (SELECT id FROM skills WHERE code = 'NINJA_CLON_DE_SOMBRA');
+INSERT INTO skill_effects (skill_id, effect_type, stat_code, percent_amount, flat_amount, duration_turns, status_code, description)
+SELECT id, 'MECANICA', 'SENUELO', NULL, 1, 2, NULL, 'Clon de Sombra' FROM skills WHERE code = 'NINJA_CLON_DE_SOMBRA';
+
+-- Ejecutar (ASESINO)
+INSERT INTO skills (code, class_id, name, skill_type, damage_school, element_id, target_type, base_value, scaling_stat, scaling_multiplier, hits, mana_cost, is_passive, learn_method, learn_level, learn_gold_cost, description, cooldown_rounds)
+SELECT 'ASESINO_EJECUTAR', (SELECT id FROM classes WHERE code = 'ASESINO'), 'Ejecutar', 'ATAQUE', 'FISICO', NULL, 'ENEMY', 220, 'ATK', 1.3, 1, 40, FALSE, 'LEVEL', 20, NULL, 'Contra un enemigo con menos del 25% de vida, hace el triple de daño. Si lo mata, no gastas el turno.', 2
+WHERE NOT EXISTS (SELECT 1 FROM skills WHERE code = 'ASESINO_EJECUTAR');
+UPDATE skills SET class_id = (SELECT id FROM classes WHERE code = 'ASESINO'), name = 'Ejecutar', skill_type = 'ATAQUE', damage_school = 'FISICO', element_id = NULL, target_type = 'ENEMY', base_value = 220, scaling_stat = 'ATK', scaling_multiplier = 1.3, hits = 1, mana_cost = 40, is_passive = FALSE, learn_method = 'LEVEL', learn_level = 20, learn_gold_cost = NULL, description = 'Contra un enemigo con menos del 25% de vida, hace el triple de daño. Si lo mata, no gastas el turno.', cooldown_rounds = 2 WHERE code = 'ASESINO_EJECUTAR';
+DELETE FROM skill_effects WHERE skill_id = (SELECT id FROM skills WHERE code = 'ASESINO_EJECUTAR');
+INSERT INTO skill_effects (skill_id, effect_type, stat_code, percent_amount, flat_amount, duration_turns, status_code, description)
+SELECT id, 'MECANICA', 'EJECUTAR', 25, 3, NULL, NULL, 'Ejecutar' FROM skills WHERE code = 'ASESINO_EJECUTAR';
+
+-- Hurto de Fuerza (LADRON_MAESTRO)
+INSERT INTO skills (code, class_id, name, skill_type, damage_school, element_id, target_type, base_value, scaling_stat, scaling_multiplier, hits, mana_cost, is_passive, learn_method, learn_level, learn_gold_cost, description, cooldown_rounds)
+SELECT 'LADRON_MAESTRO_HURTO_DE_FUERZA', (SELECT id FROM classes WHERE code = 'LADRON_MAESTRO'), 'Hurto de Fuerza', 'ATAQUE', 'FISICO', NULL, 'ENEMY', 150, 'ATK', 1, 1, 35, FALSE, 'LEVEL', 20, NULL, 'Un golpe rápido que le roba al enemigo el 15% de su ataque y de su velocidad durante 3 rondas.', 3
+WHERE NOT EXISTS (SELECT 1 FROM skills WHERE code = 'LADRON_MAESTRO_HURTO_DE_FUERZA');
+UPDATE skills SET class_id = (SELECT id FROM classes WHERE code = 'LADRON_MAESTRO'), name = 'Hurto de Fuerza', skill_type = 'ATAQUE', damage_school = 'FISICO', element_id = NULL, target_type = 'ENEMY', base_value = 150, scaling_stat = 'ATK', scaling_multiplier = 1, hits = 1, mana_cost = 35, is_passive = FALSE, learn_method = 'LEVEL', learn_level = 20, learn_gold_cost = NULL, description = 'Un golpe rápido que le roba al enemigo el 15% de su ataque y de su velocidad durante 3 rondas.', cooldown_rounds = 3 WHERE code = 'LADRON_MAESTRO_HURTO_DE_FUERZA';
+DELETE FROM skill_effects WHERE skill_id = (SELECT id FROM skills WHERE code = 'LADRON_MAESTRO_HURTO_DE_FUERZA');
+INSERT INTO skill_effects (skill_id, effect_type, stat_code, percent_amount, flat_amount, duration_turns, status_code, description)
+SELECT id, 'MECANICA', 'HURTO', 15, NULL, 3, 'ATK', 'Hurto de Fuerza' FROM skills WHERE code = 'LADRON_MAESTRO_HURTO_DE_FUERZA';
+INSERT INTO skill_effects (skill_id, effect_type, stat_code, percent_amount, flat_amount, duration_turns, status_code, description)
+SELECT id, 'MECANICA', 'HURTO', 15, NULL, 3, 'SPD', 'Hurto de Fuerza' FROM skills WHERE code = 'LADRON_MAESTRO_HURTO_DE_FUERZA';
+
+-- Plaga (ENVENENADOR)
+INSERT INTO skills (code, class_id, name, skill_type, damage_school, element_id, target_type, base_value, scaling_stat, scaling_multiplier, hits, mana_cost, is_passive, learn_method, learn_level, learn_gold_cost, description, cooldown_rounds)
+SELECT 'ENVENENADOR_PLAGA', (SELECT id FROM classes WHERE code = 'ENVENENADOR'), 'Plaga', 'ESTADO_ALTERADO', NULL, NULL, 'ENEMY', NULL, NULL, NULL, 1, 35, FALSE, 'LEVEL', 20, NULL, 'Un veneno que se acumula: cada vez suma una capa (3% de su vida por ronda, hasta 5 capas) durante 4 rondas. Cuando el enemigo muere, la plaga salta a otro.', 1
+WHERE NOT EXISTS (SELECT 1 FROM skills WHERE code = 'ENVENENADOR_PLAGA');
+UPDATE skills SET class_id = (SELECT id FROM classes WHERE code = 'ENVENENADOR'), name = 'Plaga', skill_type = 'ESTADO_ALTERADO', damage_school = NULL, element_id = NULL, target_type = 'ENEMY', base_value = NULL, scaling_stat = NULL, scaling_multiplier = NULL, hits = 1, mana_cost = 35, is_passive = FALSE, learn_method = 'LEVEL', learn_level = 20, learn_gold_cost = NULL, description = 'Un veneno que se acumula: cada vez suma una capa (3% de su vida por ronda, hasta 5 capas) durante 4 rondas. Cuando el enemigo muere, la plaga salta a otro.', cooldown_rounds = 1 WHERE code = 'ENVENENADOR_PLAGA';
+DELETE FROM skill_effects WHERE skill_id = (SELECT id FROM skills WHERE code = 'ENVENENADOR_PLAGA');
+INSERT INTO skill_effects (skill_id, effect_type, stat_code, percent_amount, flat_amount, duration_turns, status_code, description)
+SELECT id, 'MECANICA', 'PLAGA', 3, 5, 4, NULL, 'Plaga' FROM skills WHERE code = 'ENVENENADOR_PLAGA';
+
+-- Trampa de Silencio (ESPECIALISTA_TRAMPAS)
+INSERT INTO skills (code, class_id, name, skill_type, damage_school, element_id, target_type, base_value, scaling_stat, scaling_multiplier, hits, mana_cost, is_passive, learn_method, learn_level, learn_gold_cost, description, cooldown_rounds)
+SELECT 'ESPECIALISTA_TRAMPA_SILENCIO', (SELECT id FROM classes WHERE code = 'ESPECIALISTA_TRAMPAS'), 'Trampa de Silencio', 'DEBUFF', NULL, NULL, 'ENEMY', NULL, NULL, NULL, 1, 35, FALSE, 'LEVEL', 20, NULL, 'Una trampa de alambre en la garganta: el enemigo queda silenciado 2 rondas y solo puede usar el ataque básico.', 4
+WHERE NOT EXISTS (SELECT 1 FROM skills WHERE code = 'ESPECIALISTA_TRAMPA_SILENCIO');
+UPDATE skills SET class_id = (SELECT id FROM classes WHERE code = 'ESPECIALISTA_TRAMPAS'), name = 'Trampa de Silencio', skill_type = 'DEBUFF', damage_school = NULL, element_id = NULL, target_type = 'ENEMY', base_value = NULL, scaling_stat = NULL, scaling_multiplier = NULL, hits = 1, mana_cost = 35, is_passive = FALSE, learn_method = 'LEVEL', learn_level = 20, learn_gold_cost = NULL, description = 'Una trampa de alambre en la garganta: el enemigo queda silenciado 2 rondas y solo puede usar el ataque básico.', cooldown_rounds = 4 WHERE code = 'ESPECIALISTA_TRAMPA_SILENCIO';
+DELETE FROM skill_effects WHERE skill_id = (SELECT id FROM skills WHERE code = 'ESPECIALISTA_TRAMPA_SILENCIO');
+INSERT INTO skill_effects (skill_id, effect_type, stat_code, percent_amount, flat_amount, duration_turns, status_code, description)
+SELECT id, 'MECANICA', 'SILENCIAR', NULL, NULL, 2, NULL, 'Trampa de Silencio' FROM skills WHERE code = 'ESPECIALISTA_TRAMPA_SILENCIO';
+
+-- Sobrecura (CLERIGO)
+INSERT INTO skills (code, class_id, name, skill_type, damage_school, element_id, target_type, base_value, scaling_stat, scaling_multiplier, hits, mana_cost, is_passive, learn_method, learn_level, learn_gold_cost, description, cooldown_rounds)
+SELECT 'CLERIGO_SOBRECURA', (SELECT id FROM classes WHERE code = 'CLERIGO'), 'Sobrecura', 'CURACION', 'MAGICO', NULL, 'ALLY', 120, 'MAG', 1.2, 1, 45, FALSE, 'LEVEL', 20, NULL, 'Una cura generosa: lo que sobra queda como barrera durante 3 rondas (hasta el 30% de su vida máxima).', 1
+WHERE NOT EXISTS (SELECT 1 FROM skills WHERE code = 'CLERIGO_SOBRECURA');
+UPDATE skills SET class_id = (SELECT id FROM classes WHERE code = 'CLERIGO'), name = 'Sobrecura', skill_type = 'CURACION', damage_school = 'MAGICO', element_id = NULL, target_type = 'ALLY', base_value = 120, scaling_stat = 'MAG', scaling_multiplier = 1.2, hits = 1, mana_cost = 45, is_passive = FALSE, learn_method = 'LEVEL', learn_level = 20, learn_gold_cost = NULL, description = 'Una cura generosa: lo que sobra queda como barrera durante 3 rondas (hasta el 30% de su vida máxima).', cooldown_rounds = 1 WHERE code = 'CLERIGO_SOBRECURA';
+DELETE FROM skill_effects WHERE skill_id = (SELECT id FROM skills WHERE code = 'CLERIGO_SOBRECURA');
+INSERT INTO skill_effects (skill_id, effect_type, stat_code, percent_amount, flat_amount, duration_turns, status_code, description)
+SELECT id, 'MECANICA', 'SOBRECURA', 100, NULL, 3, NULL, 'Sobrecura' FROM skills WHERE code = 'CLERIGO_SOBRECURA';
+
+-- Raíces (DRUIDA)
+INSERT INTO skills (code, class_id, name, skill_type, damage_school, element_id, target_type, base_value, scaling_stat, scaling_multiplier, hits, mana_cost, is_passive, learn_method, learn_level, learn_gold_cost, description, cooldown_rounds)
+SELECT 'DRUIDA_RAICES', (SELECT id FROM classes WHERE code = 'DRUIDA'), 'Raíces', 'DEBUFF', NULL, NULL, 'ENEMY', NULL, NULL, NULL, 1, 45, FALSE, 'LEVEL', 20, NULL, 'Raíces con espinas salen del suelo: el enemigo pierde su próximo turno y sangra savia (4% de su vida por ronda) durante 3 rondas.', 3
+WHERE NOT EXISTS (SELECT 1 FROM skills WHERE code = 'DRUIDA_RAICES');
+UPDATE skills SET class_id = (SELECT id FROM classes WHERE code = 'DRUIDA'), name = 'Raíces', skill_type = 'DEBUFF', damage_school = NULL, element_id = NULL, target_type = 'ENEMY', base_value = NULL, scaling_stat = NULL, scaling_multiplier = NULL, hits = 1, mana_cost = 45, is_passive = FALSE, learn_method = 'LEVEL', learn_level = 20, learn_gold_cost = NULL, description = 'Raíces con espinas salen del suelo: el enemigo pierde su próximo turno y sangra savia (4% de su vida por ronda) durante 3 rondas.', cooldown_rounds = 3 WHERE code = 'DRUIDA_RAICES';
+DELETE FROM skill_effects WHERE skill_id = (SELECT id FROM skills WHERE code = 'DRUIDA_RAICES');
+INSERT INTO skill_effects (skill_id, effect_type, stat_code, percent_amount, flat_amount, duration_turns, status_code, description)
+SELECT id, 'MECANICA', 'ENRAIZAR', NULL, NULL, 2, NULL, 'Raíces' FROM skills WHERE code = 'DRUIDA_RAICES';
+INSERT INTO skill_effects (skill_id, effect_type, stat_code, percent_amount, flat_amount, duration_turns, status_code, description)
+SELECT id, 'MECANICA', 'DRENAR', 4, NULL, 3, NULL, 'Raíces' FROM skills WHERE code = 'DRUIDA_RAICES';
+
+-- Barrera Sagrada (TEMPLARIO)
+INSERT INTO skills (code, class_id, name, skill_type, damage_school, element_id, target_type, base_value, scaling_stat, scaling_multiplier, hits, mana_cost, is_passive, learn_method, learn_level, learn_gold_cost, description, cooldown_rounds)
+SELECT 'TEMPLARIO_BARRERA_SAGRADA', (SELECT id FROM classes WHERE code = 'TEMPLARIO'), 'Barrera Sagrada', 'BUFF', NULL, NULL, 'ALL_ALLIES', NULL, NULL, NULL, 1, 60, FALSE, 'LEVEL', 20, NULL, 'Una barrera de luz para todo el grupo durante 3 rondas: absorbe el 12% de la vida máxima de cada uno, más la mitad de tu magia.', 4
+WHERE NOT EXISTS (SELECT 1 FROM skills WHERE code = 'TEMPLARIO_BARRERA_SAGRADA');
+UPDATE skills SET class_id = (SELECT id FROM classes WHERE code = 'TEMPLARIO'), name = 'Barrera Sagrada', skill_type = 'BUFF', damage_school = NULL, element_id = NULL, target_type = 'ALL_ALLIES', base_value = NULL, scaling_stat = NULL, scaling_multiplier = NULL, hits = 1, mana_cost = 60, is_passive = FALSE, learn_method = 'LEVEL', learn_level = 20, learn_gold_cost = NULL, description = 'Una barrera de luz para todo el grupo durante 3 rondas: absorbe el 12% de la vida máxima de cada uno, más la mitad de tu magia.', cooldown_rounds = 4 WHERE code = 'TEMPLARIO_BARRERA_SAGRADA';
+DELETE FROM skill_effects WHERE skill_id = (SELECT id FROM skills WHERE code = 'TEMPLARIO_BARRERA_SAGRADA');
+INSERT INTO skill_effects (skill_id, effect_type, stat_code, percent_amount, flat_amount, duration_turns, status_code, description)
+SELECT id, 'MECANICA', 'BARRERA', 12, 50, 3, NULL, 'Barrera Sagrada' FROM skills WHERE code = 'TEMPLARIO_BARRERA_SAGRADA';
+
+-- Vínculo Vital (SANADOR_DIVINO)
+INSERT INTO skills (code, class_id, name, skill_type, damage_school, element_id, target_type, base_value, scaling_stat, scaling_multiplier, hits, mana_cost, is_passive, learn_method, learn_level, learn_gold_cost, description, cooldown_rounds)
+SELECT 'SANADOR_DIVINO_VINCULO_VITAL', (SELECT id FROM classes WHERE code = 'SANADOR_DIVINO'), 'Vínculo Vital', 'ESPECIAL', NULL, NULL, 'ALL_ALLIES', NULL, NULL, NULL, 1, 60, FALSE, 'LEVEL', 20, NULL, 'Repartes la vida del grupo en partes iguales y le sumas un 10% a cada uno. El que está por caer se salva; el que está entero paga un poco.', 4
+WHERE NOT EXISTS (SELECT 1 FROM skills WHERE code = 'SANADOR_DIVINO_VINCULO_VITAL');
+UPDATE skills SET class_id = (SELECT id FROM classes WHERE code = 'SANADOR_DIVINO'), name = 'Vínculo Vital', skill_type = 'ESPECIAL', damage_school = NULL, element_id = NULL, target_type = 'ALL_ALLIES', base_value = NULL, scaling_stat = NULL, scaling_multiplier = NULL, hits = 1, mana_cost = 60, is_passive = FALSE, learn_method = 'LEVEL', learn_level = 20, learn_gold_cost = NULL, description = 'Repartes la vida del grupo en partes iguales y le sumas un 10% a cada uno. El que está por caer se salva; el que está entero paga un poco.', cooldown_rounds = 4 WHERE code = 'SANADOR_DIVINO_VINCULO_VITAL';
+DELETE FROM skill_effects WHERE skill_id = (SELECT id FROM skills WHERE code = 'SANADOR_DIVINO_VINCULO_VITAL');
+INSERT INTO skill_effects (skill_id, effect_type, stat_code, percent_amount, flat_amount, duration_turns, status_code, description)
+SELECT id, 'MECANICA', 'IGUALAR', 10, NULL, NULL, NULL, 'Vínculo Vital' FROM skills WHERE code = 'SANADOR_DIVINO_VINCULO_VITAL';
+
+-- Anatema (INQUISIDOR)
+INSERT INTO skills (code, class_id, name, skill_type, damage_school, element_id, target_type, base_value, scaling_stat, scaling_multiplier, hits, mana_cost, is_passive, learn_method, learn_level, learn_gold_cost, description, cooldown_rounds)
+SELECT 'INQUISIDOR_ANATEMA', (SELECT id FROM classes WHERE code = 'INQUISIDOR'), 'Anatema', 'DEBUFF', NULL, NULL, 'ENEMY', NULL, NULL, NULL, 1, 45, FALSE, 'LEVEL', 20, NULL, 'Condenas al enemigo: queda silenciado 2 rondas y pierde una de sus mejoras.', 4
+WHERE NOT EXISTS (SELECT 1 FROM skills WHERE code = 'INQUISIDOR_ANATEMA');
+UPDATE skills SET class_id = (SELECT id FROM classes WHERE code = 'INQUISIDOR'), name = 'Anatema', skill_type = 'DEBUFF', damage_school = NULL, element_id = NULL, target_type = 'ENEMY', base_value = NULL, scaling_stat = NULL, scaling_multiplier = NULL, hits = 1, mana_cost = 45, is_passive = FALSE, learn_method = 'LEVEL', learn_level = 20, learn_gold_cost = NULL, description = 'Condenas al enemigo: queda silenciado 2 rondas y pierde una de sus mejoras.', cooldown_rounds = 4 WHERE code = 'INQUISIDOR_ANATEMA';
+DELETE FROM skill_effects WHERE skill_id = (SELECT id FROM skills WHERE code = 'INQUISIDOR_ANATEMA');
+INSERT INTO skill_effects (skill_id, effect_type, stat_code, percent_amount, flat_amount, duration_turns, status_code, description)
+SELECT id, 'MECANICA', 'SILENCIAR', NULL, NULL, 2, NULL, 'Anatema' FROM skills WHERE code = 'INQUISIDOR_ANATEMA';
+INSERT INTO skill_effects (skill_id, effect_type, stat_code, percent_amount, flat_amount, duration_turns, status_code, description)
+SELECT id, 'MECANICA', 'DISIPAR', NULL, 1, NULL, NULL, 'Anatema' FROM skills WHERE code = 'INQUISIDOR_ANATEMA';
+
+-- ============================================================================================
+-- Habilidades firma del escalón 2 (56, nivel 50) y Definitivas del escalón 3 (14, nivel 90), repetible y sin
+-- ON CONFLICT. Usan las mecánicas de lib/mecanicas.js. Diseño: docs/habilidades_firma.md.
+-- ============================================================================================
+
+-- Combustión (MAGO_PIROMANTICO)
+INSERT INTO skills (code, class_id, name, skill_type, damage_school, element_id, target_type, base_value, scaling_stat, scaling_multiplier, hits, mana_cost, is_passive, learn_method, learn_level, learn_gold_cost, description, cooldown_rounds)
+SELECT 'PIROMANTICO_COMBUSTION', (SELECT id FROM classes WHERE code = 'MAGO_PIROMANTICO'), 'Combustión', 'ATAQUE', 'MAGICO', 1, 'ENEMY', 340, 'MAG', 1.5, 1, 55, FALSE, 'LEVEL', 50, NULL, 'Fuego que se alimenta de fuego: si el enemigo ya ardía, estalla (+80% de daño). Si no, lo deja ardiendo (6% de su vida por ronda).', 2
+WHERE NOT EXISTS (SELECT 1 FROM skills WHERE code = 'PIROMANTICO_COMBUSTION');
+UPDATE skills SET class_id = (SELECT id FROM classes WHERE code = 'MAGO_PIROMANTICO'), name = 'Combustión', skill_type = 'ATAQUE', damage_school = 'MAGICO', element_id = 1, target_type = 'ENEMY', base_value = 340, scaling_stat = 'MAG', scaling_multiplier = 1.5, hits = 1, mana_cost = 55, is_passive = FALSE, learn_method = 'LEVEL', learn_level = 50, learn_gold_cost = NULL, description = 'Fuego que se alimenta de fuego: si el enemigo ya ardía, estalla (+80% de daño). Si no, lo deja ardiendo (6% de su vida por ronda).', cooldown_rounds = 2 WHERE code = 'PIROMANTICO_COMBUSTION';
+DELETE FROM skill_effects WHERE skill_id = (SELECT id FROM skills WHERE code = 'PIROMANTICO_COMBUSTION');
+INSERT INTO skill_effects (skill_id, effect_type, stat_code, percent_amount, flat_amount, duration_turns, status_code, description)
+SELECT id, 'MECANICA', 'DETONAR', 80, NULL, NULL, 'BURN', 'Combustión' FROM skills WHERE code = 'PIROMANTICO_COMBUSTION';
+INSERT INTO skill_effects (skill_id, effect_type, stat_code, percent_amount, flat_amount, duration_turns, status_code, description)
+SELECT id, 'MECANICA', 'QUEMAR', 6, NULL, 3, NULL, 'Combustión' FROM skills WHERE code = 'PIROMANTICO_COMBUSTION';
+
+-- Cero Absoluto (MAGO_CRIOMANTICO)
+INSERT INTO skills (code, class_id, name, skill_type, damage_school, element_id, target_type, base_value, scaling_stat, scaling_multiplier, hits, mana_cost, is_passive, learn_method, learn_level, learn_gold_cost, description, cooldown_rounds)
+SELECT 'CRIOMANTICO_CERO_ABSOLUTO', (SELECT id FROM classes WHERE code = 'MAGO_CRIOMANTICO'), 'Cero Absoluto', 'ATAQUE', 'MAGICO', 2, 'ALL_ENEMIES', 260, 'MAG', 1.2, 1, 70, FALSE, 'LEVEL', 50, NULL, 'Una ola de frío sobre todos: 35% de probabilidad de congelar a cada uno (pierde el turno). Contra los mojados, congela seguro.', 3
+WHERE NOT EXISTS (SELECT 1 FROM skills WHERE code = 'CRIOMANTICO_CERO_ABSOLUTO');
+UPDATE skills SET class_id = (SELECT id FROM classes WHERE code = 'MAGO_CRIOMANTICO'), name = 'Cero Absoluto', skill_type = 'ATAQUE', damage_school = 'MAGICO', element_id = 2, target_type = 'ALL_ENEMIES', base_value = 260, scaling_stat = 'MAG', scaling_multiplier = 1.2, hits = 1, mana_cost = 70, is_passive = FALSE, learn_method = 'LEVEL', learn_level = 50, learn_gold_cost = NULL, description = 'Una ola de frío sobre todos: 35% de probabilidad de congelar a cada uno (pierde el turno). Contra los mojados, congela seguro.', cooldown_rounds = 3 WHERE code = 'CRIOMANTICO_CERO_ABSOLUTO';
+DELETE FROM skill_effects WHERE skill_id = (SELECT id FROM skills WHERE code = 'CRIOMANTICO_CERO_ABSOLUTO');
+INSERT INTO skill_effects (skill_id, effect_type, stat_code, percent_amount, flat_amount, duration_turns, status_code, description)
+SELECT id, 'MECANICA', 'CONGELAR', NULL, 35, 2, NULL, 'Cero Absoluto' FROM skills WHERE code = 'CRIOMANTICO_CERO_ABSOLUTO';
+
+-- Rayo Encadenado (MAGO_ELECTROMANTICO)
+INSERT INTO skills (code, class_id, name, skill_type, damage_school, element_id, target_type, base_value, scaling_stat, scaling_multiplier, hits, mana_cost, is_passive, learn_method, learn_level, learn_gold_cost, description, cooldown_rounds)
+SELECT 'ELECTROMANTICO_RAYO_ENCADENADO', (SELECT id FROM classes WHERE code = 'MAGO_ELECTROMANTICO'), 'Rayo Encadenado', 'ATAQUE', 'MAGICO', 3, 'ENEMY', 340, 'MAG', 1.5, 1, 60, FALSE, 'LEVEL', 50, NULL, 'Un rayo que salta a dos enemigos más con el 60% del daño. Sobre un enemigo mojado, el salto hace el doble.', 2
+WHERE NOT EXISTS (SELECT 1 FROM skills WHERE code = 'ELECTROMANTICO_RAYO_ENCADENADO');
+UPDATE skills SET class_id = (SELECT id FROM classes WHERE code = 'MAGO_ELECTROMANTICO'), name = 'Rayo Encadenado', skill_type = 'ATAQUE', damage_school = 'MAGICO', element_id = 3, target_type = 'ENEMY', base_value = 340, scaling_stat = 'MAG', scaling_multiplier = 1.5, hits = 1, mana_cost = 60, is_passive = FALSE, learn_method = 'LEVEL', learn_level = 50, learn_gold_cost = NULL, description = 'Un rayo que salta a dos enemigos más con el 60% del daño. Sobre un enemigo mojado, el salto hace el doble.', cooldown_rounds = 2 WHERE code = 'ELECTROMANTICO_RAYO_ENCADENADO';
+DELETE FROM skill_effects WHERE skill_id = (SELECT id FROM skills WHERE code = 'ELECTROMANTICO_RAYO_ENCADENADO');
+INSERT INTO skill_effects (skill_id, effect_type, stat_code, percent_amount, flat_amount, duration_turns, status_code, description)
+SELECT id, 'MECANICA', 'CADENA', 60, 2, NULL, NULL, 'Rayo Encadenado' FROM skills WHERE code = 'ELECTROMANTICO_RAYO_ENCADENADO';
+
+-- Marea Sanadora (MAGO_HIDROMANTE)
+INSERT INTO skills (code, class_id, name, skill_type, damage_school, element_id, target_type, base_value, scaling_stat, scaling_multiplier, hits, mana_cost, is_passive, learn_method, learn_level, learn_gold_cost, description, cooldown_rounds)
+SELECT 'HIDROMANTE_MAREA_SANADORA', (SELECT id FROM classes WHERE code = 'MAGO_HIDROMANTE'), 'Marea Sanadora', 'CURACION', 'MAGICO', NULL, 'ALL_ALLIES', 200, 'MAG', 0.9, 1, 70, FALSE, 'LEVEL', 50, NULL, 'Agua clara que cura a todo el grupo y se lleva un mal de cada uno.', 3
+WHERE NOT EXISTS (SELECT 1 FROM skills WHERE code = 'HIDROMANTE_MAREA_SANADORA');
+UPDATE skills SET class_id = (SELECT id FROM classes WHERE code = 'MAGO_HIDROMANTE'), name = 'Marea Sanadora', skill_type = 'CURACION', damage_school = 'MAGICO', element_id = NULL, target_type = 'ALL_ALLIES', base_value = 200, scaling_stat = 'MAG', scaling_multiplier = 0.9, hits = 1, mana_cost = 70, is_passive = FALSE, learn_method = 'LEVEL', learn_level = 50, learn_gold_cost = NULL, description = 'Agua clara que cura a todo el grupo y se lleva un mal de cada uno.', cooldown_rounds = 3 WHERE code = 'HIDROMANTE_MAREA_SANADORA';
+DELETE FROM skill_effects WHERE skill_id = (SELECT id FROM skills WHERE code = 'HIDROMANTE_MAREA_SANADORA');
+INSERT INTO skill_effects (skill_id, effect_type, stat_code, percent_amount, flat_amount, duration_turns, status_code, description)
+SELECT id, 'MECANICA', 'LIMPIAR', NULL, 1, NULL, NULL, 'Marea Sanadora' FROM skills WHERE code = 'HIDROMANTE_MAREA_SANADORA';
+
+-- Muro de Piedra (MAGO_GEOMANTICO)
+INSERT INTO skills (code, class_id, name, skill_type, damage_school, element_id, target_type, base_value, scaling_stat, scaling_multiplier, hits, mana_cost, is_passive, learn_method, learn_level, learn_gold_cost, description, cooldown_rounds)
+SELECT 'GEOMANTICO_MURO_DE_PIEDRA', (SELECT id FROM classes WHERE code = 'MAGO_GEOMANTICO'), 'Muro de Piedra', 'BUFF', NULL, NULL, 'ALL_ALLIES', NULL, NULL, NULL, 1, 65, FALSE, 'LEVEL', 50, NULL, 'Un muro de roca delante del grupo: barrera del 15% de la vida de cada uno (más el 60% de tu magia) y +20% de defensa durante 3 rondas.', 4
+WHERE NOT EXISTS (SELECT 1 FROM skills WHERE code = 'GEOMANTICO_MURO_DE_PIEDRA');
+UPDATE skills SET class_id = (SELECT id FROM classes WHERE code = 'MAGO_GEOMANTICO'), name = 'Muro de Piedra', skill_type = 'BUFF', damage_school = NULL, element_id = NULL, target_type = 'ALL_ALLIES', base_value = NULL, scaling_stat = NULL, scaling_multiplier = NULL, hits = 1, mana_cost = 65, is_passive = FALSE, learn_method = 'LEVEL', learn_level = 50, learn_gold_cost = NULL, description = 'Un muro de roca delante del grupo: barrera del 15% de la vida de cada uno (más el 60% de tu magia) y +20% de defensa durante 3 rondas.', cooldown_rounds = 4 WHERE code = 'GEOMANTICO_MURO_DE_PIEDRA';
+DELETE FROM skill_effects WHERE skill_id = (SELECT id FROM skills WHERE code = 'GEOMANTICO_MURO_DE_PIEDRA');
+INSERT INTO skill_effects (skill_id, effect_type, stat_code, percent_amount, flat_amount, duration_turns, status_code, description)
+SELECT id, 'MECANICA', 'BARRERA', 15, 60, 3, NULL, 'Muro de Piedra' FROM skills WHERE code = 'GEOMANTICO_MURO_DE_PIEDRA';
+INSERT INTO skill_effects (skill_id, effect_type, stat_code, percent_amount, flat_amount, duration_turns, status_code, description)
+SELECT id, 'MECANICA', 'SUBIR', 20, NULL, 3, 'DEF', 'Muro de Piedra' FROM skills WHERE code = 'GEOMANTICO_MURO_DE_PIEDRA';
+
+-- Ojo del Huracán (MAGO_AEROMANTE)
+INSERT INTO skills (code, class_id, name, skill_type, damage_school, element_id, target_type, base_value, scaling_stat, scaling_multiplier, hits, mana_cost, is_passive, learn_method, learn_level, learn_gold_cost, description, cooldown_rounds)
+SELECT 'AEROMANTE_OJO_DEL_HURACAN', (SELECT id FROM classes WHERE code = 'MAGO_AEROMANTE'), 'Ojo del Huracán', 'ATAQUE', 'MAGICO', 4, 'ALL_ENEMIES', 140, 'MAG', 0.7, 2, 70, FALSE, 'LEVEL', 50, NULL, 'Un huracán que golpea dos veces a todos y los ciega con polvo (20%). Tú quedas en el ojo, más rápido (+25% de velocidad).', 3
+WHERE NOT EXISTS (SELECT 1 FROM skills WHERE code = 'AEROMANTE_OJO_DEL_HURACAN');
+UPDATE skills SET class_id = (SELECT id FROM classes WHERE code = 'MAGO_AEROMANTE'), name = 'Ojo del Huracán', skill_type = 'ATAQUE', damage_school = 'MAGICO', element_id = 4, target_type = 'ALL_ENEMIES', base_value = 140, scaling_stat = 'MAG', scaling_multiplier = 0.7, hits = 2, mana_cost = 70, is_passive = FALSE, learn_method = 'LEVEL', learn_level = 50, learn_gold_cost = NULL, description = 'Un huracán que golpea dos veces a todos y los ciega con polvo (20%). Tú quedas en el ojo, más rápido (+25% de velocidad).', cooldown_rounds = 3 WHERE code = 'AEROMANTE_OJO_DEL_HURACAN';
+DELETE FROM skill_effects WHERE skill_id = (SELECT id FROM skills WHERE code = 'AEROMANTE_OJO_DEL_HURACAN');
+INSERT INTO skill_effects (skill_id, effect_type, stat_code, percent_amount, flat_amount, duration_turns, status_code, description)
+SELECT id, 'MECANICA', 'CEGAR', 20, NULL, 2, NULL, 'Ojo del Huracán' FROM skills WHERE code = 'AEROMANTE_OJO_DEL_HURACAN';
+INSERT INTO skill_effects (skill_id, effect_type, stat_code, percent_amount, flat_amount, duration_turns, status_code, description)
+SELECT id, 'MECANICA', 'SUBIR', 25, NULL, 3, 'SPD', 'Ojo del Huracán' FROM skills WHERE code = 'AEROMANTE_OJO_DEL_HURACAN';
+
+-- Prisma (MAGO_LUMINOSO)
+INSERT INTO skills (code, class_id, name, skill_type, damage_school, element_id, target_type, base_value, scaling_stat, scaling_multiplier, hits, mana_cost, is_passive, learn_method, learn_level, learn_gold_cost, description, cooldown_rounds)
+SELECT 'LUMINOSO_PRISMA', (SELECT id FROM classes WHERE code = 'MAGO_LUMINOSO'), 'Prisma', 'ATAQUE', 'MAGICO', 7, 'ALL_ENEMIES', 250, 'MAG', 1.2, 1, 70, FALSE, 'LEVEL', 50, NULL, 'La luz se abre en mil colores: ciega a todos los enemigos (25%) y cura al grupo el 5% de su vida.', 3
+WHERE NOT EXISTS (SELECT 1 FROM skills WHERE code = 'LUMINOSO_PRISMA');
+UPDATE skills SET class_id = (SELECT id FROM classes WHERE code = 'MAGO_LUMINOSO'), name = 'Prisma', skill_type = 'ATAQUE', damage_school = 'MAGICO', element_id = 7, target_type = 'ALL_ENEMIES', base_value = 250, scaling_stat = 'MAG', scaling_multiplier = 1.2, hits = 1, mana_cost = 70, is_passive = FALSE, learn_method = 'LEVEL', learn_level = 50, learn_gold_cost = NULL, description = 'La luz se abre en mil colores: ciega a todos los enemigos (25%) y cura al grupo el 5% de su vida.', cooldown_rounds = 3 WHERE code = 'LUMINOSO_PRISMA';
+DELETE FROM skill_effects WHERE skill_id = (SELECT id FROM skills WHERE code = 'LUMINOSO_PRISMA');
+INSERT INTO skill_effects (skill_id, effect_type, stat_code, percent_amount, flat_amount, duration_turns, status_code, description)
+SELECT id, 'MECANICA', 'CEGAR', 25, NULL, 2, NULL, 'Prisma' FROM skills WHERE code = 'LUMINOSO_PRISMA';
+INSERT INTO skill_effects (skill_id, effect_type, stat_code, percent_amount, flat_amount, duration_turns, status_code, description)
+SELECT id, 'MECANICA', 'CURAR_GRUPO', 5, NULL, NULL, NULL, 'Prisma' FROM skills WHERE code = 'LUMINOSO_PRISMA';
+
+-- Convergencia (MAESTRO_ELEMENTAL)
+INSERT INTO skills (code, class_id, name, skill_type, damage_school, element_id, target_type, base_value, scaling_stat, scaling_multiplier, hits, mana_cost, is_passive, learn_method, learn_level, learn_gold_cost, description, cooldown_rounds)
+SELECT 'MAESTRO_ELEMENTAL_CONVERGENCIA', (SELECT id FROM classes WHERE code = 'MAESTRO_ELEMENTAL'), 'Convergencia', 'ATAQUE', 'MAGICO', 6, 'ALL_ENEMIES', 220, 'MAG', 1, 1, 80, FALSE, 'LEVEL', 50, NULL, 'Agua y tormenta a la vez: moja a todos y tiene 50% de paralizar a cada uno. Lo que sigue (rayo, hielo, tierra) reacciona.', 3
+WHERE NOT EXISTS (SELECT 1 FROM skills WHERE code = 'MAESTRO_ELEMENTAL_CONVERGENCIA');
+UPDATE skills SET class_id = (SELECT id FROM classes WHERE code = 'MAESTRO_ELEMENTAL'), name = 'Convergencia', skill_type = 'ATAQUE', damage_school = 'MAGICO', element_id = 6, target_type = 'ALL_ENEMIES', base_value = 220, scaling_stat = 'MAG', scaling_multiplier = 1, hits = 1, mana_cost = 80, is_passive = FALSE, learn_method = 'LEVEL', learn_level = 50, learn_gold_cost = NULL, description = 'Agua y tormenta a la vez: moja a todos y tiene 50% de paralizar a cada uno. Lo que sigue (rayo, hielo, tierra) reacciona.', cooldown_rounds = 3 WHERE code = 'MAESTRO_ELEMENTAL_CONVERGENCIA';
+DELETE FROM skill_effects WHERE skill_id = (SELECT id FROM skills WHERE code = 'MAESTRO_ELEMENTAL_CONVERGENCIA');
+INSERT INTO skill_effects (skill_id, effect_type, stat_code, percent_amount, flat_amount, duration_turns, status_code, description)
+SELECT id, 'MECANICA', 'MOJAR', NULL, NULL, 3, NULL, 'Convergencia' FROM skills WHERE code = 'MAESTRO_ELEMENTAL_CONVERGENCIA';
+INSERT INTO skill_effects (skill_id, effect_type, stat_code, percent_amount, flat_amount, duration_turns, status_code, description)
+SELECT id, 'MECANICA', 'PARALIZAR', NULL, 50, 2, NULL, 'Convergencia' FROM skills WHERE code = 'MAESTRO_ELEMENTAL_CONVERGENCIA';
+
+-- Cien Puños (MAESTRO_MONJE)
+INSERT INTO skills (code, class_id, name, skill_type, damage_school, element_id, target_type, base_value, scaling_stat, scaling_multiplier, hits, mana_cost, is_passive, learn_method, learn_level, learn_gold_cost, description, cooldown_rounds)
+SELECT 'MAESTRO_MONJE_CIEN_PUNOS', (SELECT id FROM classes WHERE code = 'MAESTRO_MONJE'), 'Cien Puños', 'ATAQUE', 'FISICO', NULL, 'ENEMY', 120, 'ATK', 0.6, 5, 55, FALSE, 'LEVEL', 50, NULL, 'Cinco golpes tan rápidos que parecen cien. Cada uno junta chi: sumas 2 cargas de una vez.', 2
+WHERE NOT EXISTS (SELECT 1 FROM skills WHERE code = 'MAESTRO_MONJE_CIEN_PUNOS');
+UPDATE skills SET class_id = (SELECT id FROM classes WHERE code = 'MAESTRO_MONJE'), name = 'Cien Puños', skill_type = 'ATAQUE', damage_school = 'FISICO', element_id = NULL, target_type = 'ENEMY', base_value = 120, scaling_stat = 'ATK', scaling_multiplier = 0.6, hits = 5, mana_cost = 55, is_passive = FALSE, learn_method = 'LEVEL', learn_level = 50, learn_gold_cost = NULL, description = 'Cinco golpes tan rápidos que parecen cien. Cada uno junta chi: sumas 2 cargas de una vez.', cooldown_rounds = 2 WHERE code = 'MAESTRO_MONJE_CIEN_PUNOS';
+DELETE FROM skill_effects WHERE skill_id = (SELECT id FROM skills WHERE code = 'MAESTRO_MONJE_CIEN_PUNOS');
+INSERT INTO skill_effects (skill_id, effect_type, stat_code, percent_amount, flat_amount, duration_turns, status_code, description)
+SELECT id, 'MECANICA', 'GANAR_CHI', NULL, 1, NULL, NULL, 'Cien Puños' FROM skills WHERE code = 'MAESTRO_MONJE_CIEN_PUNOS';
+
+-- Palma del Vacío (MONJE_OSCURO)
+INSERT INTO skills (code, class_id, name, skill_type, damage_school, element_id, target_type, base_value, scaling_stat, scaling_multiplier, hits, mana_cost, is_passive, learn_method, learn_level, learn_gold_cost, description, cooldown_rounds)
+SELECT 'MONJE_OSCURO_PALMA_DEL_VACIO', (SELECT id FROM classes WHERE code = 'MONJE_OSCURO'), 'Palma del Vacío', 'ATAQUE', 'FISICO', 8, 'ENEMY', 330, 'ATK', 1.5, 1, 55, FALSE, 'LEVEL', 50, NULL, 'Una palma de sombra que le roba el 15% del ataque al enemigo y te devuelve el 25% del daño como vida.', 2
+WHERE NOT EXISTS (SELECT 1 FROM skills WHERE code = 'MONJE_OSCURO_PALMA_DEL_VACIO');
+UPDATE skills SET class_id = (SELECT id FROM classes WHERE code = 'MONJE_OSCURO'), name = 'Palma del Vacío', skill_type = 'ATAQUE', damage_school = 'FISICO', element_id = 8, target_type = 'ENEMY', base_value = 330, scaling_stat = 'ATK', scaling_multiplier = 1.5, hits = 1, mana_cost = 55, is_passive = FALSE, learn_method = 'LEVEL', learn_level = 50, learn_gold_cost = NULL, description = 'Una palma de sombra que le roba el 15% del ataque al enemigo y te devuelve el 25% del daño como vida.', cooldown_rounds = 2 WHERE code = 'MONJE_OSCURO_PALMA_DEL_VACIO';
+DELETE FROM skill_effects WHERE skill_id = (SELECT id FROM skills WHERE code = 'MONJE_OSCURO_PALMA_DEL_VACIO');
+INSERT INTO skill_effects (skill_id, effect_type, stat_code, percent_amount, flat_amount, duration_turns, status_code, description)
+SELECT id, 'MECANICA', 'HURTO', 15, NULL, 3, 'ATK', 'Palma del Vacío' FROM skills WHERE code = 'MONJE_OSCURO_PALMA_DEL_VACIO';
+INSERT INTO skill_effects (skill_id, effect_type, stat_code, percent_amount, flat_amount, duration_turns, status_code, description)
+SELECT id, 'MECANICA', 'SED', 0, 25, NULL, NULL, 'Palma del Vacío' FROM skills WHERE code = 'MONJE_OSCURO_PALMA_DEL_VACIO';
+
+-- Pisotón Sísmico (MONJE_SISMICO)
+INSERT INTO skills (code, class_id, name, skill_type, damage_school, element_id, target_type, base_value, scaling_stat, scaling_multiplier, hits, mana_cost, is_passive, learn_method, learn_level, learn_gold_cost, description, cooldown_rounds)
+SELECT 'MONJE_SISMICO_PISOTON', (SELECT id FROM classes WHERE code = 'MONJE_SISMICO'), 'Pisotón Sísmico', 'ATAQUE', 'FISICO', 5, 'ALL_ENEMIES', 260, 'ATK', 1.2, 1, 65, FALSE, 'LEVEL', 50, NULL, 'Un pisotón que parte el suelo: 35% de probabilidad de atrapar a cada enemigo (pierde el turno). Lo mojado se vuelve barro.', 3
+WHERE NOT EXISTS (SELECT 1 FROM skills WHERE code = 'MONJE_SISMICO_PISOTON');
+UPDATE skills SET class_id = (SELECT id FROM classes WHERE code = 'MONJE_SISMICO'), name = 'Pisotón Sísmico', skill_type = 'ATAQUE', damage_school = 'FISICO', element_id = 5, target_type = 'ALL_ENEMIES', base_value = 260, scaling_stat = 'ATK', scaling_multiplier = 1.2, hits = 1, mana_cost = 65, is_passive = FALSE, learn_method = 'LEVEL', learn_level = 50, learn_gold_cost = NULL, description = 'Un pisotón que parte el suelo: 35% de probabilidad de atrapar a cada enemigo (pierde el turno). Lo mojado se vuelve barro.', cooldown_rounds = 3 WHERE code = 'MONJE_SISMICO_PISOTON';
+DELETE FROM skill_effects WHERE skill_id = (SELECT id FROM skills WHERE code = 'MONJE_SISMICO_PISOTON');
+INSERT INTO skill_effects (skill_id, effect_type, stat_code, percent_amount, flat_amount, duration_turns, status_code, description)
+SELECT id, 'MECANICA', 'ENRAIZAR', NULL, 35, 2, NULL, 'Pisotón Sísmico' FROM skills WHERE code = 'MONJE_SISMICO_PISOTON';
+
+-- Palma Bendita (MONJE_DIVINO)
+INSERT INTO skills (code, class_id, name, skill_type, damage_school, element_id, target_type, base_value, scaling_stat, scaling_multiplier, hits, mana_cost, is_passive, learn_method, learn_level, learn_gold_cost, description, cooldown_rounds)
+SELECT 'MONJE_DIVINO_PALMA_BENDITA', (SELECT id FROM classes WHERE code = 'MONJE_DIVINO'), 'Palma Bendita', 'ATAQUE', 'FISICO', 7, 'ENEMY', 300, 'ATK', 1.4, 1, 55, FALSE, 'LEVEL', 50, NULL, 'Un golpe de luz que cura al grupo el 6% de su vida.', 2
+WHERE NOT EXISTS (SELECT 1 FROM skills WHERE code = 'MONJE_DIVINO_PALMA_BENDITA');
+UPDATE skills SET class_id = (SELECT id FROM classes WHERE code = 'MONJE_DIVINO'), name = 'Palma Bendita', skill_type = 'ATAQUE', damage_school = 'FISICO', element_id = 7, target_type = 'ENEMY', base_value = 300, scaling_stat = 'ATK', scaling_multiplier = 1.4, hits = 1, mana_cost = 55, is_passive = FALSE, learn_method = 'LEVEL', learn_level = 50, learn_gold_cost = NULL, description = 'Un golpe de luz que cura al grupo el 6% de su vida.', cooldown_rounds = 2 WHERE code = 'MONJE_DIVINO_PALMA_BENDITA';
+DELETE FROM skill_effects WHERE skill_id = (SELECT id FROM skills WHERE code = 'MONJE_DIVINO_PALMA_BENDITA');
+INSERT INTO skill_effects (skill_id, effect_type, stat_code, percent_amount, flat_amount, duration_turns, status_code, description)
+SELECT id, 'MECANICA', 'CURAR_GRUPO', 6, NULL, NULL, NULL, 'Palma Bendita' FROM skills WHERE code = 'MONJE_DIVINO_PALMA_BENDITA';
+
+-- Mil Cortes (MAESTRO_ESPADACHIN)
+INSERT INTO skills (code, class_id, name, skill_type, damage_school, element_id, target_type, base_value, scaling_stat, scaling_multiplier, hits, mana_cost, is_passive, learn_method, learn_level, learn_gold_cost, description, cooldown_rounds)
+SELECT 'MAESTRO_ESPADACHIN_MIL_CORTES', (SELECT id FROM classes WHERE code = 'MAESTRO_ESPADACHIN'), 'Mil Cortes', 'ATAQUE', 'FISICO', NULL, 'ENEMY', 140, 'ATK', 0.7, 4, 60, FALSE, 'LEVEL', 50, NULL, 'Cuatro cortes seguidos y terminas en guardia: el próximo golpe físico que recibas lo devuelves entero.', 2
+WHERE NOT EXISTS (SELECT 1 FROM skills WHERE code = 'MAESTRO_ESPADACHIN_MIL_CORTES');
+UPDATE skills SET class_id = (SELECT id FROM classes WHERE code = 'MAESTRO_ESPADACHIN'), name = 'Mil Cortes', skill_type = 'ATAQUE', damage_school = 'FISICO', element_id = NULL, target_type = 'ENEMY', base_value = 140, scaling_stat = 'ATK', scaling_multiplier = 0.7, hits = 4, mana_cost = 60, is_passive = FALSE, learn_method = 'LEVEL', learn_level = 50, learn_gold_cost = NULL, description = 'Cuatro cortes seguidos y terminas en guardia: el próximo golpe físico que recibas lo devuelves entero.', cooldown_rounds = 2 WHERE code = 'MAESTRO_ESPADACHIN_MIL_CORTES';
+DELETE FROM skill_effects WHERE skill_id = (SELECT id FROM skills WHERE code = 'MAESTRO_ESPADACHIN_MIL_CORTES');
+INSERT INTO skill_effects (skill_id, effect_type, stat_code, percent_amount, flat_amount, duration_turns, status_code, description)
+SELECT id, 'MECANICA', 'CONTRA', 100, NULL, 2, NULL, 'Mil Cortes' FROM skills WHERE code = 'MAESTRO_ESPADACHIN_MIL_CORTES';
+
+-- Pacto de Sangre (CABALLERO_OSCURO)
+INSERT INTO skills (code, class_id, name, skill_type, damage_school, element_id, target_type, base_value, scaling_stat, scaling_multiplier, hits, mana_cost, is_passive, learn_method, learn_level, learn_gold_cost, description, cooldown_rounds)
+SELECT 'CABALLERO_OSCURO_PACTO_DE_SANGRE', (SELECT id FROM classes WHERE code = 'CABALLERO_OSCURO'), 'Pacto de Sangre', 'ATAQUE', 'FISICO', 8, 'ENEMY', 340, 'ATK', 1.5, 1, 50, FALSE, 'LEVEL', 50, NULL, 'Pagas el 10% de tu vida y la espada bebe: te curas el 40% del daño.', 2
+WHERE NOT EXISTS (SELECT 1 FROM skills WHERE code = 'CABALLERO_OSCURO_PACTO_DE_SANGRE');
+UPDATE skills SET class_id = (SELECT id FROM classes WHERE code = 'CABALLERO_OSCURO'), name = 'Pacto de Sangre', skill_type = 'ATAQUE', damage_school = 'FISICO', element_id = 8, target_type = 'ENEMY', base_value = 340, scaling_stat = 'ATK', scaling_multiplier = 1.5, hits = 1, mana_cost = 50, is_passive = FALSE, learn_method = 'LEVEL', learn_level = 50, learn_gold_cost = NULL, description = 'Pagas el 10% de tu vida y la espada bebe: te curas el 40% del daño.', cooldown_rounds = 2 WHERE code = 'CABALLERO_OSCURO_PACTO_DE_SANGRE';
+DELETE FROM skill_effects WHERE skill_id = (SELECT id FROM skills WHERE code = 'CABALLERO_OSCURO_PACTO_DE_SANGRE');
+INSERT INTO skill_effects (skill_id, effect_type, stat_code, percent_amount, flat_amount, duration_turns, status_code, description)
+SELECT id, 'MECANICA', 'SED', 10, 40, NULL, NULL, 'Pacto de Sangre' FROM skills WHERE code = 'CABALLERO_OSCURO_PACTO_DE_SANGRE';
+
+-- Escudo de la Fe (PALADIN)
+INSERT INTO skills (code, class_id, name, skill_type, damage_school, element_id, target_type, base_value, scaling_stat, scaling_multiplier, hits, mana_cost, is_passive, learn_method, learn_level, learn_gold_cost, description, cooldown_rounds)
+SELECT 'PALADIN_ESCUDO_DE_LA_FE', (SELECT id FROM classes WHERE code = 'PALADIN'), 'Escudo de la Fe', 'BUFF', NULL, NULL, 'ALLY', NULL, NULL, NULL, 1, 50, FALSE, 'LEVEL', 50, NULL, 'Juras proteger a un aliado (recibes la mitad de su daño) y lo cubres con una barrera del 10% de su vida.', 3
+WHERE NOT EXISTS (SELECT 1 FROM skills WHERE code = 'PALADIN_ESCUDO_DE_LA_FE');
+UPDATE skills SET class_id = (SELECT id FROM classes WHERE code = 'PALADIN'), name = 'Escudo de la Fe', skill_type = 'BUFF', damage_school = NULL, element_id = NULL, target_type = 'ALLY', base_value = NULL, scaling_stat = NULL, scaling_multiplier = NULL, hits = 1, mana_cost = 50, is_passive = FALSE, learn_method = 'LEVEL', learn_level = 50, learn_gold_cost = NULL, description = 'Juras proteger a un aliado (recibes la mitad de su daño) y lo cubres con una barrera del 10% de su vida.', cooldown_rounds = 3 WHERE code = 'PALADIN_ESCUDO_DE_LA_FE';
+DELETE FROM skill_effects WHERE skill_id = (SELECT id FROM skills WHERE code = 'PALADIN_ESCUDO_DE_LA_FE');
+INSERT INTO skill_effects (skill_id, effect_type, stat_code, percent_amount, flat_amount, duration_turns, status_code, description)
+SELECT id, 'MECANICA', 'VINCULO', 50, NULL, 3, NULL, 'Escudo de la Fe' FROM skills WHERE code = 'PALADIN_ESCUDO_DE_LA_FE';
+INSERT INTO skill_effects (skill_id, effect_type, stat_code, percent_amount, flat_amount, duration_turns, status_code, description)
+SELECT id, 'MECANICA', 'BARRERA', 10, 40, 3, NULL, 'Escudo de la Fe' FROM skills WHERE code = 'PALADIN_ESCUDO_DE_LA_FE';
+
+-- Fortaleza (CABALLERO_BLINDADO)
+INSERT INTO skills (code, class_id, name, skill_type, damage_school, element_id, target_type, base_value, scaling_stat, scaling_multiplier, hits, mana_cost, is_passive, learn_method, learn_level, learn_gold_cost, description, cooldown_rounds)
+SELECT 'CABALLERO_BLINDADO_FORTALEZA', (SELECT id FROM classes WHERE code = 'CABALLERO_BLINDADO'), 'Fortaleza', 'BUFF', NULL, NULL, 'SELF', NULL, NULL, NULL, 1, 50, FALSE, 'LEVEL', 50, NULL, 'Te plantas delante de todos: atraes los golpes, te cubre una barrera del 20% de tu vida y +30% de defensa durante 3 rondas.', 4
+WHERE NOT EXISTS (SELECT 1 FROM skills WHERE code = 'CABALLERO_BLINDADO_FORTALEZA');
+UPDATE skills SET class_id = (SELECT id FROM classes WHERE code = 'CABALLERO_BLINDADO'), name = 'Fortaleza', skill_type = 'BUFF', damage_school = NULL, element_id = NULL, target_type = 'SELF', base_value = NULL, scaling_stat = NULL, scaling_multiplier = NULL, hits = 1, mana_cost = 50, is_passive = FALSE, learn_method = 'LEVEL', learn_level = 50, learn_gold_cost = NULL, description = 'Te plantas delante de todos: atraes los golpes, te cubre una barrera del 20% de tu vida y +30% de defensa durante 3 rondas.', cooldown_rounds = 4 WHERE code = 'CABALLERO_BLINDADO_FORTALEZA';
+DELETE FROM skill_effects WHERE skill_id = (SELECT id FROM skills WHERE code = 'CABALLERO_BLINDADO_FORTALEZA');
+INSERT INTO skill_effects (skill_id, effect_type, stat_code, percent_amount, flat_amount, duration_turns, status_code, description)
+SELECT id, 'MECANICA', 'PROVOCAR', NULL, NULL, 3, NULL, 'Fortaleza' FROM skills WHERE code = 'CABALLERO_BLINDADO_FORTALEZA';
+INSERT INTO skill_effects (skill_id, effect_type, stat_code, percent_amount, flat_amount, duration_turns, status_code, description)
+SELECT id, 'MECANICA', 'BARRERA', 20, 0, 3, NULL, 'Fortaleza' FROM skills WHERE code = 'CABALLERO_BLINDADO_FORTALEZA';
+INSERT INTO skill_effects (skill_id, effect_type, stat_code, percent_amount, flat_amount, duration_turns, status_code, description)
+SELECT id, 'MECANICA', 'SUBIR', 30, NULL, 3, 'DEF', 'Fortaleza' FROM skills WHERE code = 'CABALLERO_BLINDADO_FORTALEZA';
+
+-- Furia del Titán (TITAN_FURIOSO)
+INSERT INTO skills (code, class_id, name, skill_type, damage_school, element_id, target_type, base_value, scaling_stat, scaling_multiplier, hits, mana_cost, is_passive, learn_method, learn_level, learn_gold_cost, description, cooldown_rounds)
+SELECT 'TITAN_FURIOSO_FURIA_DEL_TITAN', (SELECT id FROM classes WHERE code = 'TITAN_FURIOSO'), 'Furia del Titán', 'ATAQUE', 'FISICO', NULL, 'ALL_ENEMIES', 280, 'ATK', 1.3, 1, 40, FALSE, 'LEVEL', 50, NULL, 'Pagas el 15% de tu vida y golpeas a todos con lo que te falta (+1% de daño por cada 1% de vida perdida). Te curas el 20%.', 3
+WHERE NOT EXISTS (SELECT 1 FROM skills WHERE code = 'TITAN_FURIOSO_FURIA_DEL_TITAN');
+UPDATE skills SET class_id = (SELECT id FROM classes WHERE code = 'TITAN_FURIOSO'), name = 'Furia del Titán', skill_type = 'ATAQUE', damage_school = 'FISICO', element_id = NULL, target_type = 'ALL_ENEMIES', base_value = 280, scaling_stat = 'ATK', scaling_multiplier = 1.3, hits = 1, mana_cost = 40, is_passive = FALSE, learn_method = 'LEVEL', learn_level = 50, learn_gold_cost = NULL, description = 'Pagas el 15% de tu vida y golpeas a todos con lo que te falta (+1% de daño por cada 1% de vida perdida). Te curas el 20%.', cooldown_rounds = 3 WHERE code = 'TITAN_FURIOSO_FURIA_DEL_TITAN';
+DELETE FROM skill_effects WHERE skill_id = (SELECT id FROM skills WHERE code = 'TITAN_FURIOSO_FURIA_DEL_TITAN');
+INSERT INTO skill_effects (skill_id, effect_type, stat_code, percent_amount, flat_amount, duration_turns, status_code, description)
+SELECT id, 'MECANICA', 'SED', 15, 20, NULL, NULL, 'Furia del Titán' FROM skills WHERE code = 'TITAN_FURIOSO_FURIA_DEL_TITAN';
+
+-- Filo de Runas (MAGO_ESPADA)
+INSERT INTO skills (code, class_id, name, skill_type, damage_school, element_id, target_type, base_value, scaling_stat, scaling_multiplier, hits, mana_cost, is_passive, learn_method, learn_level, learn_gold_cost, description, cooldown_rounds)
+SELECT 'MAGO_ESPADA_FILO_DE_RUNAS', (SELECT id FROM classes WHERE code = 'MAGO_ESPADA'), 'Filo de Runas', 'ATAQUE', 'HIBRIDO', NULL, 'ENEMY', 160, 'HYBRID', 0.75, 2, 55, FALSE, 'LEVEL', 50, NULL, 'Dos cortes que graban una runa grande: el próximo golpe con elemento la hace estallar (+80%).', 2
+WHERE NOT EXISTS (SELECT 1 FROM skills WHERE code = 'MAGO_ESPADA_FILO_DE_RUNAS');
+UPDATE skills SET class_id = (SELECT id FROM classes WHERE code = 'MAGO_ESPADA'), name = 'Filo de Runas', skill_type = 'ATAQUE', damage_school = 'HIBRIDO', element_id = NULL, target_type = 'ENEMY', base_value = 160, scaling_stat = 'HYBRID', scaling_multiplier = 0.75, hits = 2, mana_cost = 55, is_passive = FALSE, learn_method = 'LEVEL', learn_level = 50, learn_gold_cost = NULL, description = 'Dos cortes que graban una runa grande: el próximo golpe con elemento la hace estallar (+80%).', cooldown_rounds = 2 WHERE code = 'MAGO_ESPADA_FILO_DE_RUNAS';
+DELETE FROM skill_effects WHERE skill_id = (SELECT id FROM skills WHERE code = 'MAGO_ESPADA_FILO_DE_RUNAS');
+INSERT INTO skill_effects (skill_id, effect_type, stat_code, percent_amount, flat_amount, duration_turns, status_code, description)
+SELECT id, 'MECANICA', 'RUNA', 80, NULL, 3, NULL, 'Filo de Runas' FROM skills WHERE code = 'MAGO_ESPADA_FILO_DE_RUNAS';
+
+-- Corte del Tiempo (ARQUEOLOGO_MAGICO)
+INSERT INTO skills (code, class_id, name, skill_type, damage_school, element_id, target_type, base_value, scaling_stat, scaling_multiplier, hits, mana_cost, is_passive, learn_method, learn_level, learn_gold_cost, description, cooldown_rounds)
+SELECT 'ESPADACHIN_ARCANO_CORTE_DEL_TIEMPO', (SELECT id FROM classes WHERE code = 'ARQUEOLOGO_MAGICO'), 'Corte del Tiempo', 'ATAQUE', 'HIBRIDO', NULL, 'ENEMY', 330, 'HYBRID', 1.5, 1, 55, FALSE, 'LEVEL', 50, NULL, 'Un corte que atrasa el tiempo del enemigo (−30% de velocidad) y le arranca una mejora para ti.', 3
+WHERE NOT EXISTS (SELECT 1 FROM skills WHERE code = 'ESPADACHIN_ARCANO_CORTE_DEL_TIEMPO');
+UPDATE skills SET class_id = (SELECT id FROM classes WHERE code = 'ARQUEOLOGO_MAGICO'), name = 'Corte del Tiempo', skill_type = 'ATAQUE', damage_school = 'HIBRIDO', element_id = NULL, target_type = 'ENEMY', base_value = 330, scaling_stat = 'HYBRID', scaling_multiplier = 1.5, hits = 1, mana_cost = 55, is_passive = FALSE, learn_method = 'LEVEL', learn_level = 50, learn_gold_cost = NULL, description = 'Un corte que atrasa el tiempo del enemigo (−30% de velocidad) y le arranca una mejora para ti.', cooldown_rounds = 3 WHERE code = 'ESPADACHIN_ARCANO_CORTE_DEL_TIEMPO';
+DELETE FROM skill_effects WHERE skill_id = (SELECT id FROM skills WHERE code = 'ESPADACHIN_ARCANO_CORTE_DEL_TIEMPO');
+INSERT INTO skill_effects (skill_id, effect_type, stat_code, percent_amount, flat_amount, duration_turns, status_code, description)
+SELECT id, 'MECANICA', 'BAJAR', 30, NULL, 3, 'SPD', 'Corte del Tiempo' FROM skills WHERE code = 'ESPADACHIN_ARCANO_CORTE_DEL_TIEMPO';
+INSERT INTO skill_effects (skill_id, effect_type, stat_code, percent_amount, flat_amount, duration_turns, status_code, description)
+SELECT id, 'MECANICA', 'ROBAR_MEJORA', NULL, 1, NULL, NULL, 'Corte del Tiempo' FROM skills WHERE code = 'ESPADACHIN_ARCANO_CORTE_DEL_TIEMPO';
+
+-- Ejército Caído (REY_NIGROMANTE)
+INSERT INTO skills (code, class_id, name, skill_type, damage_school, element_id, target_type, base_value, scaling_stat, scaling_multiplier, hits, mana_cost, is_passive, learn_method, learn_level, learn_gold_cost, description, cooldown_rounds)
+SELECT 'REY_NIGROMANTE_EJERCITO_CAIDO', (SELECT id FROM classes WHERE code = 'REY_NIGROMANTE'), 'Ejército Caído', 'ESPECIAL', NULL, NULL, 'SELF', NULL, NULL, NULL, 1, 80, FALSE, 'LEVEL', 50, NULL, 'El último enemigo caído se levanta con el 90% de lo que tenía y pelea para ti durante 4 rondas.', 4
+WHERE NOT EXISTS (SELECT 1 FROM skills WHERE code = 'REY_NIGROMANTE_EJERCITO_CAIDO');
+UPDATE skills SET class_id = (SELECT id FROM classes WHERE code = 'REY_NIGROMANTE'), name = 'Ejército Caído', skill_type = 'ESPECIAL', damage_school = NULL, element_id = NULL, target_type = 'SELF', base_value = NULL, scaling_stat = NULL, scaling_multiplier = NULL, hits = 1, mana_cost = 80, is_passive = FALSE, learn_method = 'LEVEL', learn_level = 50, learn_gold_cost = NULL, description = 'El último enemigo caído se levanta con el 90% de lo que tenía y pelea para ti durante 4 rondas.', cooldown_rounds = 4 WHERE code = 'REY_NIGROMANTE_EJERCITO_CAIDO';
+DELETE FROM skill_effects WHERE skill_id = (SELECT id FROM skills WHERE code = 'REY_NIGROMANTE_EJERCITO_CAIDO');
+INSERT INTO skill_effects (skill_id, effect_type, stat_code, percent_amount, flat_amount, duration_turns, status_code, description)
+SELECT id, 'MECANICA', 'ALZAR', 90, NULL, 4, NULL, 'Ejército Caído' FROM skills WHERE code = 'REY_NIGROMANTE_EJERCITO_CAIDO';
+
+-- Filacteria (LICH)
+INSERT INTO skills (code, class_id, name, skill_type, damage_school, element_id, target_type, base_value, scaling_stat, scaling_multiplier, hits, mana_cost, is_passive, learn_method, learn_level, learn_gold_cost, description, cooldown_rounds)
+SELECT 'LICH_FILACTERIA', (SELECT id FROM classes WHERE code = 'LICH'), 'Filacteria', 'BUFF', NULL, NULL, 'SELF', NULL, NULL, NULL, 1, 60, FALSE, 'LEVEL', 50, NULL, 'Guardas tu alma en una filacteria durante 5 rondas: el próximo golpe mortal te deja con 1 de vida. Y +20% de magia.', 6
+WHERE NOT EXISTS (SELECT 1 FROM skills WHERE code = 'LICH_FILACTERIA');
+UPDATE skills SET class_id = (SELECT id FROM classes WHERE code = 'LICH'), name = 'Filacteria', skill_type = 'BUFF', damage_school = NULL, element_id = NULL, target_type = 'SELF', base_value = NULL, scaling_stat = NULL, scaling_multiplier = NULL, hits = 1, mana_cost = 60, is_passive = FALSE, learn_method = 'LEVEL', learn_level = 50, learn_gold_cost = NULL, description = 'Guardas tu alma en una filacteria durante 5 rondas: el próximo golpe mortal te deja con 1 de vida. Y +20% de magia.', cooldown_rounds = 6 WHERE code = 'LICH_FILACTERIA';
+DELETE FROM skill_effects WHERE skill_id = (SELECT id FROM skills WHERE code = 'LICH_FILACTERIA');
+INSERT INTO skill_effects (skill_id, effect_type, stat_code, percent_amount, flat_amount, duration_turns, status_code, description)
+SELECT id, 'MECANICA', 'ALIENTO', NULL, NULL, 5, NULL, 'Filacteria' FROM skills WHERE code = 'LICH_FILACTERIA';
+INSERT INTO skill_effects (skill_id, effect_type, stat_code, percent_amount, flat_amount, duration_turns, status_code, description)
+SELECT id, 'MECANICA', 'SUBIR', 20, NULL, 5, 'MAG', 'Filacteria' FROM skills WHERE code = 'LICH_FILACTERIA';
+
+-- Pacto Infernal (INVOCADOR_DEMONIACO)
+INSERT INTO skills (code, class_id, name, skill_type, damage_school, element_id, target_type, base_value, scaling_stat, scaling_multiplier, hits, mana_cost, is_passive, learn_method, learn_level, learn_gold_cost, description, cooldown_rounds)
+SELECT 'INVOCADOR_DEMONIACO_PACTO_INFERNAL', (SELECT id FROM classes WHERE code = 'INVOCADOR_DEMONIACO'), 'Pacto Infernal', 'ESPECIAL', NULL, NULL, 'ALL_ENEMIES', NULL, NULL, NULL, 1, 40, FALSE, 'LEVEL', 50, NULL, 'Tu invocación se rompe en fuego del abismo: cada enemigo recibe el 100% de la vida que le quedaba y arde (5% por ronda).', 3
+WHERE NOT EXISTS (SELECT 1 FROM skills WHERE code = 'INVOCADOR_DEMONIACO_PACTO_INFERNAL');
+UPDATE skills SET class_id = (SELECT id FROM classes WHERE code = 'INVOCADOR_DEMONIACO'), name = 'Pacto Infernal', skill_type = 'ESPECIAL', damage_school = NULL, element_id = NULL, target_type = 'ALL_ENEMIES', base_value = NULL, scaling_stat = NULL, scaling_multiplier = NULL, hits = 1, mana_cost = 40, is_passive = FALSE, learn_method = 'LEVEL', learn_level = 50, learn_gold_cost = NULL, description = 'Tu invocación se rompe en fuego del abismo: cada enemigo recibe el 100% de la vida que le quedaba y arde (5% por ronda).', cooldown_rounds = 3 WHERE code = 'INVOCADOR_DEMONIACO_PACTO_INFERNAL';
+DELETE FROM skill_effects WHERE skill_id = (SELECT id FROM skills WHERE code = 'INVOCADOR_DEMONIACO_PACTO_INFERNAL');
+INSERT INTO skill_effects (skill_id, effect_type, stat_code, percent_amount, flat_amount, duration_turns, status_code, description)
+SELECT id, 'MECANICA', 'SACRIFICIO', 100, NULL, NULL, NULL, 'Pacto Infernal' FROM skills WHERE code = 'INVOCADOR_DEMONIACO_PACTO_INFERNAL';
+INSERT INTO skill_effects (skill_id, effect_type, stat_code, percent_amount, flat_amount, duration_turns, status_code, description)
+SELECT id, 'MECANICA', 'QUEMAR', 5, NULL, 3, NULL, 'Pacto Infernal' FROM skills WHERE code = 'INVOCADOR_DEMONIACO_PACTO_INFERNAL';
+
+-- Coro Celestial (INVOCADOR_CELESTIAL)
+INSERT INTO skills (code, class_id, name, skill_type, damage_school, element_id, target_type, base_value, scaling_stat, scaling_multiplier, hits, mana_cost, is_passive, learn_method, learn_level, learn_gold_cost, description, cooldown_rounds)
+SELECT 'INVOCADOR_CELESTIAL_CORO', (SELECT id FROM classes WHERE code = 'INVOCADOR_CELESTIAL'), 'Coro Celestial', 'BUFF', NULL, NULL, 'ALL_ALLIES', NULL, NULL, NULL, 1, 70, FALSE, 'LEVEL', 50, NULL, 'Un coro que cura al grupo el 12% de su vida y lo cubre con una barrera del 8%.', 4
+WHERE NOT EXISTS (SELECT 1 FROM skills WHERE code = 'INVOCADOR_CELESTIAL_CORO');
+UPDATE skills SET class_id = (SELECT id FROM classes WHERE code = 'INVOCADOR_CELESTIAL'), name = 'Coro Celestial', skill_type = 'BUFF', damage_school = NULL, element_id = NULL, target_type = 'ALL_ALLIES', base_value = NULL, scaling_stat = NULL, scaling_multiplier = NULL, hits = 1, mana_cost = 70, is_passive = FALSE, learn_method = 'LEVEL', learn_level = 50, learn_gold_cost = NULL, description = 'Un coro que cura al grupo el 12% de su vida y lo cubre con una barrera del 8%.', cooldown_rounds = 4 WHERE code = 'INVOCADOR_CELESTIAL_CORO';
+DELETE FROM skill_effects WHERE skill_id = (SELECT id FROM skills WHERE code = 'INVOCADOR_CELESTIAL_CORO');
+INSERT INTO skill_effects (skill_id, effect_type, stat_code, percent_amount, flat_amount, duration_turns, status_code, description)
+SELECT id, 'MECANICA', 'CURAR_GRUPO', 12, NULL, NULL, NULL, 'Coro Celestial' FROM skills WHERE code = 'INVOCADOR_CELESTIAL_CORO';
+INSERT INTO skill_effects (skill_id, effect_type, stat_code, percent_amount, flat_amount, duration_turns, status_code, description)
+SELECT id, 'MECANICA', 'BARRERA', 8, 30, 3, NULL, 'Coro Celestial' FROM skills WHERE code = 'INVOCADOR_CELESTIAL_CORO';
+
+-- Llamado de la Manada (INVOCADOR_SALVAJE)
+INSERT INTO skills (code, class_id, name, skill_type, damage_school, element_id, target_type, base_value, scaling_stat, scaling_multiplier, hits, mana_cost, is_passive, learn_method, learn_level, learn_gold_cost, description, cooldown_rounds)
+SELECT 'INVOCADOR_SALVAJE_LLAMADO_MANADA', (SELECT id FROM classes WHERE code = 'INVOCADOR_SALVAJE'), 'Llamado de la Manada', 'DEBUFF', NULL, NULL, 'ENEMY', NULL, NULL, NULL, 1, 45, FALSE, 'LEVEL', 50, NULL, 'La manada huele sangre: el enemigo es la presa (+25% de daño recibido) y pierde el 20% de su defensa.', 3
+WHERE NOT EXISTS (SELECT 1 FROM skills WHERE code = 'INVOCADOR_SALVAJE_LLAMADO_MANADA');
+UPDATE skills SET class_id = (SELECT id FROM classes WHERE code = 'INVOCADOR_SALVAJE'), name = 'Llamado de la Manada', skill_type = 'DEBUFF', damage_school = NULL, element_id = NULL, target_type = 'ENEMY', base_value = NULL, scaling_stat = NULL, scaling_multiplier = NULL, hits = 1, mana_cost = 45, is_passive = FALSE, learn_method = 'LEVEL', learn_level = 50, learn_gold_cost = NULL, description = 'La manada huele sangre: el enemigo es la presa (+25% de daño recibido) y pierde el 20% de su defensa.', cooldown_rounds = 3 WHERE code = 'INVOCADOR_SALVAJE_LLAMADO_MANADA';
+DELETE FROM skill_effects WHERE skill_id = (SELECT id FROM skills WHERE code = 'INVOCADOR_SALVAJE_LLAMADO_MANADA');
+INSERT INTO skill_effects (skill_id, effect_type, stat_code, percent_amount, flat_amount, duration_turns, status_code, description)
+SELECT id, 'MECANICA', 'PRESA', 25, NULL, 4, NULL, 'Llamado de la Manada' FROM skills WHERE code = 'INVOCADOR_SALVAJE_LLAMADO_MANADA';
+INSERT INTO skill_effects (skill_id, effect_type, stat_code, percent_amount, flat_amount, duration_turns, status_code, description)
+SELECT id, 'MECANICA', 'BAJAR', 20, NULL, 3, 'DEF', 'Llamado de la Manada' FROM skills WHERE code = 'INVOCADOR_SALVAJE_LLAMADO_MANADA';
+
+-- Lluvia de Estrellas (MAGO_ESTELAR)
+INSERT INTO skills (code, class_id, name, skill_type, damage_school, element_id, target_type, base_value, scaling_stat, scaling_multiplier, hits, mana_cost, is_passive, learn_method, learn_level, learn_gold_cost, description, cooldown_rounds)
+SELECT 'MAGO_ESTELAR_LLUVIA_DE_ESTRELLAS', (SELECT id FROM classes WHERE code = 'MAGO_ESTELAR'), 'Lluvia de Estrellas', 'ATAQUE', 'MAGICO', NULL, 'ALL_ENEMIES', 140, 'MAG', 0.7, 3, 90, FALSE, 'LEVEL', 50, NULL, 'Tres oleadas de estrellas sobre todos, que dejan ciegos a los que miran (20%).', 3
+WHERE NOT EXISTS (SELECT 1 FROM skills WHERE code = 'MAGO_ESTELAR_LLUVIA_DE_ESTRELLAS');
+UPDATE skills SET class_id = (SELECT id FROM classes WHERE code = 'MAGO_ESTELAR'), name = 'Lluvia de Estrellas', skill_type = 'ATAQUE', damage_school = 'MAGICO', element_id = NULL, target_type = 'ALL_ENEMIES', base_value = 140, scaling_stat = 'MAG', scaling_multiplier = 0.7, hits = 3, mana_cost = 90, is_passive = FALSE, learn_method = 'LEVEL', learn_level = 50, learn_gold_cost = NULL, description = 'Tres oleadas de estrellas sobre todos, que dejan ciegos a los que miran (20%).', cooldown_rounds = 3 WHERE code = 'MAGO_ESTELAR_LLUVIA_DE_ESTRELLAS';
+DELETE FROM skill_effects WHERE skill_id = (SELECT id FROM skills WHERE code = 'MAGO_ESTELAR_LLUVIA_DE_ESTRELLAS');
+INSERT INTO skill_effects (skill_id, effect_type, stat_code, percent_amount, flat_amount, duration_turns, status_code, description)
+SELECT id, 'MECANICA', 'CEGAR', 20, NULL, 2, NULL, 'Lluvia de Estrellas' FROM skills WHERE code = 'MAGO_ESTELAR_LLUVIA_DE_ESTRELLAS';
+
+-- Disparo Fantasma (FRANCOTIRADOR_FANTASMAL)
+INSERT INTO skills (code, class_id, name, skill_type, damage_school, element_id, target_type, base_value, scaling_stat, scaling_multiplier, hits, mana_cost, is_passive, learn_method, learn_level, learn_gold_cost, description, cooldown_rounds)
+SELECT 'FRANCOTIRADOR_FANTASMAL_DISPARO', (SELECT id FROM classes WHERE code = 'FRANCOTIRADOR_FANTASMAL'), 'Disparo Fantasma', 'ATAQUE', 'FISICO', NULL, 'ENEMY', 360, 'ATK', 1.6, 1, 55, FALSE, 'LEVEL', 50, NULL, 'Una bala que no toca nada hasta llegar: ignora toda la defensa y rompe las barreras.', 3
+WHERE NOT EXISTS (SELECT 1 FROM skills WHERE code = 'FRANCOTIRADOR_FANTASMAL_DISPARO');
+UPDATE skills SET class_id = (SELECT id FROM classes WHERE code = 'FRANCOTIRADOR_FANTASMAL'), name = 'Disparo Fantasma', skill_type = 'ATAQUE', damage_school = 'FISICO', element_id = NULL, target_type = 'ENEMY', base_value = 360, scaling_stat = 'ATK', scaling_multiplier = 1.6, hits = 1, mana_cost = 55, is_passive = FALSE, learn_method = 'LEVEL', learn_level = 50, learn_gold_cost = NULL, description = 'Una bala que no toca nada hasta llegar: ignora toda la defensa y rompe las barreras.', cooldown_rounds = 3 WHERE code = 'FRANCOTIRADOR_FANTASMAL_DISPARO';
+DELETE FROM skill_effects WHERE skill_id = (SELECT id FROM skills WHERE code = 'FRANCOTIRADOR_FANTASMAL_DISPARO');
+INSERT INTO skill_effects (skill_id, effect_type, stat_code, percent_amount, flat_amount, duration_turns, status_code, description)
+SELECT id, 'MECANICA', 'PERFORAR', 100, NULL, NULL, NULL, 'Disparo Fantasma' FROM skills WHERE code = 'FRANCOTIRADOR_FANTASMAL_DISPARO';
+
+-- Barril de Pólvora (TIRADOR_EXPLOSIVO)
+INSERT INTO skills (code, class_id, name, skill_type, damage_school, element_id, target_type, base_value, scaling_stat, scaling_multiplier, hits, mana_cost, is_passive, learn_method, learn_level, learn_gold_cost, description, cooldown_rounds)
+SELECT 'TIRADOR_EXPLOSIVO_BARRIL', (SELECT id FROM classes WHERE code = 'TIRADOR_EXPLOSIVO'), 'Barril de Pólvora', 'ATAQUE', 'FISICO', 1, 'ALL_ENEMIES', 250, 'ATK', 1.2, 1, 65, FALSE, 'LEVEL', 50, NULL, 'Una flecha a un barril: estalla sobre todos (+60% contra los que ya ardían) y deja el fuego (5% por ronda).', 3
+WHERE NOT EXISTS (SELECT 1 FROM skills WHERE code = 'TIRADOR_EXPLOSIVO_BARRIL');
+UPDATE skills SET class_id = (SELECT id FROM classes WHERE code = 'TIRADOR_EXPLOSIVO'), name = 'Barril de Pólvora', skill_type = 'ATAQUE', damage_school = 'FISICO', element_id = 1, target_type = 'ALL_ENEMIES', base_value = 250, scaling_stat = 'ATK', scaling_multiplier = 1.2, hits = 1, mana_cost = 65, is_passive = FALSE, learn_method = 'LEVEL', learn_level = 50, learn_gold_cost = NULL, description = 'Una flecha a un barril: estalla sobre todos (+60% contra los que ya ardían) y deja el fuego (5% por ronda).', cooldown_rounds = 3 WHERE code = 'TIRADOR_EXPLOSIVO_BARRIL';
+DELETE FROM skill_effects WHERE skill_id = (SELECT id FROM skills WHERE code = 'TIRADOR_EXPLOSIVO_BARRIL');
+INSERT INTO skill_effects (skill_id, effect_type, stat_code, percent_amount, flat_amount, duration_turns, status_code, description)
+SELECT id, 'MECANICA', 'DETONAR', 60, NULL, NULL, 'BURN', 'Barril de Pólvora' FROM skills WHERE code = 'TIRADOR_EXPLOSIVO_BARRIL';
+INSERT INTO skill_effects (skill_id, effect_type, stat_code, percent_amount, flat_amount, duration_turns, status_code, description)
+SELECT id, 'MECANICA', 'QUEMAR', 5, NULL, 3, NULL, 'Barril de Pólvora' FROM skills WHERE code = 'TIRADOR_EXPLOSIVO_BARRIL';
+
+-- Flecha de la Plaga (TIRADOR_VENENO)
+INSERT INTO skills (code, class_id, name, skill_type, damage_school, element_id, target_type, base_value, scaling_stat, scaling_multiplier, hits, mana_cost, is_passive, learn_method, learn_level, learn_gold_cost, description, cooldown_rounds)
+SELECT 'TIRADOR_VENENO_FLECHA_PLAGA', (SELECT id FROM classes WHERE code = 'TIRADOR_VENENO'), 'Flecha de la Plaga', 'ATAQUE', 'FISICO', NULL, 'ENEMY', 280, 'ATK', 1.3, 1, 50, FALSE, 'LEVEL', 50, NULL, 'Una flecha que suma una capa de plaga (3% por capa, hasta 5). Cuando el enemigo muere, salta a otro.', 2
+WHERE NOT EXISTS (SELECT 1 FROM skills WHERE code = 'TIRADOR_VENENO_FLECHA_PLAGA');
+UPDATE skills SET class_id = (SELECT id FROM classes WHERE code = 'TIRADOR_VENENO'), name = 'Flecha de la Plaga', skill_type = 'ATAQUE', damage_school = 'FISICO', element_id = NULL, target_type = 'ENEMY', base_value = 280, scaling_stat = 'ATK', scaling_multiplier = 1.3, hits = 1, mana_cost = 50, is_passive = FALSE, learn_method = 'LEVEL', learn_level = 50, learn_gold_cost = NULL, description = 'Una flecha que suma una capa de plaga (3% por capa, hasta 5). Cuando el enemigo muere, salta a otro.', cooldown_rounds = 2 WHERE code = 'TIRADOR_VENENO_FLECHA_PLAGA';
+DELETE FROM skill_effects WHERE skill_id = (SELECT id FROM skills WHERE code = 'TIRADOR_VENENO_FLECHA_PLAGA');
+INSERT INTO skill_effects (skill_id, effect_type, stat_code, percent_amount, flat_amount, duration_turns, status_code, description)
+SELECT id, 'MECANICA', 'PLAGA', 3, 5, 4, NULL, 'Flecha de la Plaga' FROM skills WHERE code = 'TIRADOR_VENENO_FLECHA_PLAGA';
+
+-- Flecha del Alba (ARQUERO_CELESTIAL)
+INSERT INTO skills (code, class_id, name, skill_type, damage_school, element_id, target_type, base_value, scaling_stat, scaling_multiplier, hits, mana_cost, is_passive, learn_method, learn_level, learn_gold_cost, description, cooldown_rounds)
+SELECT 'ARQUERO_CELESTIAL_FLECHA_DEL_ALBA', (SELECT id FROM classes WHERE code = 'ARQUERO_CELESTIAL'), 'Flecha del Alba', 'ATAQUE', 'FISICO', 7, 'ENEMY', 330, 'ATK', 1.5, 1, 55, FALSE, 'LEVEL', 50, NULL, 'Una flecha de luz que ciega al enemigo (20%) y cura al grupo el 5% de su vida.', 2
+WHERE NOT EXISTS (SELECT 1 FROM skills WHERE code = 'ARQUERO_CELESTIAL_FLECHA_DEL_ALBA');
+UPDATE skills SET class_id = (SELECT id FROM classes WHERE code = 'ARQUERO_CELESTIAL'), name = 'Flecha del Alba', skill_type = 'ATAQUE', damage_school = 'FISICO', element_id = 7, target_type = 'ENEMY', base_value = 330, scaling_stat = 'ATK', scaling_multiplier = 1.5, hits = 1, mana_cost = 55, is_passive = FALSE, learn_method = 'LEVEL', learn_level = 50, learn_gold_cost = NULL, description = 'Una flecha de luz que ciega al enemigo (20%) y cura al grupo el 5% de su vida.', cooldown_rounds = 2 WHERE code = 'ARQUERO_CELESTIAL_FLECHA_DEL_ALBA';
+DELETE FROM skill_effects WHERE skill_id = (SELECT id FROM skills WHERE code = 'ARQUERO_CELESTIAL_FLECHA_DEL_ALBA');
+INSERT INTO skill_effects (skill_id, effect_type, stat_code, percent_amount, flat_amount, duration_turns, status_code, description)
+SELECT id, 'MECANICA', 'CEGAR', 20, NULL, 2, NULL, 'Flecha del Alba' FROM skills WHERE code = 'ARQUERO_CELESTIAL_FLECHA_DEL_ALBA';
+INSERT INTO skill_effects (skill_id, effect_type, stat_code, percent_amount, flat_amount, duration_turns, status_code, description)
+SELECT id, 'MECANICA', 'CURAR_GRUPO', 5, NULL, NULL, NULL, 'Flecha del Alba' FROM skills WHERE code = 'ARQUERO_CELESTIAL_FLECHA_DEL_ALBA';
+
+-- Virote Perforante (BALLESTERO)
+INSERT INTO skills (code, class_id, name, skill_type, damage_school, element_id, target_type, base_value, scaling_stat, scaling_multiplier, hits, mana_cost, is_passive, learn_method, learn_level, learn_gold_cost, description, cooldown_rounds)
+SELECT 'BALLESTERO_VIROTE_PERFORANTE', (SELECT id FROM classes WHERE code = 'BALLESTERO'), 'Virote Perforante', 'ATAQUE', 'FISICO', NULL, 'ALL_ENEMIES', 260, 'ATK', 1.3, 1, 60, FALSE, 'LEVEL', 50, NULL, 'Un virote pesado que atraviesa la fila: ignora el 40% de la defensa y la rompe (−15% durante 3 rondas).', 3
+WHERE NOT EXISTS (SELECT 1 FROM skills WHERE code = 'BALLESTERO_VIROTE_PERFORANTE');
+UPDATE skills SET class_id = (SELECT id FROM classes WHERE code = 'BALLESTERO'), name = 'Virote Perforante', skill_type = 'ATAQUE', damage_school = 'FISICO', element_id = NULL, target_type = 'ALL_ENEMIES', base_value = 260, scaling_stat = 'ATK', scaling_multiplier = 1.3, hits = 1, mana_cost = 60, is_passive = FALSE, learn_method = 'LEVEL', learn_level = 50, learn_gold_cost = NULL, description = 'Un virote pesado que atraviesa la fila: ignora el 40% de la defensa y la rompe (−15% durante 3 rondas).', cooldown_rounds = 3 WHERE code = 'BALLESTERO_VIROTE_PERFORANTE';
+DELETE FROM skill_effects WHERE skill_id = (SELECT id FROM skills WHERE code = 'BALLESTERO_VIROTE_PERFORANTE');
+INSERT INTO skill_effects (skill_id, effect_type, stat_code, percent_amount, flat_amount, duration_turns, status_code, description)
+SELECT id, 'MECANICA', 'PERFORAR', 40, NULL, NULL, NULL, 'Virote Perforante' FROM skills WHERE code = 'BALLESTERO_VIROTE_PERFORANTE';
+INSERT INTO skill_effects (skill_id, effect_type, stat_code, percent_amount, flat_amount, duration_turns, status_code, description)
+SELECT id, 'MECANICA', 'BAJAR', 15, NULL, 3, 'DEF', 'Virote Perforante' FROM skills WHERE code = 'BALLESTERO_VIROTE_PERFORANTE';
+
+-- Flecha Tormenta (ARQUERO_DEL_RAYO)
+INSERT INTO skills (code, class_id, name, skill_type, damage_school, element_id, target_type, base_value, scaling_stat, scaling_multiplier, hits, mana_cost, is_passive, learn_method, learn_level, learn_gold_cost, description, cooldown_rounds)
+SELECT 'ARQUERO_DEL_RAYO_FLECHA_TORMENTA', (SELECT id FROM classes WHERE code = 'ARQUERO_DEL_RAYO'), 'Flecha Tormenta', 'ATAQUE', 'FISICO', 3, 'ENEMY', 320, 'ATK', 1.4, 1, 55, FALSE, 'LEVEL', 50, NULL, 'Una flecha que se parte en rayos: salta a dos enemigos más con el 50% (el doble sobre los mojados).', 2
+WHERE NOT EXISTS (SELECT 1 FROM skills WHERE code = 'ARQUERO_DEL_RAYO_FLECHA_TORMENTA');
+UPDATE skills SET class_id = (SELECT id FROM classes WHERE code = 'ARQUERO_DEL_RAYO'), name = 'Flecha Tormenta', skill_type = 'ATAQUE', damage_school = 'FISICO', element_id = 3, target_type = 'ENEMY', base_value = 320, scaling_stat = 'ATK', scaling_multiplier = 1.4, hits = 1, mana_cost = 55, is_passive = FALSE, learn_method = 'LEVEL', learn_level = 50, learn_gold_cost = NULL, description = 'Una flecha que se parte en rayos: salta a dos enemigos más con el 50% (el doble sobre los mojados).', cooldown_rounds = 2 WHERE code = 'ARQUERO_DEL_RAYO_FLECHA_TORMENTA';
+DELETE FROM skill_effects WHERE skill_id = (SELECT id FROM skills WHERE code = 'ARQUERO_DEL_RAYO_FLECHA_TORMENTA');
+INSERT INTO skill_effects (skill_id, effect_type, stat_code, percent_amount, flat_amount, duration_turns, status_code, description)
+SELECT id, 'MECANICA', 'CADENA', 50, 2, NULL, NULL, 'Flecha Tormenta' FROM skills WHERE code = 'ARQUERO_DEL_RAYO_FLECHA_TORMENTA';
+
+-- Golpe de Gracia (MAESTRO_CAZADOR)
+INSERT INTO skills (code, class_id, name, skill_type, damage_school, element_id, target_type, base_value, scaling_stat, scaling_multiplier, hits, mana_cost, is_passive, learn_method, learn_level, learn_gold_cost, description, cooldown_rounds)
+SELECT 'MAESTRO_CAZADOR_GOLPE_DE_GRACIA', (SELECT id FROM classes WHERE code = 'MAESTRO_CAZADOR'), 'Golpe de Gracia', 'ATAQUE', 'FISICO', NULL, 'ENEMY', 330, 'ATK', 1.5, 1, 55, FALSE, 'LEVEL', 50, NULL, 'Contra una presa con menos del 30% de vida, hace dos veces y media el daño. Si la mata, no gastas el turno.', 2
+WHERE NOT EXISTS (SELECT 1 FROM skills WHERE code = 'MAESTRO_CAZADOR_GOLPE_DE_GRACIA');
+UPDATE skills SET class_id = (SELECT id FROM classes WHERE code = 'MAESTRO_CAZADOR'), name = 'Golpe de Gracia', skill_type = 'ATAQUE', damage_school = 'FISICO', element_id = NULL, target_type = 'ENEMY', base_value = 330, scaling_stat = 'ATK', scaling_multiplier = 1.5, hits = 1, mana_cost = 55, is_passive = FALSE, learn_method = 'LEVEL', learn_level = 50, learn_gold_cost = NULL, description = 'Contra una presa con menos del 30% de vida, hace dos veces y media el daño. Si la mata, no gastas el turno.', cooldown_rounds = 2 WHERE code = 'MAESTRO_CAZADOR_GOLPE_DE_GRACIA';
+DELETE FROM skill_effects WHERE skill_id = (SELECT id FROM skills WHERE code = 'MAESTRO_CAZADOR_GOLPE_DE_GRACIA');
+INSERT INTO skill_effects (skill_id, effect_type, stat_code, percent_amount, flat_amount, duration_turns, status_code, description)
+SELECT id, 'MECANICA', 'EJECUTAR', 30, 2.5, NULL, NULL, 'Golpe de Gracia' FROM skills WHERE code = 'MAESTRO_CAZADOR_GOLPE_DE_GRACIA';
+
+-- Canción del Bosque (ELFO_ANTIGUO)
+INSERT INTO skills (code, class_id, name, skill_type, damage_school, element_id, target_type, base_value, scaling_stat, scaling_multiplier, hits, mana_cost, is_passive, learn_method, learn_level, learn_gold_cost, description, cooldown_rounds)
+SELECT 'ELFO_ANTIGUO_CANCION_DEL_BOSQUE', (SELECT id FROM classes WHERE code = 'ELFO_ANTIGUO'), 'Canción del Bosque', 'BUFF', NULL, NULL, 'ALL_ALLIES', NULL, NULL, NULL, 1, 60, FALSE, 'LEVEL', 50, NULL, 'Una canción antigua: una semilla en cada aliado (cura el 6% con cada golpe recibido) y +15% de velocidad.', 4
+WHERE NOT EXISTS (SELECT 1 FROM skills WHERE code = 'ELFO_ANTIGUO_CANCION_DEL_BOSQUE');
+UPDATE skills SET class_id = (SELECT id FROM classes WHERE code = 'ELFO_ANTIGUO'), name = 'Canción del Bosque', skill_type = 'BUFF', damage_school = NULL, element_id = NULL, target_type = 'ALL_ALLIES', base_value = NULL, scaling_stat = NULL, scaling_multiplier = NULL, hits = 1, mana_cost = 60, is_passive = FALSE, learn_method = 'LEVEL', learn_level = 50, learn_gold_cost = NULL, description = 'Una canción antigua: una semilla en cada aliado (cura el 6% con cada golpe recibido) y +15% de velocidad.', cooldown_rounds = 4 WHERE code = 'ELFO_ANTIGUO_CANCION_DEL_BOSQUE';
+DELETE FROM skill_effects WHERE skill_id = (SELECT id FROM skills WHERE code = 'ELFO_ANTIGUO_CANCION_DEL_BOSQUE');
+INSERT INTO skill_effects (skill_id, effect_type, stat_code, percent_amount, flat_amount, duration_turns, status_code, description)
+SELECT id, 'MECANICA', 'SEMILLA', 6, NULL, 3, NULL, 'Canción del Bosque' FROM skills WHERE code = 'ELFO_ANTIGUO_CANCION_DEL_BOSQUE';
+INSERT INTO skill_effects (skill_id, effect_type, stat_code, percent_amount, flat_amount, duration_turns, status_code, description)
+SELECT id, 'MECANICA', 'SUBIR', 15, NULL, 3, 'SPD', 'Canción del Bosque' FROM skills WHERE code = 'ELFO_ANTIGUO_CANCION_DEL_BOSQUE';
+
+-- Enredaderas (RANGER_PRIMORDIAL)
+INSERT INTO skills (code, class_id, name, skill_type, damage_school, element_id, target_type, base_value, scaling_stat, scaling_multiplier, hits, mana_cost, is_passive, learn_method, learn_level, learn_gold_cost, description, cooldown_rounds)
+SELECT 'RANGER_PRIMORDIAL_ENREDADERAS', (SELECT id FROM classes WHERE code = 'RANGER_PRIMORDIAL'), 'Enredaderas', 'DEBUFF', NULL, NULL, 'ALL_ENEMIES', NULL, NULL, NULL, 1, 60, FALSE, 'LEVEL', 50, NULL, 'Enredaderas con espinas en todo el campo: 40% de atrapar a cada enemigo y todos sangran savia (3% por ronda).', 4
+WHERE NOT EXISTS (SELECT 1 FROM skills WHERE code = 'RANGER_PRIMORDIAL_ENREDADERAS');
+UPDATE skills SET class_id = (SELECT id FROM classes WHERE code = 'RANGER_PRIMORDIAL'), name = 'Enredaderas', skill_type = 'DEBUFF', damage_school = NULL, element_id = NULL, target_type = 'ALL_ENEMIES', base_value = NULL, scaling_stat = NULL, scaling_multiplier = NULL, hits = 1, mana_cost = 60, is_passive = FALSE, learn_method = 'LEVEL', learn_level = 50, learn_gold_cost = NULL, description = 'Enredaderas con espinas en todo el campo: 40% de atrapar a cada enemigo y todos sangran savia (3% por ronda).', cooldown_rounds = 4 WHERE code = 'RANGER_PRIMORDIAL_ENREDADERAS';
+DELETE FROM skill_effects WHERE skill_id = (SELECT id FROM skills WHERE code = 'RANGER_PRIMORDIAL_ENREDADERAS');
+INSERT INTO skill_effects (skill_id, effect_type, stat_code, percent_amount, flat_amount, duration_turns, status_code, description)
+SELECT id, 'MECANICA', 'ENRAIZAR', NULL, 40, 2, NULL, 'Enredaderas' FROM skills WHERE code = 'RANGER_PRIMORDIAL_ENREDADERAS';
+INSERT INTO skill_effects (skill_id, effect_type, stat_code, percent_amount, flat_amount, duration_turns, status_code, description)
+SELECT id, 'MECANICA', 'DRENAR', 3, NULL, 3, NULL, 'Enredaderas' FROM skills WHERE code = 'RANGER_PRIMORDIAL_ENREDADERAS';
+
+-- Guardia del Bosque (GUARDIAN_SILVESTRE)
+INSERT INTO skills (code, class_id, name, skill_type, damage_school, element_id, target_type, base_value, scaling_stat, scaling_multiplier, hits, mana_cost, is_passive, learn_method, learn_level, learn_gold_cost, description, cooldown_rounds)
+SELECT 'GUARDIAN_SILVESTRE_GUARDIA', (SELECT id FROM classes WHERE code = 'GUARDIAN_SILVESTRE'), 'Guardia del Bosque', 'BUFF', NULL, NULL, 'ALLY', NULL, NULL, NULL, 1, 50, FALSE, 'LEVEL', 50, NULL, 'Juras proteger a un aliado (recibes la mitad de su daño) y le plantas una semilla que lo cura con cada golpe.', 3
+WHERE NOT EXISTS (SELECT 1 FROM skills WHERE code = 'GUARDIAN_SILVESTRE_GUARDIA');
+UPDATE skills SET class_id = (SELECT id FROM classes WHERE code = 'GUARDIAN_SILVESTRE'), name = 'Guardia del Bosque', skill_type = 'BUFF', damage_school = NULL, element_id = NULL, target_type = 'ALLY', base_value = NULL, scaling_stat = NULL, scaling_multiplier = NULL, hits = 1, mana_cost = 50, is_passive = FALSE, learn_method = 'LEVEL', learn_level = 50, learn_gold_cost = NULL, description = 'Juras proteger a un aliado (recibes la mitad de su daño) y le plantas una semilla que lo cura con cada golpe.', cooldown_rounds = 3 WHERE code = 'GUARDIAN_SILVESTRE_GUARDIA';
+DELETE FROM skill_effects WHERE skill_id = (SELECT id FROM skills WHERE code = 'GUARDIAN_SILVESTRE_GUARDIA');
+INSERT INTO skill_effects (skill_id, effect_type, stat_code, percent_amount, flat_amount, duration_turns, status_code, description)
+SELECT id, 'MECANICA', 'VINCULO', 50, NULL, 3, NULL, 'Guardia del Bosque' FROM skills WHERE code = 'GUARDIAN_SILVESTRE_GUARDIA';
+INSERT INTO skill_effects (skill_id, effect_type, stat_code, percent_amount, flat_amount, duration_turns, status_code, description)
+SELECT id, 'MECANICA', 'SEMILLA', 5, NULL, 3, NULL, 'Guardia del Bosque' FROM skills WHERE code = 'GUARDIAN_SILVESTRE_GUARDIA';
+
+-- Flecha del Vacío (MAESTRO_ASESINO_OSCURO)
+INSERT INTO skills (code, class_id, name, skill_type, damage_school, element_id, target_type, base_value, scaling_stat, scaling_multiplier, hits, mana_cost, is_passive, learn_method, learn_level, learn_gold_cost, description, cooldown_rounds)
+SELECT 'ASESINO_UMBRIO_FLECHA_DEL_VACIO', (SELECT id FROM classes WHERE code = 'MAESTRO_ASESINO_OSCURO'), 'Flecha del Vacío', 'ATAQUE', 'FISICO', 8, 'ENEMY', 330, 'ATK', 1.5, 1, 55, FALSE, 'LEVEL', 50, NULL, 'Una flecha que se traga la voz y la magia: silencia 2 rondas y roba el 20% de la magia.', 3
+WHERE NOT EXISTS (SELECT 1 FROM skills WHERE code = 'ASESINO_UMBRIO_FLECHA_DEL_VACIO');
+UPDATE skills SET class_id = (SELECT id FROM classes WHERE code = 'MAESTRO_ASESINO_OSCURO'), name = 'Flecha del Vacío', skill_type = 'ATAQUE', damage_school = 'FISICO', element_id = 8, target_type = 'ENEMY', base_value = 330, scaling_stat = 'ATK', scaling_multiplier = 1.5, hits = 1, mana_cost = 55, is_passive = FALSE, learn_method = 'LEVEL', learn_level = 50, learn_gold_cost = NULL, description = 'Una flecha que se traga la voz y la magia: silencia 2 rondas y roba el 20% de la magia.', cooldown_rounds = 3 WHERE code = 'ASESINO_UMBRIO_FLECHA_DEL_VACIO';
+DELETE FROM skill_effects WHERE skill_id = (SELECT id FROM skills WHERE code = 'ASESINO_UMBRIO_FLECHA_DEL_VACIO');
+INSERT INTO skill_effects (skill_id, effect_type, stat_code, percent_amount, flat_amount, duration_turns, status_code, description)
+SELECT id, 'MECANICA', 'SILENCIAR', NULL, NULL, 2, NULL, 'Flecha del Vacío' FROM skills WHERE code = 'ASESINO_UMBRIO_FLECHA_DEL_VACIO';
+INSERT INTO skill_effects (skill_id, effect_type, stat_code, percent_amount, flat_amount, duration_turns, status_code, description)
+SELECT id, 'MECANICA', 'HURTO', 20, NULL, 3, 'MAG', 'Flecha del Vacío' FROM skills WHERE code = 'ASESINO_UMBRIO_FLECHA_DEL_VACIO';
+
+-- Sentencia de Muerte (MAESTRO_ASESINO)
+INSERT INTO skills (code, class_id, name, skill_type, damage_school, element_id, target_type, base_value, scaling_stat, scaling_multiplier, hits, mana_cost, is_passive, learn_method, learn_level, learn_gold_cost, description, cooldown_rounds)
+SELECT 'MAESTRO_ASESINO_SENTENCIA_DE_MUERTE', (SELECT id FROM classes WHERE code = 'MAESTRO_ASESINO'), 'Sentencia de Muerte', 'ATAQUE', 'FISICO', NULL, 'ENEMY', 330, 'ATK', 1.5, 1, 50, FALSE, 'LEVEL', 50, NULL, 'Contra un enemigo con menos del 35% de vida, triple daño. Si lo mata, no gastas el turno.', 2
+WHERE NOT EXISTS (SELECT 1 FROM skills WHERE code = 'MAESTRO_ASESINO_SENTENCIA_DE_MUERTE');
+UPDATE skills SET class_id = (SELECT id FROM classes WHERE code = 'MAESTRO_ASESINO'), name = 'Sentencia de Muerte', skill_type = 'ATAQUE', damage_school = 'FISICO', element_id = NULL, target_type = 'ENEMY', base_value = 330, scaling_stat = 'ATK', scaling_multiplier = 1.5, hits = 1, mana_cost = 50, is_passive = FALSE, learn_method = 'LEVEL', learn_level = 50, learn_gold_cost = NULL, description = 'Contra un enemigo con menos del 35% de vida, triple daño. Si lo mata, no gastas el turno.', cooldown_rounds = 2 WHERE code = 'MAESTRO_ASESINO_SENTENCIA_DE_MUERTE';
+DELETE FROM skill_effects WHERE skill_id = (SELECT id FROM skills WHERE code = 'MAESTRO_ASESINO_SENTENCIA_DE_MUERTE');
+INSERT INTO skill_effects (skill_id, effect_type, stat_code, percent_amount, flat_amount, duration_turns, status_code, description)
+SELECT id, 'MECANICA', 'EJECUTAR', 35, 3, NULL, NULL, 'Sentencia de Muerte' FROM skills WHERE code = 'MAESTRO_ASESINO_SENTENCIA_DE_MUERTE';
+
+-- Detonar Toxinas (MAESTRO_ENVENENADOR)
+INSERT INTO skills (code, class_id, name, skill_type, damage_school, element_id, target_type, base_value, scaling_stat, scaling_multiplier, hits, mana_cost, is_passive, learn_method, learn_level, learn_gold_cost, description, cooldown_rounds)
+SELECT 'MAESTRO_ENVENENADOR_DETONAR_TOXINAS', (SELECT id FROM classes WHERE code = 'MAESTRO_ENVENENADOR'), 'Detonar Toxinas', 'ATAQUE', 'FISICO', NULL, 'ALL_ENEMIES', 200, 'ATK', 0.9, 1, 60, FALSE, 'LEVEL', 50, NULL, 'Haces estallar todos los venenos: +150% de daño contra cada enemigo envenenado o con plaga (y se lleva el veneno).', 3
+WHERE NOT EXISTS (SELECT 1 FROM skills WHERE code = 'MAESTRO_ENVENENADOR_DETONAR_TOXINAS');
+UPDATE skills SET class_id = (SELECT id FROM classes WHERE code = 'MAESTRO_ENVENENADOR'), name = 'Detonar Toxinas', skill_type = 'ATAQUE', damage_school = 'FISICO', element_id = NULL, target_type = 'ALL_ENEMIES', base_value = 200, scaling_stat = 'ATK', scaling_multiplier = 0.9, hits = 1, mana_cost = 60, is_passive = FALSE, learn_method = 'LEVEL', learn_level = 50, learn_gold_cost = NULL, description = 'Haces estallar todos los venenos: +150% de daño contra cada enemigo envenenado o con plaga (y se lleva el veneno).', cooldown_rounds = 3 WHERE code = 'MAESTRO_ENVENENADOR_DETONAR_TOXINAS';
+DELETE FROM skill_effects WHERE skill_id = (SELECT id FROM skills WHERE code = 'MAESTRO_ENVENENADOR_DETONAR_TOXINAS');
+INSERT INTO skill_effects (skill_id, effect_type, stat_code, percent_amount, flat_amount, duration_turns, status_code, description)
+SELECT id, 'MECANICA', 'DETONAR', 150, NULL, NULL, 'POISON,PLAGA', 'Detonar Toxinas' FROM skills WHERE code = 'MAESTRO_ENVENENADOR_DETONAR_TOXINAS';
+
+-- Danza de Clones (NINJA_MAESTRO)
+INSERT INTO skills (code, class_id, name, skill_type, damage_school, element_id, target_type, base_value, scaling_stat, scaling_multiplier, hits, mana_cost, is_passive, learn_method, learn_level, learn_gold_cost, description, cooldown_rounds)
+SELECT 'NINJA_MAESTRO_DANZA_DE_CLONES', (SELECT id FROM classes WHERE code = 'NINJA_MAESTRO'), 'Danza de Clones', 'ESPECIAL', NULL, NULL, 'SELF', NULL, NULL, NULL, 1, 50, FALSE, 'LEVEL', 50, NULL, 'Dos clones de sombra te rodean durante 3 rondas: cada uno se lleva un golpe entero. Y +20% de velocidad.', 4
+WHERE NOT EXISTS (SELECT 1 FROM skills WHERE code = 'NINJA_MAESTRO_DANZA_DE_CLONES');
+UPDATE skills SET class_id = (SELECT id FROM classes WHERE code = 'NINJA_MAESTRO'), name = 'Danza de Clones', skill_type = 'ESPECIAL', damage_school = NULL, element_id = NULL, target_type = 'SELF', base_value = NULL, scaling_stat = NULL, scaling_multiplier = NULL, hits = 1, mana_cost = 50, is_passive = FALSE, learn_method = 'LEVEL', learn_level = 50, learn_gold_cost = NULL, description = 'Dos clones de sombra te rodean durante 3 rondas: cada uno se lleva un golpe entero. Y +20% de velocidad.', cooldown_rounds = 4 WHERE code = 'NINJA_MAESTRO_DANZA_DE_CLONES';
+DELETE FROM skill_effects WHERE skill_id = (SELECT id FROM skills WHERE code = 'NINJA_MAESTRO_DANZA_DE_CLONES');
+INSERT INTO skill_effects (skill_id, effect_type, stat_code, percent_amount, flat_amount, duration_turns, status_code, description)
+SELECT id, 'MECANICA', 'SENUELO', NULL, 2, 3, NULL, 'Danza de Clones' FROM skills WHERE code = 'NINJA_MAESTRO_DANZA_DE_CLONES';
+INSERT INTO skill_effects (skill_id, effect_type, stat_code, percent_amount, flat_amount, duration_turns, status_code, description)
+SELECT id, 'MECANICA', 'SUBIR', 20, NULL, 3, 'SPD', 'Danza de Clones' FROM skills WHERE code = 'NINJA_MAESTRO_DANZA_DE_CLONES';
+
+-- Sello de Sombra (NINJA_SOMBRA)
+INSERT INTO skills (code, class_id, name, skill_type, damage_school, element_id, target_type, base_value, scaling_stat, scaling_multiplier, hits, mana_cost, is_passive, learn_method, learn_level, learn_gold_cost, description, cooldown_rounds)
+SELECT 'NINJA_SOMBRA_SELLO_DE_SOMBRA', (SELECT id FROM classes WHERE code = 'NINJA_SOMBRA'), 'Sello de Sombra', 'DEBUFF', NULL, NULL, 'ENEMY', NULL, NULL, NULL, 1, 50, FALSE, 'LEVEL', 50, NULL, 'Un sello en los ojos y en la boca: silenciado 2 rondas y ciego (30%).', 4
+WHERE NOT EXISTS (SELECT 1 FROM skills WHERE code = 'NINJA_SOMBRA_SELLO_DE_SOMBRA');
+UPDATE skills SET class_id = (SELECT id FROM classes WHERE code = 'NINJA_SOMBRA'), name = 'Sello de Sombra', skill_type = 'DEBUFF', damage_school = NULL, element_id = NULL, target_type = 'ENEMY', base_value = NULL, scaling_stat = NULL, scaling_multiplier = NULL, hits = 1, mana_cost = 50, is_passive = FALSE, learn_method = 'LEVEL', learn_level = 50, learn_gold_cost = NULL, description = 'Un sello en los ojos y en la boca: silenciado 2 rondas y ciego (30%).', cooldown_rounds = 4 WHERE code = 'NINJA_SOMBRA_SELLO_DE_SOMBRA';
+DELETE FROM skill_effects WHERE skill_id = (SELECT id FROM skills WHERE code = 'NINJA_SOMBRA_SELLO_DE_SOMBRA');
+INSERT INTO skill_effects (skill_id, effect_type, stat_code, percent_amount, flat_amount, duration_turns, status_code, description)
+SELECT id, 'MECANICA', 'SILENCIAR', NULL, NULL, 2, NULL, 'Sello de Sombra' FROM skills WHERE code = 'NINJA_SOMBRA_SELLO_DE_SOMBRA';
+INSERT INTO skill_effects (skill_id, effect_type, stat_code, percent_amount, flat_amount, duration_turns, status_code, description)
+SELECT id, 'MECANICA', 'CEGAR', 30, NULL, 2, NULL, 'Sello de Sombra' FROM skills WHERE code = 'NINJA_SOMBRA_SELLO_DE_SOMBRA';
+
+-- Gran Golpe (LADRON_LEGENDARIO)
+INSERT INTO skills (code, class_id, name, skill_type, damage_school, element_id, target_type, base_value, scaling_stat, scaling_multiplier, hits, mana_cost, is_passive, learn_method, learn_level, learn_gold_cost, description, cooldown_rounds)
+SELECT 'LADRON_LEGENDARIO_GRAN_GOLPE', (SELECT id FROM classes WHERE code = 'LADRON_LEGENDARIO'), 'Gran Golpe', 'ATAQUE', 'FISICO', NULL, 'ENEMY', 300, 'ATK', 1.3, 1, 50, FALSE, 'LEVEL', 50, NULL, 'El robo del siglo: le quitas dos mejoras al enemigo y te las quedas, y además el 15% de su velocidad.', 3
+WHERE NOT EXISTS (SELECT 1 FROM skills WHERE code = 'LADRON_LEGENDARIO_GRAN_GOLPE');
+UPDATE skills SET class_id = (SELECT id FROM classes WHERE code = 'LADRON_LEGENDARIO'), name = 'Gran Golpe', skill_type = 'ATAQUE', damage_school = 'FISICO', element_id = NULL, target_type = 'ENEMY', base_value = 300, scaling_stat = 'ATK', scaling_multiplier = 1.3, hits = 1, mana_cost = 50, is_passive = FALSE, learn_method = 'LEVEL', learn_level = 50, learn_gold_cost = NULL, description = 'El robo del siglo: le quitas dos mejoras al enemigo y te las quedas, y además el 15% de su velocidad.', cooldown_rounds = 3 WHERE code = 'LADRON_LEGENDARIO_GRAN_GOLPE';
+DELETE FROM skill_effects WHERE skill_id = (SELECT id FROM skills WHERE code = 'LADRON_LEGENDARIO_GRAN_GOLPE');
+INSERT INTO skill_effects (skill_id, effect_type, stat_code, percent_amount, flat_amount, duration_turns, status_code, description)
+SELECT id, 'MECANICA', 'ROBAR_MEJORA', NULL, 2, NULL, NULL, 'Gran Golpe' FROM skills WHERE code = 'LADRON_LEGENDARIO_GRAN_GOLPE';
+INSERT INTO skill_effects (skill_id, effect_type, stat_code, percent_amount, flat_amount, duration_turns, status_code, description)
+SELECT id, 'MECANICA', 'HURTO', 15, NULL, 3, 'SPD', 'Gran Golpe' FROM skills WHERE code = 'LADRON_LEGENDARIO_GRAN_GOLPE';
+
+-- Saqueo (SAQUEADOR_DE_TESOROS)
+INSERT INTO skills (code, class_id, name, skill_type, damage_school, element_id, target_type, base_value, scaling_stat, scaling_multiplier, hits, mana_cost, is_passive, learn_method, learn_level, learn_gold_cost, description, cooldown_rounds)
+SELECT 'SAQUEADOR_SAQUEO', (SELECT id FROM classes WHERE code = 'SAQUEADOR_DE_TESOROS'), 'Saqueo', 'ATAQUE', 'FISICO', NULL, 'ENEMY', 300, 'ATK', 1.3, 1, 50, FALSE, 'LEVEL', 50, NULL, 'Le arrancas la armadura a tirones: le robas el 20% de su defensa durante 3 rondas.', 2
+WHERE NOT EXISTS (SELECT 1 FROM skills WHERE code = 'SAQUEADOR_SAQUEO');
+UPDATE skills SET class_id = (SELECT id FROM classes WHERE code = 'SAQUEADOR_DE_TESOROS'), name = 'Saqueo', skill_type = 'ATAQUE', damage_school = 'FISICO', element_id = NULL, target_type = 'ENEMY', base_value = 300, scaling_stat = 'ATK', scaling_multiplier = 1.3, hits = 1, mana_cost = 50, is_passive = FALSE, learn_method = 'LEVEL', learn_level = 50, learn_gold_cost = NULL, description = 'Le arrancas la armadura a tirones: le robas el 20% de su defensa durante 3 rondas.', cooldown_rounds = 2 WHERE code = 'SAQUEADOR_SAQUEO';
+DELETE FROM skill_effects WHERE skill_id = (SELECT id FROM skills WHERE code = 'SAQUEADOR_SAQUEO');
+INSERT INTO skill_effects (skill_id, effect_type, stat_code, percent_amount, flat_amount, duration_turns, status_code, description)
+SELECT id, 'MECANICA', 'HURTO', 20, NULL, 3, 'DEF', 'Saqueo' FROM skills WHERE code = 'SAQUEADOR_SAQUEO';
+
+-- Contrato (MERCENARIO)
+INSERT INTO skills (code, class_id, name, skill_type, damage_school, element_id, target_type, base_value, scaling_stat, scaling_multiplier, hits, mana_cost, is_passive, learn_method, learn_level, learn_gold_cost, description, cooldown_rounds)
+SELECT 'CAZADOR_RELIQUIAS_CONTRATO', (SELECT id FROM classes WHERE code = 'MERCENARIO'), 'Contrato', 'DEBUFF', NULL, NULL, 'ENEMY', NULL, NULL, NULL, 1, 40, FALSE, 'LEVEL', 50, NULL, 'Firmas un contrato por su cabeza: es la presa (+30% de daño recibido) y tú cobras por adelantado (+15% de ataque).', 3
+WHERE NOT EXISTS (SELECT 1 FROM skills WHERE code = 'CAZADOR_RELIQUIAS_CONTRATO');
+UPDATE skills SET class_id = (SELECT id FROM classes WHERE code = 'MERCENARIO'), name = 'Contrato', skill_type = 'DEBUFF', damage_school = NULL, element_id = NULL, target_type = 'ENEMY', base_value = NULL, scaling_stat = NULL, scaling_multiplier = NULL, hits = 1, mana_cost = 40, is_passive = FALSE, learn_method = 'LEVEL', learn_level = 50, learn_gold_cost = NULL, description = 'Firmas un contrato por su cabeza: es la presa (+30% de daño recibido) y tú cobras por adelantado (+15% de ataque).', cooldown_rounds = 3 WHERE code = 'CAZADOR_RELIQUIAS_CONTRATO';
+DELETE FROM skill_effects WHERE skill_id = (SELECT id FROM skills WHERE code = 'CAZADOR_RELIQUIAS_CONTRATO');
+INSERT INTO skill_effects (skill_id, effect_type, stat_code, percent_amount, flat_amount, duration_turns, status_code, description)
+SELECT id, 'MECANICA', 'PRESA', 30, NULL, 4, NULL, 'Contrato' FROM skills WHERE code = 'CAZADOR_RELIQUIAS_CONTRATO';
+INSERT INTO skill_effects (skill_id, effect_type, stat_code, percent_amount, flat_amount, duration_turns, status_code, description)
+SELECT id, 'MECANICA', 'SUBIR', 15, NULL, 3, 'ATK', 'Contrato' FROM skills WHERE code = 'CAZADOR_RELIQUIAS_CONTRATO';
+
+-- Ojo Experto (EXPLORADOR_MAZMORRAS)
+INSERT INTO skills (code, class_id, name, skill_type, damage_school, element_id, target_type, base_value, scaling_stat, scaling_multiplier, hits, mana_cost, is_passive, learn_method, learn_level, learn_gold_cost, description, cooldown_rounds)
+SELECT 'EXPLORADOR_OJO_EXPERTO', (SELECT id FROM classes WHERE code = 'EXPLORADOR_MAZMORRAS'), 'Ojo Experto', 'DEBUFF', NULL, NULL, 'ALL_ENEMIES', NULL, NULL, NULL, 1, 50, FALSE, 'LEVEL', 50, NULL, 'Ves los puntos débiles de todos: −20% de defensa y −10 de esquiva durante 3 rondas.', 4
+WHERE NOT EXISTS (SELECT 1 FROM skills WHERE code = 'EXPLORADOR_OJO_EXPERTO');
+UPDATE skills SET class_id = (SELECT id FROM classes WHERE code = 'EXPLORADOR_MAZMORRAS'), name = 'Ojo Experto', skill_type = 'DEBUFF', damage_school = NULL, element_id = NULL, target_type = 'ALL_ENEMIES', base_value = NULL, scaling_stat = NULL, scaling_multiplier = NULL, hits = 1, mana_cost = 50, is_passive = FALSE, learn_method = 'LEVEL', learn_level = 50, learn_gold_cost = NULL, description = 'Ves los puntos débiles de todos: −20% de defensa y −10 de esquiva durante 3 rondas.', cooldown_rounds = 4 WHERE code = 'EXPLORADOR_OJO_EXPERTO';
+DELETE FROM skill_effects WHERE skill_id = (SELECT id FROM skills WHERE code = 'EXPLORADOR_OJO_EXPERTO');
+INSERT INTO skill_effects (skill_id, effect_type, stat_code, percent_amount, flat_amount, duration_turns, status_code, description)
+SELECT id, 'MECANICA', 'BAJAR', 20, NULL, 3, 'DEF', 'Ojo Experto' FROM skills WHERE code = 'EXPLORADOR_OJO_EXPERTO';
+INSERT INTO skill_effects (skill_id, effect_type, stat_code, percent_amount, flat_amount, duration_turns, status_code, description)
+SELECT id, 'MECANICA', 'BAJAR', NULL, 10, 3, 'EVASION', 'Ojo Experto' FROM skills WHERE code = 'EXPLORADOR_OJO_EXPERTO';
+
+-- Golpe desde la Nada (MAESTRO_DEL_SIGILO)
+INSERT INTO skills (code, class_id, name, skill_type, damage_school, element_id, target_type, base_value, scaling_stat, scaling_multiplier, hits, mana_cost, is_passive, learn_method, learn_level, learn_gold_cost, description, cooldown_rounds)
+SELECT 'MAESTRO_SIGILO_GOLPE_DESDE_LA_NADA', (SELECT id FROM classes WHERE code = 'MAESTRO_DEL_SIGILO'), 'Golpe desde la Nada', 'ATAQUE', 'FISICO', NULL, 'ENEMY', 360, 'ATK', 1.6, 1, 55, FALSE, 'LEVEL', 50, NULL, 'Apareces, ignoras la mitad de su defensa y desapareces: un clon queda en tu lugar para el próximo golpe.', 3
+WHERE NOT EXISTS (SELECT 1 FROM skills WHERE code = 'MAESTRO_SIGILO_GOLPE_DESDE_LA_NADA');
+UPDATE skills SET class_id = (SELECT id FROM classes WHERE code = 'MAESTRO_DEL_SIGILO'), name = 'Golpe desde la Nada', skill_type = 'ATAQUE', damage_school = 'FISICO', element_id = NULL, target_type = 'ENEMY', base_value = 360, scaling_stat = 'ATK', scaling_multiplier = 1.6, hits = 1, mana_cost = 55, is_passive = FALSE, learn_method = 'LEVEL', learn_level = 50, learn_gold_cost = NULL, description = 'Apareces, ignoras la mitad de su defensa y desapareces: un clon queda en tu lugar para el próximo golpe.', cooldown_rounds = 3 WHERE code = 'MAESTRO_SIGILO_GOLPE_DESDE_LA_NADA';
+DELETE FROM skill_effects WHERE skill_id = (SELECT id FROM skills WHERE code = 'MAESTRO_SIGILO_GOLPE_DESDE_LA_NADA');
+INSERT INTO skill_effects (skill_id, effect_type, stat_code, percent_amount, flat_amount, duration_turns, status_code, description)
+SELECT id, 'MECANICA', 'PERFORAR', 50, NULL, NULL, NULL, 'Golpe desde la Nada' FROM skills WHERE code = 'MAESTRO_SIGILO_GOLPE_DESDE_LA_NADA';
+INSERT INTO skill_effects (skill_id, effect_type, stat_code, percent_amount, flat_amount, duration_turns, status_code, description)
+SELECT id, 'MECANICA', 'SENUELO', NULL, 1, 2, NULL, 'Golpe desde la Nada' FROM skills WHERE code = 'MAESTRO_SIGILO_GOLPE_DESDE_LA_NADA';
+
+-- Campo Minado (BUSCADOR_DE_TRAMPAS)
+INSERT INTO skills (code, class_id, name, skill_type, damage_school, element_id, target_type, base_value, scaling_stat, scaling_multiplier, hits, mana_cost, is_passive, learn_method, learn_level, learn_gold_cost, description, cooldown_rounds)
+SELECT 'INGENIERO_CAMPO_MINADO', (SELECT id FROM classes WHERE code = 'BUSCADOR_DE_TRAMPAS'), 'Campo Minado', 'ATAQUE', 'FISICO', NULL, 'ALL_ENEMIES', 240, 'ATK', 1.1, 1, 60, FALSE, 'LEVEL', 50, NULL, 'Minas por todo el campo: dañan a todos y tienen 35% de paralizar a cada uno.', 3
+WHERE NOT EXISTS (SELECT 1 FROM skills WHERE code = 'INGENIERO_CAMPO_MINADO');
+UPDATE skills SET class_id = (SELECT id FROM classes WHERE code = 'BUSCADOR_DE_TRAMPAS'), name = 'Campo Minado', skill_type = 'ATAQUE', damage_school = 'FISICO', element_id = NULL, target_type = 'ALL_ENEMIES', base_value = 240, scaling_stat = 'ATK', scaling_multiplier = 1.1, hits = 1, mana_cost = 60, is_passive = FALSE, learn_method = 'LEVEL', learn_level = 50, learn_gold_cost = NULL, description = 'Minas por todo el campo: dañan a todos y tienen 35% de paralizar a cada uno.', cooldown_rounds = 3 WHERE code = 'INGENIERO_CAMPO_MINADO';
+DELETE FROM skill_effects WHERE skill_id = (SELECT id FROM skills WHERE code = 'INGENIERO_CAMPO_MINADO');
+INSERT INTO skill_effects (skill_id, effect_type, stat_code, percent_amount, flat_amount, duration_turns, status_code, description)
+SELECT id, 'MECANICA', 'PARALIZAR', NULL, 35, 2, NULL, 'Campo Minado' FROM skills WHERE code = 'INGENIERO_CAMPO_MINADO';
+
+-- Filo Corrosivo (PICARO_ELEMENTAL)
+INSERT INTO skills (code, class_id, name, skill_type, damage_school, element_id, target_type, base_value, scaling_stat, scaling_multiplier, hits, mana_cost, is_passive, learn_method, learn_level, learn_gold_cost, description, cooldown_rounds)
+SELECT 'MAESTRO_VENENOS_FILO_CORROSIVO', (SELECT id FROM classes WHERE code = 'PICARO_ELEMENTAL'), 'Filo Corrosivo', 'ATAQUE', 'FISICO', NULL, 'ENEMY', 300, 'ATK', 1.4, 1, 50, FALSE, 'LEVEL', 50, NULL, 'Un filo que se come la armadura: suma una capa de plaga y baja el 15% de la defensa.', 2
+WHERE NOT EXISTS (SELECT 1 FROM skills WHERE code = 'MAESTRO_VENENOS_FILO_CORROSIVO');
+UPDATE skills SET class_id = (SELECT id FROM classes WHERE code = 'PICARO_ELEMENTAL'), name = 'Filo Corrosivo', skill_type = 'ATAQUE', damage_school = 'FISICO', element_id = NULL, target_type = 'ENEMY', base_value = 300, scaling_stat = 'ATK', scaling_multiplier = 1.4, hits = 1, mana_cost = 50, is_passive = FALSE, learn_method = 'LEVEL', learn_level = 50, learn_gold_cost = NULL, description = 'Un filo que se come la armadura: suma una capa de plaga y baja el 15% de la defensa.', cooldown_rounds = 2 WHERE code = 'MAESTRO_VENENOS_FILO_CORROSIVO';
+DELETE FROM skill_effects WHERE skill_id = (SELECT id FROM skills WHERE code = 'MAESTRO_VENENOS_FILO_CORROSIVO');
+INSERT INTO skill_effects (skill_id, effect_type, stat_code, percent_amount, flat_amount, duration_turns, status_code, description)
+SELECT id, 'MECANICA', 'PLAGA', 3, 5, 4, NULL, 'Filo Corrosivo' FROM skills WHERE code = 'MAESTRO_VENENOS_FILO_CORROSIVO';
+INSERT INTO skill_effects (skill_id, effect_type, stat_code, percent_amount, flat_amount, duration_turns, status_code, description)
+SELECT id, 'MECANICA', 'BAJAR', 15, NULL, 3, 'DEF', 'Filo Corrosivo' FROM skills WHERE code = 'MAESTRO_VENENOS_FILO_CORROSIVO';
+
+-- Pirueta (ACROBATA)
+INSERT INTO skills (code, class_id, name, skill_type, damage_school, element_id, target_type, base_value, scaling_stat, scaling_multiplier, hits, mana_cost, is_passive, learn_method, learn_level, learn_gold_cost, description, cooldown_rounds)
+SELECT 'ACROBATA_PIRUETA', (SELECT id FROM classes WHERE code = 'ACROBATA'), 'Pirueta', 'BUFF', NULL, NULL, 'SELF', NULL, NULL, NULL, 1, 40, FALSE, 'LEVEL', 50, NULL, 'Una pirueta imposible: +15 de esquiva durante 3 rondas, y el próximo golpe físico lo esquivas y lo devuelves.', 3
+WHERE NOT EXISTS (SELECT 1 FROM skills WHERE code = 'ACROBATA_PIRUETA');
+UPDATE skills SET class_id = (SELECT id FROM classes WHERE code = 'ACROBATA'), name = 'Pirueta', skill_type = 'BUFF', damage_school = NULL, element_id = NULL, target_type = 'SELF', base_value = NULL, scaling_stat = NULL, scaling_multiplier = NULL, hits = 1, mana_cost = 40, is_passive = FALSE, learn_method = 'LEVEL', learn_level = 50, learn_gold_cost = NULL, description = 'Una pirueta imposible: +15 de esquiva durante 3 rondas, y el próximo golpe físico lo esquivas y lo devuelves.', cooldown_rounds = 3 WHERE code = 'ACROBATA_PIRUETA';
+DELETE FROM skill_effects WHERE skill_id = (SELECT id FROM skills WHERE code = 'ACROBATA_PIRUETA');
+INSERT INTO skill_effects (skill_id, effect_type, stat_code, percent_amount, flat_amount, duration_turns, status_code, description)
+SELECT id, 'MECANICA', 'CONTRA', 100, NULL, 2, NULL, 'Pirueta' FROM skills WHERE code = 'ACROBATA_PIRUETA';
+INSERT INTO skill_effects (skill_id, effect_type, stat_code, percent_amount, flat_amount, duration_turns, status_code, description)
+SELECT id, 'MECANICA', 'SUBIR', NULL, 15, 3, 'EVASION', 'Pirueta' FROM skills WHERE code = 'ACROBATA_PIRUETA';
+
+-- Resurrección Divina (OBISPO)
+INSERT INTO skills (code, class_id, name, skill_type, damage_school, element_id, target_type, base_value, scaling_stat, scaling_multiplier, hits, mana_cost, is_passive, learn_method, learn_level, learn_gold_cost, description, cooldown_rounds)
+SELECT 'OBISPO_RESURRECCION_DIVINA', (SELECT id FROM classes WHERE code = 'OBISPO'), 'Resurrección Divina', 'ESPECIAL', NULL, NULL, 'ALL_ALLIES', NULL, NULL, NULL, 1, 90, FALSE, 'LEVEL', 50, NULL, 'Levantas a todos los aliados caídos con la mitad de su vida, y curas al resto el 10%.', 6
+WHERE NOT EXISTS (SELECT 1 FROM skills WHERE code = 'OBISPO_RESURRECCION_DIVINA');
+UPDATE skills SET class_id = (SELECT id FROM classes WHERE code = 'OBISPO'), name = 'Resurrección Divina', skill_type = 'ESPECIAL', damage_school = NULL, element_id = NULL, target_type = 'ALL_ALLIES', base_value = NULL, scaling_stat = NULL, scaling_multiplier = NULL, hits = 1, mana_cost = 90, is_passive = FALSE, learn_method = 'LEVEL', learn_level = 50, learn_gold_cost = NULL, description = 'Levantas a todos los aliados caídos con la mitad de su vida, y curas al resto el 10%.', cooldown_rounds = 6 WHERE code = 'OBISPO_RESURRECCION_DIVINA';
+DELETE FROM skill_effects WHERE skill_id = (SELECT id FROM skills WHERE code = 'OBISPO_RESURRECCION_DIVINA');
+INSERT INTO skill_effects (skill_id, effect_type, stat_code, percent_amount, flat_amount, duration_turns, status_code, description)
+SELECT id, 'MECANICA', 'REVIVIR', 50, NULL, NULL, NULL, 'Resurrección Divina' FROM skills WHERE code = 'OBISPO_RESURRECCION_DIVINA';
+INSERT INTO skill_effects (skill_id, effect_type, stat_code, percent_amount, flat_amount, duration_turns, status_code, description)
+SELECT id, 'MECANICA', 'CURAR_GRUPO', 10, NULL, NULL, NULL, 'Resurrección Divina' FROM skills WHERE code = 'OBISPO_RESURRECCION_DIVINA';
+
+-- Milagro (SANADOR_LEGENDARIO)
+INSERT INTO skills (code, class_id, name, skill_type, damage_school, element_id, target_type, base_value, scaling_stat, scaling_multiplier, hits, mana_cost, is_passive, learn_method, learn_level, learn_gold_cost, description, cooldown_rounds)
+SELECT 'SANADOR_LEGENDARIO_MILAGRO', (SELECT id FROM classes WHERE code = 'SANADOR_LEGENDARIO'), 'Milagro', 'ESPECIAL', NULL, NULL, 'ALL_ALLIES', NULL, NULL, NULL, 1, 85, FALSE, 'LEVEL', 50, NULL, 'Un milagro: el grupo recupera el 25% de su vida y se le quitan dos males a cada uno.', 4
+WHERE NOT EXISTS (SELECT 1 FROM skills WHERE code = 'SANADOR_LEGENDARIO_MILAGRO');
+UPDATE skills SET class_id = (SELECT id FROM classes WHERE code = 'SANADOR_LEGENDARIO'), name = 'Milagro', skill_type = 'ESPECIAL', damage_school = NULL, element_id = NULL, target_type = 'ALL_ALLIES', base_value = NULL, scaling_stat = NULL, scaling_multiplier = NULL, hits = 1, mana_cost = 85, is_passive = FALSE, learn_method = 'LEVEL', learn_level = 50, learn_gold_cost = NULL, description = 'Un milagro: el grupo recupera el 25% de su vida y se le quitan dos males a cada uno.', cooldown_rounds = 4 WHERE code = 'SANADOR_LEGENDARIO_MILAGRO';
+DELETE FROM skill_effects WHERE skill_id = (SELECT id FROM skills WHERE code = 'SANADOR_LEGENDARIO_MILAGRO');
+INSERT INTO skill_effects (skill_id, effect_type, stat_code, percent_amount, flat_amount, duration_turns, status_code, description)
+SELECT id, 'MECANICA', 'CURAR_GRUPO', 25, NULL, NULL, NULL, 'Milagro' FROM skills WHERE code = 'SANADOR_LEGENDARIO_MILAGRO';
+INSERT INTO skill_effects (skill_id, effect_type, stat_code, percent_amount, flat_amount, duration_turns, status_code, description)
+SELECT id, 'MECANICA', 'LIMPIAR', NULL, 2, NULL, NULL, 'Milagro' FROM skills WHERE code = 'SANADOR_LEGENDARIO_MILAGRO';
+
+-- Ira de Gaia (DRUIDA_PRIMORDIAL)
+INSERT INTO skills (code, class_id, name, skill_type, damage_school, element_id, target_type, base_value, scaling_stat, scaling_multiplier, hits, mana_cost, is_passive, learn_method, learn_level, learn_gold_cost, description, cooldown_rounds)
+SELECT 'DRUIDA_PRIMORDIAL_IRA_DE_GAIA', (SELECT id FROM classes WHERE code = 'DRUIDA_PRIMORDIAL'), 'Ira de Gaia', 'ATAQUE', 'MAGICO', 5, 'ALL_ENEMIES', 260, 'MAG', 1.2, 1, 65, FALSE, 'LEVEL', 50, NULL, 'La tierra se levanta contra todos: sangran savia (3% por ronda) y 30% de quedar atrapados.', 3
+WHERE NOT EXISTS (SELECT 1 FROM skills WHERE code = 'DRUIDA_PRIMORDIAL_IRA_DE_GAIA');
+UPDATE skills SET class_id = (SELECT id FROM classes WHERE code = 'DRUIDA_PRIMORDIAL'), name = 'Ira de Gaia', skill_type = 'ATAQUE', damage_school = 'MAGICO', element_id = 5, target_type = 'ALL_ENEMIES', base_value = 260, scaling_stat = 'MAG', scaling_multiplier = 1.2, hits = 1, mana_cost = 65, is_passive = FALSE, learn_method = 'LEVEL', learn_level = 50, learn_gold_cost = NULL, description = 'La tierra se levanta contra todos: sangran savia (3% por ronda) y 30% de quedar atrapados.', cooldown_rounds = 3 WHERE code = 'DRUIDA_PRIMORDIAL_IRA_DE_GAIA';
+DELETE FROM skill_effects WHERE skill_id = (SELECT id FROM skills WHERE code = 'DRUIDA_PRIMORDIAL_IRA_DE_GAIA');
+INSERT INTO skill_effects (skill_id, effect_type, stat_code, percent_amount, flat_amount, duration_turns, status_code, description)
+SELECT id, 'MECANICA', 'DRENAR', 3, NULL, 3, NULL, 'Ira de Gaia' FROM skills WHERE code = 'DRUIDA_PRIMORDIAL_IRA_DE_GAIA';
+INSERT INTO skill_effects (skill_id, effect_type, stat_code, percent_amount, flat_amount, duration_turns, status_code, description)
+SELECT id, 'MECANICA', 'ENRAIZAR', NULL, 30, 2, NULL, 'Ira de Gaia' FROM skills WHERE code = 'DRUIDA_PRIMORDIAL_IRA_DE_GAIA';
+
+-- Muralla de Raíces (PROTECTOR_DEL_BOSQUE)
+INSERT INTO skills (code, class_id, name, skill_type, damage_school, element_id, target_type, base_value, scaling_stat, scaling_multiplier, hits, mana_cost, is_passive, learn_method, learn_level, learn_gold_cost, description, cooldown_rounds)
+SELECT 'PROTECTOR_BOSQUE_MURALLA_DE_RAICES', (SELECT id FROM classes WHERE code = 'PROTECTOR_DEL_BOSQUE'), 'Muralla de Raíces', 'BUFF', NULL, NULL, 'ALL_ALLIES', NULL, NULL, NULL, 1, 65, FALSE, 'LEVEL', 50, NULL, 'Raíces que cubren al grupo: barrera del 12% de la vida de cada uno y una semilla que cura con cada golpe.', 4
+WHERE NOT EXISTS (SELECT 1 FROM skills WHERE code = 'PROTECTOR_BOSQUE_MURALLA_DE_RAICES');
+UPDATE skills SET class_id = (SELECT id FROM classes WHERE code = 'PROTECTOR_DEL_BOSQUE'), name = 'Muralla de Raíces', skill_type = 'BUFF', damage_school = NULL, element_id = NULL, target_type = 'ALL_ALLIES', base_value = NULL, scaling_stat = NULL, scaling_multiplier = NULL, hits = 1, mana_cost = 65, is_passive = FALSE, learn_method = 'LEVEL', learn_level = 50, learn_gold_cost = NULL, description = 'Raíces que cubren al grupo: barrera del 12% de la vida de cada uno y una semilla que cura con cada golpe.', cooldown_rounds = 4 WHERE code = 'PROTECTOR_BOSQUE_MURALLA_DE_RAICES';
+DELETE FROM skill_effects WHERE skill_id = (SELECT id FROM skills WHERE code = 'PROTECTOR_BOSQUE_MURALLA_DE_RAICES');
+INSERT INTO skill_effects (skill_id, effect_type, stat_code, percent_amount, flat_amount, duration_turns, status_code, description)
+SELECT id, 'MECANICA', 'BARRERA', 12, 40, 3, NULL, 'Muralla de Raíces' FROM skills WHERE code = 'PROTECTOR_BOSQUE_MURALLA_DE_RAICES';
+INSERT INTO skill_effects (skill_id, effect_type, stat_code, percent_amount, flat_amount, duration_turns, status_code, description)
+SELECT id, 'MECANICA', 'SEMILLA', 4, NULL, 3, NULL, 'Muralla de Raíces' FROM skills WHERE code = 'PROTECTOR_BOSQUE_MURALLA_DE_RAICES';
+
+-- Juicio del Templario (CABALLERO_TEMPLARIO)
+INSERT INTO skills (code, class_id, name, skill_type, damage_school, element_id, target_type, base_value, scaling_stat, scaling_multiplier, hits, mana_cost, is_passive, learn_method, learn_level, learn_gold_cost, description, cooldown_rounds)
+SELECT 'CABALLERO_TEMPLARIO_JUICIO', (SELECT id FROM classes WHERE code = 'CABALLERO_TEMPLARIO'), 'Juicio del Templario', 'ATAQUE', 'MAGICO', 7, 'ENEMY', 320, 'MAG', 1.4, 1, 55, FALSE, 'LEVEL', 50, NULL, 'Un golpe de luz y un desafío: atraes todos los golpes 2 rondas, cubierto por una barrera del 15% de tu vida.', 3
+WHERE NOT EXISTS (SELECT 1 FROM skills WHERE code = 'CABALLERO_TEMPLARIO_JUICIO');
+UPDATE skills SET class_id = (SELECT id FROM classes WHERE code = 'CABALLERO_TEMPLARIO'), name = 'Juicio del Templario', skill_type = 'ATAQUE', damage_school = 'MAGICO', element_id = 7, target_type = 'ENEMY', base_value = 320, scaling_stat = 'MAG', scaling_multiplier = 1.4, hits = 1, mana_cost = 55, is_passive = FALSE, learn_method = 'LEVEL', learn_level = 50, learn_gold_cost = NULL, description = 'Un golpe de luz y un desafío: atraes todos los golpes 2 rondas, cubierto por una barrera del 15% de tu vida.', cooldown_rounds = 3 WHERE code = 'CABALLERO_TEMPLARIO_JUICIO';
+DELETE FROM skill_effects WHERE skill_id = (SELECT id FROM skills WHERE code = 'CABALLERO_TEMPLARIO_JUICIO');
+INSERT INTO skill_effects (skill_id, effect_type, stat_code, percent_amount, flat_amount, duration_turns, status_code, description)
+SELECT id, 'MECANICA', 'PROVOCAR', NULL, NULL, 2, NULL, 'Juicio del Templario' FROM skills WHERE code = 'CABALLERO_TEMPLARIO_JUICIO';
+INSERT INTO skill_effects (skill_id, effect_type, stat_code, percent_amount, flat_amount, duration_turns, status_code, description)
+SELECT id, 'MECANICA', 'BARRERA', 15, 0, 2, NULL, 'Juicio del Templario' FROM skills WHERE code = 'CABALLERO_TEMPLARIO_JUICIO';
+
+-- Hoguera (GRAN_INQUISIDOR)
+INSERT INTO skills (code, class_id, name, skill_type, damage_school, element_id, target_type, base_value, scaling_stat, scaling_multiplier, hits, mana_cost, is_passive, learn_method, learn_level, learn_gold_cost, description, cooldown_rounds)
+SELECT 'GRAN_INQUISIDOR_HOGUERA', (SELECT id FROM classes WHERE code = 'GRAN_INQUISIDOR'), 'Hoguera', 'DEBUFF', NULL, NULL, 'ENEMY', NULL, NULL, NULL, 1, 60, FALSE, 'LEVEL', 50, NULL, 'A la hoguera: arde (8% por ronda), queda silenciado 2 rondas y pierde una mejora.', 4
+WHERE NOT EXISTS (SELECT 1 FROM skills WHERE code = 'GRAN_INQUISIDOR_HOGUERA');
+UPDATE skills SET class_id = (SELECT id FROM classes WHERE code = 'GRAN_INQUISIDOR'), name = 'Hoguera', skill_type = 'DEBUFF', damage_school = NULL, element_id = NULL, target_type = 'ENEMY', base_value = NULL, scaling_stat = NULL, scaling_multiplier = NULL, hits = 1, mana_cost = 60, is_passive = FALSE, learn_method = 'LEVEL', learn_level = 50, learn_gold_cost = NULL, description = 'A la hoguera: arde (8% por ronda), queda silenciado 2 rondas y pierde una mejora.', cooldown_rounds = 4 WHERE code = 'GRAN_INQUISIDOR_HOGUERA';
+DELETE FROM skill_effects WHERE skill_id = (SELECT id FROM skills WHERE code = 'GRAN_INQUISIDOR_HOGUERA');
+INSERT INTO skill_effects (skill_id, effect_type, stat_code, percent_amount, flat_amount, duration_turns, status_code, description)
+SELECT id, 'MECANICA', 'QUEMAR', 8, NULL, 3, NULL, 'Hoguera' FROM skills WHERE code = 'GRAN_INQUISIDOR_HOGUERA';
+INSERT INTO skill_effects (skill_id, effect_type, stat_code, percent_amount, flat_amount, duration_turns, status_code, description)
+SELECT id, 'MECANICA', 'SILENCIAR', NULL, NULL, 2, NULL, 'Hoguera' FROM skills WHERE code = 'GRAN_INQUISIDOR_HOGUERA';
+INSERT INTO skill_effects (skill_id, effect_type, stat_code, percent_amount, flat_amount, duration_turns, status_code, description)
+SELECT id, 'MECANICA', 'DISIPAR', NULL, 1, NULL, NULL, 'Hoguera' FROM skills WHERE code = 'GRAN_INQUISIDOR_HOGUERA';
+
+-- Bendición Mayor (BENDITO)
+INSERT INTO skills (code, class_id, name, skill_type, damage_school, element_id, target_type, base_value, scaling_stat, scaling_multiplier, hits, mana_cost, is_passive, learn_method, learn_level, learn_gold_cost, description, cooldown_rounds)
+SELECT 'BENDITO_BENDICION_MAYOR', (SELECT id FROM classes WHERE code = 'BENDITO'), 'Bendición Mayor', 'BUFF', NULL, NULL, 'ALL_ALLIES', NULL, NULL, NULL, 1, 70, FALSE, 'LEVEL', 50, NULL, 'Bendices al grupo: +15% de ataque y de magia durante 3 rondas, y le quitas un mal a cada uno.', 4
+WHERE NOT EXISTS (SELECT 1 FROM skills WHERE code = 'BENDITO_BENDICION_MAYOR');
+UPDATE skills SET class_id = (SELECT id FROM classes WHERE code = 'BENDITO'), name = 'Bendición Mayor', skill_type = 'BUFF', damage_school = NULL, element_id = NULL, target_type = 'ALL_ALLIES', base_value = NULL, scaling_stat = NULL, scaling_multiplier = NULL, hits = 1, mana_cost = 70, is_passive = FALSE, learn_method = 'LEVEL', learn_level = 50, learn_gold_cost = NULL, description = 'Bendices al grupo: +15% de ataque y de magia durante 3 rondas, y le quitas un mal a cada uno.', cooldown_rounds = 4 WHERE code = 'BENDITO_BENDICION_MAYOR';
+DELETE FROM skill_effects WHERE skill_id = (SELECT id FROM skills WHERE code = 'BENDITO_BENDICION_MAYOR');
+INSERT INTO skill_effects (skill_id, effect_type, stat_code, percent_amount, flat_amount, duration_turns, status_code, description)
+SELECT id, 'MECANICA', 'SUBIR', 15, NULL, 3, 'ATK', 'Bendición Mayor' FROM skills WHERE code = 'BENDITO_BENDICION_MAYOR';
+INSERT INTO skill_effects (skill_id, effect_type, stat_code, percent_amount, flat_amount, duration_turns, status_code, description)
+SELECT id, 'MECANICA', 'SUBIR', 15, NULL, 3, 'MAG', 'Bendición Mayor' FROM skills WHERE code = 'BENDITO_BENDICION_MAYOR';
+INSERT INTO skill_effects (skill_id, effect_type, stat_code, percent_amount, flat_amount, duration_turns, status_code, description)
+SELECT id, 'MECANICA', 'LIMPIAR', NULL, 1, NULL, NULL, 'Bendición Mayor' FROM skills WHERE code = 'BENDITO_BENDICION_MAYOR';
+
+-- Presagio (VIDENTE)
+INSERT INTO skills (code, class_id, name, skill_type, damage_school, element_id, target_type, base_value, scaling_stat, scaling_multiplier, hits, mana_cost, is_passive, learn_method, learn_level, learn_gold_cost, description, cooldown_rounds)
+SELECT 'VIDENTE_PRESAGIO', (SELECT id FROM classes WHERE code = 'VIDENTE'), 'Presagio', 'BUFF', NULL, NULL, 'ALL_ALLIES', NULL, NULL, NULL, 1, 70, FALSE, 'LEVEL', 50, NULL, 'Ves el golpe antes de que llegue: el próximo daño que iba a recibir cada aliado no llega.', 5
+WHERE NOT EXISTS (SELECT 1 FROM skills WHERE code = 'VIDENTE_PRESAGIO');
+UPDATE skills SET class_id = (SELECT id FROM classes WHERE code = 'VIDENTE'), name = 'Presagio', skill_type = 'BUFF', damage_school = NULL, element_id = NULL, target_type = 'ALL_ALLIES', base_value = NULL, scaling_stat = NULL, scaling_multiplier = NULL, hits = 1, mana_cost = 70, is_passive = FALSE, learn_method = 'LEVEL', learn_level = 50, learn_gold_cost = NULL, description = 'Ves el golpe antes de que llegue: el próximo daño que iba a recibir cada aliado no llega.', cooldown_rounds = 5 WHERE code = 'VIDENTE_PRESAGIO';
+DELETE FROM skill_effects WHERE skill_id = (SELECT id FROM skills WHERE code = 'VIDENTE_PRESAGIO');
+INSERT INTO skill_effects (skill_id, effect_type, stat_code, percent_amount, flat_amount, duration_turns, status_code, description)
+SELECT id, 'MECANICA', 'SENUELO', NULL, 1, 2, NULL, 'Presagio' FROM skills WHERE code = 'VIDENTE_PRESAGIO';
+
+-- Puño del Primer Vigía (MAESTRO_MONJE_SUPREMO)
+INSERT INTO skills (code, class_id, name, skill_type, damage_school, element_id, target_type, base_value, scaling_stat, scaling_multiplier, hits, mana_cost, is_passive, learn_method, learn_level, learn_gold_cost, description, cooldown_rounds)
+SELECT 'MONJE_SUPREMO_PUNO_DEL_INFINITO', (SELECT id FROM classes WHERE code = 'MAESTRO_MONJE_SUPREMO'), 'Puño del Primer Vigía', 'ATAQUE', 'FISICO', NULL, 'ENEMY', 700, 'ATK', 2.4, 1, 80, FALSE, 'LEVEL', 90, NULL, 'DEFINITIVA. Todo el chi en un solo golpe: +60% de daño por carga e ignora la mitad de la defensa.', 99
+WHERE NOT EXISTS (SELECT 1 FROM skills WHERE code = 'MONJE_SUPREMO_PUNO_DEL_INFINITO');
+UPDATE skills SET class_id = (SELECT id FROM classes WHERE code = 'MAESTRO_MONJE_SUPREMO'), name = 'Puño del Primer Vigía', skill_type = 'ATAQUE', damage_school = 'FISICO', element_id = NULL, target_type = 'ENEMY', base_value = 700, scaling_stat = 'ATK', scaling_multiplier = 2.4, hits = 1, mana_cost = 80, is_passive = FALSE, learn_method = 'LEVEL', learn_level = 90, learn_gold_cost = NULL, description = 'DEFINITIVA. Todo el chi en un solo golpe: +60% de daño por carga e ignora la mitad de la defensa.', cooldown_rounds = 99 WHERE code = 'MONJE_SUPREMO_PUNO_DEL_INFINITO';
+DELETE FROM skill_effects WHERE skill_id = (SELECT id FROM skills WHERE code = 'MONJE_SUPREMO_PUNO_DEL_INFINITO');
+INSERT INTO skill_effects (skill_id, effect_type, stat_code, percent_amount, flat_amount, duration_turns, status_code, description)
+SELECT id, 'MECANICA', 'DEFINITIVA', NULL, 3, NULL, NULL, 'Puño del Primer Vigía' FROM skills WHERE code = 'MONJE_SUPREMO_PUNO_DEL_INFINITO';
+INSERT INTO skill_effects (skill_id, effect_type, stat_code, percent_amount, flat_amount, duration_turns, status_code, description)
+SELECT id, 'MECANICA', 'LIBERAR', 60, NULL, NULL, NULL, 'Puño del Primer Vigía' FROM skills WHERE code = 'MONJE_SUPREMO_PUNO_DEL_INFINITO';
+
+-- Égida Celestial (CABALLERO_SAGRADO)
+INSERT INTO skills (code, class_id, name, skill_type, damage_school, element_id, target_type, base_value, scaling_stat, scaling_multiplier, hits, mana_cost, is_passive, learn_method, learn_level, learn_gold_cost, description, cooldown_rounds)
+SELECT 'PALADIN_CELESTIAL_EGIDA', (SELECT id FROM classes WHERE code = 'CABALLERO_SAGRADO'), 'Égida Celestial', 'BUFF', NULL, NULL, 'ALL_ALLIES', NULL, NULL, NULL, 1, 100, FALSE, 'LEVEL', 90, NULL, 'DEFINITIVA. El cielo se abre sobre el grupo: cura el 20% de la vida y una barrera del 30% (más tu magia).', 99
+WHERE NOT EXISTS (SELECT 1 FROM skills WHERE code = 'PALADIN_CELESTIAL_EGIDA');
+UPDATE skills SET class_id = (SELECT id FROM classes WHERE code = 'CABALLERO_SAGRADO'), name = 'Égida Celestial', skill_type = 'BUFF', damage_school = NULL, element_id = NULL, target_type = 'ALL_ALLIES', base_value = NULL, scaling_stat = NULL, scaling_multiplier = NULL, hits = 1, mana_cost = 100, is_passive = FALSE, learn_method = 'LEVEL', learn_level = 90, learn_gold_cost = NULL, description = 'DEFINITIVA. El cielo se abre sobre el grupo: cura el 20% de la vida y una barrera del 30% (más tu magia).', cooldown_rounds = 99 WHERE code = 'PALADIN_CELESTIAL_EGIDA';
+DELETE FROM skill_effects WHERE skill_id = (SELECT id FROM skills WHERE code = 'PALADIN_CELESTIAL_EGIDA');
+INSERT INTO skill_effects (skill_id, effect_type, stat_code, percent_amount, flat_amount, duration_turns, status_code, description)
+SELECT id, 'MECANICA', 'DEFINITIVA', NULL, 3, NULL, NULL, 'Égida Celestial' FROM skills WHERE code = 'PALADIN_CELESTIAL_EGIDA';
+INSERT INTO skill_effects (skill_id, effect_type, stat_code, percent_amount, flat_amount, duration_turns, status_code, description)
+SELECT id, 'MECANICA', 'CURAR_GRUPO', 20, NULL, NULL, NULL, 'Égida Celestial' FROM skills WHERE code = 'PALADIN_CELESTIAL_EGIDA';
+INSERT INTO skill_effects (skill_id, effect_type, stat_code, percent_amount, flat_amount, duration_turns, status_code, description)
+SELECT id, 'MECANICA', 'BARRERA', 30, 100, 3, NULL, 'Égida Celestial' FROM skills WHERE code = 'PALADIN_CELESTIAL_EGIDA';
+
+-- Abismo Eterno (PALADIN_OSCURO)
+INSERT INTO skills (code, class_id, name, skill_type, damage_school, element_id, target_type, base_value, scaling_stat, scaling_multiplier, hits, mana_cost, is_passive, learn_method, learn_level, learn_gold_cost, description, cooldown_rounds)
+SELECT 'CABALLERO_ABISAL_ABISMO_ETERNO', (SELECT id FROM classes WHERE code = 'PALADIN_OSCURO'), 'Abismo Eterno', 'ATAQUE', 'FISICO', 8, 'ALL_ENEMIES', 600, 'ATK', 2, 1, 90, FALSE, 'LEVEL', 90, NULL, 'DEFINITIVA. Pagas el 10% de tu vida y el abismo se traga a todos: te curas el 40% del daño y les quitas el 25% del ataque.', 99
+WHERE NOT EXISTS (SELECT 1 FROM skills WHERE code = 'CABALLERO_ABISAL_ABISMO_ETERNO');
+UPDATE skills SET class_id = (SELECT id FROM classes WHERE code = 'PALADIN_OSCURO'), name = 'Abismo Eterno', skill_type = 'ATAQUE', damage_school = 'FISICO', element_id = 8, target_type = 'ALL_ENEMIES', base_value = 600, scaling_stat = 'ATK', scaling_multiplier = 2, hits = 1, mana_cost = 90, is_passive = FALSE, learn_method = 'LEVEL', learn_level = 90, learn_gold_cost = NULL, description = 'DEFINITIVA. Pagas el 10% de tu vida y el abismo se traga a todos: te curas el 40% del daño y les quitas el 25% del ataque.', cooldown_rounds = 99 WHERE code = 'CABALLERO_ABISAL_ABISMO_ETERNO';
+DELETE FROM skill_effects WHERE skill_id = (SELECT id FROM skills WHERE code = 'CABALLERO_ABISAL_ABISMO_ETERNO');
+INSERT INTO skill_effects (skill_id, effect_type, stat_code, percent_amount, flat_amount, duration_turns, status_code, description)
+SELECT id, 'MECANICA', 'DEFINITIVA', NULL, 3, NULL, NULL, 'Abismo Eterno' FROM skills WHERE code = 'CABALLERO_ABISAL_ABISMO_ETERNO';
+INSERT INTO skill_effects (skill_id, effect_type, stat_code, percent_amount, flat_amount, duration_turns, status_code, description)
+SELECT id, 'MECANICA', 'SED', 10, 40, NULL, NULL, 'Abismo Eterno' FROM skills WHERE code = 'CABALLERO_ABISAL_ABISMO_ETERNO';
+INSERT INTO skill_effects (skill_id, effect_type, stat_code, percent_amount, flat_amount, duration_turns, status_code, description)
+SELECT id, 'MECANICA', 'BAJAR', 25, NULL, 3, 'ATK', 'Abismo Eterno' FROM skills WHERE code = 'CABALLERO_ABISAL_ABISMO_ETERNO';
+
+-- Aliento del Dragón Antiguo (DRAGON_CABALLERO)
+INSERT INTO skills (code, class_id, name, skill_type, damage_school, element_id, target_type, base_value, scaling_stat, scaling_multiplier, hits, mana_cost, is_passive, learn_method, learn_level, learn_gold_cost, description, cooldown_rounds)
+SELECT 'PALADIN_DRACONITO_ALIENTO_ANTIGUO', (SELECT id FROM classes WHERE code = 'DRAGON_CABALLERO'), 'Aliento del Dragón Antiguo', 'ATAQUE', 'FISICO', 1, 'ALL_ENEMIES', 650, 'ATK', 2, 1, 90, FALSE, 'LEVEL', 90, NULL, 'DEFINITIVA. Fuego de dragón sobre todos (arden el 8% por ronda), y te plantas delante del grupo atrayendo los golpes.', 99
+WHERE NOT EXISTS (SELECT 1 FROM skills WHERE code = 'PALADIN_DRACONITO_ALIENTO_ANTIGUO');
+UPDATE skills SET class_id = (SELECT id FROM classes WHERE code = 'DRAGON_CABALLERO'), name = 'Aliento del Dragón Antiguo', skill_type = 'ATAQUE', damage_school = 'FISICO', element_id = 1, target_type = 'ALL_ENEMIES', base_value = 650, scaling_stat = 'ATK', scaling_multiplier = 2, hits = 1, mana_cost = 90, is_passive = FALSE, learn_method = 'LEVEL', learn_level = 90, learn_gold_cost = NULL, description = 'DEFINITIVA. Fuego de dragón sobre todos (arden el 8% por ronda), y te plantas delante del grupo atrayendo los golpes.', cooldown_rounds = 99 WHERE code = 'PALADIN_DRACONITO_ALIENTO_ANTIGUO';
+DELETE FROM skill_effects WHERE skill_id = (SELECT id FROM skills WHERE code = 'PALADIN_DRACONITO_ALIENTO_ANTIGUO');
+INSERT INTO skill_effects (skill_id, effect_type, stat_code, percent_amount, flat_amount, duration_turns, status_code, description)
+SELECT id, 'MECANICA', 'DEFINITIVA', NULL, 3, NULL, NULL, 'Aliento del Dragón Antiguo' FROM skills WHERE code = 'PALADIN_DRACONITO_ALIENTO_ANTIGUO';
+INSERT INTO skill_effects (skill_id, effect_type, stat_code, percent_amount, flat_amount, duration_turns, status_code, description)
+SELECT id, 'MECANICA', 'QUEMAR', 8, NULL, 3, NULL, 'Aliento del Dragón Antiguo' FROM skills WHERE code = 'PALADIN_DRACONITO_ALIENTO_ANTIGUO';
+INSERT INTO skill_effects (skill_id, effect_type, stat_code, percent_amount, flat_amount, duration_turns, status_code, description)
+SELECT id, 'MECANICA', 'PROVOCAR', NULL, NULL, 2, NULL, 'Aliento del Dragón Antiguo' FROM skills WHERE code = 'PALADIN_DRACONITO_ALIENTO_ANTIGUO';
+
+-- Apocalipsis (BERSERKER_DEL_CAOS)
+INSERT INTO skills (code, class_id, name, skill_type, damage_school, element_id, target_type, base_value, scaling_stat, scaling_multiplier, hits, mana_cost, is_passive, learn_method, learn_level, learn_gold_cost, description, cooldown_rounds)
+SELECT 'TITAN_DEL_CAOS_APOCALIPSIS', (SELECT id FROM classes WHERE code = 'BERSERKER_DEL_CAOS'), 'Apocalipsis', 'ATAQUE', 'FISICO', NULL, 'ALL_ENEMIES', 700, 'ATK', 2.2, 1, 60, FALSE, 'LEVEL', 90, NULL, 'DEFINITIVA. Pagas el 30% de tu vida y lo devuelves todo: más daño cuanto menos vida te queda, y te curas el 30%.', 99
+WHERE NOT EXISTS (SELECT 1 FROM skills WHERE code = 'TITAN_DEL_CAOS_APOCALIPSIS');
+UPDATE skills SET class_id = (SELECT id FROM classes WHERE code = 'BERSERKER_DEL_CAOS'), name = 'Apocalipsis', skill_type = 'ATAQUE', damage_school = 'FISICO', element_id = NULL, target_type = 'ALL_ENEMIES', base_value = 700, scaling_stat = 'ATK', scaling_multiplier = 2.2, hits = 1, mana_cost = 60, is_passive = FALSE, learn_method = 'LEVEL', learn_level = 90, learn_gold_cost = NULL, description = 'DEFINITIVA. Pagas el 30% de tu vida y lo devuelves todo: más daño cuanto menos vida te queda, y te curas el 30%.', cooldown_rounds = 99 WHERE code = 'TITAN_DEL_CAOS_APOCALIPSIS';
+DELETE FROM skill_effects WHERE skill_id = (SELECT id FROM skills WHERE code = 'TITAN_DEL_CAOS_APOCALIPSIS');
+INSERT INTO skill_effects (skill_id, effect_type, stat_code, percent_amount, flat_amount, duration_turns, status_code, description)
+SELECT id, 'MECANICA', 'DEFINITIVA', NULL, 3, NULL, NULL, 'Apocalipsis' FROM skills WHERE code = 'TITAN_DEL_CAOS_APOCALIPSIS';
+INSERT INTO skill_effects (skill_id, effect_type, stat_code, percent_amount, flat_amount, duration_turns, status_code, description)
+SELECT id, 'MECANICA', 'SED', 30, 30, NULL, NULL, 'Apocalipsis' FROM skills WHERE code = 'TITAN_DEL_CAOS_APOCALIPSIS';
+
+-- Colapso Estelar (MAGO_COSMICO)
+INSERT INTO skills (code, class_id, name, skill_type, damage_school, element_id, target_type, base_value, scaling_stat, scaling_multiplier, hits, mana_cost, is_passive, learn_method, learn_level, learn_gold_cost, description, cooldown_rounds)
+SELECT 'MAGO_COSMICO_COLAPSO_ESTELAR', (SELECT id FROM classes WHERE code = 'MAGO_COSMICO'), 'Colapso Estelar', 'ATAQUE', 'MAGICO', NULL, 'ALL_ENEMIES', 750, 'MAG', 2.3, 1, 110, FALSE, 'LEVEL', 90, NULL, 'DEFINITIVA. Una estrella cae y se apaga: el tiempo se detiene y todos los enemigos pierden su próximo turno.', 99
+WHERE NOT EXISTS (SELECT 1 FROM skills WHERE code = 'MAGO_COSMICO_COLAPSO_ESTELAR');
+UPDATE skills SET class_id = (SELECT id FROM classes WHERE code = 'MAGO_COSMICO'), name = 'Colapso Estelar', skill_type = 'ATAQUE', damage_school = 'MAGICO', element_id = NULL, target_type = 'ALL_ENEMIES', base_value = 750, scaling_stat = 'MAG', scaling_multiplier = 2.3, hits = 1, mana_cost = 110, is_passive = FALSE, learn_method = 'LEVEL', learn_level = 90, learn_gold_cost = NULL, description = 'DEFINITIVA. Una estrella cae y se apaga: el tiempo se detiene y todos los enemigos pierden su próximo turno.', cooldown_rounds = 99 WHERE code = 'MAGO_COSMICO_COLAPSO_ESTELAR';
+DELETE FROM skill_effects WHERE skill_id = (SELECT id FROM skills WHERE code = 'MAGO_COSMICO_COLAPSO_ESTELAR');
+INSERT INTO skill_effects (skill_id, effect_type, stat_code, percent_amount, flat_amount, duration_turns, status_code, description)
+SELECT id, 'MECANICA', 'DEFINITIVA', NULL, 3, NULL, NULL, 'Colapso Estelar' FROM skills WHERE code = 'MAGO_COSMICO_COLAPSO_ESTELAR';
+INSERT INTO skill_effects (skill_id, effect_type, stat_code, percent_amount, flat_amount, duration_turns, status_code, description)
+SELECT id, 'MECANICA', 'CONGELAR', NULL, 100, 2, NULL, 'Colapso Estelar' FROM skills WHERE code = 'MAGO_COSMICO_COLAPSO_ESTELAR';
+
+-- Bosque Eterno (ELFO_SENOR_BOSQUE)
+INSERT INTO skills (code, class_id, name, skill_type, damage_school, element_id, target_type, base_value, scaling_stat, scaling_multiplier, hits, mana_cost, is_passive, learn_method, learn_level, learn_gold_cost, description, cooldown_rounds)
+SELECT 'ELFO_SENOR_BOSQUE_ETERNO', (SELECT id FROM classes WHERE code = 'ELFO_SENOR_BOSQUE'), 'Bosque Eterno', 'BUFF', NULL, NULL, 'ALL_ALLIES', NULL, NULL, NULL, 1, 100, FALSE, 'LEVEL', 90, NULL, 'DEFINITIVA. El bosque entero despierta: cura al grupo el 20%, una semilla en cada uno (8% por golpe) y +20% de velocidad.', 99
+WHERE NOT EXISTS (SELECT 1 FROM skills WHERE code = 'ELFO_SENOR_BOSQUE_ETERNO');
+UPDATE skills SET class_id = (SELECT id FROM classes WHERE code = 'ELFO_SENOR_BOSQUE'), name = 'Bosque Eterno', skill_type = 'BUFF', damage_school = NULL, element_id = NULL, target_type = 'ALL_ALLIES', base_value = NULL, scaling_stat = NULL, scaling_multiplier = NULL, hits = 1, mana_cost = 100, is_passive = FALSE, learn_method = 'LEVEL', learn_level = 90, learn_gold_cost = NULL, description = 'DEFINITIVA. El bosque entero despierta: cura al grupo el 20%, una semilla en cada uno (8% por golpe) y +20% de velocidad.', cooldown_rounds = 99 WHERE code = 'ELFO_SENOR_BOSQUE_ETERNO';
+DELETE FROM skill_effects WHERE skill_id = (SELECT id FROM skills WHERE code = 'ELFO_SENOR_BOSQUE_ETERNO');
+INSERT INTO skill_effects (skill_id, effect_type, stat_code, percent_amount, flat_amount, duration_turns, status_code, description)
+SELECT id, 'MECANICA', 'DEFINITIVA', NULL, 3, NULL, NULL, 'Bosque Eterno' FROM skills WHERE code = 'ELFO_SENOR_BOSQUE_ETERNO';
+INSERT INTO skill_effects (skill_id, effect_type, stat_code, percent_amount, flat_amount, duration_turns, status_code, description)
+SELECT id, 'MECANICA', 'CURAR_GRUPO', 20, NULL, NULL, NULL, 'Bosque Eterno' FROM skills WHERE code = 'ELFO_SENOR_BOSQUE_ETERNO';
+INSERT INTO skill_effects (skill_id, effect_type, stat_code, percent_amount, flat_amount, duration_turns, status_code, description)
+SELECT id, 'MECANICA', 'SEMILLA', 8, NULL, 4, NULL, 'Bosque Eterno' FROM skills WHERE code = 'ELFO_SENOR_BOSQUE_ETERNO';
+INSERT INTO skill_effects (skill_id, effect_type, stat_code, percent_amount, flat_amount, duration_turns, status_code, description)
+SELECT id, 'MECANICA', 'SUBIR', 20, NULL, 3, 'SPD', 'Bosque Eterno' FROM skills WHERE code = 'ELFO_SENOR_BOSQUE_ETERNO';
+
+-- Marca de la Muerte (ASESINO_DE_ELITE)
+INSERT INTO skills (code, class_id, name, skill_type, damage_school, element_id, target_type, base_value, scaling_stat, scaling_multiplier, hits, mana_cost, is_passive, learn_method, learn_level, learn_gold_cost, description, cooldown_rounds)
+SELECT 'ASESINO_ELITE_MARCA_DE_LA_MUERTE', (SELECT id FROM classes WHERE code = 'ASESINO_DE_ELITE'), 'Marca de la Muerte', 'ATAQUE', 'FISICO', NULL, 'ENEMY', 900, 'ATK', 2.8, 1, 80, FALSE, 'LEVEL', 90, NULL, 'DEFINITIVA. Ignora toda la defensa. Contra un enemigo con menos del 40% de vida, triple daño; si muere, no gastas el turno.', 99
+WHERE NOT EXISTS (SELECT 1 FROM skills WHERE code = 'ASESINO_ELITE_MARCA_DE_LA_MUERTE');
+UPDATE skills SET class_id = (SELECT id FROM classes WHERE code = 'ASESINO_DE_ELITE'), name = 'Marca de la Muerte', skill_type = 'ATAQUE', damage_school = 'FISICO', element_id = NULL, target_type = 'ENEMY', base_value = 900, scaling_stat = 'ATK', scaling_multiplier = 2.8, hits = 1, mana_cost = 80, is_passive = FALSE, learn_method = 'LEVEL', learn_level = 90, learn_gold_cost = NULL, description = 'DEFINITIVA. Ignora toda la defensa. Contra un enemigo con menos del 40% de vida, triple daño; si muere, no gastas el turno.', cooldown_rounds = 99 WHERE code = 'ASESINO_ELITE_MARCA_DE_LA_MUERTE';
+DELETE FROM skill_effects WHERE skill_id = (SELECT id FROM skills WHERE code = 'ASESINO_ELITE_MARCA_DE_LA_MUERTE');
+INSERT INTO skill_effects (skill_id, effect_type, stat_code, percent_amount, flat_amount, duration_turns, status_code, description)
+SELECT id, 'MECANICA', 'DEFINITIVA', NULL, 3, NULL, NULL, 'Marca de la Muerte' FROM skills WHERE code = 'ASESINO_ELITE_MARCA_DE_LA_MUERTE';
+INSERT INTO skill_effects (skill_id, effect_type, stat_code, percent_amount, flat_amount, duration_turns, status_code, description)
+SELECT id, 'MECANICA', 'PERFORAR', 100, NULL, NULL, NULL, 'Marca de la Muerte' FROM skills WHERE code = 'ASESINO_ELITE_MARCA_DE_LA_MUERTE';
+INSERT INTO skill_effects (skill_id, effect_type, stat_code, percent_amount, flat_amount, duration_turns, status_code, description)
+SELECT id, 'MECANICA', 'EJECUTAR', 40, 3, NULL, NULL, 'Marca de la Muerte' FROM skills WHERE code = 'ASESINO_ELITE_MARCA_DE_LA_MUERTE';
+
+-- Juicio Final (PALADIN_DIVINO)
+INSERT INTO skills (code, class_id, name, skill_type, damage_school, element_id, target_type, base_value, scaling_stat, scaling_multiplier, hits, mana_cost, is_passive, learn_method, learn_level, learn_gold_cost, description, cooldown_rounds)
+SELECT 'PALADIN_DIVINO_JUICIO_FINAL', (SELECT id FROM classes WHERE code = 'PALADIN_DIVINO'), 'Juicio Final', 'ATAQUE', 'MAGICO', 7, 'ALL_ENEMIES', 650, 'MAG', 2, 1, 100, FALSE, 'LEVEL', 90, NULL, 'DEFINITIVA. La luz juzga a todos: quedan ciegos (30%) y sentenciados (cada vez que actúen, tu magia los quema).', 99
+WHERE NOT EXISTS (SELECT 1 FROM skills WHERE code = 'PALADIN_DIVINO_JUICIO_FINAL');
+UPDATE skills SET class_id = (SELECT id FROM classes WHERE code = 'PALADIN_DIVINO'), name = 'Juicio Final', skill_type = 'ATAQUE', damage_school = 'MAGICO', element_id = 7, target_type = 'ALL_ENEMIES', base_value = 650, scaling_stat = 'MAG', scaling_multiplier = 2, hits = 1, mana_cost = 100, is_passive = FALSE, learn_method = 'LEVEL', learn_level = 90, learn_gold_cost = NULL, description = 'DEFINITIVA. La luz juzga a todos: quedan ciegos (30%) y sentenciados (cada vez que actúen, tu magia los quema).', cooldown_rounds = 99 WHERE code = 'PALADIN_DIVINO_JUICIO_FINAL';
+DELETE FROM skill_effects WHERE skill_id = (SELECT id FROM skills WHERE code = 'PALADIN_DIVINO_JUICIO_FINAL');
+INSERT INTO skill_effects (skill_id, effect_type, stat_code, percent_amount, flat_amount, duration_turns, status_code, description)
+SELECT id, 'MECANICA', 'DEFINITIVA', NULL, 3, NULL, NULL, 'Juicio Final' FROM skills WHERE code = 'PALADIN_DIVINO_JUICIO_FINAL';
+INSERT INTO skill_effects (skill_id, effect_type, stat_code, percent_amount, flat_amount, duration_turns, status_code, description)
+SELECT id, 'MECANICA', 'CEGAR', 30, NULL, 2, NULL, 'Juicio Final' FROM skills WHERE code = 'PALADIN_DIVINO_JUICIO_FINAL';
+INSERT INTO skill_effects (skill_id, effect_type, stat_code, percent_amount, flat_amount, duration_turns, status_code, description)
+SELECT id, 'MECANICA', 'SENTENCIA', 100, NULL, 3, NULL, 'Juicio Final' FROM skills WHERE code = 'PALADIN_DIVINO_JUICIO_FINAL';
+
+-- Iluminación (ASCETA)
+INSERT INTO skills (code, class_id, name, skill_type, damage_school, element_id, target_type, base_value, scaling_stat, scaling_multiplier, hits, mana_cost, is_passive, learn_method, learn_level, learn_gold_cost, description, cooldown_rounds)
+SELECT 'PONTIFICE_ILUMINACION', (SELECT id FROM classes WHERE code = 'ASCETA'), 'Iluminación', 'ESPECIAL', NULL, NULL, 'ALL_ALLIES', NULL, NULL, NULL, 1, 100, FALSE, 'LEVEL', 90, NULL, 'DEFINITIVA. Levantas a los caídos con el 60% de su vida y repartes la vida del grupo, sumando un 30% a cada uno.', 99
+WHERE NOT EXISTS (SELECT 1 FROM skills WHERE code = 'PONTIFICE_ILUMINACION');
+UPDATE skills SET class_id = (SELECT id FROM classes WHERE code = 'ASCETA'), name = 'Iluminación', skill_type = 'ESPECIAL', damage_school = NULL, element_id = NULL, target_type = 'ALL_ALLIES', base_value = NULL, scaling_stat = NULL, scaling_multiplier = NULL, hits = 1, mana_cost = 100, is_passive = FALSE, learn_method = 'LEVEL', learn_level = 90, learn_gold_cost = NULL, description = 'DEFINITIVA. Levantas a los caídos con el 60% de su vida y repartes la vida del grupo, sumando un 30% a cada uno.', cooldown_rounds = 99 WHERE code = 'PONTIFICE_ILUMINACION';
+DELETE FROM skill_effects WHERE skill_id = (SELECT id FROM skills WHERE code = 'PONTIFICE_ILUMINACION');
+INSERT INTO skill_effects (skill_id, effect_type, stat_code, percent_amount, flat_amount, duration_turns, status_code, description)
+SELECT id, 'MECANICA', 'DEFINITIVA', NULL, 3, NULL, NULL, 'Iluminación' FROM skills WHERE code = 'PONTIFICE_ILUMINACION';
+INSERT INTO skill_effects (skill_id, effect_type, stat_code, percent_amount, flat_amount, duration_turns, status_code, description)
+SELECT id, 'MECANICA', 'REVIVIR', 60, NULL, NULL, NULL, 'Iluminación' FROM skills WHERE code = 'PONTIFICE_ILUMINACION';
+INSERT INTO skill_effects (skill_id, effect_type, stat_code, percent_amount, flat_amount, duration_turns, status_code, description)
+SELECT id, 'MECANICA', 'IGUALAR', 30, NULL, NULL, NULL, 'Iluminación' FROM skills WHERE code = 'PONTIFICE_ILUMINACION';
+
+-- Exorcismo Supremo (EXORCISTA)
+INSERT INTO skills (code, class_id, name, skill_type, damage_school, element_id, target_type, base_value, scaling_stat, scaling_multiplier, hits, mana_cost, is_passive, learn_method, learn_level, learn_gold_cost, description, cooldown_rounds)
+SELECT 'INQUISIDOR_SAGRADO_EXORCISMO', (SELECT id FROM classes WHERE code = 'EXORCISTA'), 'Exorcismo Supremo', 'ATAQUE', 'MAGICO', 7, 'ALL_ENEMIES', 600, 'MAG', 2, 1, 100, FALSE, 'LEVEL', 90, NULL, 'DEFINITIVA. Echas al mal de todos: silenciados 3 rondas y pierden hasta tres mejoras cada uno.', 99
+WHERE NOT EXISTS (SELECT 1 FROM skills WHERE code = 'INQUISIDOR_SAGRADO_EXORCISMO');
+UPDATE skills SET class_id = (SELECT id FROM classes WHERE code = 'EXORCISTA'), name = 'Exorcismo Supremo', skill_type = 'ATAQUE', damage_school = 'MAGICO', element_id = 7, target_type = 'ALL_ENEMIES', base_value = 600, scaling_stat = 'MAG', scaling_multiplier = 2, hits = 1, mana_cost = 100, is_passive = FALSE, learn_method = 'LEVEL', learn_level = 90, learn_gold_cost = NULL, description = 'DEFINITIVA. Echas al mal de todos: silenciados 3 rondas y pierden hasta tres mejoras cada uno.', cooldown_rounds = 99 WHERE code = 'INQUISIDOR_SAGRADO_EXORCISMO';
+DELETE FROM skill_effects WHERE skill_id = (SELECT id FROM skills WHERE code = 'INQUISIDOR_SAGRADO_EXORCISMO');
+INSERT INTO skill_effects (skill_id, effect_type, stat_code, percent_amount, flat_amount, duration_turns, status_code, description)
+SELECT id, 'MECANICA', 'DEFINITIVA', NULL, 3, NULL, NULL, 'Exorcismo Supremo' FROM skills WHERE code = 'INQUISIDOR_SAGRADO_EXORCISMO';
+INSERT INTO skill_effects (skill_id, effect_type, stat_code, percent_amount, flat_amount, duration_turns, status_code, description)
+SELECT id, 'MECANICA', 'SILENCIAR', NULL, NULL, 3, NULL, 'Exorcismo Supremo' FROM skills WHERE code = 'INQUISIDOR_SAGRADO_EXORCISMO';
+INSERT INTO skill_effects (skill_id, effect_type, stat_code, percent_amount, flat_amount, duration_turns, status_code, description)
+SELECT id, 'MECANICA', 'DISIPAR', NULL, 3, NULL, NULL, 'Exorcismo Supremo' FROM skills WHERE code = 'INQUISIDOR_SAGRADO_EXORCISMO';
+
+-- Elixir de la Vida (HERBOLARIO_SAGRADO)
+INSERT INTO skills (code, class_id, name, skill_type, damage_school, element_id, target_type, base_value, scaling_stat, scaling_multiplier, hits, mana_cost, is_passive, learn_method, learn_level, learn_gold_cost, description, cooldown_rounds)
+SELECT 'ARCHIDRUIDA_ELIXIR_DE_LA_VIDA', (SELECT id FROM classes WHERE code = 'HERBOLARIO_SAGRADO'), 'Elixir de la Vida', 'ESPECIAL', NULL, NULL, 'ALL_ALLIES', NULL, NULL, NULL, 1, 100, FALSE, 'LEVEL', 90, NULL, 'DEFINITIVA. El elixir perfecto: cura al grupo el 35%, le quita tres males a cada uno y planta una semilla.', 99
+WHERE NOT EXISTS (SELECT 1 FROM skills WHERE code = 'ARCHIDRUIDA_ELIXIR_DE_LA_VIDA');
+UPDATE skills SET class_id = (SELECT id FROM classes WHERE code = 'HERBOLARIO_SAGRADO'), name = 'Elixir de la Vida', skill_type = 'ESPECIAL', damage_school = NULL, element_id = NULL, target_type = 'ALL_ALLIES', base_value = NULL, scaling_stat = NULL, scaling_multiplier = NULL, hits = 1, mana_cost = 100, is_passive = FALSE, learn_method = 'LEVEL', learn_level = 90, learn_gold_cost = NULL, description = 'DEFINITIVA. El elixir perfecto: cura al grupo el 35%, le quita tres males a cada uno y planta una semilla.', cooldown_rounds = 99 WHERE code = 'ARCHIDRUIDA_ELIXIR_DE_LA_VIDA';
+DELETE FROM skill_effects WHERE skill_id = (SELECT id FROM skills WHERE code = 'ARCHIDRUIDA_ELIXIR_DE_LA_VIDA');
+INSERT INTO skill_effects (skill_id, effect_type, stat_code, percent_amount, flat_amount, duration_turns, status_code, description)
+SELECT id, 'MECANICA', 'DEFINITIVA', NULL, 3, NULL, NULL, 'Elixir de la Vida' FROM skills WHERE code = 'ARCHIDRUIDA_ELIXIR_DE_LA_VIDA';
+INSERT INTO skill_effects (skill_id, effect_type, stat_code, percent_amount, flat_amount, duration_turns, status_code, description)
+SELECT id, 'MECANICA', 'CURAR_GRUPO', 35, NULL, NULL, NULL, 'Elixir de la Vida' FROM skills WHERE code = 'ARCHIDRUIDA_ELIXIR_DE_LA_VIDA';
+INSERT INTO skill_effects (skill_id, effect_type, stat_code, percent_amount, flat_amount, duration_turns, status_code, description)
+SELECT id, 'MECANICA', 'LIMPIAR', NULL, 3, NULL, NULL, 'Elixir de la Vida' FROM skills WHERE code = 'ARCHIDRUIDA_ELIXIR_DE_LA_VIDA';
+INSERT INTO skill_effects (skill_id, effect_type, stat_code, percent_amount, flat_amount, duration_turns, status_code, description)
+SELECT id, 'MECANICA', 'SEMILLA', 6, NULL, 3, NULL, 'Elixir de la Vida' FROM skills WHERE code = 'ARCHIDRUIDA_ELIXIR_DE_LA_VIDA';
+
+-- Eclipse (SACERDOTE_DEL_CAOS)
+INSERT INTO skills (code, class_id, name, skill_type, damage_school, element_id, target_type, base_value, scaling_stat, scaling_multiplier, hits, mana_cost, is_passive, learn_method, learn_level, learn_gold_cost, description, cooldown_rounds)
+SELECT 'SACERDOTE_CAOS_ECLIPSE', (SELECT id FROM classes WHERE code = 'SACERDOTE_DEL_CAOS'), 'Eclipse', 'ATAQUE', 'MAGICO', 8, 'ALL_ENEMIES', 650, 'MAG', 2, 1, 100, FALSE, 'LEVEL', 90, NULL, 'DEFINITIVA. El sol se apaga: todos reciben cinco capas de plaga de golpe y quedan silenciados 2 rondas.', 99
+WHERE NOT EXISTS (SELECT 1 FROM skills WHERE code = 'SACERDOTE_CAOS_ECLIPSE');
+UPDATE skills SET class_id = (SELECT id FROM classes WHERE code = 'SACERDOTE_DEL_CAOS'), name = 'Eclipse', skill_type = 'ATAQUE', damage_school = 'MAGICO', element_id = 8, target_type = 'ALL_ENEMIES', base_value = 650, scaling_stat = 'MAG', scaling_multiplier = 2, hits = 1, mana_cost = 100, is_passive = FALSE, learn_method = 'LEVEL', learn_level = 90, learn_gold_cost = NULL, description = 'DEFINITIVA. El sol se apaga: todos reciben cinco capas de plaga de golpe y quedan silenciados 2 rondas.', cooldown_rounds = 99 WHERE code = 'SACERDOTE_CAOS_ECLIPSE';
+DELETE FROM skill_effects WHERE skill_id = (SELECT id FROM skills WHERE code = 'SACERDOTE_CAOS_ECLIPSE');
+INSERT INTO skill_effects (skill_id, effect_type, stat_code, percent_amount, flat_amount, duration_turns, status_code, description)
+SELECT id, 'MECANICA', 'DEFINITIVA', NULL, 3, NULL, NULL, 'Eclipse' FROM skills WHERE code = 'SACERDOTE_CAOS_ECLIPSE';
+INSERT INTO skill_effects (skill_id, effect_type, stat_code, percent_amount, flat_amount, duration_turns, status_code, description)
+SELECT id, 'MECANICA', 'PLAGA', 5, 5, 4, 'TODAS', 'Eclipse' FROM skills WHERE code = 'SACERDOTE_CAOS_ECLIPSE';
+INSERT INTO skill_effects (skill_id, effect_type, stat_code, percent_amount, flat_amount, duration_turns, status_code, description)
+SELECT id, 'MECANICA', 'SILENCIAR', NULL, NULL, 2, NULL, 'Eclipse' FROM skills WHERE code = 'SACERDOTE_CAOS_ECLIPSE';
+
+-- Segunda Venida (APOSTOL)
+INSERT INTO skills (code, class_id, name, skill_type, damage_school, element_id, target_type, base_value, scaling_stat, scaling_multiplier, hits, mana_cost, is_passive, learn_method, learn_level, learn_gold_cost, description, cooldown_rounds)
+SELECT 'APOSTOL_SEGUNDA_VENIDA', (SELECT id FROM classes WHERE code = 'APOSTOL'), 'Segunda Venida', 'ESPECIAL', NULL, NULL, 'ALL_ALLIES', NULL, NULL, NULL, 1, 110, FALSE, 'LEVEL', 90, NULL, 'DEFINITIVA. Todos los caídos vuelven con la vida entera y el grupo queda cubierto por una barrera del 20%.', 99
+WHERE NOT EXISTS (SELECT 1 FROM skills WHERE code = 'APOSTOL_SEGUNDA_VENIDA');
+UPDATE skills SET class_id = (SELECT id FROM classes WHERE code = 'APOSTOL'), name = 'Segunda Venida', skill_type = 'ESPECIAL', damage_school = NULL, element_id = NULL, target_type = 'ALL_ALLIES', base_value = NULL, scaling_stat = NULL, scaling_multiplier = NULL, hits = 1, mana_cost = 110, is_passive = FALSE, learn_method = 'LEVEL', learn_level = 90, learn_gold_cost = NULL, description = 'DEFINITIVA. Todos los caídos vuelven con la vida entera y el grupo queda cubierto por una barrera del 20%.', cooldown_rounds = 99 WHERE code = 'APOSTOL_SEGUNDA_VENIDA';
+DELETE FROM skill_effects WHERE skill_id = (SELECT id FROM skills WHERE code = 'APOSTOL_SEGUNDA_VENIDA');
+INSERT INTO skill_effects (skill_id, effect_type, stat_code, percent_amount, flat_amount, duration_turns, status_code, description)
+SELECT id, 'MECANICA', 'DEFINITIVA', NULL, 3, NULL, NULL, 'Segunda Venida' FROM skills WHERE code = 'APOSTOL_SEGUNDA_VENIDA';
+INSERT INTO skill_effects (skill_id, effect_type, stat_code, percent_amount, flat_amount, duration_turns, status_code, description)
+SELECT id, 'MECANICA', 'REVIVIR', 100, NULL, NULL, NULL, 'Segunda Venida' FROM skills WHERE code = 'APOSTOL_SEGUNDA_VENIDA';
+INSERT INTO skill_effects (skill_id, effect_type, stat_code, percent_amount, flat_amount, duration_turns, status_code, description)
+SELECT id, 'MECANICA', 'BARRERA', 20, 50, 3, NULL, 'Segunda Venida' FROM skills WHERE code = 'APOSTOL_SEGUNDA_VENIDA';
+
+-- ============================================================================================
+-- Las habilidades de las evoluciones se aprenden por niveles (docs/habilidades_firma.md), repetible:
+--   al evolucionar: la habilidad firma y la pasiva de la clase (nivel 20, 50 o 90)
+--   después, en orden (ataque a un enemigo, apoyo, área, el resto):
+--     escalón 1 (20-49): 25, 32, 40, 45, 47, 49
+--     escalón 2 (50-89): 56, 64, 74, 82, 85, 88
+--     escalón 3 (90-100): 90, 93, 96, 97, 99 · la Definitiva (la firma del escalón 3) en el 98
+-- ============================================================================================
+WITH RECURSIVE arbol AS (
+  SELECT id, 0 AS tier FROM classes WHERE id IN (SELECT class_id FROM class_evolutions) AND id NOT IN (SELECT evolves_to_class_id FROM class_evolutions)
+  UNION ALL
+  SELECT ce.evolves_to_class_id, a.tier + 1 FROM class_evolutions ce JOIN arbol a ON a.id = ce.class_id
+),
+clases AS (SELECT id, max(tier) AS tier FROM arbol WHERE tier > 0 GROUP BY id),
+habs AS (
+  SELECT s.id, s.class_id, c.tier, COALESCE(s.is_passive, FALSE) AS pasiva,
+         EXISTS (SELECT 1 FROM skill_effects e WHERE e.skill_id = s.id AND e.effect_type = 'MECANICA') AS firma,
+         CASE WHEN s.skill_type = 'ATAQUE' AND s.target_type = 'ENEMY' THEN 0
+              WHEN s.skill_type IN ('BUFF', 'DEBUFF', 'CURACION', 'ESPECIAL') THEN 1
+              WHEN s.skill_type = 'ATAQUE' THEN 2
+              ELSE 3 END AS orden,
+         s.learn_level, s.code
+  FROM skills s JOIN clases c ON c.id = s.class_id
+  WHERE s.learn_method = 'LEVEL'
+),
+resto AS (
+  SELECT id, tier, row_number() OVER (PARTITION BY class_id ORDER BY orden, learn_level, code) AS n
+  FROM habs WHERE NOT pasiva AND NOT firma
+),
+nuevo AS (
+  SELECT id, CASE tier WHEN 1 THEN 20 WHEN 2 THEN 50 ELSE 98 END AS nivel FROM habs WHERE firma
+  UNION ALL
+  SELECT id, CASE tier WHEN 1 THEN 20 WHEN 2 THEN 50 ELSE 90 END FROM habs WHERE pasiva AND NOT firma
+  UNION ALL
+  SELECT id, CASE tier
+    WHEN 1 THEN (ARRAY[25, 32, 40, 45, 47, 49])[LEAST(n, 6)]
+    WHEN 2 THEN (ARRAY[56, 64, 74, 82, 85, 88])[LEAST(n, 6)]
+    ELSE (ARRAY[90, 93, 96, 97, 99, 99])[LEAST(n, 6)] END
+  FROM resto
+)
+UPDATE skills s SET learn_level = nuevo.nivel FROM nuevo WHERE s.id = nuevo.id;
+
+-- ============================================================================================
+-- Las misiones de práctica de cada clase (las de antes de las Pruebas de la Orden) las dan los maestros del
+-- Barrio de las Órdenes de Aurelia: Valdemar, Sylvan, Kira y Elrond no existen en el mapa. Pasan a secundarias
+-- (no son historia) y se entregan en persona. Repetible.
+-- ============================================================================================
+UPDATE quests q SET npc_name = v.nombre, giver_npc = v.npc, turn_in_npc = v.npc, quest_type = 'SECUNDARIA'
+FROM (VALUES (1, 'Sir Aldric', 'aldric'), (2, 'Isolde', 'isolde'), (3, 'Sylwen', 'sylwen'), (4, 'Nox', 'nox'), (5, 'Padre Anselm', 'anselm'))
+  AS v(clase, nombre, npc)
+WHERE q.required_class_id = v.clase AND q.code NOT LIKE 'PRUEBA\_%'
+  AND q.code IN ('GUERRERO_ENTRENAMIENTO_DEFENSA', 'GUERRERO_DUELO_CAMPEON', 'MAGO_MAESTRO_OSCURO', 'MAGO_DOMINIO_ELEMENTAL',
+    'ARQUERO_CAZADOR', 'ARQUERO_TIRADOR_PERFECTO', 'PICARO_ASESINO_SILENCIOSO', 'PICARO_CONTRATO', 'SACERDOTE_PURGA', 'SACERDOTE_PODER_DIVINO');
+
+-- ============================================================================================
+-- Habilidades con mecánicas para jefes y minijefes (repetible; sin ON CONFLICT). lib/mecanicas.js las resuelve
+-- también desde el lado de los monstruos. Diseño: docs/habilidades_firma.md.
+-- ============================================================================================
+
+-- Luz del Faro Fantasma (CRIPTA_VIGIA)
+INSERT INTO skills (code, class_id, name, skill_type, damage_school, element_id, target_type, base_value, scaling_stat, scaling_multiplier, hits, mana_cost, is_passive, learn_method, learn_level, description)
+SELECT 'JEFE_CRIPTA_VIGIA_1', NULL, 'Luz del Faro Fantasma', 'DEBUFF', NULL, NULL, 'ALL_ENEMIES', NULL, NULL, NULL, 1, 20, FALSE, 'LEVEL', 1, 'El faro se enciende de golpe y deja ciegos a todos.'
+WHERE NOT EXISTS (SELECT 1 FROM skills WHERE code = 'JEFE_CRIPTA_VIGIA_1');
+UPDATE skills SET class_id = NULL, name = 'Luz del Faro Fantasma', skill_type = 'DEBUFF', damage_school = NULL, element_id = NULL, target_type = 'ALL_ENEMIES', base_value = NULL, scaling_stat = NULL, scaling_multiplier = NULL, hits = 1, mana_cost = 20, is_passive = FALSE, learn_method = 'LEVEL', learn_level = 1, description = 'El faro se enciende de golpe y deja ciegos a todos.' WHERE code = 'JEFE_CRIPTA_VIGIA_1';
+DELETE FROM skill_effects WHERE skill_id = (SELECT id FROM skills WHERE code = 'JEFE_CRIPTA_VIGIA_1');
+INSERT INTO skill_effects (skill_id, effect_type, stat_code, percent_amount, flat_amount, duration_turns, status_code, description)
+SELECT id, 'MECANICA', 'CEGAR', 30, NULL, 2, NULL, 'Luz del Faro Fantasma' FROM skills WHERE code = 'JEFE_CRIPTA_VIGIA_1';
+INSERT INTO monster_skills (monster_id, skill_id, use_chance_percent)
+SELECT m.id, s.id, 20 FROM monsters m, skills s WHERE m.code = 'CRIPTA_VIGIA' AND s.code = 'JEFE_CRIPTA_VIGIA_1'
+  AND NOT EXISTS (SELECT 1 FROM monster_skills ms WHERE ms.monster_id = m.id AND ms.skill_id = s.id);
+UPDATE monster_skills SET use_chance_percent = 20 WHERE monster_id = (SELECT id FROM monsters WHERE code = 'CRIPTA_VIGIA') AND skill_id = (SELECT id FROM skills WHERE code = 'JEFE_CRIPTA_VIGIA_1');
+
+-- Aullido de la Jauría (CAPITAN_LOBOS)
+INSERT INTO skills (code, class_id, name, skill_type, damage_school, element_id, target_type, base_value, scaling_stat, scaling_multiplier, hits, mana_cost, is_passive, learn_method, learn_level, description)
+SELECT 'JEFE_CAPITAN_LOBOS_1', NULL, 'Aullido de la Jauría', 'BUFF', NULL, NULL, 'SELF', NULL, NULL, NULL, 1, 20, FALSE, 'LEVEL', 1, 'El capitán aúlla y la jauría le contesta: más ataque y más velocidad.'
+WHERE NOT EXISTS (SELECT 1 FROM skills WHERE code = 'JEFE_CAPITAN_LOBOS_1');
+UPDATE skills SET class_id = NULL, name = 'Aullido de la Jauría', skill_type = 'BUFF', damage_school = NULL, element_id = NULL, target_type = 'SELF', base_value = NULL, scaling_stat = NULL, scaling_multiplier = NULL, hits = 1, mana_cost = 20, is_passive = FALSE, learn_method = 'LEVEL', learn_level = 1, description = 'El capitán aúlla y la jauría le contesta: más ataque y más velocidad.' WHERE code = 'JEFE_CAPITAN_LOBOS_1';
+DELETE FROM skill_effects WHERE skill_id = (SELECT id FROM skills WHERE code = 'JEFE_CAPITAN_LOBOS_1');
+INSERT INTO skill_effects (skill_id, effect_type, stat_code, percent_amount, flat_amount, duration_turns, status_code, description)
+SELECT id, 'MECANICA', 'SUBIR', 25, NULL, 3, 'ATK', 'Aullido de la Jauría' FROM skills WHERE code = 'JEFE_CAPITAN_LOBOS_1';
+INSERT INTO skill_effects (skill_id, effect_type, stat_code, percent_amount, flat_amount, duration_turns, status_code, description)
+SELECT id, 'MECANICA', 'SUBIR', 20, NULL, 3, 'SPD', 'Aullido de la Jauría' FROM skills WHERE code = 'JEFE_CAPITAN_LOBOS_1';
+INSERT INTO monster_skills (monster_id, skill_id, use_chance_percent)
+SELECT m.id, s.id, 25 FROM monsters m, skills s WHERE m.code = 'CAPITAN_LOBOS' AND s.code = 'JEFE_CAPITAN_LOBOS_1'
+  AND NOT EXISTS (SELECT 1 FROM monster_skills ms WHERE ms.monster_id = m.id AND ms.skill_id = s.id);
+UPDATE monster_skills SET use_chance_percent = 25 WHERE monster_id = (SELECT id FROM monsters WHERE code = 'CAPITAN_LOBOS') AND skill_id = (SELECT id FROM skills WHERE code = 'JEFE_CAPITAN_LOBOS_1');
+
+-- Muralla de Tierra (TITAN_PRADERA)
+INSERT INTO skills (code, class_id, name, skill_type, damage_school, element_id, target_type, base_value, scaling_stat, scaling_multiplier, hits, mana_cost, is_passive, learn_method, learn_level, description)
+SELECT 'JEFE_TITAN_PRADERA_1', NULL, 'Muralla de Tierra', 'BUFF', NULL, NULL, 'SELF', NULL, NULL, NULL, 1, 20, FALSE, 'LEVEL', 1, 'El suelo se levanta y lo cubre: una barrera de piedra.'
+WHERE NOT EXISTS (SELECT 1 FROM skills WHERE code = 'JEFE_TITAN_PRADERA_1');
+UPDATE skills SET class_id = NULL, name = 'Muralla de Tierra', skill_type = 'BUFF', damage_school = NULL, element_id = NULL, target_type = 'SELF', base_value = NULL, scaling_stat = NULL, scaling_multiplier = NULL, hits = 1, mana_cost = 20, is_passive = FALSE, learn_method = 'LEVEL', learn_level = 1, description = 'El suelo se levanta y lo cubre: una barrera de piedra.' WHERE code = 'JEFE_TITAN_PRADERA_1';
+DELETE FROM skill_effects WHERE skill_id = (SELECT id FROM skills WHERE code = 'JEFE_TITAN_PRADERA_1');
+INSERT INTO skill_effects (skill_id, effect_type, stat_code, percent_amount, flat_amount, duration_turns, status_code, description)
+SELECT id, 'MECANICA', 'BARRERA', 15, 0, 3, NULL, 'Muralla de Tierra' FROM skills WHERE code = 'JEFE_TITAN_PRADERA_1';
+INSERT INTO monster_skills (monster_id, skill_id, use_chance_percent)
+SELECT m.id, s.id, 25 FROM monsters m, skills s WHERE m.code = 'TITAN_PRADERA' AND s.code = 'JEFE_TITAN_PRADERA_1'
+  AND NOT EXISTS (SELECT 1 FROM monster_skills ms WHERE ms.monster_id = m.id AND ms.skill_id = s.id);
+UPDATE monster_skills SET use_chance_percent = 25 WHERE monster_id = (SELECT id FROM monsters WHERE code = 'TITAN_PRADERA') AND skill_id = (SELECT id FROM skills WHERE code = 'JEFE_TITAN_PRADERA_1');
+
+-- Guardia del Campeón (CAMPEON_CUARTEL)
+INSERT INTO skills (code, class_id, name, skill_type, damage_school, element_id, target_type, base_value, scaling_stat, scaling_multiplier, hits, mana_cost, is_passive, learn_method, learn_level, description)
+SELECT 'JEFE_CAMPEON_CUARTEL_1', NULL, 'Guardia del Campeón', 'BUFF', NULL, NULL, 'SELF', NULL, NULL, NULL, 1, 15, FALSE, 'LEVEL', 1, 'Se pone en guardia: el próximo golpe físico lo desvía y lo devuelve.'
+WHERE NOT EXISTS (SELECT 1 FROM skills WHERE code = 'JEFE_CAMPEON_CUARTEL_1');
+UPDATE skills SET class_id = NULL, name = 'Guardia del Campeón', skill_type = 'BUFF', damage_school = NULL, element_id = NULL, target_type = 'SELF', base_value = NULL, scaling_stat = NULL, scaling_multiplier = NULL, hits = 1, mana_cost = 15, is_passive = FALSE, learn_method = 'LEVEL', learn_level = 1, description = 'Se pone en guardia: el próximo golpe físico lo desvía y lo devuelve.' WHERE code = 'JEFE_CAMPEON_CUARTEL_1';
+DELETE FROM skill_effects WHERE skill_id = (SELECT id FROM skills WHERE code = 'JEFE_CAMPEON_CUARTEL_1');
+INSERT INTO skill_effects (skill_id, effect_type, stat_code, percent_amount, flat_amount, duration_turns, status_code, description)
+SELECT id, 'MECANICA', 'CONTRA', 100, NULL, 2, NULL, 'Guardia del Campeón' FROM skills WHERE code = 'JEFE_CAMPEON_CUARTEL_1';
+INSERT INTO monster_skills (monster_id, skill_id, use_chance_percent)
+SELECT m.id, s.id, 30 FROM monsters m, skills s WHERE m.code = 'CAMPEON_CUARTEL' AND s.code = 'JEFE_CAMPEON_CUARTEL_1'
+  AND NOT EXISTS (SELECT 1 FROM monster_skills ms WHERE ms.monster_id = m.id AND ms.skill_id = s.id);
+UPDATE monster_skills SET use_chance_percent = 30 WHERE monster_id = (SELECT id FROM monsters WHERE code = 'CAMPEON_CUARTEL') AND skill_id = (SELECT id FROM skills WHERE code = 'JEFE_CAMPEON_CUARTEL_1');
+
+-- Runa del Silencio (GOLEM_RUNAS)
+INSERT INTO skills (code, class_id, name, skill_type, damage_school, element_id, target_type, base_value, scaling_stat, scaling_multiplier, hits, mana_cost, is_passive, learn_method, learn_level, description)
+SELECT 'JEFE_GOLEM_RUNAS_1', NULL, 'Runa del Silencio', 'DEBUFF', NULL, NULL, 'ENEMY', NULL, NULL, NULL, 1, 20, FALSE, 'LEVEL', 1, 'Graba una runa en tu garganta: no puedes usar habilidades.'
+WHERE NOT EXISTS (SELECT 1 FROM skills WHERE code = 'JEFE_GOLEM_RUNAS_1');
+UPDATE skills SET class_id = NULL, name = 'Runa del Silencio', skill_type = 'DEBUFF', damage_school = NULL, element_id = NULL, target_type = 'ENEMY', base_value = NULL, scaling_stat = NULL, scaling_multiplier = NULL, hits = 1, mana_cost = 20, is_passive = FALSE, learn_method = 'LEVEL', learn_level = 1, description = 'Graba una runa en tu garganta: no puedes usar habilidades.' WHERE code = 'JEFE_GOLEM_RUNAS_1';
+DELETE FROM skill_effects WHERE skill_id = (SELECT id FROM skills WHERE code = 'JEFE_GOLEM_RUNAS_1');
+INSERT INTO skill_effects (skill_id, effect_type, stat_code, percent_amount, flat_amount, duration_turns, status_code, description)
+SELECT id, 'MECANICA', 'SILENCIAR', NULL, NULL, 2, NULL, 'Runa del Silencio' FROM skills WHERE code = 'JEFE_GOLEM_RUNAS_1';
+INSERT INTO monster_skills (monster_id, skill_id, use_chance_percent)
+SELECT m.id, s.id, 30 FROM monsters m, skills s WHERE m.code = 'GOLEM_RUNAS' AND s.code = 'JEFE_GOLEM_RUNAS_1'
+  AND NOT EXISTS (SELECT 1 FROM monster_skills ms WHERE ms.monster_id = m.id AND ms.skill_id = s.id);
+UPDATE monster_skills SET use_chance_percent = 30 WHERE monster_id = (SELECT id FROM monsters WHERE code = 'GOLEM_RUNAS') AND skill_id = (SELECT id FROM skills WHERE code = 'JEFE_GOLEM_RUNAS_1');
+
+-- Truco de Sombras (SOMBRA_NOX)
+INSERT INTO skills (code, class_id, name, skill_type, damage_school, element_id, target_type, base_value, scaling_stat, scaling_multiplier, hits, mana_cost, is_passive, learn_method, learn_level, description)
+SELECT 'JEFE_SOMBRA_NOX_1', NULL, 'Truco de Sombras', 'ESPECIAL', NULL, NULL, 'SELF', NULL, NULL, NULL, 1, 15, FALSE, 'LEVEL', 1, 'Deja un clon de humo en su lugar: el próximo golpe se lo lleva el clon.'
+WHERE NOT EXISTS (SELECT 1 FROM skills WHERE code = 'JEFE_SOMBRA_NOX_1');
+UPDATE skills SET class_id = NULL, name = 'Truco de Sombras', skill_type = 'ESPECIAL', damage_school = NULL, element_id = NULL, target_type = 'SELF', base_value = NULL, scaling_stat = NULL, scaling_multiplier = NULL, hits = 1, mana_cost = 15, is_passive = FALSE, learn_method = 'LEVEL', learn_level = 1, description = 'Deja un clon de humo en su lugar: el próximo golpe se lo lleva el clon.' WHERE code = 'JEFE_SOMBRA_NOX_1';
+DELETE FROM skill_effects WHERE skill_id = (SELECT id FROM skills WHERE code = 'JEFE_SOMBRA_NOX_1');
+INSERT INTO skill_effects (skill_id, effect_type, stat_code, percent_amount, flat_amount, duration_turns, status_code, description)
+SELECT id, 'MECANICA', 'SENUELO', NULL, 1, 2, NULL, 'Truco de Sombras' FROM skills WHERE code = 'JEFE_SOMBRA_NOX_1';
+INSERT INTO monster_skills (monster_id, skill_id, use_chance_percent)
+SELECT m.id, s.id, 30 FROM monsters m, skills s WHERE m.code = 'SOMBRA_NOX' AND s.code = 'JEFE_SOMBRA_NOX_1'
+  AND NOT EXISTS (SELECT 1 FROM monster_skills ms WHERE ms.monster_id = m.id AND ms.skill_id = s.id);
+UPDATE monster_skills SET use_chance_percent = 30 WHERE monster_id = (SELECT id FROM monsters WHERE code = 'SOMBRA_NOX') AND skill_id = (SELECT id FROM skills WHERE code = 'JEFE_SOMBRA_NOX_1');
+
+-- Coraza de Hierro Negro (MINA_GOLEM_NEGRO)
+INSERT INTO skills (code, class_id, name, skill_type, damage_school, element_id, target_type, base_value, scaling_stat, scaling_multiplier, hits, mana_cost, is_passive, learn_method, learn_level, description)
+SELECT 'JEFE_MINA_GOLEM_NEGRO_1', NULL, 'Coraza de Hierro Negro', 'BUFF', NULL, NULL, 'SELF', NULL, NULL, NULL, 1, 25, FALSE, 'LEVEL', 1, 'Una coraza de hierro negro: barrera y más defensa.'
+WHERE NOT EXISTS (SELECT 1 FROM skills WHERE code = 'JEFE_MINA_GOLEM_NEGRO_1');
+UPDATE skills SET class_id = NULL, name = 'Coraza de Hierro Negro', skill_type = 'BUFF', damage_school = NULL, element_id = NULL, target_type = 'SELF', base_value = NULL, scaling_stat = NULL, scaling_multiplier = NULL, hits = 1, mana_cost = 25, is_passive = FALSE, learn_method = 'LEVEL', learn_level = 1, description = 'Una coraza de hierro negro: barrera y más defensa.' WHERE code = 'JEFE_MINA_GOLEM_NEGRO_1';
+DELETE FROM skill_effects WHERE skill_id = (SELECT id FROM skills WHERE code = 'JEFE_MINA_GOLEM_NEGRO_1');
+INSERT INTO skill_effects (skill_id, effect_type, stat_code, percent_amount, flat_amount, duration_turns, status_code, description)
+SELECT id, 'MECANICA', 'BARRERA', 20, 0, 3, NULL, 'Coraza de Hierro Negro' FROM skills WHERE code = 'JEFE_MINA_GOLEM_NEGRO_1';
+INSERT INTO skill_effects (skill_id, effect_type, stat_code, percent_amount, flat_amount, duration_turns, status_code, description)
+SELECT id, 'MECANICA', 'SUBIR', 20, NULL, 3, 'DEF', 'Coraza de Hierro Negro' FROM skills WHERE code = 'JEFE_MINA_GOLEM_NEGRO_1';
+INSERT INTO monster_skills (monster_id, skill_id, use_chance_percent)
+SELECT m.id, s.id, 25 FROM monsters m, skills s WHERE m.code = 'MINA_GOLEM_NEGRO' AND s.code = 'JEFE_MINA_GOLEM_NEGRO_1'
+  AND NOT EXISTS (SELECT 1 FROM monster_skills ms WHERE ms.monster_id = m.id AND ms.skill_id = s.id);
+UPDATE monster_skills SET use_chance_percent = 25 WHERE monster_id = (SELECT id FROM monsters WHERE code = 'MINA_GOLEM_NEGRO') AND skill_id = (SELECT id FROM skills WHERE code = 'JEFE_MINA_GOLEM_NEGRO_1');
+
+-- Viento Cortante (SENOR_ACANTILADO)
+INSERT INTO skills (code, class_id, name, skill_type, damage_school, element_id, target_type, base_value, scaling_stat, scaling_multiplier, hits, mana_cost, is_passive, learn_method, learn_level, description)
+SELECT 'JEFE_SENOR_ACANTILADO_1', NULL, 'Viento Cortante', 'ATAQUE', 'MAGICO', 4, 'ALL_ENEMIES', 4, 'MAG', 0.8, 1, 25, FALSE, 'LEVEL', 1, 'Un viento con arena que corta y ciega a todos.'
+WHERE NOT EXISTS (SELECT 1 FROM skills WHERE code = 'JEFE_SENOR_ACANTILADO_1');
+UPDATE skills SET class_id = NULL, name = 'Viento Cortante', skill_type = 'ATAQUE', damage_school = 'MAGICO', element_id = 4, target_type = 'ALL_ENEMIES', base_value = 4, scaling_stat = 'MAG', scaling_multiplier = 0.8, hits = 1, mana_cost = 25, is_passive = FALSE, learn_method = 'LEVEL', learn_level = 1, description = 'Un viento con arena que corta y ciega a todos.' WHERE code = 'JEFE_SENOR_ACANTILADO_1';
+DELETE FROM skill_effects WHERE skill_id = (SELECT id FROM skills WHERE code = 'JEFE_SENOR_ACANTILADO_1');
+INSERT INTO skill_effects (skill_id, effect_type, stat_code, percent_amount, flat_amount, duration_turns, status_code, description)
+SELECT id, 'MECANICA', 'CEGAR', 20, NULL, 2, NULL, 'Viento Cortante' FROM skills WHERE code = 'JEFE_SENOR_ACANTILADO_1';
+INSERT INTO monster_skills (monster_id, skill_id, use_chance_percent)
+SELECT m.id, s.id, 30 FROM monsters m, skills s WHERE m.code = 'SENOR_ACANTILADO' AND s.code = 'JEFE_SENOR_ACANTILADO_1'
+  AND NOT EXISTS (SELECT 1 FROM monster_skills ms WHERE ms.monster_id = m.id AND ms.skill_id = s.id);
+UPDATE monster_skills SET use_chance_percent = 30 WHERE monster_id = (SELECT id FROM monsters WHERE code = 'SENOR_ACANTILADO') AND skill_id = (SELECT id FROM skills WHERE code = 'JEFE_SENOR_ACANTILADO_1');
+
+-- Avalancha de Piedra (REY_MONTANA)
+INSERT INTO skills (code, class_id, name, skill_type, damage_school, element_id, target_type, base_value, scaling_stat, scaling_multiplier, hits, mana_cost, is_passive, learn_method, learn_level, description)
+SELECT 'JEFE_REY_MONTANA_1', NULL, 'Avalancha de Piedra', 'ATAQUE', 'FISICO', 5, 'ALL_ENEMIES', 4, 'ATK', 0.9, 1, 30, FALSE, 'LEVEL', 1, 'Media montaña cae encima: cada uno puede quedar enterrado y perder el turno.'
+WHERE NOT EXISTS (SELECT 1 FROM skills WHERE code = 'JEFE_REY_MONTANA_1');
+UPDATE skills SET class_id = NULL, name = 'Avalancha de Piedra', skill_type = 'ATAQUE', damage_school = 'FISICO', element_id = 5, target_type = 'ALL_ENEMIES', base_value = 4, scaling_stat = 'ATK', scaling_multiplier = 0.9, hits = 1, mana_cost = 30, is_passive = FALSE, learn_method = 'LEVEL', learn_level = 1, description = 'Media montaña cae encima: cada uno puede quedar enterrado y perder el turno.' WHERE code = 'JEFE_REY_MONTANA_1';
+DELETE FROM skill_effects WHERE skill_id = (SELECT id FROM skills WHERE code = 'JEFE_REY_MONTANA_1');
+INSERT INTO skill_effects (skill_id, effect_type, stat_code, percent_amount, flat_amount, duration_turns, status_code, description)
+SELECT id, 'MECANICA', 'ENRAIZAR', NULL, 30, 2, NULL, 'Avalancha de Piedra' FROM skills WHERE code = 'JEFE_REY_MONTANA_1';
+INSERT INTO monster_skills (monster_id, skill_id, use_chance_percent)
+SELECT m.id, s.id, 30 FROM monsters m, skills s WHERE m.code = 'REY_MONTANA' AND s.code = 'JEFE_REY_MONTANA_1'
+  AND NOT EXISTS (SELECT 1 FROM monster_skills ms WHERE ms.monster_id = m.id AND ms.skill_id = s.id);
+UPDATE monster_skills SET use_chance_percent = 30 WHERE monster_id = (SELECT id FROM monsters WHERE code = 'REY_MONTANA') AND skill_id = (SELECT id FROM skills WHERE code = 'JEFE_REY_MONTANA_1');
+
+-- Forja del Eclipse (FISURA_MORVAK)
+INSERT INTO skills (code, class_id, name, skill_type, damage_school, element_id, target_type, base_value, scaling_stat, scaling_multiplier, hits, mana_cost, is_passive, learn_method, learn_level, description)
+SELECT 'JEFE_FISURA_MORVAK_1', NULL, 'Forja del Eclipse', 'BUFF', NULL, NULL, 'SELF', NULL, NULL, NULL, 1, 30, FALSE, 'LEVEL', 1, 'Se forja un corazón de eclipse: el próximo golpe mortal no lo mata, y su magia crece.'
+WHERE NOT EXISTS (SELECT 1 FROM skills WHERE code = 'JEFE_FISURA_MORVAK_1');
+UPDATE skills SET class_id = NULL, name = 'Forja del Eclipse', skill_type = 'BUFF', damage_school = NULL, element_id = NULL, target_type = 'SELF', base_value = NULL, scaling_stat = NULL, scaling_multiplier = NULL, hits = 1, mana_cost = 30, is_passive = FALSE, learn_method = 'LEVEL', learn_level = 1, description = 'Se forja un corazón de eclipse: el próximo golpe mortal no lo mata, y su magia crece.' WHERE code = 'JEFE_FISURA_MORVAK_1';
+DELETE FROM skill_effects WHERE skill_id = (SELECT id FROM skills WHERE code = 'JEFE_FISURA_MORVAK_1');
+INSERT INTO skill_effects (skill_id, effect_type, stat_code, percent_amount, flat_amount, duration_turns, status_code, description)
+SELECT id, 'MECANICA', 'ALIENTO', NULL, NULL, 6, NULL, 'Forja del Eclipse' FROM skills WHERE code = 'JEFE_FISURA_MORVAK_1';
+INSERT INTO skill_effects (skill_id, effect_type, stat_code, percent_amount, flat_amount, duration_turns, status_code, description)
+SELECT id, 'MECANICA', 'SUBIR', 20, NULL, 4, 'MAG', 'Forja del Eclipse' FROM skills WHERE code = 'JEFE_FISURA_MORVAK_1';
+INSERT INTO monster_skills (monster_id, skill_id, use_chance_percent)
+SELECT m.id, s.id, 20 FROM monsters m, skills s WHERE m.code = 'FISURA_MORVAK' AND s.code = 'JEFE_FISURA_MORVAK_1'
+  AND NOT EXISTS (SELECT 1 FROM monster_skills ms WHERE ms.monster_id = m.id AND ms.skill_id = s.id);
+UPDATE monster_skills SET use_chance_percent = 20 WHERE monster_id = (SELECT id FROM monsters WHERE code = 'FISURA_MORVAK') AND skill_id = (SELECT id FROM skills WHERE code = 'JEFE_FISURA_MORVAK_1');
+
+-- Instinto de Veterano (ORCO_VETERANO)
+INSERT INTO skills (code, class_id, name, skill_type, damage_school, element_id, target_type, base_value, scaling_stat, scaling_multiplier, hits, mana_cost, is_passive, learn_method, learn_level, description)
+SELECT 'JEFE_ORCO_VETERANO_1', NULL, 'Instinto de Veterano', 'BUFF', NULL, NULL, 'SELF', NULL, NULL, NULL, 1, 15, FALSE, 'LEVEL', 1, 'Mil batallas encima: desvía y devuelve el próximo golpe físico.'
+WHERE NOT EXISTS (SELECT 1 FROM skills WHERE code = 'JEFE_ORCO_VETERANO_1');
+UPDATE skills SET class_id = NULL, name = 'Instinto de Veterano', skill_type = 'BUFF', damage_school = NULL, element_id = NULL, target_type = 'SELF', base_value = NULL, scaling_stat = NULL, scaling_multiplier = NULL, hits = 1, mana_cost = 15, is_passive = FALSE, learn_method = 'LEVEL', learn_level = 1, description = 'Mil batallas encima: desvía y devuelve el próximo golpe físico.' WHERE code = 'JEFE_ORCO_VETERANO_1';
+DELETE FROM skill_effects WHERE skill_id = (SELECT id FROM skills WHERE code = 'JEFE_ORCO_VETERANO_1');
+INSERT INTO skill_effects (skill_id, effect_type, stat_code, percent_amount, flat_amount, duration_turns, status_code, description)
+SELECT id, 'MECANICA', 'CONTRA', 100, NULL, 2, NULL, 'Instinto de Veterano' FROM skills WHERE code = 'JEFE_ORCO_VETERANO_1';
+INSERT INTO monster_skills (monster_id, skill_id, use_chance_percent)
+SELECT m.id, s.id, 30 FROM monsters m, skills s WHERE m.code = 'ORCO_VETERANO' AND s.code = 'JEFE_ORCO_VETERANO_1'
+  AND NOT EXISTS (SELECT 1 FROM monster_skills ms WHERE ms.monster_id = m.id AND ms.skill_id = s.id);
+UPDATE monster_skills SET use_chance_percent = 30 WHERE monster_id = (SELECT id FROM monsters WHERE code = 'ORCO_VETERANO') AND skill_id = (SELECT id FROM skills WHERE code = 'JEFE_ORCO_VETERANO_1');
+
+-- Lava Viva (SENOR_CALDERA)
+INSERT INTO skills (code, class_id, name, skill_type, damage_school, element_id, target_type, base_value, scaling_stat, scaling_multiplier, hits, mana_cost, is_passive, learn_method, learn_level, description)
+SELECT 'JEFE_SENOR_CALDERA_1', NULL, 'Lava Viva', 'ATAQUE', 'MAGICO', 1, 'ENEMY', 5, 'MAG', 1.2, 1, 25, FALSE, 'LEVEL', 1, 'Lava que se alimenta de lava: si ya ardías, estalla; si no, te deja ardiendo.'
+WHERE NOT EXISTS (SELECT 1 FROM skills WHERE code = 'JEFE_SENOR_CALDERA_1');
+UPDATE skills SET class_id = NULL, name = 'Lava Viva', skill_type = 'ATAQUE', damage_school = 'MAGICO', element_id = 1, target_type = 'ENEMY', base_value = 5, scaling_stat = 'MAG', scaling_multiplier = 1.2, hits = 1, mana_cost = 25, is_passive = FALSE, learn_method = 'LEVEL', learn_level = 1, description = 'Lava que se alimenta de lava: si ya ardías, estalla; si no, te deja ardiendo.' WHERE code = 'JEFE_SENOR_CALDERA_1';
+DELETE FROM skill_effects WHERE skill_id = (SELECT id FROM skills WHERE code = 'JEFE_SENOR_CALDERA_1');
+INSERT INTO skill_effects (skill_id, effect_type, stat_code, percent_amount, flat_amount, duration_turns, status_code, description)
+SELECT id, 'MECANICA', 'DETONAR', 80, NULL, NULL, 'BURN', 'Lava Viva' FROM skills WHERE code = 'JEFE_SENOR_CALDERA_1';
+INSERT INTO skill_effects (skill_id, effect_type, stat_code, percent_amount, flat_amount, duration_turns, status_code, description)
+SELECT id, 'MECANICA', 'QUEMAR', 5, NULL, 3, NULL, 'Lava Viva' FROM skills WHERE code = 'JEFE_SENOR_CALDERA_1';
+INSERT INTO monster_skills (monster_id, skill_id, use_chance_percent)
+SELECT m.id, s.id, 30 FROM monsters m, skills s WHERE m.code = 'SENOR_CALDERA' AND s.code = 'JEFE_SENOR_CALDERA_1'
+  AND NOT EXISTS (SELECT 1 FROM monster_skills ms WHERE ms.monster_id = m.id AND ms.skill_id = s.id);
+UPDATE monster_skills SET use_chance_percent = 30 WHERE monster_id = (SELECT id FROM monsters WHERE code = 'SENOR_CALDERA') AND skill_id = (SELECT id FROM skills WHERE code = 'JEFE_SENOR_CALDERA_1');
+
+-- Corazón de Magma (TITAN_FUEGO)
+INSERT INTO skills (code, class_id, name, skill_type, damage_school, element_id, target_type, base_value, scaling_stat, scaling_multiplier, hits, mana_cost, is_passive, learn_method, learn_level, description)
+SELECT 'JEFE_TITAN_FUEGO_1', NULL, 'Corazón de Magma', 'ATAQUE', 'MAGICO', 1, 'ALL_ENEMIES', 4, 'MAG', 0.9, 1, 30, FALSE, 'LEVEL', 1, 'El suelo se vuelve magma: todos arden.'
+WHERE NOT EXISTS (SELECT 1 FROM skills WHERE code = 'JEFE_TITAN_FUEGO_1');
+UPDATE skills SET class_id = NULL, name = 'Corazón de Magma', skill_type = 'ATAQUE', damage_school = 'MAGICO', element_id = 1, target_type = 'ALL_ENEMIES', base_value = 4, scaling_stat = 'MAG', scaling_multiplier = 0.9, hits = 1, mana_cost = 30, is_passive = FALSE, learn_method = 'LEVEL', learn_level = 1, description = 'El suelo se vuelve magma: todos arden.' WHERE code = 'JEFE_TITAN_FUEGO_1';
+DELETE FROM skill_effects WHERE skill_id = (SELECT id FROM skills WHERE code = 'JEFE_TITAN_FUEGO_1');
+INSERT INTO skill_effects (skill_id, effect_type, stat_code, percent_amount, flat_amount, duration_turns, status_code, description)
+SELECT id, 'MECANICA', 'QUEMAR', 4, NULL, 3, NULL, 'Corazón de Magma' FROM skills WHERE code = 'JEFE_TITAN_FUEGO_1';
+INSERT INTO monster_skills (monster_id, skill_id, use_chance_percent)
+SELECT m.id, s.id, 30 FROM monsters m, skills s WHERE m.code = 'TITAN_FUEGO' AND s.code = 'JEFE_TITAN_FUEGO_1'
+  AND NOT EXISTS (SELECT 1 FROM monster_skills ms WHERE ms.monster_id = m.id AND ms.skill_id = s.id);
+UPDATE monster_skills SET use_chance_percent = 30 WHERE monster_id = (SELECT id FROM monsters WHERE code = 'TITAN_FUEGO') AND skill_id = (SELECT id FROM skills WHERE code = 'JEFE_TITAN_FUEGO_1');
+
+-- Carne que Vuelve (TROLL_REGENERADOR)
+INSERT INTO skills (code, class_id, name, skill_type, damage_school, element_id, target_type, base_value, scaling_stat, scaling_multiplier, hits, mana_cost, is_passive, learn_method, learn_level, description)
+SELECT 'JEFE_TROLL_REGENERADOR_1', NULL, 'Carne que Vuelve', 'BUFF', NULL, NULL, 'SELF', NULL, NULL, NULL, 1, 20, FALSE, 'LEVEL', 1, 'Sus heridas se cierran solas, y las de los suyos también.'
+WHERE NOT EXISTS (SELECT 1 FROM skills WHERE code = 'JEFE_TROLL_REGENERADOR_1');
+UPDATE skills SET class_id = NULL, name = 'Carne que Vuelve', skill_type = 'BUFF', damage_school = NULL, element_id = NULL, target_type = 'SELF', base_value = NULL, scaling_stat = NULL, scaling_multiplier = NULL, hits = 1, mana_cost = 20, is_passive = FALSE, learn_method = 'LEVEL', learn_level = 1, description = 'Sus heridas se cierran solas, y las de los suyos también.' WHERE code = 'JEFE_TROLL_REGENERADOR_1';
+DELETE FROM skill_effects WHERE skill_id = (SELECT id FROM skills WHERE code = 'JEFE_TROLL_REGENERADOR_1');
+INSERT INTO skill_effects (skill_id, effect_type, stat_code, percent_amount, flat_amount, duration_turns, status_code, description)
+SELECT id, 'MECANICA', 'CURAR_GRUPO', 15, NULL, NULL, NULL, 'Carne que Vuelve' FROM skills WHERE code = 'JEFE_TROLL_REGENERADOR_1';
+INSERT INTO monster_skills (monster_id, skill_id, use_chance_percent)
+SELECT m.id, s.id, 30 FROM monsters m, skills s WHERE m.code = 'TROLL_REGENERADOR' AND s.code = 'JEFE_TROLL_REGENERADOR_1'
+  AND NOT EXISTS (SELECT 1 FROM monster_skills ms WHERE ms.monster_id = m.id AND ms.skill_id = s.id);
+UPDATE monster_skills SET use_chance_percent = 30 WHERE monster_id = (SELECT id FROM monsters WHERE code = 'TROLL_REGENERADOR') AND skill_id = (SELECT id FROM skills WHERE code = 'JEFE_TROLL_REGENERADOR_1');
+
+-- Marea Helada (SENOR_OCEANO)
+INSERT INTO skills (code, class_id, name, skill_type, damage_school, element_id, target_type, base_value, scaling_stat, scaling_multiplier, hits, mana_cost, is_passive, learn_method, learn_level, description)
+SELECT 'JEFE_SENOR_OCEANO_1', NULL, 'Marea Helada', 'ATAQUE', 'MAGICO', 6, 'ALL_ENEMIES', 4, 'MAG', 0.8, 1, 30, FALSE, 'LEVEL', 1, 'Una ola helada sobre todos: algunos quedan congelados.'
+WHERE NOT EXISTS (SELECT 1 FROM skills WHERE code = 'JEFE_SENOR_OCEANO_1');
+UPDATE skills SET class_id = NULL, name = 'Marea Helada', skill_type = 'ATAQUE', damage_school = 'MAGICO', element_id = 6, target_type = 'ALL_ENEMIES', base_value = 4, scaling_stat = 'MAG', scaling_multiplier = 0.8, hits = 1, mana_cost = 30, is_passive = FALSE, learn_method = 'LEVEL', learn_level = 1, description = 'Una ola helada sobre todos: algunos quedan congelados.' WHERE code = 'JEFE_SENOR_OCEANO_1';
+DELETE FROM skill_effects WHERE skill_id = (SELECT id FROM skills WHERE code = 'JEFE_SENOR_OCEANO_1');
+INSERT INTO skill_effects (skill_id, effect_type, stat_code, percent_amount, flat_amount, duration_turns, status_code, description)
+SELECT id, 'MECANICA', 'CONGELAR', NULL, 25, 2, NULL, 'Marea Helada' FROM skills WHERE code = 'JEFE_SENOR_OCEANO_1';
+INSERT INTO monster_skills (monster_id, skill_id, use_chance_percent)
+SELECT m.id, s.id, 30 FROM monsters m, skills s WHERE m.code = 'SENOR_OCEANO' AND s.code = 'JEFE_SENOR_OCEANO_1'
+  AND NOT EXISTS (SELECT 1 FROM monster_skills ms WHERE ms.monster_id = m.id AND ms.skill_id = s.id);
+UPDATE monster_skills SET use_chance_percent = 30 WHERE monster_id = (SELECT id FROM monsters WHERE code = 'SENOR_OCEANO') AND skill_id = (SELECT id FROM skills WHERE code = 'JEFE_SENOR_OCEANO_1');
+
+-- Ancla del Ahogado (ALMIRANTE_AHOGADO)
+INSERT INTO skills (code, class_id, name, skill_type, damage_school, element_id, target_type, base_value, scaling_stat, scaling_multiplier, hits, mana_cost, is_passive, learn_method, learn_level, description)
+SELECT 'JEFE_ALMIRANTE_AHOGADO_1', NULL, 'Ancla del Ahogado', 'ATAQUE', 'FISICO', 6, 'ENEMY', 5, 'ATK', 1.2, 1, 25, FALSE, 'LEVEL', 1, 'Te tira el ancla encima: 50% de quedar atrapado y perder el turno.'
+WHERE NOT EXISTS (SELECT 1 FROM skills WHERE code = 'JEFE_ALMIRANTE_AHOGADO_1');
+UPDATE skills SET class_id = NULL, name = 'Ancla del Ahogado', skill_type = 'ATAQUE', damage_school = 'FISICO', element_id = 6, target_type = 'ENEMY', base_value = 5, scaling_stat = 'ATK', scaling_multiplier = 1.2, hits = 1, mana_cost = 25, is_passive = FALSE, learn_method = 'LEVEL', learn_level = 1, description = 'Te tira el ancla encima: 50% de quedar atrapado y perder el turno.' WHERE code = 'JEFE_ALMIRANTE_AHOGADO_1';
+DELETE FROM skill_effects WHERE skill_id = (SELECT id FROM skills WHERE code = 'JEFE_ALMIRANTE_AHOGADO_1');
+INSERT INTO skill_effects (skill_id, effect_type, stat_code, percent_amount, flat_amount, duration_turns, status_code, description)
+SELECT id, 'MECANICA', 'ENRAIZAR', NULL, 50, 2, NULL, 'Ancla del Ahogado' FROM skills WHERE code = 'JEFE_ALMIRANTE_AHOGADO_1';
+INSERT INTO monster_skills (monster_id, skill_id, use_chance_percent)
+SELECT m.id, s.id, 30 FROM monsters m, skills s WHERE m.code = 'ALMIRANTE_AHOGADO' AND s.code = 'JEFE_ALMIRANTE_AHOGADO_1'
+  AND NOT EXISTS (SELECT 1 FROM monster_skills ms WHERE ms.monster_id = m.id AND ms.skill_id = s.id);
+UPDATE monster_skills SET use_chance_percent = 30 WHERE monster_id = (SELECT id FROM monsters WHERE code = 'ALMIRANTE_AHOGADO') AND skill_id = (SELECT id FROM skills WHERE code = 'JEFE_ALMIRANTE_AHOGADO_1');
+
+-- Embestida del Laberinto (MINOTAURO_GUARDIAN)
+INSERT INTO skills (code, class_id, name, skill_type, damage_school, element_id, target_type, base_value, scaling_stat, scaling_multiplier, hits, mana_cost, is_passive, learn_method, learn_level, description)
+SELECT 'JEFE_MINOTAURO_GUARDIAN_1', NULL, 'Embestida del Laberinto', 'ATAQUE', 'FISICO', NULL, 'ENEMY', 5, 'ATK', 1.3, 1, 25, FALSE, 'LEVEL', 1, 'Una embestida que te tira al suelo: 30% de perder el turno.'
+WHERE NOT EXISTS (SELECT 1 FROM skills WHERE code = 'JEFE_MINOTAURO_GUARDIAN_1');
+UPDATE skills SET class_id = NULL, name = 'Embestida del Laberinto', skill_type = 'ATAQUE', damage_school = 'FISICO', element_id = NULL, target_type = 'ENEMY', base_value = 5, scaling_stat = 'ATK', scaling_multiplier = 1.3, hits = 1, mana_cost = 25, is_passive = FALSE, learn_method = 'LEVEL', learn_level = 1, description = 'Una embestida que te tira al suelo: 30% de perder el turno.' WHERE code = 'JEFE_MINOTAURO_GUARDIAN_1';
+DELETE FROM skill_effects WHERE skill_id = (SELECT id FROM skills WHERE code = 'JEFE_MINOTAURO_GUARDIAN_1');
+INSERT INTO skill_effects (skill_id, effect_type, stat_code, percent_amount, flat_amount, duration_turns, status_code, description)
+SELECT id, 'MECANICA', 'ENRAIZAR', NULL, 30, 2, NULL, 'Embestida del Laberinto' FROM skills WHERE code = 'JEFE_MINOTAURO_GUARDIAN_1';
+INSERT INTO monster_skills (monster_id, skill_id, use_chance_percent)
+SELECT m.id, s.id, 30 FROM monsters m, skills s WHERE m.code = 'MINOTAURO_GUARDIAN' AND s.code = 'JEFE_MINOTAURO_GUARDIAN_1'
+  AND NOT EXISTS (SELECT 1 FROM monster_skills ms WHERE ms.monster_id = m.id AND ms.skill_id = s.id);
+UPDATE monster_skills SET use_chance_percent = 30 WHERE monster_id = (SELECT id FROM monsters WHERE code = 'MINOTAURO_GUARDIAN') AND skill_id = (SELECT id FROM skills WHERE code = 'JEFE_MINOTAURO_GUARDIAN_1');
+
+-- Abrazo del Abismo (BESTIA_PROFUNDIDADES)
+INSERT INTO skills (code, class_id, name, skill_type, damage_school, element_id, target_type, base_value, scaling_stat, scaling_multiplier, hits, mana_cost, is_passive, learn_method, learn_level, description)
+SELECT 'JEFE_BESTIA_PROFUNDIDADES_1', NULL, 'Abrazo del Abismo', 'ATAQUE', 'FISICO', 6, 'ENEMY', 5, 'ATK', 1.2, 1, 30, FALSE, 'LEVEL', 1, 'Te arrastra hacia abajo: se cura con tu vida y te roba velocidad.'
+WHERE NOT EXISTS (SELECT 1 FROM skills WHERE code = 'JEFE_BESTIA_PROFUNDIDADES_1');
+UPDATE skills SET class_id = NULL, name = 'Abrazo del Abismo', skill_type = 'ATAQUE', damage_school = 'FISICO', element_id = 6, target_type = 'ENEMY', base_value = 5, scaling_stat = 'ATK', scaling_multiplier = 1.2, hits = 1, mana_cost = 30, is_passive = FALSE, learn_method = 'LEVEL', learn_level = 1, description = 'Te arrastra hacia abajo: se cura con tu vida y te roba velocidad.' WHERE code = 'JEFE_BESTIA_PROFUNDIDADES_1';
+DELETE FROM skill_effects WHERE skill_id = (SELECT id FROM skills WHERE code = 'JEFE_BESTIA_PROFUNDIDADES_1');
+INSERT INTO skill_effects (skill_id, effect_type, stat_code, percent_amount, flat_amount, duration_turns, status_code, description)
+SELECT id, 'MECANICA', 'SED', 0, 40, NULL, NULL, 'Abrazo del Abismo' FROM skills WHERE code = 'JEFE_BESTIA_PROFUNDIDADES_1';
+INSERT INTO skill_effects (skill_id, effect_type, stat_code, percent_amount, flat_amount, duration_turns, status_code, description)
+SELECT id, 'MECANICA', 'HURTO', 20, NULL, 3, 'SPD', 'Abrazo del Abismo' FROM skills WHERE code = 'JEFE_BESTIA_PROFUNDIDADES_1';
+INSERT INTO monster_skills (monster_id, skill_id, use_chance_percent)
+SELECT m.id, s.id, 30 FROM monsters m, skills s WHERE m.code = 'BESTIA_PROFUNDIDADES' AND s.code = 'JEFE_BESTIA_PROFUNDIDADES_1'
+  AND NOT EXISTS (SELECT 1 FROM monster_skills ms WHERE ms.monster_id = m.id AND ms.skill_id = s.id);
+UPDATE monster_skills SET use_chance_percent = 30 WHERE monster_id = (SELECT id FROM monsters WHERE code = 'BESTIA_PROFUNDIDADES') AND skill_id = (SELECT id FROM skills WHERE code = 'JEFE_BESTIA_PROFUNDIDADES_1');
+
+-- Huesos Tercos (ESQUELETO_CAMPEON)
+INSERT INTO skills (code, class_id, name, skill_type, damage_school, element_id, target_type, base_value, scaling_stat, scaling_multiplier, hits, mana_cost, is_passive, learn_method, learn_level, description)
+SELECT 'JEFE_ESQUELETO_CAMPEON_1', NULL, 'Huesos Tercos', 'BUFF', NULL, NULL, 'SELF', NULL, NULL, NULL, 1, 20, FALSE, 'LEVEL', 1, 'Se niega a caer: el próximo golpe mortal lo deja en pie.'
+WHERE NOT EXISTS (SELECT 1 FROM skills WHERE code = 'JEFE_ESQUELETO_CAMPEON_1');
+UPDATE skills SET class_id = NULL, name = 'Huesos Tercos', skill_type = 'BUFF', damage_school = NULL, element_id = NULL, target_type = 'SELF', base_value = NULL, scaling_stat = NULL, scaling_multiplier = NULL, hits = 1, mana_cost = 20, is_passive = FALSE, learn_method = 'LEVEL', learn_level = 1, description = 'Se niega a caer: el próximo golpe mortal lo deja en pie.' WHERE code = 'JEFE_ESQUELETO_CAMPEON_1';
+DELETE FROM skill_effects WHERE skill_id = (SELECT id FROM skills WHERE code = 'JEFE_ESQUELETO_CAMPEON_1');
+INSERT INTO skill_effects (skill_id, effect_type, stat_code, percent_amount, flat_amount, duration_turns, status_code, description)
+SELECT id, 'MECANICA', 'ALIENTO', NULL, NULL, 6, NULL, 'Huesos Tercos' FROM skills WHERE code = 'JEFE_ESQUELETO_CAMPEON_1';
+INSERT INTO monster_skills (monster_id, skill_id, use_chance_percent)
+SELECT m.id, s.id, 20 FROM monsters m, skills s WHERE m.code = 'ESQUELETO_CAMPEON' AND s.code = 'JEFE_ESQUELETO_CAMPEON_1'
+  AND NOT EXISTS (SELECT 1 FROM monster_skills ms WHERE ms.monster_id = m.id AND ms.skill_id = s.id);
+UPDATE monster_skills SET use_chance_percent = 20 WHERE monster_id = (SELECT id FROM monsters WHERE code = 'ESQUELETO_CAMPEON') AND skill_id = (SELECT id FROM skills WHERE code = 'JEFE_ESQUELETO_CAMPEON_1');
+
+-- Aliento de Escarcha (CRIPTAH_ESCARCHA)
+INSERT INTO skills (code, class_id, name, skill_type, damage_school, element_id, target_type, base_value, scaling_stat, scaling_multiplier, hits, mana_cost, is_passive, learn_method, learn_level, description)
+SELECT 'JEFE_CRIPTAH_ESCARCHA_1', NULL, 'Aliento de Escarcha', 'ATAQUE', 'MAGICO', 2, 'ALL_ENEMIES', 4, 'MAG', 0.9, 1, 30, FALSE, 'LEVEL', 1, 'Un aliento helado sobre todos: algunos quedan congelados.'
+WHERE NOT EXISTS (SELECT 1 FROM skills WHERE code = 'JEFE_CRIPTAH_ESCARCHA_1');
+UPDATE skills SET class_id = NULL, name = 'Aliento de Escarcha', skill_type = 'ATAQUE', damage_school = 'MAGICO', element_id = 2, target_type = 'ALL_ENEMIES', base_value = 4, scaling_stat = 'MAG', scaling_multiplier = 0.9, hits = 1, mana_cost = 30, is_passive = FALSE, learn_method = 'LEVEL', learn_level = 1, description = 'Un aliento helado sobre todos: algunos quedan congelados.' WHERE code = 'JEFE_CRIPTAH_ESCARCHA_1';
+DELETE FROM skill_effects WHERE skill_id = (SELECT id FROM skills WHERE code = 'JEFE_CRIPTAH_ESCARCHA_1');
+INSERT INTO skill_effects (skill_id, effect_type, stat_code, percent_amount, flat_amount, duration_turns, status_code, description)
+SELECT id, 'MECANICA', 'CONGELAR', NULL, 30, 2, NULL, 'Aliento de Escarcha' FROM skills WHERE code = 'JEFE_CRIPTAH_ESCARCHA_1';
+INSERT INTO monster_skills (monster_id, skill_id, use_chance_percent)
+SELECT m.id, s.id, 30 FROM monsters m, skills s WHERE m.code = 'CRIPTAH_ESCARCHA' AND s.code = 'JEFE_CRIPTAH_ESCARCHA_1'
+  AND NOT EXISTS (SELECT 1 FROM monster_skills ms WHERE ms.monster_id = m.id AND ms.skill_id = s.id);
+UPDATE monster_skills SET use_chance_percent = 30 WHERE monster_id = (SELECT id FROM monsters WHERE code = 'CRIPTAH_ESCARCHA') AND skill_id = (SELECT id FROM skills WHERE code = 'JEFE_CRIPTAH_ESCARCHA_1');
+
+-- Escudo de Hielo (GUARDIAN_HIELO)
+INSERT INTO skills (code, class_id, name, skill_type, damage_school, element_id, target_type, base_value, scaling_stat, scaling_multiplier, hits, mana_cost, is_passive, learn_method, learn_level, description)
+SELECT 'JEFE_GUARDIAN_HIELO_1', NULL, 'Escudo de Hielo', 'BUFF', NULL, NULL, 'SELF', NULL, NULL, NULL, 1, 25, FALSE, 'LEVEL', 1, 'Una capa de hielo: barrera, y el próximo golpe físico se rompe contra ella.'
+WHERE NOT EXISTS (SELECT 1 FROM skills WHERE code = 'JEFE_GUARDIAN_HIELO_1');
+UPDATE skills SET class_id = NULL, name = 'Escudo de Hielo', skill_type = 'BUFF', damage_school = NULL, element_id = NULL, target_type = 'SELF', base_value = NULL, scaling_stat = NULL, scaling_multiplier = NULL, hits = 1, mana_cost = 25, is_passive = FALSE, learn_method = 'LEVEL', learn_level = 1, description = 'Una capa de hielo: barrera, y el próximo golpe físico se rompe contra ella.' WHERE code = 'JEFE_GUARDIAN_HIELO_1';
+DELETE FROM skill_effects WHERE skill_id = (SELECT id FROM skills WHERE code = 'JEFE_GUARDIAN_HIELO_1');
+INSERT INTO skill_effects (skill_id, effect_type, stat_code, percent_amount, flat_amount, duration_turns, status_code, description)
+SELECT id, 'MECANICA', 'BARRERA', 15, 0, 3, NULL, 'Escudo de Hielo' FROM skills WHERE code = 'JEFE_GUARDIAN_HIELO_1';
+INSERT INTO skill_effects (skill_id, effect_type, stat_code, percent_amount, flat_amount, duration_turns, status_code, description)
+SELECT id, 'MECANICA', 'CONTRA', 80, NULL, 2, NULL, 'Escudo de Hielo' FROM skills WHERE code = 'JEFE_GUARDIAN_HIELO_1';
+INSERT INTO monster_skills (monster_id, skill_id, use_chance_percent)
+SELECT m.id, s.id, 25 FROM monsters m, skills s WHERE m.code = 'GUARDIAN_HIELO' AND s.code = 'JEFE_GUARDIAN_HIELO_1'
+  AND NOT EXISTS (SELECT 1 FROM monster_skills ms WHERE ms.monster_id = m.id AND ms.skill_id = s.id);
+UPDATE monster_skills SET use_chance_percent = 25 WHERE monster_id = (SELECT id FROM monsters WHERE code = 'GUARDIAN_HIELO') AND skill_id = (SELECT id FROM skills WHERE code = 'JEFE_GUARDIAN_HIELO_1');
+
+-- Corona de Escarcha (REY_HIELO)
+INSERT INTO skills (code, class_id, name, skill_type, damage_school, element_id, target_type, base_value, scaling_stat, scaling_multiplier, hits, mana_cost, is_passive, learn_method, learn_level, description)
+SELECT 'JEFE_REY_HIELO_1', NULL, 'Corona de Escarcha', 'ATAQUE', 'MAGICO', 2, 'ALL_ENEMIES', 4, 'MAG', 0.9, 1, 35, FALSE, 'LEVEL', 1, 'El frío del rey: todos van más lentos y algunos quedan congelados.'
+WHERE NOT EXISTS (SELECT 1 FROM skills WHERE code = 'JEFE_REY_HIELO_1');
+UPDATE skills SET class_id = NULL, name = 'Corona de Escarcha', skill_type = 'ATAQUE', damage_school = 'MAGICO', element_id = 2, target_type = 'ALL_ENEMIES', base_value = 4, scaling_stat = 'MAG', scaling_multiplier = 0.9, hits = 1, mana_cost = 35, is_passive = FALSE, learn_method = 'LEVEL', learn_level = 1, description = 'El frío del rey: todos van más lentos y algunos quedan congelados.' WHERE code = 'JEFE_REY_HIELO_1';
+DELETE FROM skill_effects WHERE skill_id = (SELECT id FROM skills WHERE code = 'JEFE_REY_HIELO_1');
+INSERT INTO skill_effects (skill_id, effect_type, stat_code, percent_amount, flat_amount, duration_turns, status_code, description)
+SELECT id, 'MECANICA', 'BAJAR', 25, NULL, 3, 'SPD', 'Corona de Escarcha' FROM skills WHERE code = 'JEFE_REY_HIELO_1';
+INSERT INTO skill_effects (skill_id, effect_type, stat_code, percent_amount, flat_amount, duration_turns, status_code, description)
+SELECT id, 'MECANICA', 'CONGELAR', NULL, 20, 2, NULL, 'Corona de Escarcha' FROM skills WHERE code = 'JEFE_REY_HIELO_1';
+INSERT INTO monster_skills (monster_id, skill_id, use_chance_percent)
+SELECT m.id, s.id, 30 FROM monsters m, skills s WHERE m.code = 'REY_HIELO' AND s.code = 'JEFE_REY_HIELO_1'
+  AND NOT EXISTS (SELECT 1 FROM monster_skills ms WHERE ms.monster_id = m.id AND ms.skill_id = s.id);
+UPDATE monster_skills SET use_chance_percent = 30 WHERE monster_id = (SELECT id FROM monsters WHERE code = 'REY_HIELO') AND skill_id = (SELECT id FROM skills WHERE code = 'JEFE_REY_HIELO_1');
+
+-- Cadenas del Abismo (GUARDIAN_ABISMO)
+INSERT INTO skills (code, class_id, name, skill_type, damage_school, element_id, target_type, base_value, scaling_stat, scaling_multiplier, hits, mana_cost, is_passive, learn_method, learn_level, description)
+SELECT 'JEFE_GUARDIAN_ABISMO_1', NULL, 'Cadenas del Abismo', 'DEBUFF', NULL, NULL, 'ENEMY', NULL, NULL, NULL, 1, 25, FALSE, 'LEVEL', 1, 'Cadenas en la boca y en la armadura: silenciado y con menos defensa.'
+WHERE NOT EXISTS (SELECT 1 FROM skills WHERE code = 'JEFE_GUARDIAN_ABISMO_1');
+UPDATE skills SET class_id = NULL, name = 'Cadenas del Abismo', skill_type = 'DEBUFF', damage_school = NULL, element_id = NULL, target_type = 'ENEMY', base_value = NULL, scaling_stat = NULL, scaling_multiplier = NULL, hits = 1, mana_cost = 25, is_passive = FALSE, learn_method = 'LEVEL', learn_level = 1, description = 'Cadenas en la boca y en la armadura: silenciado y con menos defensa.' WHERE code = 'JEFE_GUARDIAN_ABISMO_1';
+DELETE FROM skill_effects WHERE skill_id = (SELECT id FROM skills WHERE code = 'JEFE_GUARDIAN_ABISMO_1');
+INSERT INTO skill_effects (skill_id, effect_type, stat_code, percent_amount, flat_amount, duration_turns, status_code, description)
+SELECT id, 'MECANICA', 'SILENCIAR', NULL, NULL, 2, NULL, 'Cadenas del Abismo' FROM skills WHERE code = 'JEFE_GUARDIAN_ABISMO_1';
+INSERT INTO skill_effects (skill_id, effect_type, stat_code, percent_amount, flat_amount, duration_turns, status_code, description)
+SELECT id, 'MECANICA', 'BAJAR', 20, NULL, 3, 'DEF', 'Cadenas del Abismo' FROM skills WHERE code = 'JEFE_GUARDIAN_ABISMO_1';
+INSERT INTO monster_skills (monster_id, skill_id, use_chance_percent)
+SELECT m.id, s.id, 30 FROM monsters m, skills s WHERE m.code = 'GUARDIAN_ABISMO' AND s.code = 'JEFE_GUARDIAN_ABISMO_1'
+  AND NOT EXISTS (SELECT 1 FROM monster_skills ms WHERE ms.monster_id = m.id AND ms.skill_id = s.id);
+UPDATE monster_skills SET use_chance_percent = 30 WHERE monster_id = (SELECT id FROM monsters WHERE code = 'GUARDIAN_ABISMO') AND skill_id = (SELECT id FROM skills WHERE code = 'JEFE_GUARDIAN_ABISMO_1');
+
+-- Susurro de la Tumba (LICHE_MENOR)
+INSERT INTO skills (code, class_id, name, skill_type, damage_school, element_id, target_type, base_value, scaling_stat, scaling_multiplier, hits, mana_cost, is_passive, learn_method, learn_level, description)
+SELECT 'JEFE_LICHE_MENOR_1', NULL, 'Susurro de la Tumba', 'DEBUFF', NULL, NULL, 'ENEMY', NULL, NULL, NULL, 1, 20, FALSE, 'LEVEL', 1, 'Un susurro que te quita la voz: no puedes usar habilidades.'
+WHERE NOT EXISTS (SELECT 1 FROM skills WHERE code = 'JEFE_LICHE_MENOR_1');
+UPDATE skills SET class_id = NULL, name = 'Susurro de la Tumba', skill_type = 'DEBUFF', damage_school = NULL, element_id = NULL, target_type = 'ENEMY', base_value = NULL, scaling_stat = NULL, scaling_multiplier = NULL, hits = 1, mana_cost = 20, is_passive = FALSE, learn_method = 'LEVEL', learn_level = 1, description = 'Un susurro que te quita la voz: no puedes usar habilidades.' WHERE code = 'JEFE_LICHE_MENOR_1';
+DELETE FROM skill_effects WHERE skill_id = (SELECT id FROM skills WHERE code = 'JEFE_LICHE_MENOR_1');
+INSERT INTO skill_effects (skill_id, effect_type, stat_code, percent_amount, flat_amount, duration_turns, status_code, description)
+SELECT id, 'MECANICA', 'SILENCIAR', NULL, NULL, 2, NULL, 'Susurro de la Tumba' FROM skills WHERE code = 'JEFE_LICHE_MENOR_1';
+INSERT INTO monster_skills (monster_id, skill_id, use_chance_percent)
+SELECT m.id, s.id, 30 FROM monsters m, skills s WHERE m.code = 'LICHE_MENOR' AND s.code = 'JEFE_LICHE_MENOR_1'
+  AND NOT EXISTS (SELECT 1 FROM monster_skills ms WHERE ms.monster_id = m.id AND ms.skill_id = s.id);
+UPDATE monster_skills SET use_chance_percent = 30 WHERE monster_id = (SELECT id FROM monsters WHERE code = 'LICHE_MENOR') AND skill_id = (SELECT id FROM skills WHERE code = 'JEFE_LICHE_MENOR_1');
+
+-- Contrahechizo (ARCHIMAGO_CORRUPTO)
+INSERT INTO skills (code, class_id, name, skill_type, damage_school, element_id, target_type, base_value, scaling_stat, scaling_multiplier, hits, mana_cost, is_passive, learn_method, learn_level, description)
+SELECT 'JEFE_ARCHIMAGO_CORRUPTO_1', NULL, 'Contrahechizo', 'DEBUFF', NULL, NULL, 'ENEMY', NULL, NULL, NULL, 1, 30, FALSE, 'LEVEL', 1, 'Te arranca dos mejoras y se las queda, y te silencia.'
+WHERE NOT EXISTS (SELECT 1 FROM skills WHERE code = 'JEFE_ARCHIMAGO_CORRUPTO_1');
+UPDATE skills SET class_id = NULL, name = 'Contrahechizo', skill_type = 'DEBUFF', damage_school = NULL, element_id = NULL, target_type = 'ENEMY', base_value = NULL, scaling_stat = NULL, scaling_multiplier = NULL, hits = 1, mana_cost = 30, is_passive = FALSE, learn_method = 'LEVEL', learn_level = 1, description = 'Te arranca dos mejoras y se las queda, y te silencia.' WHERE code = 'JEFE_ARCHIMAGO_CORRUPTO_1';
+DELETE FROM skill_effects WHERE skill_id = (SELECT id FROM skills WHERE code = 'JEFE_ARCHIMAGO_CORRUPTO_1');
+INSERT INTO skill_effects (skill_id, effect_type, stat_code, percent_amount, flat_amount, duration_turns, status_code, description)
+SELECT id, 'MECANICA', 'ROBAR_MEJORA', NULL, 2, NULL, NULL, 'Contrahechizo' FROM skills WHERE code = 'JEFE_ARCHIMAGO_CORRUPTO_1';
+INSERT INTO skill_effects (skill_id, effect_type, stat_code, percent_amount, flat_amount, duration_turns, status_code, description)
+SELECT id, 'MECANICA', 'SILENCIAR', NULL, NULL, 2, NULL, 'Contrahechizo' FROM skills WHERE code = 'JEFE_ARCHIMAGO_CORRUPTO_1';
+INSERT INTO monster_skills (monster_id, skill_id, use_chance_percent)
+SELECT m.id, s.id, 30 FROM monsters m, skills s WHERE m.code = 'ARCHIMAGO_CORRUPTO' AND s.code = 'JEFE_ARCHIMAGO_CORRUPTO_1'
+  AND NOT EXISTS (SELECT 1 FROM monster_skills ms WHERE ms.monster_id = m.id AND ms.skill_id = s.id);
+UPDATE monster_skills SET use_chance_percent = 30 WHERE monster_id = (SELECT id FROM monsters WHERE code = 'ARCHIMAGO_CORRUPTO') AND skill_id = (SELECT id FROM skills WHERE code = 'JEFE_ARCHIMAGO_CORRUPTO_1');
+
+-- Guardia Eterna (CENTINELA_MUERTE)
+INSERT INTO skills (code, class_id, name, skill_type, damage_school, element_id, target_type, base_value, scaling_stat, scaling_multiplier, hits, mana_cost, is_passive, learn_method, learn_level, description)
+SELECT 'JEFE_CENTINELA_MUERTE_1', NULL, 'Guardia Eterna', 'BUFF', NULL, NULL, 'SELF', NULL, NULL, NULL, 1, 20, FALSE, 'LEVEL', 1, 'Mil años de guardia: el próximo golpe físico vuelve multiplicado.'
+WHERE NOT EXISTS (SELECT 1 FROM skills WHERE code = 'JEFE_CENTINELA_MUERTE_1');
+UPDATE skills SET class_id = NULL, name = 'Guardia Eterna', skill_type = 'BUFF', damage_school = NULL, element_id = NULL, target_type = 'SELF', base_value = NULL, scaling_stat = NULL, scaling_multiplier = NULL, hits = 1, mana_cost = 20, is_passive = FALSE, learn_method = 'LEVEL', learn_level = 1, description = 'Mil años de guardia: el próximo golpe físico vuelve multiplicado.' WHERE code = 'JEFE_CENTINELA_MUERTE_1';
+DELETE FROM skill_effects WHERE skill_id = (SELECT id FROM skills WHERE code = 'JEFE_CENTINELA_MUERTE_1');
+INSERT INTO skill_effects (skill_id, effect_type, stat_code, percent_amount, flat_amount, duration_turns, status_code, description)
+SELECT id, 'MECANICA', 'CONTRA', 120, NULL, 2, NULL, 'Guardia Eterna' FROM skills WHERE code = 'JEFE_CENTINELA_MUERTE_1';
+INSERT INTO monster_skills (monster_id, skill_id, use_chance_percent)
+SELECT m.id, s.id, 30 FROM monsters m, skills s WHERE m.code = 'CENTINELA_MUERTE' AND s.code = 'JEFE_CENTINELA_MUERTE_1'
+  AND NOT EXISTS (SELECT 1 FROM monster_skills ms WHERE ms.monster_id = m.id AND ms.skill_id = s.id);
+UPDATE monster_skills SET use_chance_percent = 30 WHERE monster_id = (SELECT id FROM monsters WHERE code = 'CENTINELA_MUERTE') AND skill_id = (SELECT id FROM skills WHERE code = 'JEFE_CENTINELA_MUERTE_1');
+
+-- Huesos de Piedra (TRONOH_COLOSO)
+INSERT INTO skills (code, class_id, name, skill_type, damage_school, element_id, target_type, base_value, scaling_stat, scaling_multiplier, hits, mana_cost, is_passive, learn_method, learn_level, description)
+SELECT 'JEFE_TRONOH_COLOSO_1', NULL, 'Huesos de Piedra', 'BUFF', NULL, NULL, 'SELF', NULL, NULL, NULL, 1, 30, FALSE, 'LEVEL', 1, 'Sus huesos se vuelven piedra: barrera, y el próximo golpe mortal no lo derriba.'
+WHERE NOT EXISTS (SELECT 1 FROM skills WHERE code = 'JEFE_TRONOH_COLOSO_1');
+UPDATE skills SET class_id = NULL, name = 'Huesos de Piedra', skill_type = 'BUFF', damage_school = NULL, element_id = NULL, target_type = 'SELF', base_value = NULL, scaling_stat = NULL, scaling_multiplier = NULL, hits = 1, mana_cost = 30, is_passive = FALSE, learn_method = 'LEVEL', learn_level = 1, description = 'Sus huesos se vuelven piedra: barrera, y el próximo golpe mortal no lo derriba.' WHERE code = 'JEFE_TRONOH_COLOSO_1';
+DELETE FROM skill_effects WHERE skill_id = (SELECT id FROM skills WHERE code = 'JEFE_TRONOH_COLOSO_1');
+INSERT INTO skill_effects (skill_id, effect_type, stat_code, percent_amount, flat_amount, duration_turns, status_code, description)
+SELECT id, 'MECANICA', 'BARRERA', 20, 0, 3, NULL, 'Huesos de Piedra' FROM skills WHERE code = 'JEFE_TRONOH_COLOSO_1';
+INSERT INTO skill_effects (skill_id, effect_type, stat_code, percent_amount, flat_amount, duration_turns, status_code, description)
+SELECT id, 'MECANICA', 'ALIENTO', NULL, NULL, 6, NULL, 'Huesos de Piedra' FROM skills WHERE code = 'JEFE_TRONOH_COLOSO_1';
+INSERT INTO monster_skills (monster_id, skill_id, use_chance_percent)
+SELECT m.id, s.id, 25 FROM monsters m, skills s WHERE m.code = 'TRONOH_COLOSO' AND s.code = 'JEFE_TRONOH_COLOSO_1'
+  AND NOT EXISTS (SELECT 1 FROM monster_skills ms WHERE ms.monster_id = m.id AND ms.skill_id = s.id);
+UPDATE monster_skills SET use_chance_percent = 25 WHERE monster_id = (SELECT id FROM monsters WHERE code = 'TRONOH_COLOSO') AND skill_id = (SELECT id FROM skills WHERE code = 'JEFE_TRONOH_COLOSO_1');
+
+-- Filacteria Ancestral (LICH_ANCESTRAL)
+INSERT INTO skills (code, class_id, name, skill_type, damage_school, element_id, target_type, base_value, scaling_stat, scaling_multiplier, hits, mana_cost, is_passive, learn_method, learn_level, description)
+SELECT 'JEFE_LICH_ANCESTRAL_1', NULL, 'Filacteria Ancestral', 'BUFF', NULL, NULL, 'SELF', NULL, NULL, NULL, 1, 30, FALSE, 'LEVEL', 1, 'Guarda su alma lejos: el próximo golpe mortal no lo mata, y su magia crece.'
+WHERE NOT EXISTS (SELECT 1 FROM skills WHERE code = 'JEFE_LICH_ANCESTRAL_1');
+UPDATE skills SET class_id = NULL, name = 'Filacteria Ancestral', skill_type = 'BUFF', damage_school = NULL, element_id = NULL, target_type = 'SELF', base_value = NULL, scaling_stat = NULL, scaling_multiplier = NULL, hits = 1, mana_cost = 30, is_passive = FALSE, learn_method = 'LEVEL', learn_level = 1, description = 'Guarda su alma lejos: el próximo golpe mortal no lo mata, y su magia crece.' WHERE code = 'JEFE_LICH_ANCESTRAL_1';
+DELETE FROM skill_effects WHERE skill_id = (SELECT id FROM skills WHERE code = 'JEFE_LICH_ANCESTRAL_1');
+INSERT INTO skill_effects (skill_id, effect_type, stat_code, percent_amount, flat_amount, duration_turns, status_code, description)
+SELECT id, 'MECANICA', 'ALIENTO', NULL, NULL, 6, NULL, 'Filacteria Ancestral' FROM skills WHERE code = 'JEFE_LICH_ANCESTRAL_1';
+INSERT INTO skill_effects (skill_id, effect_type, stat_code, percent_amount, flat_amount, duration_turns, status_code, description)
+SELECT id, 'MECANICA', 'SUBIR', 20, NULL, 4, 'MAG', 'Filacteria Ancestral' FROM skills WHERE code = 'JEFE_LICH_ANCESTRAL_1';
+INSERT INTO monster_skills (monster_id, skill_id, use_chance_percent)
+SELECT m.id, s.id, 20 FROM monsters m, skills s WHERE m.code = 'LICH_ANCESTRAL' AND s.code = 'JEFE_LICH_ANCESTRAL_1'
+  AND NOT EXISTS (SELECT 1 FROM monster_skills ms WHERE ms.monster_id = m.id AND ms.skill_id = s.id);
+UPDATE monster_skills SET use_chance_percent = 20 WHERE monster_id = (SELECT id FROM monsters WHERE code = 'LICH_ANCESTRAL') AND skill_id = (SELECT id FROM skills WHERE code = 'JEFE_LICH_ANCESTRAL_1');
+
+-- Silencio de la Tumba (LICH_ANCESTRAL)
+INSERT INTO skills (code, class_id, name, skill_type, damage_school, element_id, target_type, base_value, scaling_stat, scaling_multiplier, hits, mana_cost, is_passive, learn_method, learn_level, description)
+SELECT 'JEFE_LICH_ANCESTRAL_2', NULL, 'Silencio de la Tumba', 'DEBUFF', NULL, NULL, 'ALL_ENEMIES', NULL, NULL, NULL, 1, 35, FALSE, 'LEVEL', 1, 'Un silencio de mil años cae sobre todos: nadie puede usar habilidades.'
+WHERE NOT EXISTS (SELECT 1 FROM skills WHERE code = 'JEFE_LICH_ANCESTRAL_2');
+UPDATE skills SET class_id = NULL, name = 'Silencio de la Tumba', skill_type = 'DEBUFF', damage_school = NULL, element_id = NULL, target_type = 'ALL_ENEMIES', base_value = NULL, scaling_stat = NULL, scaling_multiplier = NULL, hits = 1, mana_cost = 35, is_passive = FALSE, learn_method = 'LEVEL', learn_level = 1, description = 'Un silencio de mil años cae sobre todos: nadie puede usar habilidades.' WHERE code = 'JEFE_LICH_ANCESTRAL_2';
+DELETE FROM skill_effects WHERE skill_id = (SELECT id FROM skills WHERE code = 'JEFE_LICH_ANCESTRAL_2');
+INSERT INTO skill_effects (skill_id, effect_type, stat_code, percent_amount, flat_amount, duration_turns, status_code, description)
+SELECT id, 'MECANICA', 'SILENCIAR', NULL, NULL, 2, NULL, 'Silencio de la Tumba' FROM skills WHERE code = 'JEFE_LICH_ANCESTRAL_2';
+INSERT INTO monster_skills (monster_id, skill_id, use_chance_percent)
+SELECT m.id, s.id, 25 FROM monsters m, skills s WHERE m.code = 'LICH_ANCESTRAL' AND s.code = 'JEFE_LICH_ANCESTRAL_2'
+  AND NOT EXISTS (SELECT 1 FROM monster_skills ms WHERE ms.monster_id = m.id AND ms.skill_id = s.id);
+UPDATE monster_skills SET use_chance_percent = 25 WHERE monster_id = (SELECT id FROM monsters WHERE code = 'LICH_ANCESTRAL') AND skill_id = (SELECT id FROM skills WHERE code = 'JEFE_LICH_ANCESTRAL_2');
+
+-- Fuego Infernal (DEMONIO_INFERNAL)
+INSERT INTO skills (code, class_id, name, skill_type, damage_school, element_id, target_type, base_value, scaling_stat, scaling_multiplier, hits, mana_cost, is_passive, learn_method, learn_level, description)
+SELECT 'JEFE_DEMONIO_INFERNAL_1', NULL, 'Fuego Infernal', 'ATAQUE', 'MAGICO', 1, 'ENEMY', 5, 'MAG', 1.2, 1, 30, FALSE, 'LEVEL', 1, 'Fuego del abismo que se cura con tu dolor: ardes y él se cura.'
+WHERE NOT EXISTS (SELECT 1 FROM skills WHERE code = 'JEFE_DEMONIO_INFERNAL_1');
+UPDATE skills SET class_id = NULL, name = 'Fuego Infernal', skill_type = 'ATAQUE', damage_school = 'MAGICO', element_id = 1, target_type = 'ENEMY', base_value = 5, scaling_stat = 'MAG', scaling_multiplier = 1.2, hits = 1, mana_cost = 30, is_passive = FALSE, learn_method = 'LEVEL', learn_level = 1, description = 'Fuego del abismo que se cura con tu dolor: ardes y él se cura.' WHERE code = 'JEFE_DEMONIO_INFERNAL_1';
+DELETE FROM skill_effects WHERE skill_id = (SELECT id FROM skills WHERE code = 'JEFE_DEMONIO_INFERNAL_1');
+INSERT INTO skill_effects (skill_id, effect_type, stat_code, percent_amount, flat_amount, duration_turns, status_code, description)
+SELECT id, 'MECANICA', 'QUEMAR', 6, NULL, 3, NULL, 'Fuego Infernal' FROM skills WHERE code = 'JEFE_DEMONIO_INFERNAL_1';
+INSERT INTO skill_effects (skill_id, effect_type, stat_code, percent_amount, flat_amount, duration_turns, status_code, description)
+SELECT id, 'MECANICA', 'SED', 0, 30, NULL, NULL, 'Fuego Infernal' FROM skills WHERE code = 'JEFE_DEMONIO_INFERNAL_1';
+INSERT INTO monster_skills (monster_id, skill_id, use_chance_percent)
+SELECT m.id, s.id, 30 FROM monsters m, skills s WHERE m.code = 'DEMONIO_INFERNAL' AND s.code = 'JEFE_DEMONIO_INFERNAL_1'
+  AND NOT EXISTS (SELECT 1 FROM monster_skills ms WHERE ms.monster_id = m.id AND ms.skill_id = s.id);
+UPDATE monster_skills SET use_chance_percent = 30 WHERE monster_id = (SELECT id FROM monsters WHERE code = 'DEMONIO_INFERNAL') AND skill_id = (SELECT id FROM skills WHERE code = 'JEFE_DEMONIO_INFERNAL_1');
+
+-- Juicio del Guardián (GUARDIAN_ANCESTRAL)
+INSERT INTO skills (code, class_id, name, skill_type, damage_school, element_id, target_type, base_value, scaling_stat, scaling_multiplier, hits, mana_cost, is_passive, learn_method, learn_level, description)
+SELECT 'JEFE_GUARDIAN_ANCESTRAL_1', NULL, 'Juicio del Guardián', 'ATAQUE', 'MAGICO', 7, 'ENEMY', 8, 'MAG', 1.3, 1, 30, FALSE, 'LEVEL', 1, 'Un rayo de juicio: contra un héroe con menos del 25% de vida, hace el doble.'
+WHERE NOT EXISTS (SELECT 1 FROM skills WHERE code = 'JEFE_GUARDIAN_ANCESTRAL_1');
+UPDATE skills SET class_id = NULL, name = 'Juicio del Guardián', skill_type = 'ATAQUE', damage_school = 'MAGICO', element_id = 7, target_type = 'ENEMY', base_value = 8, scaling_stat = 'MAG', scaling_multiplier = 1.3, hits = 1, mana_cost = 30, is_passive = FALSE, learn_method = 'LEVEL', learn_level = 1, description = 'Un rayo de juicio: contra un héroe con menos del 25% de vida, hace el doble.' WHERE code = 'JEFE_GUARDIAN_ANCESTRAL_1';
+DELETE FROM skill_effects WHERE skill_id = (SELECT id FROM skills WHERE code = 'JEFE_GUARDIAN_ANCESTRAL_1');
+INSERT INTO skill_effects (skill_id, effect_type, stat_code, percent_amount, flat_amount, duration_turns, status_code, description)
+SELECT id, 'MECANICA', 'EJECUTAR', 25, 2, NULL, NULL, 'Juicio del Guardián' FROM skills WHERE code = 'JEFE_GUARDIAN_ANCESTRAL_1';
+INSERT INTO monster_skills (monster_id, skill_id, use_chance_percent)
+SELECT m.id, s.id, 30 FROM monsters m, skills s WHERE m.code = 'GUARDIAN_ANCESTRAL' AND s.code = 'JEFE_GUARDIAN_ANCESTRAL_1'
+  AND NOT EXISTS (SELECT 1 FROM monster_skills ms WHERE ms.monster_id = m.id AND ms.skill_id = s.id);
+UPDATE monster_skills SET use_chance_percent = 30 WHERE monster_id = (SELECT id FROM monsters WHERE code = 'GUARDIAN_ANCESTRAL') AND skill_id = (SELECT id FROM skills WHERE code = 'JEFE_GUARDIAN_ANCESTRAL_1');
+
+-- Miedo (ENTIDAD_CORRUPTA_TEMPLO)
+INSERT INTO skills (code, class_id, name, skill_type, damage_school, element_id, target_type, base_value, scaling_stat, scaling_multiplier, hits, mana_cost, is_passive, learn_method, learn_level, description)
+SELECT 'JEFE_ENTIDAD_CORRUPTA_TEMPLO_1', NULL, 'Miedo', 'DEBUFF', NULL, NULL, 'ALL_ENEMIES', NULL, NULL, NULL, 1, 30, FALSE, 'LEVEL', 1, 'Te muestra lo que más temes: todos quedan ciegos y con menos ataque.'
+WHERE NOT EXISTS (SELECT 1 FROM skills WHERE code = 'JEFE_ENTIDAD_CORRUPTA_TEMPLO_1');
+UPDATE skills SET class_id = NULL, name = 'Miedo', skill_type = 'DEBUFF', damage_school = NULL, element_id = NULL, target_type = 'ALL_ENEMIES', base_value = NULL, scaling_stat = NULL, scaling_multiplier = NULL, hits = 1, mana_cost = 30, is_passive = FALSE, learn_method = 'LEVEL', learn_level = 1, description = 'Te muestra lo que más temes: todos quedan ciegos y con menos ataque.' WHERE code = 'JEFE_ENTIDAD_CORRUPTA_TEMPLO_1';
+DELETE FROM skill_effects WHERE skill_id = (SELECT id FROM skills WHERE code = 'JEFE_ENTIDAD_CORRUPTA_TEMPLO_1');
+INSERT INTO skill_effects (skill_id, effect_type, stat_code, percent_amount, flat_amount, duration_turns, status_code, description)
+SELECT id, 'MECANICA', 'CEGAR', 30, NULL, 2, NULL, 'Miedo' FROM skills WHERE code = 'JEFE_ENTIDAD_CORRUPTA_TEMPLO_1';
+INSERT INTO skill_effects (skill_id, effect_type, stat_code, percent_amount, flat_amount, duration_turns, status_code, description)
+SELECT id, 'MECANICA', 'HURTO', 15, NULL, 3, 'ATK', 'Miedo' FROM skills WHERE code = 'JEFE_ENTIDAD_CORRUPTA_TEMPLO_1';
+INSERT INTO monster_skills (monster_id, skill_id, use_chance_percent)
+SELECT m.id, s.id, 30 FROM monsters m, skills s WHERE m.code = 'ENTIDAD_CORRUPTA_TEMPLO' AND s.code = 'JEFE_ENTIDAD_CORRUPTA_TEMPLO_1'
+  AND NOT EXISTS (SELECT 1 FROM monster_skills ms WHERE ms.monster_id = m.id AND ms.skill_id = s.id);
+UPDATE monster_skills SET use_chance_percent = 30 WHERE monster_id = (SELECT id FROM monsters WHERE code = 'ENTIDAD_CORRUPTA_TEMPLO') AND skill_id = (SELECT id FROM skills WHERE code = 'JEFE_ENTIDAD_CORRUPTA_TEMPLO_1');
+
+-- Mirada del Devorador (OBSERV_OJO)
+INSERT INTO skills (code, class_id, name, skill_type, damage_school, element_id, target_type, base_value, scaling_stat, scaling_multiplier, hits, mana_cost, is_passive, learn_method, learn_level, description)
+SELECT 'JEFE_OBSERV_OJO_1', NULL, 'Mirada del Devorador', 'DEBUFF', NULL, NULL, 'ENEMY', NULL, NULL, NULL, 1, 30, FALSE, 'LEVEL', 1, 'Te mira y te vacía: te roba tres mejoras y te deja ciego.'
+WHERE NOT EXISTS (SELECT 1 FROM skills WHERE code = 'JEFE_OBSERV_OJO_1');
+UPDATE skills SET class_id = NULL, name = 'Mirada del Devorador', skill_type = 'DEBUFF', damage_school = NULL, element_id = NULL, target_type = 'ENEMY', base_value = NULL, scaling_stat = NULL, scaling_multiplier = NULL, hits = 1, mana_cost = 30, is_passive = FALSE, learn_method = 'LEVEL', learn_level = 1, description = 'Te mira y te vacía: te roba tres mejoras y te deja ciego.' WHERE code = 'JEFE_OBSERV_OJO_1';
+DELETE FROM skill_effects WHERE skill_id = (SELECT id FROM skills WHERE code = 'JEFE_OBSERV_OJO_1');
+INSERT INTO skill_effects (skill_id, effect_type, stat_code, percent_amount, flat_amount, duration_turns, status_code, description)
+SELECT id, 'MECANICA', 'ROBAR_MEJORA', NULL, 3, NULL, NULL, 'Mirada del Devorador' FROM skills WHERE code = 'JEFE_OBSERV_OJO_1';
+INSERT INTO skill_effects (skill_id, effect_type, stat_code, percent_amount, flat_amount, duration_turns, status_code, description)
+SELECT id, 'MECANICA', 'CEGAR', 40, NULL, 2, NULL, 'Mirada del Devorador' FROM skills WHERE code = 'JEFE_OBSERV_OJO_1';
+INSERT INTO monster_skills (monster_id, skill_id, use_chance_percent)
+SELECT m.id, s.id, 30 FROM monsters m, skills s WHERE m.code = 'OBSERV_OJO' AND s.code = 'JEFE_OBSERV_OJO_1'
+  AND NOT EXISTS (SELECT 1 FROM monster_skills ms WHERE ms.monster_id = m.id AND ms.skill_id = s.id);
+UPDATE monster_skills SET use_chance_percent = 30 WHERE monster_id = (SELECT id FROM monsters WHERE code = 'OBSERV_OJO') AND skill_id = (SELECT id FROM skills WHERE code = 'JEFE_OBSERV_OJO_1');
+
+-- Campo de Estrellas (CENTINELA_COSMICO)
+INSERT INTO skills (code, class_id, name, skill_type, damage_school, element_id, target_type, base_value, scaling_stat, scaling_multiplier, hits, mana_cost, is_passive, learn_method, learn_level, description)
+SELECT 'JEFE_CENTINELA_COSMICO_1', NULL, 'Campo de Estrellas', 'BUFF', NULL, NULL, 'SELF', NULL, NULL, NULL, 1, 30, FALSE, 'LEVEL', 1, 'Estrellas que lo rodean: una barrera y dos reflejos que se llevan los golpes.'
+WHERE NOT EXISTS (SELECT 1 FROM skills WHERE code = 'JEFE_CENTINELA_COSMICO_1');
+UPDATE skills SET class_id = NULL, name = 'Campo de Estrellas', skill_type = 'BUFF', damage_school = NULL, element_id = NULL, target_type = 'SELF', base_value = NULL, scaling_stat = NULL, scaling_multiplier = NULL, hits = 1, mana_cost = 30, is_passive = FALSE, learn_method = 'LEVEL', learn_level = 1, description = 'Estrellas que lo rodean: una barrera y dos reflejos que se llevan los golpes.' WHERE code = 'JEFE_CENTINELA_COSMICO_1';
+DELETE FROM skill_effects WHERE skill_id = (SELECT id FROM skills WHERE code = 'JEFE_CENTINELA_COSMICO_1');
+INSERT INTO skill_effects (skill_id, effect_type, stat_code, percent_amount, flat_amount, duration_turns, status_code, description)
+SELECT id, 'MECANICA', 'BARRERA', 15, 0, 3, NULL, 'Campo de Estrellas' FROM skills WHERE code = 'JEFE_CENTINELA_COSMICO_1';
+INSERT INTO skill_effects (skill_id, effect_type, stat_code, percent_amount, flat_amount, duration_turns, status_code, description)
+SELECT id, 'MECANICA', 'SENUELO', NULL, 2, 3, NULL, 'Campo de Estrellas' FROM skills WHERE code = 'JEFE_CENTINELA_COSMICO_1';
+INSERT INTO monster_skills (monster_id, skill_id, use_chance_percent)
+SELECT m.id, s.id, 25 FROM monsters m, skills s WHERE m.code = 'CENTINELA_COSMICO' AND s.code = 'JEFE_CENTINELA_COSMICO_1'
+  AND NOT EXISTS (SELECT 1 FROM monster_skills ms WHERE ms.monster_id = m.id AND ms.skill_id = s.id);
+UPDATE monster_skills SET use_chance_percent = 25 WHERE monster_id = (SELECT id FROM monsters WHERE code = 'CENTINELA_COSMICO') AND skill_id = (SELECT id FROM skills WHERE code = 'JEFE_CENTINELA_COSMICO_1');
+
+-- Pacto de Sangre (SENOR_DEMONIACO)
+INSERT INTO skills (code, class_id, name, skill_type, damage_school, element_id, target_type, base_value, scaling_stat, scaling_multiplier, hits, mana_cost, is_passive, learn_method, learn_level, description)
+SELECT 'JEFE_SENOR_DEMONIACO_1', NULL, 'Pacto de Sangre', 'ATAQUE', 'FISICO', 8, 'ENEMY', 5, 'ATK', 1.3, 1, 30, FALSE, 'LEVEL', 1, 'Un golpe que bebe: se cura con la mitad del daño y se vuelve más fuerte.'
+WHERE NOT EXISTS (SELECT 1 FROM skills WHERE code = 'JEFE_SENOR_DEMONIACO_1');
+UPDATE skills SET class_id = NULL, name = 'Pacto de Sangre', skill_type = 'ATAQUE', damage_school = 'FISICO', element_id = 8, target_type = 'ENEMY', base_value = 5, scaling_stat = 'ATK', scaling_multiplier = 1.3, hits = 1, mana_cost = 30, is_passive = FALSE, learn_method = 'LEVEL', learn_level = 1, description = 'Un golpe que bebe: se cura con la mitad del daño y se vuelve más fuerte.' WHERE code = 'JEFE_SENOR_DEMONIACO_1';
+DELETE FROM skill_effects WHERE skill_id = (SELECT id FROM skills WHERE code = 'JEFE_SENOR_DEMONIACO_1');
+INSERT INTO skill_effects (skill_id, effect_type, stat_code, percent_amount, flat_amount, duration_turns, status_code, description)
+SELECT id, 'MECANICA', 'SED', 0, 50, NULL, NULL, 'Pacto de Sangre' FROM skills WHERE code = 'JEFE_SENOR_DEMONIACO_1';
+INSERT INTO skill_effects (skill_id, effect_type, stat_code, percent_amount, flat_amount, duration_turns, status_code, description)
+SELECT id, 'MECANICA', 'SUBIR', 15, NULL, 3, 'ATK', 'Pacto de Sangre' FROM skills WHERE code = 'JEFE_SENOR_DEMONIACO_1';
+INSERT INTO monster_skills (monster_id, skill_id, use_chance_percent)
+SELECT m.id, s.id, 30 FROM monsters m, skills s WHERE m.code = 'SENOR_DEMONIACO' AND s.code = 'JEFE_SENOR_DEMONIACO_1'
+  AND NOT EXISTS (SELECT 1 FROM monster_skills ms WHERE ms.monster_id = m.id AND ms.skill_id = s.id);
+UPDATE monster_skills SET use_chance_percent = 30 WHERE monster_id = (SELECT id FROM monsters WHERE code = 'SENOR_DEMONIACO') AND skill_id = (SELECT id FROM skills WHERE code = 'JEFE_SENOR_DEMONIACO_1');
+
+-- Último Juramento (GRAN_ESQUELETO_ABISMO)
+INSERT INTO skills (code, class_id, name, skill_type, damage_school, element_id, target_type, base_value, scaling_stat, scaling_multiplier, hits, mana_cost, is_passive, learn_method, learn_level, description)
+SELECT 'JEFE_GRAN_ESQUELETO_ABISMO_1', NULL, 'Último Juramento', 'BUFF', NULL, NULL, 'SELF', NULL, NULL, NULL, 1, 30, FALSE, 'LEVEL', 1, 'El primer Vigía se niega a caer otra vez, y espera tu golpe para devolverlo.'
+WHERE NOT EXISTS (SELECT 1 FROM skills WHERE code = 'JEFE_GRAN_ESQUELETO_ABISMO_1');
+UPDATE skills SET class_id = NULL, name = 'Último Juramento', skill_type = 'BUFF', damage_school = NULL, element_id = NULL, target_type = 'SELF', base_value = NULL, scaling_stat = NULL, scaling_multiplier = NULL, hits = 1, mana_cost = 30, is_passive = FALSE, learn_method = 'LEVEL', learn_level = 1, description = 'El primer Vigía se niega a caer otra vez, y espera tu golpe para devolverlo.' WHERE code = 'JEFE_GRAN_ESQUELETO_ABISMO_1';
+DELETE FROM skill_effects WHERE skill_id = (SELECT id FROM skills WHERE code = 'JEFE_GRAN_ESQUELETO_ABISMO_1');
+INSERT INTO skill_effects (skill_id, effect_type, stat_code, percent_amount, flat_amount, duration_turns, status_code, description)
+SELECT id, 'MECANICA', 'ALIENTO', NULL, NULL, 6, NULL, 'Último Juramento' FROM skills WHERE code = 'JEFE_GRAN_ESQUELETO_ABISMO_1';
+INSERT INTO skill_effects (skill_id, effect_type, stat_code, percent_amount, flat_amount, duration_turns, status_code, description)
+SELECT id, 'MECANICA', 'CONTRA', 100, NULL, 2, NULL, 'Último Juramento' FROM skills WHERE code = 'JEFE_GRAN_ESQUELETO_ABISMO_1';
+INSERT INTO monster_skills (monster_id, skill_id, use_chance_percent)
+SELECT m.id, s.id, 25 FROM monsters m, skills s WHERE m.code = 'GRAN_ESQUELETO_ABISMO' AND s.code = 'JEFE_GRAN_ESQUELETO_ABISMO_1'
+  AND NOT EXISTS (SELECT 1 FROM monster_skills ms WHERE ms.monster_id = m.id AND ms.skill_id = s.id);
+UPDATE monster_skills SET use_chance_percent = 25 WHERE monster_id = (SELECT id FROM monsters WHERE code = 'GRAN_ESQUELETO_ABISMO') AND skill_id = (SELECT id FROM skills WHERE code = 'JEFE_GRAN_ESQUELETO_ABISMO_1');
+
+-- Eclipse Devorador (SOMBRA_DEVORADOR)
+INSERT INTO skills (code, class_id, name, skill_type, damage_school, element_id, target_type, base_value, scaling_stat, scaling_multiplier, hits, mana_cost, is_passive, learn_method, learn_level, description)
+SELECT 'JEFE_SOMBRA_DEVORADOR_1', NULL, 'Eclipse Devorador', 'ATAQUE', 'MAGICO', 8, 'ALL_ENEMIES', 8, 'MAG', 1, 1, 40, FALSE, 'LEVEL', 1, 'El eclipse se come la luz: todos quedan silenciados y pierden magia.'
+WHERE NOT EXISTS (SELECT 1 FROM skills WHERE code = 'JEFE_SOMBRA_DEVORADOR_1');
+UPDATE skills SET class_id = NULL, name = 'Eclipse Devorador', skill_type = 'ATAQUE', damage_school = 'MAGICO', element_id = 8, target_type = 'ALL_ENEMIES', base_value = 8, scaling_stat = 'MAG', scaling_multiplier = 1, hits = 1, mana_cost = 40, is_passive = FALSE, learn_method = 'LEVEL', learn_level = 1, description = 'El eclipse se come la luz: todos quedan silenciados y pierden magia.' WHERE code = 'JEFE_SOMBRA_DEVORADOR_1';
+DELETE FROM skill_effects WHERE skill_id = (SELECT id FROM skills WHERE code = 'JEFE_SOMBRA_DEVORADOR_1');
+INSERT INTO skill_effects (skill_id, effect_type, stat_code, percent_amount, flat_amount, duration_turns, status_code, description)
+SELECT id, 'MECANICA', 'SILENCIAR', NULL, NULL, 2, NULL, 'Eclipse Devorador' FROM skills WHERE code = 'JEFE_SOMBRA_DEVORADOR_1';
+INSERT INTO skill_effects (skill_id, effect_type, stat_code, percent_amount, flat_amount, duration_turns, status_code, description)
+SELECT id, 'MECANICA', 'HURTO', 15, NULL, 3, 'MAG', 'Eclipse Devorador' FROM skills WHERE code = 'JEFE_SOMBRA_DEVORADOR_1';
+INSERT INTO monster_skills (monster_id, skill_id, use_chance_percent)
+SELECT m.id, s.id, 30 FROM monsters m, skills s WHERE m.code = 'SOMBRA_DEVORADOR' AND s.code = 'JEFE_SOMBRA_DEVORADOR_1'
+  AND NOT EXISTS (SELECT 1 FROM monster_skills ms WHERE ms.monster_id = m.id AND ms.skill_id = s.id);
+UPDATE monster_skills SET use_chance_percent = 30 WHERE monster_id = (SELECT id FROM monsters WHERE code = 'SOMBRA_DEVORADOR') AND skill_id = (SELECT id FROM skills WHERE code = 'JEFE_SOMBRA_DEVORADOR_1');
+
+-- ============================================================================================
+-- Equilibrio (docs/equilibrio_simulacion.md): los ataques en área sin tiempo de espera de las clases que el
+-- simulador marcaba muy por encima de su escalón pasan a usarse una ronda sí y otra no. Repetible.
+-- ============================================================================================
+UPDATE skills SET cooldown_rounds = 2
+WHERE code IN ('NINJA_AOE', 'CLERIGO_AOE', 'DRUIDA_AOE', 'TEMPLARIO_AOE', 'INQUISIDOR_AOE', 'MAESTRO_MONJE_SUPREMO_AOE');
+
+-- ============================================================================================
+-- Equilibrio (docs/equilibrio_simulacion.md): las tres clases que el simulador marcaba muy por debajo de su escalón.
+--  * Sanador Divino: su ataque (Gracia Ofensiva) llegaba en el nivel 40; pasa al 32 (la Predicción, al 40), con 2
+--    rondas de espera como los demás ataques en área de los sacerdotes.
+--  * Mago Espada y Espadachín Arcano: son casi todo ataque y casi nada de magia, y sus ataques escalaban con el
+--    promedio de los dos (la mitad de lo que tienen). Ahora escalan con el ataque (siguen siendo híbridos contra la
+--    defensa del rival), y el ataque en área llega en el 56 y el de un objetivo en el 74. Repetible.
+-- ============================================================================================
+UPDATE skills SET learn_level = 32, cooldown_rounds = 2 WHERE code = 'SANADOR_DIVINO_AOE';
+UPDATE skills SET learn_level = 40 WHERE code = 'SANADOR_DIVINO_PREDICCION';
+UPDATE skills SET scaling_stat = 'ATK', scaling_multiplier = v.mult FROM (VALUES
+  ('MAGO_ESPADA_FILO_DE_RUNAS', 0.75), ('MAGO_ESPADA_ATAQUE', 1.6), ('MAGO_ESPADA_AOE', 1.3),
+  ('ESPADACHIN_ARCANO_CORTE_DEL_TIEMPO', 1.5), ('ARQUEOLOGO_MAGICO_ATAQUE', 1.6), ('ARQUEOLOGO_MAGICO_AOE', 1.3)
+) AS v(code, mult) WHERE skills.code = v.code;
+UPDATE skills SET learn_level = 56 WHERE code IN ('MAGO_ESPADA_AOE', 'ARQUEOLOGO_MAGICO_AOE');
+UPDATE skills SET learn_level = 74 WHERE code IN ('MAGO_ESPADA_ATAQUE', 'ARQUEOLOGO_MAGICO_ATAQUE');
+
+-- ============================================================================================
+-- Crecimiento de las clases híbridas y mixtas (docs/equilibrio_simulacion.md). Repetible: pone valores fijos.
+--  * Híbridas (sus ataques escalan con ataque y magia): el 90% del ataque de un físico puro y el 90% de la magia de
+--    un mago puro de su escalón (referencias: Espadachín y Mago Divino; Maestro Espadachín y Piromántico).
+--  * Mixtas (habilidades físicas y de luz, o al revés): su estadística secundaria crece al 50% de una clase pura
+--    (referencias del escalón 2: Piromántico; del 3: Mago Cósmico y Asesino de Élite).
+-- Los jugadores de estas clases toman los valores nuevos al subir de nivel o al evolucionar.
+-- ============================================================================================
+UPDATE classes SET base_atk = v.batk, base_mag = v.bmag FROM (VALUES
+  ('GUERRERO_MAGUS', 16, 18), ('MAGO_ESPADA', 21, 23), ('ARQUEOLOGO_MAGICO', 21, 23),
+  ('MONJE_DIVINO', 22, 13), ('PALADIN', 22, 13), ('CABALLERO_SAGRADO', 27, 13), ('PALADIN_OSCURO', 22, 13),
+  ('HERBOLARIO_SAGRADO', 11, 26)
+) AS v(code, batk, bmag) WHERE classes.code = v.code;
+UPDATE class_growths g SET atk_per_level = v.atk, mag_per_level = v.mag FROM (VALUES
+  ('GUERRERO_MAGUS', 9.36, 9.36), ('MAGO_ESPADA', 11.98, 11.98), ('ARQUEOLOGO_MAGICO', 11.98, 11.98),
+  ('MONJE_DIVINO', 12.24, 6.66), ('PALADIN', 12.00, 6.66), ('CABALLERO_SAGRADO', 14.76, 6.66), ('PALADIN_OSCURO', 12.00, 6.66),
+  ('HERBOLARIO_SAGRADO', 6.66, 11.65)
+) AS v(code, atk, mag) WHERE g.class_id = (SELECT id FROM classes WHERE code = v.code);
+
+-- se deshace el parche de la tanda anterior: sus ataques vuelven a escalar con las dos estadísticas, y el ataque en
+-- área vuelve al 74 y el de un objetivo al 56
+UPDATE skills SET scaling_stat = 'HYBRID', scaling_multiplier = v.mult FROM (VALUES
+  ('MAGO_ESPADA_FILO_DE_RUNAS', 0.75), ('MAGO_ESPADA_ATAQUE', 1.6), ('MAGO_ESPADA_AOE', 1.4),
+  ('ESPADACHIN_ARCANO_CORTE_DEL_TIEMPO', 1.5), ('ARQUEOLOGO_MAGICO_ATAQUE', 1.6), ('ARQUEOLOGO_MAGICO_AOE', 1.4)
+) AS v(code, mult) WHERE skills.code = v.code;
+UPDATE skills SET learn_level = 56 WHERE code IN ('MAGO_ESPADA_ATAQUE', 'ARQUEOLOGO_MAGICO_ATAQUE');
+UPDATE skills SET learn_level = 74 WHERE code IN ('MAGO_ESPADA_AOE', 'ARQUEOLOGO_MAGICO_AOE');

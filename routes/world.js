@@ -83,6 +83,8 @@ router.post('/nodes/:nodeId/gather', async (req, res, next) => {
       [req.playerId, req.params.nodeId, node.def.respawnSeconds]
     );
     if (!claim.rows.length) return res.status(409).json({ error: 'Todavía no ha vuelto a crecer.' });
+    // para las ramas del Druida (docs/evoluciones_pruebas.md)
+    await require('../lib/counters').incrementCounter(req.playerId, 'RECURSOS_RECOGIDOS');
 
     const { drops, gold } = rollLoot(node.def);
     const items = [];

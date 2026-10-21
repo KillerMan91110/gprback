@@ -7,6 +7,8 @@ const leveling = require('../lib/leveling');
 const questProgress = require('../lib/questProgress');
 const achievements = require('../lib/achievements');
 const logros = require('../lib/logros');
+const mochila = require('../lib/mochila');
+const precios = require('../lib/precios');
 const { getEquipmentBonuses, applyHpBonusDelta, getNpcEquipmentBonuses, getNpcEquipmentBonusesBatch, applyNpcHpBonusDelta, QUALITY_TIER_MULTIPLIER: EQUIP_QUALITY_MULT } = require('../lib/equipment');
 const { getClassPassiveBonuses } = require('../lib/passives');
 const eleccion = require('../lib/eleccion');
@@ -871,9 +873,19 @@ router.post('/:playerId/master-encounter/resolve', async (req, res, next) => {
   }
 });
 
+// POST /api/player/:playerId/inventory/favorito { inventoryId } — pone o quita el candado (lib/mochila.js)
+router.post('/:playerId/inventory/favorito', async (req, res, next) => {
+  try {
+    const favorito = await mochila.alternarFavorito(Number(req.params.playerId), Number(req.body?.inventoryId));
+    if (favorito === null) return res.status(404).json({ error: 'No tienes eso en la mochila' });
+    res.json({ favorito });
+  } catch (error) { next(error); }
+});
+
 // GET /api/players/:playerId/inventory?type=EQUIPMENT&slot=WEAPON&rarity=RARO
 router.get('/:playerId/inventory', async (req, res, next) => {
   const { type, slot, rarity } = req.query;
+  await mochila.ensureTables().catch(() => {});
   const conditions = ['pi.player_id = $1'];
   const params = [req.params.playerId];
 
@@ -892,7 +904,7 @@ router.get('/:playerId/inventory', async (req, res, next) => {
 
   try {
     const result = await db.query(
-      `SELECT pi.id AS inventory_id, pi.item_id, pi.enchant_level, pi.quality_tier, pi.quantity,
+      `SELECT pi.id AS inventory_id, pi.item_id, pi.enchant_level, pi.quality_tier, pi.quantity, pi.favorito,
               i.code, i.name, i.item_type, i.slot, i.rarity, i.class_id, i.is_quest_item,
               i.required_level, i.is_two_handed, i.buy_price, i.sell_zone_mult, ${npcSell.SELL_CAP_SQL} AS sell_cap,
               (EXISTS (SELECT 1 FROM crafting_recipes cr2 WHERE cr2.scroll_item_id = i.id)) AS is_scroll,
@@ -914,13 +926,15 @@ router.get('/:playerId/inventory', async (req, res, next) => {
       params
     );
     const RARITY_NAMES = ['COMUN', 'POCO_COMUN', 'RARO', 'EPICO', 'LEGENDARIO'];
-    res.json(result.rows.map((r) => ({
+    const rows = result.rows.map((r) => ({
       ...r,
       effective_rarity: RARITY_NAMES[Math.min(RARITY_NAMES.indexOf(r.rarity) + r.quality_tier, 4)] ?? r.rarity,
       // lo que te pagan los NPC (null = el artesano no lo compra)
       sell_artisan: npcSell.artisanPrice(r),
       sell_master: npcSell.masterPrice(r),
-    })));
+    }));
+    // mejora (▲ en la mochila) y sobra (para «Vender lo que no usas»): lib/mochila.js
+    res.json(await mochila.marcar(Number(req.params.playerId), rows).catch(() => rows));
   } catch (error) {
     next(error);
   }
@@ -1990,6 +2004,8 @@ router.get('/:playerId/craft/available', async (req, res, next) => {
         levelOk: recipe.result_item_type !== 'EQUIPMENT' || heroLevel >= (Number(recipe.required_level) || 1),
         rarity: recipe.rarity,
         successRate: Number(recipe.success_rate_percent),
+        // lo que cobra el artesano por fabricar una (solo el equipo; lib/precios.js)
+        goldCost: recipe.result_item_type === 'EQUIPMENT' ? precios.fabricarOro(recipe.required_level, recipe.rarity) : 0,
         artisanName: recipe.artisan_name,
         description: recipe.description,
         classId: recipe.required_class_id,
@@ -2066,7 +2082,7 @@ router.post('/:playerId/craft', async (req, res, next) => {
   try {
     const recipeResult = await db.query(
       `SELECT cr.id, cr.result_item_id, i.name AS result_name, i.item_type AS result_item_type, cr.result_quantity,
-              cr.rarity, cr.success_rate_percent, cr.zone_id, cr.scroll_item_id, cr.station
+              cr.rarity, cr.success_rate_percent, cr.zone_id, cr.scroll_item_id, cr.station, i.required_level AS result_level
        FROM crafting_recipes cr
        JOIN items i ON i.id = cr.result_item_id
        WHERE cr.code = $1`,
@@ -2112,6 +2128,13 @@ router.post('/:playerId/craft', async (req, res, next) => {
        WHERE ri.recipe_id = $1`,
       [recipe.id]
     );
+
+    // el trabajo del artesano: el equipo cuesta oro según su rareza y su nivel (lib/precios.js), por intento
+    const goldCost = recipe.result_item_type === 'EQUIPMENT' ? precios.fabricarOro(recipe.result_level, recipe.rarity) * qty : 0;
+    if (goldCost > 0) {
+      const g = Number((await db.query('SELECT gold FROM players WHERE id = $1', [playerId])).rows[0]?.gold ?? 0);
+      if (g < goldCost) return res.status(400).json({ error: `El artesano cobra ${goldCost.toLocaleString('es')} de oro por su trabajo. Tienes ${g.toLocaleString('es')}.` });
+    }
 
     for (const ingredient of ingredients.rows) {
       const have = await inventory.getQuantity(playerId, ingredient.item_id);
@@ -2178,6 +2201,10 @@ router.post('/:playerId/craft', async (req, res, next) => {
     const lost = [];
     try {
       await client.query('BEGIN');
+      if (goldCost > 0) {
+        const paid = await client.query('UPDATE players SET gold = gold - $1 WHERE id = $2 AND gold >= $1 RETURNING gold', [goldCost, playerId]);
+        if (!paid.rows.length) throw Object.assign(new Error('No te alcanza el oro para pagarle al artesano'), { status: 400, expose: true });
+      }
       // Ingredientes: los exitosos consumen cantidad completa, los fallidos consumen % según rareza.
       for (const ingredient of ingredients.rows) {
         const successCost = ingredient.quantity * successCount;
@@ -2239,6 +2266,7 @@ router.post('/:playerId/craft', async (req, res, next) => {
       failCount,
       quantity: qty,
       totalGained,
+      goldCost,
       luck: totalLuck,
       results,
       lost,
@@ -2437,6 +2465,59 @@ router.post('/:playerId/use-item', async (req, res, next) => {
 
 // Lo que devuelve lo decide lib/desmantelar.js: la regla manual (dismantle_recipes) si hay, o la
 // mitad en promedio de los materiales de su receta, sin las piezas de jefe. Solo equipo.
+// GET /api/player/:playerId/dismantle/preview/:itemId — lo que puede salir (lib/desmantelar.js preview)
+router.get('/:playerId/dismantle/preview/:itemId', async (req, res, next) => {
+  try {
+    const r = await desmantelar.preview(Number(req.params.itemId));
+    if (r.error) return res.status(400).json(r);
+    res.json(r);
+  } catch (error) { next(error); }
+});
+
+// POST /api/player/:playerId/dismantle-batch { items: [{ itemId, quantity }] } — desmantela varias piezas de una
+// vez (con las mismas reglas: nada equipado ni con candado); devuelve todo lo recuperado junto
+router.post('/:playerId/dismantle-batch', requireNear('taller'), async (req, res, next) => {
+  const { playerId } = req.params;
+  const items = Array.isArray(req.body?.items) ? req.body.items.slice(0, 100) : [];
+  if (!items.length) return res.status(400).json({ error: 'No elegiste nada para desmantelar' });
+  try {
+    const equipped = new Set((await db.query('SELECT item_id FROM player_equipment WHERE player_id = $1', [playerId])).rows.map((r) => r.item_id));
+    const gained = new Map();
+    let rotas = 0;
+    const client = await db.pool.connect();
+    try {
+      await client.query('BEGIN');
+      for (const it of items) {
+        const itemId = Number(it.itemId);
+        if (!itemId || equipped.has(itemId) || await mochila.esFavorito(playerId, itemId, null, client)) continue;
+        const have = Number((await client.query(
+          'SELECT COALESCE(SUM(quantity), 0)::int AS n FROM player_inventory WHERE player_id = $1 AND item_id = $2 AND enchant_level = 0',
+          [playerId, itemId])).rows[0].n);
+        const qty = Math.min(have, Math.max(1, Math.min(99, parseInt(it.quantity) || 1)));
+        if (qty < 1) continue;
+        const planned = await desmantelar.plan(itemId, qty);
+        if (planned.error) continue;
+        await inventory.removeItem(playerId, itemId, qty, 0, null, client);
+        for (const mat of planned.materials) {
+          await inventory.addItem(playerId, mat.itemId, mat.quantity, 0, 0, client);
+          const cur = gained.get(mat.itemId) ?? { id: mat.itemId, name: mat.name, quantity: 0 };
+          cur.quantity += mat.quantity;
+          gained.set(mat.itemId, cur);
+        }
+        rotas += qty;
+      }
+      await client.query('COMMIT');
+    } catch (e) {
+      await client.query('ROLLBACK');
+      throw e;
+    } finally {
+      client.release();
+    }
+    if (!rotas) return res.status(400).json({ error: 'No había nada que se pudiera desmantelar' });
+    res.json({ success: true, desmanteladas: rotas, materials: [...gained.values()], message: `Desmantelaste ${rotas} pieza${rotas === 1 ? '' : 's'}.` });
+  } catch (error) { next(error); }
+});
+
 router.post('/:playerId/dismantle', requireNear('taller'), async (req, res, next) => {
   const { playerId } = req.params;
   const { itemId } = req.body;
@@ -2466,6 +2547,9 @@ router.post('/:playerId/dismantle', requireNear('taller'), async (req, res, next
     );
     if (equippedCheck.rows.length) {
       return res.status(400).json({ error: 'No puedes desmantelar un ítem equipado. Desequípalo primero.' });
+    }
+    if (await mochila.esFavorito(playerId, itemId)) {
+      return res.status(400).json({ error: 'Esa pieza tiene candado: quítaselo en la mochila para desmantelarla.' });
     }
 
     // Sacar el item y dar los materiales en una sola transaccion -- antes, si algo fallaba a
@@ -3460,7 +3544,7 @@ router.get('/:playerId/enchant/info', requireAuth, async (req, res, next) => {
   const { playerId } = req.params;
   try {
     const equip = await db.query(
-      `SELECT pe.slot, pe.enchant_level, i.name AS item_name
+      `SELECT pe.slot, pe.enchant_level, i.name AS item_name, i.required_level AS item_level, pe.quality_tier
        FROM player_equipment pe
        JOIN items i ON i.id = pe.item_id
        WHERE pe.player_id = $1 ORDER BY pe.slot`,
@@ -3474,7 +3558,10 @@ router.get('/:playerId/enchant/info', requireAuth, async (req, res, next) => {
         itemName: r.item_name,
         enchantLevel: lvl,
         maxLevel: 10,
-        nextCost: next ? { stone: next.stone, quantity: next.qty, gold: next.gold, successRate: next.rate } : null,
+        nextCost: next ? { stone: next.stone, quantity: next.qty, gold: precios.encantarOro(r.item_level, lvl), successRate: next.rate } : null,
+        // la reforja de calidad (lib/precios.js): cuánto cuesta el siguiente escalón y con qué probabilidad
+        qualityTier: r.quality_tier || 0,
+        reforja: precios.reforjaCosto(r.item_level, r.quality_tier || 0),
       };
     });
     res.json(slots);
@@ -3500,17 +3587,18 @@ router.post('/:playerId/enchant', requireAuth, async (req, res, next) => {
 
   try {
     const equip = await db.query(
-      `SELECT pe.id, pe.item_id, pe.enchant_level, i.name AS item_name
+      `SELECT pe.id, pe.item_id, pe.enchant_level, i.name AS item_name, i.required_level AS item_level
        FROM player_equipment pe JOIN items i ON i.id = pe.item_id
        WHERE pe.player_id = $1 AND pe.slot = $2`,
       [playerId, slot]
     );
     if (!equip.rows.length) return res.status(400).json({ error: 'No tienes equipo en ese slot' });
 
-    const { id: equipId, item_id: itemId, enchant_level: currentLevel, item_name: itemName } = equip.rows[0];
+    const { id: equipId, item_id: itemId, enchant_level: currentLevel, item_name: itemName, item_level: itemLevel } = equip.rows[0];
     if (currentLevel >= 10) return res.status(400).json({ error: 'El ítem ya está al nivel máximo (+10)' });
 
-    const cost = ENCHANT_COSTS[currentLevel];
+    // el oro sale del nivel de la pieza (lib/precios.js); las piedras y la probabilidad, de la tabla
+    const cost = { ...ENCHANT_COSTS[currentLevel], gold: precios.encantarOro(itemLevel, currentLevel) };
 
     const playerRow = await db.query('SELECT gold FROM players WHERE id = $1', [playerId]);
     if (playerRow.rows[0].gold < cost.gold) {
@@ -3594,6 +3682,57 @@ router.post('/:playerId/enchant', requireAuth, async (req, res, next) => {
   } catch (error) { next(error); }
 });
 
+// POST /api/player/:playerId/reforjar { slot } — sube un escalón la calidad de la pieza equipada en ese hueco
+// (lib/precios.js: cuesta horas de caza del nivel de la pieza; si falla, el oro se pierde y la pieza queda igual).
+// La calidad multiplica todas las estadísticas de la pieza (lib/equipment.js QUALITY_TIER_MULTIPLIER).
+router.post('/:playerId/reforjar', requireAuth, async (req, res, next) => {
+  const { playerId } = req.params;
+  const slot = String(req.body?.slot ?? '');
+  try {
+    const eq = (await db.query(
+      `SELECT pe.id, pe.item_id, pe.enchant_level, pe.quality_tier, i.name, i.required_level
+       FROM player_equipment pe JOIN items i ON i.id = pe.item_id WHERE pe.player_id = $1 AND pe.slot = $2`,
+      [playerId, slot])).rows[0];
+    if (!eq) return res.status(400).json({ error: 'No tienes equipo en ese hueco' });
+    const tier = eq.quality_tier || 0;
+    const costo = precios.reforjaCosto(eq.required_level, tier);
+    if (!costo) return res.status(400).json({ error: `${eq.name} ya tiene la mejor calidad` });
+    const exito = Math.random() * 100 < costo.prob;
+    const QUALITY = [1.0, 1.15, 1.35, 1.60, 2.0];
+    const client = await db.pool.connect();
+    try {
+      await client.query('BEGIN');
+      const paid = await client.query('UPDATE players SET gold = gold - $1 WHERE id = $2 AND gold >= $1 RETURNING gold', [costo.oro, playerId]);
+      if (!paid.rows.length) {
+        await client.query('ROLLBACK');
+        return res.status(400).json({ error: `Necesitas ${costo.oro.toLocaleString('es')} de oro` });
+      }
+      if (exito) {
+        // la vida de la pieza sube con la calidad: se suma la diferencia (como al encantar)
+        const hp = await client.query("SELECT amount FROM item_stat_bonuses WHERE item_id = $1 AND stat_code = 'HP' AND NOT is_percent", [eq.item_id]);
+        if (hp.rows.length) {
+          const base = Number(hp.rows[0].amount) * (1 + (eq.enchant_level || 0) * 0.05);
+          const delta = Math.round(base * QUALITY[tier + 1]) - Math.round(base * QUALITY[tier]);
+          await client.query(
+            'UPDATE players SET max_hp = GREATEST(1, max_hp + $1), hp = LEAST(GREATEST(1, max_hp + $1), GREATEST(0, hp + $1)), updated_at = now() WHERE id = $2',
+            [delta, playerId]);
+        }
+        await client.query('UPDATE player_equipment SET quality_tier = quality_tier + 1 WHERE id = $1', [eq.id]);
+      }
+      await client.query('COMMIT');
+    } catch (e) {
+      await client.query('ROLLBACK');
+      throw e;
+    } finally {
+      client.release();
+    }
+    const NOMBRE = ['común', 'poco común', 'rara', 'épica', 'legendaria'];
+    res.json(exito
+      ? { success: true, qualityTier: tier + 1, message: `¡${eq.name} sube a calidad ${NOMBRE[tier + 1]}! Sus estadísticas crecen.` }
+      : { success: false, qualityTier: tier, message: `La reforja de ${eq.name} falló. El oro se perdió, la pieza está intacta.` });
+  } catch (error) { next(error); }
+});
+
 // GET /api/player/:playerId/enchant/npc/:npcId/info
 router.get('/:playerId/enchant/npc/:npcId/info', requireAuth, async (req, res, next) => {
   const { playerId, npcId } = req.params;
@@ -3605,7 +3744,7 @@ router.get('/:playerId/enchant/npc/:npcId/info', requireAuth, async (req, res, n
     if (!partyCheck.rows.length) return res.status(403).json({ error: 'Ese NPC no es de tu formación' });
 
     const equip = await db.query(
-      `SELECT ne.slot, ne.enchant_level, i.name AS item_name
+      `SELECT ne.slot, ne.enchant_level, i.name AS item_name, i.required_level AS item_level
        FROM npc_equipment ne
        JOIN items i ON i.id = ne.item_id
        WHERE ne.npc_id = $1 ORDER BY ne.slot`,
@@ -3619,7 +3758,7 @@ router.get('/:playerId/enchant/npc/:npcId/info', requireAuth, async (req, res, n
         itemName: r.item_name,
         enchantLevel: lvl,
         maxLevel: 10,
-        nextCost: next ? { stone: next.stone, quantity: next.qty, gold: next.gold, successRate: next.rate } : null,
+        nextCost: next ? { stone: next.stone, quantity: next.qty, gold: precios.encantarOro(r.item_level, lvl), successRate: next.rate } : null,
       };
     });
     res.json(slots);
@@ -3640,17 +3779,17 @@ router.post('/:playerId/enchant/npc/:npcId', requireAuth, async (req, res, next)
     if (!partyCheck.rows.length) return res.status(403).json({ error: 'Ese NPC no es de tu formación' });
 
     const equip = await db.query(
-      `SELECT ne.item_id, ne.enchant_level, i.name AS item_name
+      `SELECT ne.item_id, ne.enchant_level, i.name AS item_name, i.required_level AS item_level
        FROM npc_equipment ne JOIN items i ON i.id = ne.item_id
        WHERE ne.npc_id = $1 AND ne.slot = $2`,
       [npcId, slot]
     );
     if (!equip.rows.length) return res.status(400).json({ error: 'El NPC no tiene equipo en ese slot' });
 
-    const { item_id: itemId, enchant_level: currentLevel, item_name: itemName } = equip.rows[0];
+    const { item_id: itemId, enchant_level: currentLevel, item_name: itemName, item_level: itemLevel } = equip.rows[0];
     if (currentLevel >= 10) return res.status(400).json({ error: 'El ítem ya está al nivel máximo (+10)' });
 
-    const cost = ENCHANT_COSTS[currentLevel];
+    const cost = { ...ENCHANT_COSTS[currentLevel], gold: precios.encantarOro(itemLevel, currentLevel) };
 
     const playerRow = await db.query('SELECT gold FROM players WHERE id = $1', [playerId]);
     if (playerRow.rows[0].gold < cost.gold) {
@@ -3816,6 +3955,7 @@ router.post('/:playerId/artisan-shop/sell', requireAuth, requireNear('artesanos'
 
     const have = await inventory.getQuantity(playerId, itemId, enchantLevel);
     if (have < qty) return res.status(400).json({ error: `Solo tienes ${have}x ${name}` });
+    if (await mochila.esFavorito(playerId, itemId, enchantLevel)) return res.status(400).json({ error: `${name} tiene candado: quítaselo en la mochila para venderlo.` });
 
     // No permitir vender si está equipado
     if (item_type === 'EQUIPMENT') {
@@ -3843,6 +3983,51 @@ router.post('/:playerId/artisan-shop/sell', requireAuth, requireNear('artesanos'
     }
 
     res.json({ success: true, message: `Vendiste ${qty}x ${name} por ${totalEarned} de oro.`, goldEarned: totalEarned });
+  } catch (error) { next(error); }
+});
+
+// POST /api/player/:playerId/artisan-shop/sell-batch { items: [{ itemId, enchantLevel, quantity }] }
+// «Vender lo que no usas»: vende varias cosas de una vez a los artesanos, con las mismas reglas que una
+// sola (precio fijo por rareza, nada equipado ni de misión). Lo que no se pueda vender se salta.
+router.post('/:playerId/artisan-shop/sell-batch', requireAuth, requireNear('artesanos'), async (req, res, next) => {
+  const { playerId } = req.params;
+  const items = Array.isArray(req.body?.items) ? req.body.items.slice(0, 200) : [];
+  if (!items.length) return res.status(400).json({ error: 'No elegiste nada para vender' });
+  try {
+    const equipped = new Set((await db.query('SELECT item_id FROM player_equipment WHERE player_id = $1', [playerId])).rows.map((r) => r.item_id));
+    let total = 0;
+    let count = 0;
+    const client = await db.pool.connect();
+    try {
+      await client.query('BEGIN');
+      for (const it of items) {
+        const itemId = Number(it.itemId);
+        const enchantLevel = Number(it.enchantLevel) || 0;
+        const qty = Math.max(1, Math.min(999, parseInt(it.quantity) || 1));
+        const itemRow = itemId ? await npcSell.itemForSale(itemId, client) : null;
+        if (!itemRow || itemRow.is_quest_item || equipped.has(itemId)) continue;
+        if (await mochila.esFavorito(playerId, itemId, enchantLevel, client)) continue;
+        const price = npcSell.artisanPrice(itemRow);
+        if (!price) continue;
+        const have = Number((await client.query(
+          'SELECT COALESCE(SUM(quantity), 0)::int AS n FROM player_inventory WHERE player_id = $1 AND item_id = $2 AND enchant_level = $3',
+          [playerId, itemId, enchantLevel])).rows[0].n);
+        const n = Math.min(qty, have);
+        if (n < 1) continue;
+        await inventory.removeItem(playerId, itemId, n, enchantLevel, null, client);
+        total += price * n;
+        count += n;
+      }
+      if (total > 0) await client.query('UPDATE players SET gold = gold + $1 WHERE id = $2', [total, playerId]);
+      await client.query('COMMIT');
+    } catch (e) {
+      await client.query('ROLLBACK');
+      throw e;
+    } finally {
+      client.release();
+    }
+    if (!count) return res.status(400).json({ error: 'No había nada que se pudiera vender' });
+    res.json({ success: true, goldEarned: total, sold: count, message: `Vendiste ${count} objeto${count === 1 ? '' : 's'} por ${total.toLocaleString('es')} de oro.` });
   } catch (error) { next(error); }
 });
 

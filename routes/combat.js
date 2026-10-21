@@ -1,6 +1,7 @@
 const express = require('express');
 const db = require('../db/db');
 const combat = require('../lib/combat');
+const mecanicas = require('../lib/mecanicas');
 const inventory = require('../lib/inventory');
 const leveling = require('../lib/leveling');
 const { getEquipmentBonuses, getNpcEquipmentBonuses } = require('../lib/equipment');
@@ -68,11 +69,17 @@ function meditationHealPercent(usesSoFar) {
 // el contador es de clase (ver backend-spec-evolution-counters.md sección 3.1).
 const PUNCH_CLASS_IDS = [6, 38, 42];
 const CUT_CLASS_IDS = [7, 43];
+// los tajos del Guerrero también cuentan como "de un tajo" (la rama del Espadachín se gana antes de serlo)
+const CUT_SKILL_CODES = ['GUERRERO_TAJO', 'GUERRERO_GOLPE_MORTAL', 'GUERRERO_CORTE_DIVINO'];
+// las trampas: la del Especialista y la Trampa de Cuerda del Pícaro (la rama del Especialista se gana con ella)
+const TRAP_SKILL_CODES = ['ESPECIALISTA_TRAMPAS_TRAMPA', 'PICARO_TRAMPA'];
 
 // Los 5 venenos que cuentan para VENENOS_DOMINADOS (Envenenador -> Maestro Envenenador).
 const POISON_SKILL_CODES = [
   'PICARO_ENVENENAMIENTO', 'ENVENENADOR_DOT', 'ENVENENADOR_DOT_DEBILITANTE',
   'ENVENENADOR_DOT_CORROSIVO', 'MAESTRO_ENVENENADOR_DOT_VACIO',
+  // la Flecha Venenosa del Arquero (la rama del Tirador de Veneno)
+  'ARQUERO_FLECHA_VENENOSA',
 ];
 
 // World Boss (docs/backend-spec-world-boss.md): balance defaults, ajustables sin tocar
@@ -262,6 +269,21 @@ function interpolateStat(level, low, high, key) {
   if (low.level === high.level) return lowVal;
   const t = (level - low.level) / (high.level - low.level);
   return lowVal + (highVal - lowVal) * t;
+}
+
+// la sombra del héroe (la Ascensión, docs/evoluciones_pruebas.md): toma la vida llena, las estadísticas y la
+// clase de quien pelea. Las recompensas quedan las del monstruo.
+const SOMBRA_HEROE = 'SOMBRA_HEROE';
+const STATS_SOMBRA = ['max_hp', 'max_mana', 'atk', 'mag', 'def', 'magic_def', 'spd', 'crit_chance', 'crit_damage', 'evasion',
+  'magic_damage_bonus', 'physical_damage_bonus', 'elemental_damage_bonus', 'heal_bonus', 'class_id', 'level'];
+function copiarSombra(enemies, hero) {
+  if (!hero) return;
+  for (const e of enemies.filter((x) => x.monster_code === SOMBRA_HEROE)) {
+    for (const k of STATS_SOMBRA) if (hero[k] != null) e[k] = hero[k];
+    e.hp = e.max_hp;
+    e.mana = e.max_mana;
+    e.name = `Sombra de ${hero.name}`;
+  }
 }
 
 async function hydrateMonsters(monsterSpecs) {
@@ -555,8 +577,10 @@ async function loadParticipants(sessionId) {
     p.paralysis = null;
     p.blind_miss = 0;
     p.taunting = false;
+    mecanicas.iniciar(p, all);
     for (const buff of buffsResult.rows) {
       if (buff.participant_id !== p.id) continue;
+      if (mecanicas.leerBuff(p, buff)) continue;
       if (buff.stat_code.startsWith('RESIST_')) {
         const elemCode = buff.stat_code.replace('RESIST_', '');
         p.temp_resist[elemCode] = (p.temp_resist[elemCode] || 0) + Number(buff.applied_flat);
@@ -596,9 +620,13 @@ async function persistParticipant(p) {
        atk=$5, mag=$6, def=$7, spd=$8, magic_def=$9, crit_chance=$10,
        imbued_element_id=$11, imbued_damage_bonus=$12
      WHERE id=$13`,
-    [p.hp, p.mana, p.is_defending, p.has_acted_this_round, p.atk, p.mag, p.def, p.spd, p.magic_def, p.crit_chance,
-     p.imbued_element_id ?? null, p.imbued_damage_bonus ?? 0, p.id]
+    // redondeadas: la innata del Arquero del Rayo suma 0,01 de velocidad para desempatar (lib/innates.js) y las
+    // columnas son enteras; en memoria el desempate sigue, porque la innata se vuelve a aplicar en cada carga
+    [Math.round(p.hp), Math.round(p.mana), p.is_defending, p.has_acted_this_round, Math.round(p.atk), Math.round(p.mag), Math.round(p.def),
+     Math.round(p.spd), Math.round(p.magic_def), p.crit_chance, p.imbued_element_id ?? null, p.imbued_damage_bonus ?? 0, p.id]
   );
+  // lo que cambió al recibir el golpe (barrera, clon, contragolpe…: lib/mecanicas.js)
+  await mecanicas.guardar(p);
   await markNearDeathIfLow(p);
 }
 
@@ -822,7 +850,7 @@ async function registerKillCounters(playerId, sessionId, deadTargets, skill, act
     if (skill.code === 'PICARO_GOLPE_LETAL') await incrementCounter(playerId, 'GOLPES_LETALES', deadTargets.length);
     if (skill.code === 'ARQUERO_FLECHA_EXPLOSIVA') await incrementCounter(playerId, 'KILLS_EXPLOSIVO', deadTargets.length);
     if (PUNCH_CLASS_IDS.includes(skill.class_id)) await incrementCounter(playerId, 'KILLS_GOLPE_PUNO', deadTargets.length);
-    if (CUT_CLASS_IDS.includes(skill.class_id)) await incrementCounter(playerId, 'KILLS_CORTE', deadTargets.length);
+    if (CUT_CLASS_IDS.includes(skill.class_id) || CUT_SKILL_CODES.includes(skill.code)) await incrementCounter(playerId, 'KILLS_CORTE', deadTargets.length);
   }
 
   for (const target of deadTargets) {
@@ -1066,7 +1094,7 @@ async function teachableSkillNames(playerId, fromLevel, toLevel) {
 // todas sus filas (la quemadura es daño por turno + menos ataque). Las habilidades de estado
 // (Envenenamiento…) no pasan por aquí: esas siempre aplican.
 const STATUS_NAMES = { BLEED: 'sangrado', BURN: 'quemadura', SLOW: 'ralentización', PARALYZE: 'parálisis', BLIND: 'ceguera', WEAKEN: 'debilidad', POISON: 'veneno' };
-const DOT_NAMES = { BLEED: 'sangrado', BURN: 'quemadura', POISON: 'veneno' };
+const DOT_NAMES = { BLEED: 'sangrado', BURN: 'quemadura', POISON: 'veneno', PLAGA: 'la plaga', RAICES: 'las raíces' };
 // paralizado: probabilidad de perder el turno (se sortea una vez por ronda)
 const PARALYSIS_SKIP_PERCENT = 25;
 
@@ -1159,6 +1187,15 @@ async function applyOnHitStatuses(sessionId, actor, skill, results, descParts) {
 
 // Parálisis: al empezar su turno, una vez por ronda, puede quedarse sin actuar
 async function paralysisSkip(sessionId, round, actor) {
+  // congelado o enraizado (lib/mecanicas.js): pierde este turno seguro
+  const sinTurno = await mecanicas.pierdeTurno(actor);
+  if (sinTurno) {
+    actor.has_acted_this_round = true;
+    actor.is_defending = false;
+    await persistParticipant(actor);
+    await insertLog(sessionId, round, { actorId: actor.id, targetId: actor.id, action: 'SKILL', success: false, description: sinTurno });
+    return true;
+  }
   if (!actor.paralysis || actor.paralysis.checkedRound === round) return false;
   await db.query('UPDATE combat_participant_buffs SET applied_flat = $1 WHERE id = $2', [round, actor.paralysis.buffId]);
   actor.paralysis.checkedRound = round;
@@ -1481,6 +1518,11 @@ async function startNewRound(sessionId, participants) {
         actorId: p.id, targetId: p.id, action: 'SKILL', damage: dotDmg, hp_after: p.hp,
         description: `${p.name} sufre ${dotDmg} de daño por ${DOT_NAMES[dot.status_code] ?? 'veneno'}.`,
       });
+      if (p.hp <= 0) {
+        for (const texto of await mecanicas.alMorir(p, participants, sessionId)) {
+          await insertLog(sessionId, newRound - 1, { actorId: p.id, targetId: p.id, action: 'SKILL', description: texto });
+        }
+      }
     }
   }
 
@@ -2407,6 +2449,16 @@ async function advanceEnemyTurns(sessionId) {
 
     const actor = combat.nextActor(participants.enemy);
     if (await paralysisSkip(sessionId, round, actor)) continue;
+    // la Sentencia del Mago Divino (lib/mecanicas.js): cada vez que actúa, la luz lo quema
+    const sentencia = await mecanicas.alActuar(actor);
+    if (sentencia) {
+      await insertLog(sessionId, round, { actorId: actor.id, targetId: actor.id, action: 'SKILL', damage: sentencia.dmg, hp_after: actor.hp, description: sentencia.texto });
+      if (actor.hp <= 0) {
+        actor.has_acted_this_round = true;
+        await persistParticipant(actor);
+        continue;
+      }
+    }
     if (actor.is_preparing_trap) {
       await resolveTrapActivation(sessionId, round, actor, participants);
       continue;
@@ -2421,14 +2473,24 @@ async function advanceEnemyTurns(sessionId) {
 
     // === IA de skills de monstruo ===
     let skillActionDone = false;
-    if (actor.monster_code) {
-      const monsterSkillsRes = await db.query(
-        `SELECT s.*, ms.use_chance_percent
-         FROM monster_skills ms
-         JOIN skills s ON s.id = ms.skill_id
-         WHERE ms.monster_id = (SELECT id FROM monsters WHERE code = $1)`,
-        [actor.monster_code]
-      );
+    // silenciado (lib/mecanicas.js): solo puede pegar con el ataque básico
+    if (actor.monster_code && !actor.mec?.silencio) {
+      // tu sombra pelea con tus habilidades (las de ataque, cura y apoyo, las seis de nivel más alto)
+      const duenoSombra = actor.monster_code === SOMBRA_HEROE ? participants.player.find((p) => p.player_id)?.player_id : null;
+      const monsterSkillsRes = duenoSombra
+        ? await db.query(
+          `SELECT s.*, 40 AS use_chance_percent FROM player_skills ps JOIN skills s ON s.id = ps.skill_id
+           WHERE ps.player_id = $1 AND NOT COALESCE(s.is_passive, FALSE) AND s.skill_type IN ('ATAQUE', 'CURACION', 'BUFF', 'DEBUFF', 'ESTADO_ALTERADO')
+           ORDER BY s.learn_level DESC NULLS LAST LIMIT 6`,
+          [duenoSombra]
+        )
+        : await db.query(
+          `SELECT s.*, ms.use_chance_percent
+           FROM monster_skills ms
+           JOIN skills s ON s.id = ms.skill_id
+           WHERE ms.monster_id = (SELECT id FROM monsters WHERE code = $1)`,
+          [actor.monster_code]
+        );
 
       const aliveEnemies = participants.enemy.filter((p) => p.hp > 0);
       const deadEnemies = participants.enemy.filter((p) => p.hp <= 0);
@@ -2496,7 +2558,15 @@ async function advanceEnemyTurns(sessionId) {
         const skillDescParts = [];
         let skillLog = null; // ataques y curaciones: con sus números (ver más abajo)
 
-        if (['BUFF', 'DEBUFF'].includes(skill.skill_type)) {
+        // habilidades con mecánicas (lib/mecanicas.js): los jefes y minijefes también las usan
+        const firmaMonstruo = await mecanicas.efectosFirma(skill.id);
+        if (firmaMonstruo.length) {
+          const { actorId: _actor, action: _accion, ...entrada } = await mecanicas.resolver({
+            sessionId, round, actor, targets: skillTargets, skill, firma: firmaMonstruo, participants, elementalModsByTargetId: {},
+            elemCode: null, persistParticipant, registerKillCounters, playerId: null,
+          });
+          skillLog = entrada;
+        } else if (['BUFF', 'DEBUFF'].includes(skill.skill_type)) {
           const isDebuff = skill.skill_type === 'DEBUFF';
           const buffEffects = await db.query(
             "SELECT effect_type, stat_code, percent_amount, duration_turns FROM skill_effects WHERE skill_id = $1 AND duration_turns IS NOT NULL",
@@ -3302,6 +3372,9 @@ router.post('/sessions', async (req, res, next) => {
     }
     // el eclipse de las Ruinas Ancestrales (lib/eclipse.js): los monstruos de la zona salen corrompidos
     await eclipse.corromper(db, req.playerId, enemyCombatants).catch(() => false);
+    // la Ascensión (docs/evoluciones_pruebas.md): tu sombra es una copia tuya, con tus estadísticas y tu clase
+    // (sus habilidades son las tuyas: ver la IA de los monstruos en advanceEnemyTurns)
+    copiarSombra(enemyCombatants, playerCombatants.find((p) => p.player_id === req.playerId) ?? playerCombatants[0]);
     const aliveHero = playerCombatants.filter((p) => p.hp > 0);
     // el final (R13): en sus emboscadas pelean a tu lado dos de los que ayudaste en el viaje
     const allies = await aliados.deEmboscada(req.playerId, monsters.map((m) => m.code), playerCombatants[0]).catch(() => []);
@@ -3801,6 +3874,8 @@ router.post('/sessions/:id/action', async (req, res, next) => {
       await consumeCritImmunityIfUsed(target, result);
       await checkOnceForCombatSave(target);
       await persistParticipant(target);
+      // chi del monje, presa y plaga (lib/mecanicas.js)
+      const mecBasico = await mecanicas.trasGolpe({ sessionId, actor, elemCode: null, results: [{ target, amount: result.damage, evaded: result.evaded }], participants });
       if (actor.player_id === req.playerId) {
         await questProgress.registerAction(req.playerId, { baseAction: 'ATTACK', killCount: target.hp <= 0 ? 1 : 0 });
         await registerCritCounter(req.playerId, result.crit);
@@ -3817,7 +3892,7 @@ router.post('/sessions/:id/action', async (req, res, next) => {
         crit: result.crit,
         description: result.evaded
           ? `${actor.name} ataca a ${target.name}, pero esquiva el golpe.`
-          : `${actor.name} ataca a ${target.name}, infligiéndole ${result.damage} de daño${attackElementalMods ? ' elemental' : ''}${result.crit ? ' (¡Crítico!)' : ''}.${manaGained > 0 ? ` Recupera ${manaGained} de maná.` : ''}`,
+          : `${actor.name} ataca a ${target.name}, infligiéndole ${result.damage} de daño${attackElementalMods ? ' elemental' : ''}${result.crit ? ' (¡Crítico!)' : ''}.${manaGained > 0 ? ` Recupera ${manaGained} de maná.` : ''}${mecBasico.length ? ` ${mecBasico.join(' ')}` : ''}`,
         hp_after: target.hp, mana_after: actor.mana,
       };
       } // end else (no_damage_window)
@@ -3884,6 +3959,10 @@ router.post('/sessions/:id/action', async (req, res, next) => {
       if (actor.mana < skill.mana_cost) {
         return res.status(400).json({ error: `No te alcanza el maná (necesitas ${skill.mana_cost})` });
       }
+      // las habilidades firma de las evoluciones (lib/mecanicas.js) y el silencio
+      const firma = await mecanicas.efectosFirma(skill.id);
+      const noPuede = mecanicas.validar(firma, actor, participants, session.current_round);
+      if (noPuede) return res.status(400).json({ error: noPuede });
 
       // Tiempo de espera: cooldown_rounds = cada cuántas rondas se puede usar (2 = una ronda sí y
       // otra no). Se guarda por combatiente y habilidad en combat_skill_cooldowns.
@@ -4005,7 +4084,12 @@ router.post('/sessions/:id/action', async (req, res, next) => {
         }
       }
 
-      if (['BUFF', 'DEBUFF'].includes(skill.skill_type)) {
+      if (firma.length) {
+        logEntry = await mecanicas.resolver({
+          sessionId, round: session.current_round, actor, targets, skill, firma, participants, elementalModsByTargetId,
+          elemCode: skillElemCode, persistParticipant, registerKillCounters, playerId: req.playerId,
+        });
+      } else if (['BUFF', 'DEBUFF'].includes(skill.skill_type)) {
         const isDebuff = skill.skill_type === 'DEBUFF';
         const effectsResult = await db.query(
           `SELECT effect_type, stat_code, percent_amount, duration_turns FROM skill_effects
@@ -4205,7 +4289,7 @@ router.post('/sessions/:id/action', async (req, res, next) => {
               [sessionId, actor.id, Number(manosRapidas.extra_json.penalty_percent || 0)]
             );
           }
-        } else if (skill.code === 'ESPECIALISTA_TRAMPAS_TRAMPA') {
+        } else if (TRAP_SKILL_CODES.includes(skill.code)) {
           const terrenoPreparado = await getSkillModifier(actor.class_id, 'ESPECIALISTA_TRAMPAS_TRAMPA');
           if (terrenoPreparado?.extra_json?.effect === 'instant_activation_same_turn') {
             actor.is_preparing_trap = false;
@@ -4369,6 +4453,8 @@ router.post('/sessions/:id/action', async (req, res, next) => {
         for (const r of results) await persistParticipant(r.target);
         const statusParts = [];
         await applyOnHitStatuses(sessionId, actor, skill, results, statusParts);
+        // reacciones elementales, runa, chi, presa y plaga (lib/mecanicas.js)
+        if (skill.skill_type === 'ATAQUE') statusParts.push(...await mecanicas.trasGolpe({ sessionId, actor, elemCode: skillElemCode, results, participants }));
         if (actor.player_id === req.playerId) {
           const deadTargets = results.filter((r) => r.target.hp <= 0).map((r) => r.target);
           await questProgress.registerAction(req.playerId, {
