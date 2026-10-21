@@ -6,6 +6,7 @@ const { spendCurrency, withTransaction, learnSkillForGold } = require('../lib/cu
 const leveling = require('../lib/leveling');
 const questProgress = require('../lib/questProgress');
 const achievements = require('../lib/achievements');
+const logros = require('../lib/logros');
 const { getEquipmentBonuses, applyHpBonusDelta, getNpcEquipmentBonuses, getNpcEquipmentBonusesBatch, applyNpcHpBonusDelta, QUALITY_TIER_MULTIPLIER: EQUIP_QUALITY_MULT } = require('../lib/equipment');
 const { getClassPassiveBonuses } = require('../lib/passives');
 const eleccion = require('../lib/eleccion');
@@ -1641,6 +1642,8 @@ router.post('/:playerId/quests/:questId/complete', async (req, res, next) => {
     );
     const timesCompleted = timesCompletedRes.rows[0]?.times_completed || 1;
     const unlockedAchievements = await achievements.checkQuestAchievements(playerId, questId, timesCompleted);
+    // los logros nuevos (lib/logros.js): historia, elecciones, Trueno…
+    const logrosNuevos = await logros.revisarSeguro(playerId);
 
     res.json({
       questCompleted: quest.name,
@@ -1660,6 +1663,7 @@ router.post('/:playerId/quests/:questId/complete', async (req, res, next) => {
         bonusCategory: a.bonus_category,
         bonusPercent: a.bonus_percent,
       })),
+      logros: logrosNuevos,
     });
   } catch (error) {
     next(error);
@@ -1787,6 +1791,21 @@ router.get('/:playerId/quests/completed', async (req, res, next) => {
       timesCompleted: q.times_completed,
       lastCompletedAt: q.last_completed_at,
     })));
+  } catch (error) { next(error); }
+});
+
+// GET /api/player/:playerId/logros — la ventana de Logros (lib/logros.js): los 62 con su avance, los grupos,
+// los Puntos de Gesta con sus hitos y el título equipado. Antes revisa los que falten (así se dan los que
+// se ganaron antes de que existieran).
+router.get('/:playerId/logros', async (req, res, next) => {
+  try { res.json(await logros.estado(Number(req.params.playerId))); } catch (error) { next(error); }
+});
+// POST /api/player/:playerId/logros/titulo { code } — equipa el título de un logro ganado (code null: lo quita)
+router.post('/:playerId/logros/titulo', async (req, res, next) => {
+  try {
+    const r = await logros.equiparTitulo(Number(req.params.playerId), req.body?.code ? String(req.body.code) : null);
+    if (r.error) return res.status(400).json(r);
+    res.json(r);
   } catch (error) { next(error); }
 });
 
@@ -2189,6 +2208,13 @@ router.post('/:playerId/craft', async (req, res, next) => {
     if (totalGained > 0 && recipe.result_item_type === 'CONSUMABLE') {
       await incrementCounter(playerId, 'POCIONES_CRAFTEADAS', totalGained);
     }
+    // logros de artesanía (lib/logros.js)
+    if (totalGained > 0) {
+      await incrementCounter(playerId, 'OBJETOS_FABRICADOS', totalGained);
+      if (recipe.rarity === 'LEGENDARIO') await incrementCounter(playerId, 'LEGENDARIOS_FABRICADOS', successCount);
+      if (String(recipeCode).startsWith('RECETA_LAGRIMA_')) await incrementCounter(playerId, 'LAGRIMA_FORJADA');
+    }
+    const logrosNuevos = totalGained > 0 ? await logros.revisarSeguro(playerId) : [];
 
     if (totalGained > 0) {
       const classRes = await db.query(
@@ -2208,6 +2234,7 @@ router.post('/:playerId/craft', async (req, res, next) => {
 
     res.json({
       success: successCount > 0,
+      logros: logrosNuevos,
       successCount,
       failCount,
       quantity: qty,
@@ -2388,10 +2415,17 @@ router.post('/:playerId/use-item', async (req, res, next) => {
       message = effectDesc ? `Usaste ${item.name}: ${effectDesc}` : `Comiste ${item.name}`;
     }
     if (foodBuff) message += `. Bien alimentado ${comida.FOOD_MINUTES} min: tus combates empiezan con ${foodBuff.text}.`;
+    // comidas (no pociones): el logro secreto «Buen Diente» (lib/logros.js)
+    let logrosNuevos = [];
+    if (!targetNpcId && (foodBuff || !/POCION|ELIXIR|ESENCIA|ANTIDOTO|VENDAJE|AGUA_/.test(String(item.code ?? '')))) {
+      await incrementCounter(playerId, 'COMIDAS');
+      logrosNuevos = await logros.revisarSeguro(playerId);
+    }
 
     res.json({
       message,
       foodBuff,
+      logros: logrosNuevos,
       targetNpcId: targetNpcId ?? null,
       hp: newHp,
       maxHp: target.max_hp,

@@ -222,7 +222,9 @@ router.post('/cartas/sobre', async (req, res, next) => {
       return { cards: await huevos.abrirSobre(req.playerId, zoneId, client) };
     });
     if (out.error) return res.status(400).json({ error: out.error });
+    await require('../lib/counters').incrementCounter(req.playerId, 'SOBRES_ABIERTOS');
     res.json({
+      logros: await require('../lib/logros').revisarSeguro(req.playerId),
       cards: out.cards,
       message: `Abriste el ${item.name}: ${out.cards.map((c) => c.name).join(', ')}.`,
     });

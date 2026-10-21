@@ -184,14 +184,18 @@ router.post('/mapa/celdas', async (req, res, next) => {
     res.json(r);
   } catch (err) { next(err); }
 });
+// (los dos revisan los logros de exploración: lib/logros.js)
 router.post('/mapa/descubrir', async (req, res, next) => {
-  try { res.json(await exploracion.discover(req.playerId, String(req.body?.zona ?? ''), String(req.body?.subzona ?? ''))); } catch (err) { next(err); }
+  try {
+    const r = await exploracion.discover(req.playerId, String(req.body?.zona ?? ''), String(req.body?.subzona ?? ''));
+    res.json({ ...r, logros: await require('../lib/logros').revisarSeguro(req.playerId) });
+  } catch (err) { next(err); }
 });
 router.post('/secreto', async (req, res, next) => {
   try {
     const r = await exploracion.openSecret(req.playerId, String(req.body?.id ?? ''));
     if (r.error) return res.status(400).json(r);
-    res.json(r);
+    res.json({ ...r, logros: await require('../lib/logros').revisarSeguro(req.playerId) });
   } catch (err) { next(err); }
 });
 

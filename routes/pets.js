@@ -4,6 +4,8 @@ const { requireAuth, requireSelf } = require('../lib/auth');
 const { getActivePetBonuses } = require('../lib/pets');
 const { parseQuantity } = require('../lib/currency');
 const huevos = require('../lib/huevos');
+const logros = require('../lib/logros');
+const { incrementCounter } = require('../lib/counters');
 
 const router = express.Router({ mergeParams: true });
 router.use(requireAuth);
@@ -25,7 +27,7 @@ router.get('/', async (req, res, next) => {
   try {
     const { playerId } = req.params;
     const result = await db.query(
-      `SELECT pp.id, pp.pet_id, p.code, p.name, p.rarity, p.description, p.element_id,
+      `SELECT pp.id, pp.pet_id, p.code, p.name, p.rarity, p.description, p.element_id, p.zone_id,
               pp.level, pp.bond_points, pp.is_active, pp.hatched_at,
               COALESCE(
                 (SELECT json_agg(json_build_object(
@@ -161,13 +163,26 @@ router.post('/:playerPetId/feed', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
+// GET /api/player/:playerId/pets/catalogo — todas las mascotas (con su zona) y cuánto tarda cada huevo:
+// el panel de mascotas muestra qué puede nacer de cada huevo (lib/huevos.js)
+router.get('/catalogo', async (req, res, next) => {
+  try {
+    const r = await db.query('SELECT id, code, name, rarity, zone_id FROM pets ORDER BY id');
+    res.json({ pets: r.rows, hatchHours: HATCH_HOURS });
+  } catch (err) { next(err); }
+});
+
 // GET /api/player/:playerId/incubator
+// seconds_left / total_seconds: los segundos los cuenta la base (las horas se guardan sin zona horaria y el
+// navegador las leía corridas); el panel arma la cuenta regresiva con su propio reloj.
 router.get('/incubator', async (req, res, next) => {
   try {
     const { playerId } = req.params;
     const result = await db.query(
-      `SELECT pi.egg_item_id, i.name AS egg_name, pi.egg_rarity,
+      `SELECT pi.egg_item_id, i.name AS egg_name, i.code AS egg_code, pi.egg_rarity,
               pi.started_at, pi.hatch_ready_at,
+              GREATEST(0, EXTRACT(EPOCH FROM pi.hatch_ready_at - now()))::int AS seconds_left,
+              GREATEST(1, EXTRACT(EPOCH FROM pi.hatch_ready_at - pi.started_at))::int AS total_seconds,
               (now() >= pi.hatch_ready_at) AS ready
        FROM player_incubator pi
        JOIN items i ON i.id = pi.egg_item_id
@@ -248,13 +263,15 @@ router.post('/incubator/claim', async (req, res, next) => {
     );
 
     await db.query('DELETE FROM player_incubator WHERE player_id = $1', [playerId]);
+    await incrementCounter(playerId, 'MASCOTAS_NACIDAS');
+    const logrosNuevos = await logros.revisarSeguro(Number(playerId));
 
     const info = await db.query(
       `SELECT pp.id, p.code, p.name, p.rarity, p.description, pp.level, pp.bond_points, pp.is_active
        FROM player_pets pp JOIN pets p ON p.id = pp.pet_id WHERE pp.id = $1`,
       [newPetRes.rows[0].id]
     );
-    res.status(201).json(info.rows[0]);
+    res.status(201).json({ ...info.rows[0], logros: logrosNuevos });
   } catch (err) { next(err); }
 });
 

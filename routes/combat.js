@@ -30,6 +30,7 @@ const { applyGuildXp, getGuildLevelsForPlayers, combatBonusMultipliers } = requi
 const { positionOf } = require('../lib/worldPresence');
 const pets = require('../lib/pets');
 const { incrementCounter, markCounterCodeSeen, getCounter } = require('../lib/counters');
+const logros = require('../lib/logros');
 const { applyInnateTrigger, applyLiveInnateModifiers, getInnateForClass, getSkillModifier, getTargetDamageBonus } = require('../lib/innates');
 
 // Enriquece `target` con datos que PASSIVE_CONDITIONAL "por target" necesita (categoría de
@@ -152,7 +153,7 @@ async function hydratePlayers(playerIds) {
       coleccion.utilityBonuses(p.id),
     ]);
 
-    const playerMaxHp = Math.round(p.max_hp * (1 + passives.hp / 100)) + petB.hp;
+    const playerMaxHp = Math.round(p.max_hp * (1 + (passives.hp + (util.hp || 0)) / 100)) + petB.hp;
     const luck = Number(p.luck || 0) + (passives.luck || 0) + (bonus.luck || 0) + petB.luck;
     return {
       side: 'PLAYER',
@@ -2284,6 +2285,12 @@ async function finalizeSession(sessionId, status, participants) {
     rewards.dungeonCoins = (rewards.dungeonCoins || 0) + dailyEventExtra.extraDungeonCoins;
     if (dailyEventExtra.bonusMaterial) rewards.bonusMaterial = dailyEventExtra.bonusMaterial;
   }
+
+  // logros (lib/logros.js): si peleaste solo, si fue un jefe, si quedaste al filo, y los que se
+  // ganaron con esta pelea (los del líder van en la respuesta; los demás los ven en su ventana)
+  const logrosPor = await logros.despuesDelCombate({ status, participants, heroPs, isBoss: mazmorras.isBoss })
+    .catch((err) => { console.error('[logros] combate', err.message); return new Map(); });
+  if (rewards && heroP) rewards.logros = logrosPor.get(heroP.player_id) ?? [];
 
   return rewards;
 }
