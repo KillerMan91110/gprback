@@ -3955,7 +3955,8 @@ router.post('/sessions/:id/action', async (req, res, next) => {
             return res.status(400).json({ error: 'Esa habilidad no es de tu clase' });
           }
         }
-        const unlockedByLevel = skill.learn_method === 'LEVEL' && playerRow.level >= (skill.learn_level || 1);
+        // por nivel solo las de tu clase: las sin clase (de monstruos o universales) hay que tenerlas aprendidas
+        const unlockedByLevel = skill.class_id !== null && skill.learn_method === 'LEVEL' && playerRow.level >= (skill.learn_level || 1);
         if (!unlockedByLevel) {
           const learned = await db.query(
             'SELECT 1 FROM player_skills WHERE player_id = $1 AND skill_id = $2',

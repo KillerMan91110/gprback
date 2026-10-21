@@ -438,7 +438,7 @@ router.get('/:playerId/class-skills', async (req, res, next) => {
       skillsRes = await db.query(
         `SELECT s.id, s.name, s.skill_type, s.is_passive, s.learn_method, s.learn_level, s.cooldown_rounds,
                 s.mana_cost, s.target_type, s.damage_school, s.hits, s.description, s.arma_requerida,
-                ((s.learn_method = 'LEVEL' AND s.learn_level <= $2)
+                ((s.learn_method = 'LEVEL' AND s.learn_level <= $2 AND s.class_id = ANY($3::int[]))
                  OR EXISTS(SELECT 1 FROM player_skills ps WHERE ps.player_id = $1 AND ps.skill_id = s.id)
                 ) AS learned
          FROM skills s

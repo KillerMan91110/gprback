@@ -33752,3 +33752,14 @@ WHERE c.id = s.class_id AND NOT s.is_passive
 UPDATE skills s SET arma_requerida = 'ARMA' FROM classes c
 WHERE c.id = s.class_id AND NOT s.is_passive AND c.code IN ('CABALLERO_SAGRADO', 'PALADIN')
   AND s.skill_type = 'ATAQUE' AND s.damage_school = 'FISICO';
+
+-- ============================================================================================
+-- Las habilidades de los monstruos y jefes no las aprende ningún jugador (repetible). Eran «sin clase, se aprende al
+-- nivel 1», y el libro de habilidades las daba por aprendidas a cualquiera cuyo monstruo no estuviera enlazado en
+-- monster_skills (en Supabase salían Aliento de Escarcha, Huesos de Piedra y Mirada del Devorador en una cuenta
+-- nueva). Con DROP solo las usa el monstruo: el combate de los monstruos no mira learn_method.
+-- ============================================================================================
+UPDATE skills SET learn_method = 'DROP'
+WHERE class_id IS NULL AND (code LIKE 'JEFE\_%' OR code LIKE 'MONSTRUO\_%') AND learn_method <> 'DROP';
+DELETE FROM player_skills WHERE skill_id IN (SELECT id FROM skills WHERE class_id IS NULL AND (code LIKE 'JEFE\_%' OR code LIKE 'MONSTRUO\_%'));
+DELETE FROM npc_skills WHERE skill_id IN (SELECT id FROM skills WHERE class_id IS NULL AND (code LIKE 'JEFE\_%' OR code LIKE 'MONSTRUO\_%'));
